@@ -1,0 +1,59 @@
+# ---- keepIT ----
+
+# User-uploaded media (image notes + background images). Never commit user data.
+media/
+**/media/
+
+# ---- .NET / ASP.NET Core ----
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+*.user
+*.userosscache
+*.suo
+*.cache
+
+# Build / publish output
+[Pp]ublish/
+artifacts/
+
+# Local app secrets & environment
+appsettings.*.local.json
+*.env
+.env
+.env.*
+secrets.json
+
+# ---- Visual Studio / Rider / VS Code ----
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# ---- Node / React frontend (web/) ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- OS ----
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ---- Docker ----
+# (compose env overrides, if any)
+docker-compose.override.yml
