@@ -1,6 +1,27 @@
 @keepITCore_HostAddress = http://localhost:5025
+@email = alice@example.com
+@password = Sup3rSecret!
 
-GET {{keepITCore_HostAddress}}/weatherforecast/
-Accept: application/json
+### Register
+POST {{keepITCore_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "{{password}}", "displayName": "Alice" }
+
+### Login (sets the refresh cookie)
+POST {{keepITCore_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "{{email}}", "password": "{{password}}" }
+
+### Current user (paste the access token)
+GET {{keepITCore_HostAddress}}/api/auth/me
+Authorization: Bearer <accessToken>
+
+### Refresh (uses the refresh cookie)
+POST {{keepITCore_HostAddress}}/api/auth/refresh
+
+### Logout
+POST {{keepITCore_HostAddress}}/api/auth/logout
 
 ###

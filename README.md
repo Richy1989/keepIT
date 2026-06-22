@@ -1,8 +1,9 @@
 # keepIT
 
 A Google Keep–style notes app: a masonry grid of note cards with fast, optimistic
-editing, labels, search, and **real-time sync** so a note edited on one device shows
-up on your others without a refresh.
+editing, lists, search, sharing, and **real-time sync** so a note edited on one device
+shows up on your others without a refresh. Keep's familiar layout, with a **dark, modern**
+look.
 
 > **Status:** early / work in progress. The backend is currently an ASP.NET Core
 > scaffold; most features below are designed but not yet implemented. See
@@ -17,7 +18,9 @@ Notes come in several types, and any note can be styled:
 - ☑️ **Checklist notes** — ordered, reorderable checkbox items.
 - 🖼️ **Image notes** — one or more images as the note's content.
 - 🎨 **Customizable backgrounds** — set a background **color** or **image** on any note.
-- 🏷️ Labels, search, pin, and archive (Keep-style soft-delete / trash).
+- 🗂️ **Lists** — organize notes into named collections (a note can be in many) and filter the grid by list.
+- 👥 **Shared notes** — share a note with other users as viewer or editor; changes sync live.
+- 🔍 Search, pin, and archive (Keep-style soft-delete / trash).
 - 🔄 **Real-time sync** across devices via SignalR.
 
 ## Tech stack

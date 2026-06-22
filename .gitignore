@@ -1,5 +1,14 @@
 # ---- keepIT ----
 
+# Common data folder (App__DataRoot): SQLite dev DB, uploaded media, data-protection keys.
+# Named App_Data (not "data") so it never collides with the C# Data/ source folder on
+# case-insensitive filesystems. Never commit user data.
+App_Data/
+**/App_Data/
+*.db
+*.db-shm
+*.db-wal
+
 # User-uploaded media (image notes + background images). Never commit user data.
 media/
 **/media/
@@ -25,6 +34,7 @@ appsettings.*.local.json
 *.env
 .env
 .env.*
+!.env.example
 secrets.json
 
 # ---- Visual Studio / Rider / VS Code ----

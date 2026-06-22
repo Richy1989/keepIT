@@ -6,7 +6,9 @@ Details and rationale live in `ARCHITECTURE.md` — read it before structural wo
 ## Stack
 
 - **Backend:** ASP.NET Core Web API on **.NET 10**. Project: `keepITCore`.
-- **ORM:** EF Core → **PostgreSQL** (JSONB for note metadata, full-text search).
+- **ORM:** EF Core → **PostgreSQL** (JSONB for note metadata, full-text search). Provider is
+  chosen from env config at startup: Postgres if configured, else a **SQLite** dev fallback.
+  All backend-written data (SQLite file, media, keys) lives under one `App__DataRoot` folder.
 - **Auth:** ASP.NET Core Identity + JWT (access token in memory, refresh token in httpOnly cookie).
 - **Realtime:** SignalR hub pushes note changes to other devices.
 - **Frontend:** React + **Vite** + **TypeScript**. TanStack Query for server state. Tailwind.
