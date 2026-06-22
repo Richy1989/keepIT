@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Text.Json.Serialization;
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Infrastructure;
@@ -95,9 +96,16 @@ builder.Services.AddCors(options =>
 
 // ---- App services ----
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    // Serialize enums (e.g. NoteType) as strings so the generated TS client gets a union of names.
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi(options =>
-    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>());
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    // Emit clean number schemas (drop .NET's lenient integer-or-string union) for the TS client.
+    options.AddSchemaTransformer<NumericSchemaTransformer>();
+});
 
 var app = builder.Build();
 

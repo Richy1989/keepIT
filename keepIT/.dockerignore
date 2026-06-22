@@ -12,6 +12,10 @@
 **/*.dbmdl
 **/*.jfm
 **/azds.yaml
+**/App_Data
+**/*.db
+**/*.db-shm
+**/*.db-wal
 **/bin
 **/charts
 **/docker-compose*

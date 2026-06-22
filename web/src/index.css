@@ -1,0 +1,61 @@
+@import 'tailwindcss';
+
+/*
+  Dark-first design tokens (ARCHITECTURE.md "Look & feel"). Chrome colors live here as theme
+  tokens so dark vs. light is a token swap, not a rewrite. Per-note background colors are a
+  separate, muted palette defined in src/features/notes/palette.ts (tuned for a dark canvas).
+*/
+@theme {
+  --color-canvas: #0a0a0b;
+  --color-surface: #18181b;
+  --color-surface-hover: #1f1f23;
+  --color-elevated: #202024;
+  --color-border-subtle: #27272a;
+  --color-border-strong: #3f3f46;
+  --color-text: #ececee;
+  --color-text-muted: #a1a1aa;
+  --color-text-faint: #71717a;
+  --color-accent: #fbbf24; /* amber — Keep's "keep" yellow, dialed for dark */
+  --color-accent-strong: #f59e0b;
+
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-canvas);
+    color: var(--color-text);
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Respect reduced-motion globally. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Slim, dark scrollbars to match the canvas. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+}
+
+@layer components {
+  /* Focus ring used across interactive controls. */
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+}

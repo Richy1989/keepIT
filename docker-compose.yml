@@ -1,0 +1,94 @@
+# keepIT — full stack in Docker (ARCHITECTURE.md "Deployment").
+#
+#   docker compose up --build
+#   → open http://localhost:8080
+#
+# Traefik fronts everything on :8080 and routes by path: /api → the API container, everything
+# else → the static frontend. Because both are served from one origin there's no CORS in the
+# stack, and the refresh cookie is same-origin. Copy .env.example to .env first (sets JWT_KEY).
+
+services:
+  traefik:
+    image: traefik:v3.1
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "8080:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [keepit]
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: keepit
+      POSTGRES_USER: keepit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keepit}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keepit -d keepit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [keepit]
+
+  api:
+    build:
+      context: ./keepIT
+      dockerfile: keepITCore/Dockerfile
+    # The base image runs as a non-root user that can't write a freshly-created named volume.
+    # Running as root keeps the dev stack working out of the box; in production, provision the
+    # data volume with the right ownership and drop back to the non-root user.
+    user: root
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      # Postgres is configured, so the API uses it (SQLite is only the bare-metal dev fallback).
+      ConnectionStrings__Postgres: Host=db;Port=5432;Database=keepit;Username=keepit;Password=${POSTGRES_PASSWORD:-keepit}
+      # REQUIRED: a >=32-char random secret. Set JWT_KEY in .env.
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env (a random secret of at least 32 characters)}
+      Jwt__Issuer: keepITCore
+      Jwt__Audience: keepIT.api
+      App__DataRoot: /data
+      # Traefik terminates plain HTTP in this sample, so the cookie can't require Secure. With real
+      # TLS at the proxy, set this true.
+      Auth__RefreshCookie__Secure: "false"
+    volumes:
+      - app-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.rule=PathPrefix(`/api`)
+      - traefik.http.routers.api.entrypoints=web
+      - traefik.http.routers.api.priority=10
+      - traefik.http.services.api.loadbalancer.server.port=8080
+    networks: [keepit]
+
+  web:
+    build:
+      context: ./web
+    depends_on: [api]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=PathPrefix(`/`)
+      - traefik.http.routers.web.entrypoints=web
+      - traefik.http.routers.web.priority=1
+      - traefik.http.services.web.loadbalancer.server.port=80
+    networks: [keepit]
+
+  # Caching / SignalR backplane — add when needed (ARCHITECTURE.md). Not required for the core app.
+  # redis:
+  #   image: redis:7-alpine
+  #   networks: [keepit]
+
+volumes:
+  db-data:
+  app-data:
+
+networks:
+  keepit:

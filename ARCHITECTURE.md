@@ -362,13 +362,25 @@ Both image notes and background images need somewhere to put binaries. Rules:
 
 ## Deployment
 
-- Docker for everything. `docker-compose.yml` runs the API + PostgreSQL (+ Redis if/when
-  caching or scale-out SignalR backplane is needed). Compose passes the Postgres connection
-  via env vars (`ConnectionStrings__Postgres` or `POSTGRES_*`), so the API uses Postgres in
-  the stack and silently falls back to SQLite only when run bare for local dev.
+**The target is to run the entire stack in Docker.** Local dev can run bare (`dotnet run` +
+`npm run dev`), but the intended way to run keepIT — and the deployment model everything is
+built toward — is a single `docker compose up` that brings up every piece as a container.
+
+- **Everything runs in Docker.** `docker-compose.yml` defines the full stack as services:
+  - **`api`** — the `keepITCore` container (built from `src/keepITCore/Dockerfile`).
+  - **`db`** — PostgreSQL (with a named volume for its data).
+  - **`web`** — the React frontend, built to static files and served by a small Nginx (or
+    similar) container. The frontend is a **separate container**, not hosted inside the API.
+  - **`traefik`** — reverse proxy / TLS terminator in front of both `web` and `api`, routing
+    by host/path so they share one entrypoint while staying separate deployables.
+  - **`redis`** — added if/when caching or a scale-out SignalR backplane is needed.
+- Compose passes the Postgres connection via env vars (`ConnectionStrings__Postgres` or
+  `POSTGRES_*`), so the API uses Postgres in the stack and silently falls back to SQLite only
+  when run bare for local dev.
 - Mount the common data folder (`App__DataRoot`, default `./App_Data`) as a named volume so
-  media (and any other app-written files) survive redeploys.
-- Traefik as the reverse proxy / TLS terminator in front of both the API and the static frontend.
+  media, Data Protection keys, and any other app-written files survive redeploys.
+- Each service reads its config from the environment (the `.env` file / Compose `environment`),
+  so the same images run unchanged in dev, staging, and prod with only env values differing.
 
 ## Build order (suggested)
 
