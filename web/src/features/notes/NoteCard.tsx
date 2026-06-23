@@ -140,8 +140,9 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         </div>
       )}
 
-      {/* Hover toolbar. */}
-      <div className="mt-3 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+      {/* Footer: hover toolbar (left) + always-visible timestamp (right). */}
+      <div className="mt-3 flex items-center gap-1">
+        <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
         {note.isTrashed ? (
           <>
             <CardTool
@@ -173,9 +174,31 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
             </CardTool>
           </>
         )}
+        </div>
+        {note.createdAtUtc && (
+          <time className="ml-auto text-xs text-text-faint" dateTime={note.createdAtUtc}>
+            {formatDate(note.createdAtUtc)}
+          </time>
+        )}
       </div>
     </div>
   );
+}
+
+/**
+ * Formats a backend UTC timestamp in the viewer's local time. Backend values are UTC; Postgres
+ * emits a trailing 'Z' but the SQLite dev provider can return DateTimes with no zone designator,
+ * which the browser would otherwise parse as local time — so we append 'Z' when it's missing.
+ */
+function formatDate(iso: string) {
+  const utc = /[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
+  return new Date(utc).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 /** A small icon button in the card's hover toolbar. */
