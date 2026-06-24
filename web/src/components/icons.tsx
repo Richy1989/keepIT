@@ -103,6 +103,17 @@ export const LightbulbIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const TypewriterIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M9 3h6v3H9z" />
+    <rect x="3" y="6" width="18" height="3" rx="1.5" />
+    <path d="M7 9v2" />
+    <path d="M17 9v2" />
+    <path d="M6 11h12l2.5 8H3.5z" />
+    <path d="M8 16h8" />
+  </Icon>
+);
+
 export const CheckSquareIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="m9 11 3 3L22 4" />

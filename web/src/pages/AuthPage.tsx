@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type InputHTMLAttributes } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { LightbulbIcon } from '../components/icons';
+import { TypewriterIcon } from '../components/icons';
 
 type Mode = 'login' | 'register';
 
@@ -33,7 +33,7 @@ export function AuthPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2.5">
           <span className="grid size-10 place-items-center rounded-xl bg-accent/15 text-accent">
-            <LightbulbIcon className="text-2xl" />
+            <TypewriterIcon className="text-2xl" />
           </span>
           <span className="text-2xl font-semibold tracking-tight">keepIT</span>
         </div>

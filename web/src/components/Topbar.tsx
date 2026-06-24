@@ -1,5 +1,5 @@
 import { useAuth } from '../auth/AuthContext';
-import { LightbulbIcon, LogoutIcon, SearchIcon } from './icons';
+import { TypewriterIcon, LogoutIcon, SearchIcon } from './icons';
 
 /** Top bar: brand, the search field, and the current user with a sign-out button. */
 export function Topbar({
@@ -17,7 +17,7 @@ export function Topbar({
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border-subtle bg-canvas/85 px-3 backdrop-blur sm:gap-4 sm:px-4">
       <div className="flex items-center gap-2">
         <span className="grid size-8 place-items-center rounded-lg bg-accent/15 text-accent">
-          <LightbulbIcon className="text-lg" />
+          <TypewriterIcon className="text-lg" />
         </span>
         <span className="hidden text-lg font-semibold tracking-tight sm:block">keepIT</span>
       </div>
