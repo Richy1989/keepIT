@@ -2,7 +2,7 @@
 
 # 📝 keepIT
 
-**A Google Keep–style notes app — dark, modern, and real-time.**
+**A dark, modern, real-time notes app.**
 
 A masonry grid of note cards with fast, optimistic editing, lists, search, sharing, and
 **real-time sync** so a note edited on one device shows up on your others without a refresh.
@@ -24,7 +24,7 @@ A masonry grid of note cards with fast, optimistic editing, lists, search, shari
 
 > **Status:** work in progress. **Implemented:** auth (register/login/JWT + refresh),
 > text & checklist notes with optimistic editing, colors, pin/archive/trash, lists with
-> filtering, the dark Keep-style web UI, and a Docker Compose stack. **Planned next:**
+> filtering, the dark web UI, and a Docker Compose stack. **Planned next:**
 > sharing, image notes / media upload, and real-time sync. See
 > [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design and
 > [`CLAUDE.md`](CLAUDE.md) for the short always-on rules.
@@ -49,7 +49,7 @@ Notes come in several types, and any note can be styled:
 - ☑️ **Checklist notes** — checkbox items, tick inline, reorderable. ✅
 - 🎨 **Customizable backgrounds** — set a background **color** on any note. ✅ (background **images** planned)
 - 🗂️ **Lists** — organize notes into named collections (a note can be in many) and filter the grid by list. ✅
-- 🔍 Search, pin, and archive (Keep-style soft-delete / trash). ✅
+- 🔍 Search, pin, and archive (soft-delete / trash). ✅
 - 🖼️ **Image notes** — one or more images as the note's content. *(planned)*
 - 👥 **Shared notes** — share a note with other users as viewer or editor. *(planned)*
 - 🔄 **Real-time sync** across devices via SignalR. *(planned)*
