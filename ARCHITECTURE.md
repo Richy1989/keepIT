@@ -20,6 +20,12 @@ They are built, versioned, and deployed separately. We deliberately do **not** h
 inside ASP.NET Core (the old SPA template approach) — keeping them separate lets either side
 be redeployed or scaled alone and keeps the boundary clean.
 
+A third client is **planned**: a **native Android app** (see **Android client** below). It is
+not a third deployable in the Docker stack — it ships through the Play Store / an APK — but it
+is a first-class consumer of the same `keepITCore` HTTP + SignalR API. The architectural
+consequence is that **`keepITCore` is the single backend for every client**: the contract,
+auth, and realtime model below must stay client-agnostic, not web-specific.
+
 ## Data flow
 
 A note edit travels **down** the stack; live changes from other devices travel **back up**.
@@ -228,6 +234,47 @@ refinement.
 - **Layout shell:** a left **sidebar** (Notes, Lists, Archive, Trash + the user's lists for
   one-click filtering), a top search bar, and the masonry note grid as the main pane.
 - **Routing:** React Router (or TanStack Router for typed routes).
+
+## Android client (planned)
+
+A **native Android app** is a planned future client. It is **not** a web view wrapper and not
+part of the Docker stack — it's a separately built, store-distributed app that talks to the
+**same `keepITCore` REST + SignalR API** as the web app. Treat it as another consumer of the
+contract, never a reason to special-case the backend.
+
+- **Native, not hybrid.** Built in **Kotlin** with **Jetpack Compose** (Material 3). No React
+  Native / WebView shell — the point is a real native experience and, critically, a real
+  **home-screen widget**, which a wrapped web app can't provide well.
+- **Same contract, generated client.** The C# DTOs stay the single source of truth. Generate a
+  **Kotlin client from the same OpenAPI document** (e.g. OpenAPI Generator's `kotlin` +
+  Retrofit/Ktor) so the Android models can't silently drift from the API — the mobile mirror of
+  the web's `npm run generate:api` rule. Do **not** hand-maintain Kotlin DTOs.
+- **Auth on mobile.** Same JWT model, but the browser cookie assumptions don't apply. The
+  refresh token can't live in an httpOnly cookie on native, so store it in **Android's
+  encrypted storage** (EncryptedSharedPreferences / DataStore backed by the Keystore), keep the
+  access token in memory, and reuse the existing `/api/auth/refresh` rotation flow. The backend
+  refresh-token handling shouldn't need to care which client holds the token.
+- **Offline-first.** Phones go offline; the app should keep working. Cache notes locally (Room),
+  show them immediately, and queue mutations to replay when connectivity returns — the mobile
+  analogue of the web's optimistic updates, reconciled against the server on reconnect.
+- **Realtime.** Use the official SignalR Kotlin/Java client against `NotesHub`, passing the
+  access token via the query string exactly as the web client does (see **SignalR auth**).
+  Fall back to refetch-on-resume when a socket isn't held open in the background.
+
+### Home-screen widget
+
+The widget is the headline reason for going native:
+
+- **Built with Jetpack Glance** (Compose-style API over App Widgets).
+- **Quick capture** — a "take a note" affordance that deep-links into the app's composer (or, for
+  text, posts directly through the API) so a thought can be saved without fully opening the app.
+- **Glanceable notes** — show pinned / recent notes (and optionally check off checklist items)
+  from the local cache, refreshed in the background via WorkManager and on SignalR pushes.
+- **Auth-aware** — when logged out, the widget shows a sign-in prompt rather than stale content.
+
+This section is **forward-looking**: no Android code exists in the repo yet. When it lands it
+will live in its own top-level module (e.g. `android/`), built and released independently of
+`web/` and `keepITCore`.
 
 ## Look & feel / design
 

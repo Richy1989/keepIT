@@ -24,14 +24,16 @@ A masonry grid of note cards with fast, optimistic editing, lists, search, shari
 
 > **Status:** work in progress. **Implemented:** auth (register/login/JWT + refresh),
 > text & checklist notes with optimistic editing, colors, pin/archive/trash, lists with
-> filtering, the dark web UI, and a Docker Compose stack. **Planned next:**
-> sharing, image notes / media upload, and real-time sync. See
-> [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design and
+> filtering, per-user settings (accent color), the dark web UI, and a Docker Compose stack.
+> **Planned next:** sharing, image notes / media upload, and real-time sync — followed by a
+> **native Android app with a home-screen widget**. See the [Roadmap](#roadmap) below,
+> [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, and
 > [`CLAUDE.md`](CLAUDE.md) for the short always-on rules.
 
 ## Contents
 
 - [Features](#features)
+- [Roadmap](#roadmap)
 - [Tech stack](#tech-stack)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Project structure](#project-structure)
@@ -53,6 +55,40 @@ Notes come in several types, and any note can be styled:
 - 🖼️ **Image notes** — one or more images as the note's content. *(planned)*
 - 👥 **Shared notes** — share a note with other users as viewer or editor. *(planned)*
 - 🔄 **Real-time sync** across devices via SignalR. *(planned)*
+- ⚙️ **Per-user settings** — personalize the UI (e.g. global accent color). ✅
+- 📱 **Native Android app + home-screen widget** — a Kotlin app talking to the same REST API,
+  with a widget for quick capture and at-a-glance notes. *(planned)*
+
+## Roadmap
+
+A snapshot of where keepIT is and where it's going. The web client and REST API are the
+current focus; the Android client is a future, separate deliverable on top of the same API.
+
+### ✅ Done
+
+- **Auth** — register / login, JWT access token (in memory) + refresh token (httpOnly cookie).
+- **Text & checklist notes** — create, edit, and check off items with optimistic updates.
+- **Note backgrounds** — per-note background **color** from a palette.
+- **Pin / archive / trash** — pin to top, archive, and soft-delete (trash).
+- **Lists** — named collections; a note can be in many; filter the grid by one or more lists.
+- **Search** — find notes from the top search bar.
+- **Per-user settings** — personalize the UI (global accent color).
+- **Dark web UI** — masonry grid, composer, sidebar, editor modal.
+- **Docker Compose stack** — Traefik + API + Postgres + web.
+
+### 🔜 Next (web + API)
+
+- **Image notes & media upload** — `IMediaStorage` + `MediaItem`, thumbnails, served via the API.
+- **Background images** — image (not just color) behind a note.
+- **Sharing / collaboration** — share a note as viewer or editor (`NoteShare`).
+- **Real-time sync** — SignalR `NotesHub` pushing changes to a user's other devices and collaborators.
+
+### 🧭 Later
+
+- **Native Android app** — Kotlin/Jetpack Compose client against the same REST API + SignalR,
+  with a **home-screen widget** for quick capture and glanceable notes.
+- **Light theme** — token-swap from the dark-first design.
+- **Pending share invites** — share by email to users who haven't signed up yet.
 
 ## Tech stack
 
@@ -105,6 +141,7 @@ keepIT/
 │     ├─ components/     # shared UI (Sidebar, Topbar, icons, ColorPicker)
 │     ├─ features/       # notes & lists (cards, editor, query hooks)
 │     └─ pages/          # AuthPage, HomePage
+├─ android/              # native Android app (Kotlin + Compose, + widget) — planned
 ├─ docker-compose.yml    # traefik + api + postgres + web
 ├─ .env.example          # copy to .env (set JWT_KEY)
 ├─ ARCHITECTURE.md       # full design & rationale
