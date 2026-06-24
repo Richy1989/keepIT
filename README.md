@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📝 keepIT
+<img src="docs/logo.svg" alt="keepIT logo" width="96" height="96">
+
+# keepIT
 
 **A dark, modern, real-time notes app.**
 
