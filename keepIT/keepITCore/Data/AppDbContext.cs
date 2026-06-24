@@ -31,6 +31,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>Per-user note↔list memberships.</summary>
     public DbSet<NoteList> NoteLists => Set<NoteList>();
 
+    /// <summary>Per-user user settings.</summary>
+    public DbSet<UserSettings> UserSettings => Set<UserSettings>();
+
     /// <summary>
     /// Configures the EF Core model: Identity tables from the base context plus the app's own
     /// entities (refresh tokens, the user's extra columns).
@@ -76,6 +79,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithOne(c => c.Note)
                 .HasForeignKey(c => c.NoteId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+
         });
 
         builder.Entity<ChecklistItem>(e =>
@@ -113,5 +118,14 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .HasForeignKey(nl => nl.ListId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        builder.Entity<UserSettings>(e =>
+            {
+                e.HasKey(n => n.Id);
+               // e.Property(n => n.Title).HasMaxLength(1000);
+               // e.Property(n => n.Color).HasMaxLength(32);
+                // The grid always filters by owner (+ archived/trashed flags), so index the owner.
+                e.HasIndex(n => n.OwnerId);
+            });
     }
 }

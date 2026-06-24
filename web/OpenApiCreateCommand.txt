@@ -1,0 +1,1 @@
+openapi-typescript http://localhost:5025/openapi/v1.json -o src/api/schema.d.ts
