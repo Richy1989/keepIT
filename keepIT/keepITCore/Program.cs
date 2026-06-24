@@ -1,15 +1,16 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
-using System.Text.Json.Serialization;
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Infrastructure;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,6 +99,23 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services
     .AddControllers()
+     .ConfigureApiBehaviorOptions(options =>
+     {
+         options.InvalidModelStateResponseFactory = context =>
+         {
+             var firstError = context.ModelState
+                 .Where(kv => kv.Value?.Errors.Count > 0)
+                 .SelectMany(kv => kv.Value!.Errors.Select(e => e.ErrorMessage))
+                 .FirstOrDefault();
+
+             var problem = new ValidationProblemDetails(context.ModelState)
+             {
+                 Title = "Validation failed",
+                 Detail = firstError ?? "Please check your input and try again.",
+             };
+             return new BadRequestObjectResult(problem) { ContentTypes = { "application/problem+json" } };
+         };
+     })
     // Serialize enums (e.g. NoteType) as strings so the generated TS client gets a union of names.
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi(options =>

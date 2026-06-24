@@ -8,7 +8,18 @@ import { AuthContext, type AuthState } from './AuthContext';
 /** Pulls a human-readable message out of an API error body (409 `{error}` or a ProblemDetails). */
 function errorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === 'object') {
-    const e = error as { error?: string; detail?: string; title?: string };
+    const e = error as {
+      error?: string;
+      detail?: string;
+      title?: string;
+      errors?: Record<string, string[]>;
+    };
+    // ValidationProblemDetails carries the real messages in `errors` (keyed by field/Identity code).
+    // Surface those instead of the generic "One or more validation errors occurred." title.
+    if (e.errors && typeof e.errors === 'object') {
+      const messages = Object.values(e.errors).flat().filter(Boolean);
+      if (messages.length > 0) return messages.join(' ');
+    }
     return e.error ?? e.detail ?? e.title ?? fallback;
   }
   return fallback;

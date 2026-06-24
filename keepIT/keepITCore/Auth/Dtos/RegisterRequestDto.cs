@@ -4,10 +4,14 @@ namespace keepITCore.Auth.Dtos;
 
 public class RegisterRequestDto
 {
-    [Required, EmailAddress, MaxLength(256)]
+    [Required(ErrorMessage = "Email is required.")]
+    [EmailAddress(ErrorMessage = "Enter a valid email address.")]
+    [MaxLength(256)]
     public string Email { get; set; } = null!;
 
-    [Required, MinLength(8), MaxLength(128)]
+    [Required(ErrorMessage = "Password is required.")]
+    [MinLength(8, ErrorMessage = "Password must be at least 8 characters and include one digit, an uppercase letter, a lowercase letter, and a symbol.")]
+    [MaxLength(128)]
     public string Password { get; set; } = null!;
 
     [MaxLength(100)]
