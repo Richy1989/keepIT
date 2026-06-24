@@ -20,7 +20,7 @@ namespace keepITCore.Settings
         public UserSettingsController(AppDbContext db) => _db = db;
 
         [HttpGet]
-        public async Task<ActionResult<UserSettings>> GetNotes()
+        public async Task<ActionResult<UserSettingsDto>> GetUserSettings()
         {
             var ownerId = User.GetUserId();
             if (ownerId is null) return Unauthorized();
@@ -28,14 +28,37 @@ namespace keepITCore.Settings
             var query = _db.UserSettings.AsNoTracking().Where(n => n.OwnerId == ownerId);
             var setting = await query.FirstOrDefaultAsync();
 
-            setting ??= new UserSettings();
+            if (setting is null) return Ok(await CreateNewSettings(ownerId.Value));
 
             return Ok(ToDto(setting));
+        }
+
+        private async Task<UserSettingsDto> CreateNewSettings(Guid ownerId)
+        {
+            var settings = new UserSettings
+            {
+               // Id = Guid.NewGuid(),
+                OwnerId = ownerId
+            };
+            _db.UserSettings.Add(settings);
+            await _db.SaveChangesAsync();
+
+            //var created = await LoadDtoAsync(settings.Id, settings.OwnerId);
+            return ToDto(settings);
         }
 
         private static UserSettingsDto ToDto(UserSettings n) => new()
         {
             Id = n.Id,
         };
+
+        //private async Task<UserSettingsDto?> LoadDtoAsync(Guid id, Guid ownerId)
+        //{
+        //    var settings = await _db.UserSettings.AsNoTracking()
+        //        .Where(n => n.Id == id && n.OwnerId == ownerId)
+        //        .FirstOrDefaultAsync();
+
+        //    return settings is null ? null : ToDto(settings);
+        //}
     }
 }

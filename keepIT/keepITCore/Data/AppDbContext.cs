@@ -79,8 +79,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithOne(c => c.Note)
                 .HasForeignKey(c => c.NoteId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-
         });
 
         builder.Entity<ChecklistItem>(e =>
