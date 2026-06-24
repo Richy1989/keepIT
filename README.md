@@ -19,10 +19,7 @@ A masonry grid of note cards with fast, optimistic editing, lists, search, shari
 
 </div>
 
-<!-- Add a screenshot at docs/screenshot.png and uncomment the line below for a hero image.
-<div align="center"><img src="docs/screenshot.png" alt="keepIT screenshot" width="800"></div>
--->
-<div align="center"><em>(screenshot coming soon)</em></div>
+<div align="center"><img src="images/screenshot_1.png" alt="keepIT — masonry grid of notes in the dark web UI" width="800"></div>
 
 > **Status:** work in progress. **Implemented:** auth (register/login/JWT + refresh),
 > text & checklist notes with optimistic editing, colors, pin/archive/trash, lists with
