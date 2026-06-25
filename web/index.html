@@ -1,11 +1,34 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
     <title>keepIT</title>
+    <!--
+      Apply the cached theme + accent before first paint to avoid a flash. The values are kept in
+      sync with the backend by SettingsProvider; this only reads the localStorage cache.
+    -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('keepit:theme') || 'dark';
+          var a = localStorage.getItem('keepit:accent') || 'yellow';
+          var resolved =
+            t === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : t;
+          var el = document.documentElement;
+          el.dataset.theme = resolved;
+          el.dataset.accent = a;
+          el.style.colorScheme = resolved === 'light' ? 'light' : 'dark';
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

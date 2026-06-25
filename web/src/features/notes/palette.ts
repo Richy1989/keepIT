@@ -1,29 +1,37 @@
 /**
- * Per-note background palette, tuned for the dark canvas (ARCHITECTURE.md "Look & feel"): muted,
- * desaturated tones rather than Keep's bright pastels, each dark enough to keep light text legible.
- * Stored on the note as the `color` key (e.g. "rose"); "default" means the plain surface.
+ * Per-note background palette. The actual colors are theme tokens (`--note-<key>-bg/-border`,
+ * defined and themed in src/index.css), so a card automatically restyles when the theme changes.
+ * `bg`/`border` here are `var(...)` references to those tokens, not raw hex. Stored on the note as
+ * the `color` key (e.g. "rose"); "default" means the plain surface.
  */
 export interface NoteColor {
   key: string;
   label: string;
-  /** Card background. */
+  /** Card background — a CSS var reference, themed in index.css. */
   bg: string;
-  /** Card border (slightly lighter than bg). */
+  /** Card border — a CSS var reference, themed in index.css. */
   border: string;
 }
 
-export const NOTE_COLORS: NoteColor[] = [
-  { key: 'default', label: 'Default', bg: '#18181b', border: '#27272a' },
-  { key: 'rose', label: 'Rose', bg: '#3b2327', border: '#532f35' },
-  { key: 'coral', label: 'Coral', bg: '#3c2a21', border: '#543b2e' },
-  { key: 'amber', label: 'Amber', bg: '#39311d', border: '#4f4228' },
-  { key: 'sage', label: 'Sage', bg: '#26342a', border: '#34493b' },
-  { key: 'teal', label: 'Teal', bg: '#1e3535', border: '#294a4a' },
-  { key: 'sky', label: 'Sky', bg: '#22323f', border: '#2f4557' },
-  { key: 'indigo', label: 'Indigo', bg: '#272c44', border: '#373e5d' },
-  { key: 'violet', label: 'Violet', bg: '#322844', border: '#47385e' },
-  { key: 'mauve', label: 'Mauve', bg: '#39263a', border: '#503651' },
+const KEYS: { key: string; label: string }[] = [
+  { key: 'default', label: 'Default' },
+  { key: 'rose', label: 'Rose' },
+  { key: 'coral', label: 'Coral' },
+  { key: 'amber', label: 'Amber' },
+  { key: 'sage', label: 'Sage' },
+  { key: 'teal', label: 'Teal' },
+  { key: 'sky', label: 'Sky' },
+  { key: 'indigo', label: 'Indigo' },
+  { key: 'violet', label: 'Violet' },
+  { key: 'mauve', label: 'Mauve' },
 ];
+
+export const NOTE_COLORS: NoteColor[] = KEYS.map(({ key, label }) => ({
+  key,
+  label,
+  bg: `var(--note-${key}-bg)`,
+  border: `var(--note-${key}-border)`,
+}));
 
 const BY_KEY = new Map(NOTE_COLORS.map((c) => [c.key, c]));
 

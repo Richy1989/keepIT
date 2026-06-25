@@ -1,5 +1,6 @@
 import { useAuth } from '../auth/AuthContext';
 import { TypewriterIcon, LogoutIcon, SearchIcon } from './icons';
+import { ThemeMenu } from './ThemeMenu';
 
 /** Top bar: brand, the search field, and the current user with a sign-out button. */
 export function Topbar({
@@ -33,6 +34,7 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <ThemeMenu />
         <span
           title={name}
           className="grid size-8 place-items-center rounded-full bg-elevated text-sm font-semibold text-text-muted"

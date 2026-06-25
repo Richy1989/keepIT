@@ -4,6 +4,70 @@
  */
 
 export interface paths {
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserSettingsDto"];
+                        "application/json": components["schemas"]["UserSettingsDto"];
+                        "text/json": components["schemas"]["UserSettingsDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UserSettingsDto"];
+                    "text/json": components["schemas"]["UserSettingsDto"];
+                    "application/*+json": components["schemas"]["UserSettingsDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserSettingsDto"];
+                        "application/json": components["schemas"]["UserSettingsDto"];
+                        "text/json": components["schemas"]["UserSettingsDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notes": {
         parameters: {
             query?: never;
@@ -662,6 +726,12 @@ export interface components {
             id?: string;
             email?: string;
             displayName?: null | string;
+        };
+        UserSettingsDto: {
+            /** Format: uuid */
+            id?: null | string;
+            globalAccentColor?: string;
+            theme?: string;
         };
     };
     responses: never;

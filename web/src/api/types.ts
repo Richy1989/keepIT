@@ -20,6 +20,8 @@ export type ListDto = S['ListDto'];
 export type CreateListDto = S['CreateListDto'];
 export type UpdateListDto = S['UpdateListDto'];
 
+export type UserSettingsDto = S['UserSettingsDto'];
+
 export type AuthResponseDto = S['AuthResponseDto'];
 export type UserDto = S['UserDto'];
 export type LoginRequestDto = S['LoginRequestDto'];

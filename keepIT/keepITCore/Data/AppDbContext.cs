@@ -118,12 +118,17 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         });
 
         builder.Entity<UserSettings>(e =>
-            {
-                e.HasKey(n => n.Id);
-               // e.Property(n => n.Title).HasMaxLength(1000);
-               // e.Property(n => n.Color).HasMaxLength(32);
-                // The grid always filters by owner (+ archived/trashed flags), so index the owner.
-                e.HasIndex(n => n.OwnerId);
-            });
+        {
+            e.HasKey(s => s.Id);
+            // Exactly one settings row per user.
+            e.HasIndex(s => s.OwnerId).IsUnique();
+            e.Property(s => s.GlobalAccentColor).HasMaxLength(32).IsRequired();
+            e.Property(s => s.Theme).HasMaxLength(16).IsRequired();
+
+            e.HasOne(s => s.Owner)
+                .WithMany()
+                .HasForeignKey(s => s.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

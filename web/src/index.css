@@ -1,9 +1,14 @@
 @import 'tailwindcss';
 
 /*
-  Dark-first design tokens (ARCHITECTURE.md "Look & feel"). Chrome colors live here as theme
-  tokens so dark vs. light is a token swap, not a rewrite. Per-note background colors are a
-  separate, muted palette defined in src/features/notes/palette.ts (tuned for a dark canvas).
+  Design tokens (ARCHITECTURE.md "Look & feel"). Chrome colors are theme tokens so switching
+  themes is a token swap, not a rewrite:
+    - The dark theme is the @theme baseline below (also the fallback).
+    - html[data-theme="light"|"dim"] override the same tokens (see "Theme overrides").
+    - html[data-accent="…"] overrides only the accent (independent of theme).
+  Per-note background colors live in --note-*-bg/-border vars, themed alongside the chrome.
+  The resolved theme + accent are written to <html> by SettingsProvider (and a pre-paint script
+  in index.html to avoid a flash). The accent is also seeded by note palette in features/notes.
 */
 @theme {
   --color-canvas: #0a0a0b;
@@ -15,11 +20,85 @@
   --color-text: #ececee;
   --color-text-muted: #a1a1aa;
   --color-text-faint: #71717a;
-  --color-accent: #fbbf24; /* amber — Keep's "keep" yellow, dialed for dark */
+  --color-accent: #fbbf24; /* default accent (yellow); overridden per data-accent */
   --color-accent-strong: #f59e0b;
 
   --radius-card: 0.875rem;
 }
+
+/* Per-note background palette — dark baseline (muted, dark enough for light text). */
+:root {
+  --note-default-bg: #18181b;  --note-default-border: #27272a;
+  --note-rose-bg: #3b2327;     --note-rose-border: #532f35;
+  --note-coral-bg: #3c2a21;    --note-coral-border: #543b2e;
+  --note-amber-bg: #39311d;    --note-amber-border: #4f4228;
+  --note-sage-bg: #26342a;     --note-sage-border: #34493b;
+  --note-teal-bg: #1e3535;     --note-teal-border: #294a4a;
+  --note-sky-bg: #22323f;      --note-sky-border: #2f4557;
+  --note-indigo-bg: #272c44;   --note-indigo-border: #373e5d;
+  --note-violet-bg: #322844;   --note-violet-border: #47385e;
+  --note-mauve-bg: #39263a;    --note-mauve-border: #503651;
+}
+
+/* ---- Theme overrides ---------------------------------------------------- */
+
+/* Light: white canvas, dark text, pastel note cards. */
+html[data-theme='light'] {
+  --color-canvas: #ffffff;
+  --color-surface: #f4f4f5;
+  --color-surface-hover: #e9e9eb;
+  --color-elevated: #ffffff;
+  --color-border-subtle: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+  --color-text: #18181b;
+  --color-text-muted: #52525b;
+  --color-text-faint: #9a9aa3;
+
+  --note-default-bg: #ffffff;  --note-default-border: #e4e4e7;
+  --note-rose-bg: #fad1d7;     --note-rose-border: #f3aab4;
+  --note-coral-bg: #fbdcc8;    --note-coral-border: #f5b78f;
+  --note-amber-bg: #fdf0b5;    --note-amber-border: #f3df7a;
+  --note-sage-bg: #d6f3c6;     --note-sage-border: #aee79a;
+  --note-teal-bg: #c2f5ee;     --note-teal-border: #93e8da;
+  --note-sky-bg: #cfe8f7;      --note-sky-border: #a6d3ef;
+  --note-indigo-bg: #d9e1fb;   --note-indigo-border: #b0c2f5;
+  --note-violet-bg: #e6d8fb;   --note-violet-border: #cbb0f3;
+  --note-mauve-bg: #f9d9f0;    --note-mauve-border: #efb3dd;
+}
+
+/* Dim: a softer dark — lifted off near-black, gentler contrast. */
+html[data-theme='dim'] {
+  --color-canvas: #18181b;
+  --color-surface: #232327;
+  --color-surface-hover: #2a2a2f;
+  --color-elevated: #2d2d32;
+  --color-border-subtle: #323238;
+  --color-border-strong: #46464d;
+  --color-text: #ececee;
+  --color-text-muted: #b4b4bd;
+  --color-text-faint: #87878f;
+
+  --note-default-bg: #232327;  --note-default-border: #323238;
+  --note-rose-bg: #4a2e33;     --note-rose-border: #5f3a42;
+  --note-coral-bg: #4a352a;    --note-coral-border: #5f493a;
+  --note-amber-bg: #463d26;    --note-amber-border: #5c4e33;
+  --note-sage-bg: #2f4035;     --note-sage-border: #3f594a;
+  --note-teal-bg: #264242;     --note-teal-border: #34595a;
+  --note-sky-bg: #2a3e4d;      --note-sky-border: #3a5468;
+  --note-indigo-bg: #313858;   --note-indigo-border: #444d72;
+  --note-violet-bg: #3e3155;   --note-violet-border: #564474;
+  --note-mauve-bg: #472f48;    --note-mauve-border: #614363;
+}
+
+/* ---- Accent overrides (independent of theme) ---------------------------- */
+html[data-accent='yellow'] { --color-accent: #fbbf24; --color-accent-strong: #f59e0b; }
+html[data-accent='orange'] { --color-accent: #fb923c; --color-accent-strong: #f97316; }
+html[data-accent='red']    { --color-accent: #f87171; --color-accent-strong: #ef4444; }
+html[data-accent='pink']   { --color-accent: #f472b6; --color-accent-strong: #ec4899; }
+html[data-accent='purple'] { --color-accent: #c084fc; --color-accent-strong: #a855f7; }
+html[data-accent='blue']   { --color-accent: #60a5fa; --color-accent-strong: #3b82f6; }
+html[data-accent='teal']   { --color-accent: #2dd4bf; --color-accent-strong: #14b8a6; }
+html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22c55e; }
 
 @layer base {
   html,
@@ -46,7 +125,7 @@
     }
   }
 
-  /* Slim, dark scrollbars to match the canvas. */
+  /* Slim scrollbars matching the canvas. */
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--color-border-strong) transparent;
