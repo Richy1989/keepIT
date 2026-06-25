@@ -1,6 +1,7 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Infrastructure;
+using keepITCore.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -28,7 +29,7 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
 }
 
 // ---- Common data folder + database provider selection ----
-var dataRoot = DatabaseSetup.EnsureDataRoot(builder.Configuration, builder.Environment);
+var dataRoot = FolderManagement.EnsureDataRoot(builder.Configuration, builder.Environment);
 var postgresConnection = DatabaseSetup.ResolvePostgresConnectionString(builder.Configuration);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -124,6 +125,9 @@ builder.Services.AddOpenApi(options =>
     // Emit clean number schemas (drop .NET's lenient integer-or-string union) for the TS client.
     options.AddSchemaTransformer<NumericSchemaTransformer>();
 });
+
+//Adding a service which helps in creating images
+builder.Services.AddScoped<ImageService>();
 
 var app = builder.Build();
 

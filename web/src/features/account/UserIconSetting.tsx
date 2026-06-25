@@ -1,41 +1,58 @@
-import { useEffect, useRef, useState } from 'react';
-import { useAuth } from '../../auth/AuthContext';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { Avatar } from '../../components/Avatar';
 import { CameraIcon } from '../../components/icons';
+import { apiErrorMessage } from '../../lib/apiError';
+import { useUploadProfileImage } from './queries';
 
-/**
- * Profile-picture ("user icon") control. The backend for storing avatars isn't ready yet, so a
- * chosen image is shown only as a local preview and "Save" is disabled — the UI is in place for
- * when media upload lands.
- */
+const MAX_SIZE = 2 * 1024 * 1024; // matches the backend limit
+const ACCEPT = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+/** Profile-picture control: choose an image, preview it locally, then upload to the backend. */
 export function UserIconSetting() {
-  const { user } = useAuth();
+  const upload = useUploadProfileImage();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const initial = (user?.displayName || user?.email || '?').charAt(0).toUpperCase();
-
-  // Release the object URL when it changes or the component unmounts.
+  // Local preview of the pending file (revoked when it changes / unmounts).
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   useEffect(() => {
-    if (!preview) return;
-    return () => URL.revokeObjectURL(preview);
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
   }, [preview]);
 
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) setPreview(URL.createObjectURL(file));
+  function onPick(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
     e.target.value = ''; // allow re-picking the same file
+    setError(null);
+    if (!f) return;
+    if (!ACCEPT.includes(f.type)) {
+      setError('Unsupported file type. Use JPG, PNG, WEBP, or GIF.');
+      return;
+    }
+    if (f.size > MAX_SIZE) {
+      setError('Image is too large (max 2 MB).');
+      return;
+    }
+    setFile(f);
+  }
+
+  async function save() {
+    if (!file) return;
+    setError(null);
+    try {
+      await upload.mutateAsync(file);
+      setFile(null); // cleared → Avatar falls back to the freshly fetched server image
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not upload the image.'));
+    }
   }
 
   return (
     <div className="flex flex-wrap items-center gap-5">
       <div className="relative">
-        <div className="grid size-20 place-items-center overflow-hidden rounded-full bg-elevated text-2xl font-semibold text-text-muted">
-          {preview ? (
-            <img src={preview} alt="" className="size-full object-cover" />
-          ) : (
-            initial
-          )}
-        </div>
+        <Avatar className="size-20 text-2xl" previewUrl={preview} />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -57,28 +74,26 @@ export function UserIconSetting() {
           >
             Choose image
           </button>
-          {preview && (
+          {file && (
             <button
               type="button"
-              onClick={() => setPreview(null)}
+              onClick={() => setFile(null)}
               className="focus-ring rounded-lg px-3 py-1.5 text-sm text-text-muted transition hover:text-text"
             >
-              Remove
+              Cancel
             </button>
           )}
           <button
             type="button"
-            disabled
-            title="Coming soon — avatar upload isn't available yet"
-            className="cursor-not-allowed rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-black opacity-50"
+            onClick={save}
+            disabled={!file || upload.isPending}
+            className="focus-ring rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-black transition hover:bg-accent-strong disabled:opacity-50"
           >
-            Save
+            {upload.isPending ? 'Uploading…' : 'Save'}
           </button>
         </div>
-        <p className="mt-2 max-w-xs text-xs text-text-faint">
-          Profile pictures aren't saved yet — this is a local preview while avatar upload is in
-          progress.
-        </p>
+        {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
+        <p className="mt-2 max-w-xs text-xs text-text-faint">JPG, PNG, WEBP, or GIF — up to 2 MB.</p>
       </div>
     </div>
   );

@@ -1,9 +1,12 @@
 using keepITCore.Auth;
 using keepITCore.Data;
+using keepITCore.Infrastructure;
+using keepITCore.Service;
 using keepITCore.Settings.Dtos;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security;
 
 namespace keepITCore.Settings
 {
@@ -24,12 +27,19 @@ namespace keepITCore.Settings
         private static readonly HashSet<string> AllowedAccents =
             new(StringComparer.Ordinal) { "yellow", "orange", "red", "pink", "purple", "blue", "teal", "green" };
 
+        private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+        private const long MaxFileSize = 2 * 1024 * 1024; // 5 MB
+
         private readonly AppDbContext _db;
+        private readonly ImageService _imgService;
 
         /// <summary>Injects the database context.</summary>
         /// <param name="db">The EF Core context.</param>
-        public UserSettingsController(AppDbContext db) => _db = db;
-
+        public UserSettingsController(AppDbContext db, ImageService imgService)
+        {
+            _db = db;
+            _imgService = imgService;
+        }
         /// <summary>Returns the caller's settings, creating defaults on first access.</summary>
         /// <returns>200 with the settings.</returns>
         [HttpGet]
@@ -73,6 +83,62 @@ namespace keepITCore.Settings
             await _db.SaveChangesAsync();
 
             return Ok(ToDto(settings));
+        }
+
+        
+        [HttpPost("uploadProfileImage")]
+        [RequestSizeLimit(6 * 1024 * 1024)]
+        public async Task<IActionResult> Upload(IFormFile file, CancellationToken ct)
+        {
+            var ownerId = User.GetUserId();
+            if (ownerId is null) return Unauthorized();
+
+            if (file is null || file.Length == 0)
+                return BadRequest("No file provided.");
+
+            if (file.Length > MaxFileSize)
+                return BadRequest("File too large.");
+
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!AllowedExtensions.Contains(ext))
+                return BadRequest("Unsupported file type.");
+
+            var applicationUser = _db.Users.Where(u => u.Id == ownerId).FirstOrDefault();
+            if (applicationUser == null) return NotFound();
+
+            string uploadPath = FolderManagement.GetUserProfileImageFolder(ownerId.Value.ToString());
+            var fileName = await _imgService.Upload(file, uploadPath, ct);
+
+            applicationUser.ProfileImageFileName = fileName;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { fileName });
+        }
+
+        [HttpGet("getProfileImage/{userId}")]
+        public async Task<IActionResult> GetProfileImage(CancellationToken ct)
+        {
+            var ownerId = User.GetUserId();
+            if (ownerId is null) return Unauthorized();
+
+            var fileName = await _db.Users
+                .Where(u => u.Id == ownerId)
+                .Select(u => u.ProfileImageFileName)
+                .FirstOrDefaultAsync(ct);
+
+            if (fileName is null)
+                return NotFound();
+
+            var path = Path.Combine(FolderManagement.GetUserProfileImageFolder(ownerId.Value.ToString()), fileName);
+            if (!System.IO.File.Exists(path))
+                return NotFound();
+
+            var contentType = fileName.EndsWith(".png") ? "image/png"
+                            : fileName.EndsWith(".webp") ? "image/webp"
+                            : "image/jpeg";
+
+            var stream = System.IO.File.OpenRead(path);
+            return File(stream, contentType); // streams the file to the client
         }
 
         /// <summary>Inserts and returns a default settings row for the user.</summary>

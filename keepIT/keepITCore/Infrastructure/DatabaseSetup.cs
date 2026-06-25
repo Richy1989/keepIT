@@ -6,18 +6,6 @@ namespace keepITCore.Infrastructure;
 /// </summary>
 public static class DatabaseSetup
 {
-    /// <summary>Resolves App:DataRoot (default ./data) to an absolute path and ensures it exists.</summary>
-    public static string EnsureDataRoot(IConfiguration config, IHostEnvironment env)
-    {
-        var configured = config["App:DataRoot"];
-        // Default "App_Data" (not "data") so it never collides with the C# Data/ source folder
-        // on case-insensitive filesystems (Windows/macOS).
-        var root = string.IsNullOrWhiteSpace(configured) ? "./App_Data" : configured;
-        var full = Path.GetFullPath(root, env.ContentRootPath);
-        Directory.CreateDirectory(full);
-        return full;
-    }
-
     /// <summary>
     /// Returns a Postgres connection string if one is configured — either ConnectionStrings:Postgres
     /// or a complete set of POSTGRES_* env vars — otherwise null (caller falls back to SQLite).

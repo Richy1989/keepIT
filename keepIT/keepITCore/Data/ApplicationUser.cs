@@ -13,6 +13,8 @@ public class ApplicationUser : IdentityUser<Guid>
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    public string? ProfileImageFileName { get; set; } = null;
+
     /// <summary>Refresh tokens issued to this user across their devices.</summary>
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

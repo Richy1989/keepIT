@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { Avatar } from './Avatar';
 import { LogoutIcon, SettingsIcon } from './icons';
 
 /** Profile avatar dropdown: the signed-in user plus Settings and Sign out. */
@@ -9,7 +10,6 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false);
 
   const name = user?.displayName || user?.email || '';
-  const initial = (name || '?').charAt(0).toUpperCase();
 
   const itemClass =
     'focus-ring flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-text-muted transition hover:bg-surface-hover hover:text-text';
@@ -22,9 +22,9 @@ export function AccountMenu() {
         aria-label="Account"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="focus-ring grid size-8 place-items-center rounded-full bg-elevated text-sm font-semibold text-text-muted transition hover:text-text"
+        className="focus-ring rounded-full transition hover:opacity-90"
       >
-        {initial}
+        <Avatar className="size-8 text-sm" />
       </button>
 
       {open && (
