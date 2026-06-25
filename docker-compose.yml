@@ -3,23 +3,12 @@
 #   docker compose up --build
 #   → open http://localhost:8080
 #
-# Traefik fronts everything on :8080 and routes by path: /api → the API container, everything
-# else → the static frontend. Because both are served from one origin there's no CORS in the
-# stack, and the refresh cookie is same-origin. Copy .env.example to .env first (sets JWT_KEY).
+# The web container (nginx) is the single entrypoint on :8080: it serves the SPA and reverse-proxies
+# /api to the API container. Because both are served from one origin there's no CORS in the stack,
+# and the refresh cookie is same-origin. The API itself is not published to the host — only nginx is.
+# Copy .env.example to .env first (sets JWT_KEY).
 
 services:
-  traefik:
-    image: traefik:v3.1
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-    ports:
-      - "8080:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks: [keepit]
-
   db:
     image: postgres:17-alpine
     environment:
@@ -53,32 +42,23 @@ services:
       Jwt__Issuer: keepITCore
       Jwt__Audience: keepIT.api
       App__DataRoot: /data
-      # Traefik terminates plain HTTP in this sample, so the cookie can't require Secure. With real
-      # TLS at the proxy, set this true.
+      # The reverse proxy terminates plain HTTP in this sample, so the cookie can't require Secure.
+      # With real TLS at the proxy, set this true.
       Auth__RefreshCookie__Secure: "false"
     volumes:
       - app-data:/data
     depends_on:
       db:
         condition: service_healthy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.api.rule=PathPrefix(`/api`)
-      - traefik.http.routers.api.entrypoints=web
-      - traefik.http.routers.api.priority=10
-      - traefik.http.services.api.loadbalancer.server.port=8080
     networks: [keepit]
 
   web:
     build:
       context: ./web
+    # nginx serves the SPA and proxies /api to the api service (see web/nginx.conf).
+    ports:
+      - "8080:80"
     depends_on: [api]
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.web.rule=PathPrefix(`/`)
-      - traefik.http.routers.web.entrypoints=web
-      - traefik.http.routers.web.priority=1
-      - traefik.http.services.web.loadbalancer.server.port=80
     networks: [keepit]
 
   # Caching / SignalR backplane — add when needed (ARCHITECTURE.md). Not required for the core app.

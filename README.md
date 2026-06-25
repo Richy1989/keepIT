@@ -74,7 +74,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 - **Search** — find notes from the top search bar.
 - **Per-user settings** — personalize the UI (global accent color).
 - **Dark web UI** — masonry grid, composer, sidebar, editor modal.
-- **Docker Compose stack** — Traefik + API + Postgres + web.
+- **Docker Compose stack** — API + Postgres + web (nginx).
 
 ### 🔜 Next (web + API)
 
@@ -100,7 +100,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 | Realtime   | **SignalR** hub pushing note changes to other devices *(planned)*  |
 | Frontend   | **React 19** + Vite + TypeScript, TanStack Query, React Router, Tailwind |
 | API client | Typed TS client **generated from OpenAPI** via `openapi-typescript` + `openapi-fetch` (C# DTOs are source of truth) |
-| Deploy     | Docker Compose, behind Traefik                                     |
+| Deploy     | Docker Compose (nginx serves the SPA and reverse-proxies the API)  |
 
 ## Architecture at a glance
 
@@ -114,7 +114,7 @@ hosted inside ASP.NET Core, so either side can be deployed and scaled on its own
 │  (Vite)    │     SignalR push          │  Web API         │      │  bare dev) │
 └────────────┘                           └──────────────────┘      └────────────┘
         ▲                                          │
-        └──────── Traefik (one origin in Docker) ──┘
+        └──────── nginx (one origin in Docker) ────┘
 ```
 
 The **C# DTOs are the single source of truth** for the API shape: change a DTO,
@@ -142,7 +142,7 @@ keepIT/
 │     ├─ features/       # notes & lists (cards, editor, query hooks)
 │     └─ pages/          # AuthPage, HomePage
 ├─ android/              # native Android app (Kotlin + Compose, + widget) — planned
-├─ docker-compose.yml    # traefik + api + postgres + web
+├─ docker-compose.yml    # api + postgres + web (nginx)
 ├─ .env.example          # copy to .env (set JWT_KEY)
 ├─ ARCHITECTURE.md       # full design & rationale
 └─ CLAUDE.md             # short always-on rules
@@ -172,11 +172,11 @@ Open **http://localhost:5173** and register an account.
 
 ```bash
 cp .env.example .env        # then set JWT_KEY to a random 32+ char secret
-docker compose up --build   # traefik + api + postgres + web
+docker compose up --build   # api + postgres + web (nginx)
 ```
 
-Open **http://localhost:8080**. Traefik serves the frontend and routes `/api` to the backend
-on one origin; Postgres data and the API's data folder persist in named volumes.
+Open **http://localhost:8080**. nginx (the web container) serves the frontend and reverse-proxies
+`/api` to the backend on one origin; Postgres data and the API's data folder persist in named volumes.
 
 ## Regenerating the API client
 

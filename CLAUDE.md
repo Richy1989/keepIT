@@ -13,7 +13,7 @@ Details and rationale live in `ARCHITECTURE.md` — read it before structural wo
 - **Realtime:** SignalR hub pushes note changes to other devices.
 - **Frontend:** React + **Vite** + **TypeScript**. TanStack Query for server state. Tailwind.
 - **API contract:** OpenAPI/Swagger generated from C# → typed TS client. **The C# DTOs are the source of truth.**
-- **Deploy:** Docker, behind Traefik.
+- **Deploy:** Docker Compose; the web container's nginx serves the SPA and reverse-proxies the API.
 
 ## Hard rules
 

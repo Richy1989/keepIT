@@ -7,11 +7,15 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,6 +91,46 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// ---- Forwarded headers (recover the real client IP/scheme behind the reverse proxy) ----
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // The proxy isn't on a loopback network in the Docker stack, so the defaults would ignore its
+    // forwarded headers and every request would look like it came from the proxy's single IP —
+    // collapsing the per-IP rate limit into one shared bucket. Trusting the headers is safe here
+    // because the API is only reachable through the reverse proxy (it's not published to the host).
+    // If you ever expose the API directly, restrict trust to the proxy network instead of clearing.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// ---- Rate limiting (throttle auth endpoints against password guessing / signup abuse) ----
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Per-client-IP fixed window, applied to /api/auth/* via [EnableRateLimiting("auth")].
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+            }));
+
+    // Tell rejected clients when they can retry.
+    options.OnRejected = (context, _) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                ((int)retryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        }
+        return ValueTask.CompletedTask;
+    };
+});
+
 // ---- CORS (frontend is a separate origin; cookies require AllowCredentials + explicit origins) ----
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
@@ -157,7 +201,9 @@ else
     app.UseHttpsRedirection();
 }
 
+app.UseForwardedHeaders();
 app.UseCors("frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

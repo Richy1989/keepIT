@@ -223,7 +223,7 @@ refinement.
 ## Frontend (`web/`)
 
 - **Build/dev:** Vite. In dev, Vite's proxy forwards `/api` to the backend to avoid CORS.
-  In prod, React is served as static files (Traefik/Nginx) and the API runs separately.
+  In prod, React is served as static files (nginx) and the API runs separately.
 - **Server state:** TanStack Query owns everything fetched from the API — caching,
   background refetch, optimistic mutations. Do not duplicate this into a global store.
 - **Client/UI state:** plain React state, or Zustand only for genuinely client-side UI state.
@@ -416,11 +416,15 @@ built toward — is a single `docker compose up` that brings up every piece as a
 - **Everything runs in Docker.** `docker-compose.yml` defines the full stack as services:
   - **`api`** — the `keepITCore` container (built from `src/keepITCore/Dockerfile`).
   - **`db`** — PostgreSQL (with a named volume for its data).
-  - **`web`** — the React frontend, built to static files and served by a small Nginx (or
-    similar) container. The frontend is a **separate container**, not hosted inside the API.
-  - **`traefik`** — reverse proxy / TLS terminator in front of both `web` and `api`, routing
-    by host/path so they share one entrypoint while staying separate deployables.
+  - **`web`** — the React frontend, built to static files and served by a small **nginx**
+    container that is also the single entrypoint: it reverse-proxies `/api` to the `api`
+    container so both are one origin (no CORS, same-origin refresh cookie). The frontend is a
+    **separate container**, not hosted inside the API. Swap nginx for any reverse proxy (Caddy,
+    a cloud load balancer, etc.) if you prefer — nothing in the app depends on a specific one.
   - **`redis`** — added if/when caching or a scale-out SignalR backplane is needed.
+
+  For real TLS, terminate HTTPS at the proxy (or a load balancer in front of it) and set
+  `Auth__RefreshCookie__Secure=true`.
 - Compose passes the Postgres connection via env vars (`ConnectionStrings__Postgres` or
   `POSTGRES_*`), so the API uses Postgres in the stack and silently falls back to SQLite only
   when run bare for local dev.
