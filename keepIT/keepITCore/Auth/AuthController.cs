@@ -66,6 +66,45 @@ public class AuthController : ControllerBase
         return await IssueTokensAsync(user);
     }
 
+    /// <summary>
+    /// Change the signed-in user's password. On success, revokes all of the user's existing refresh
+    /// tokens (signing out other devices) and issues a fresh access token + refresh cookie so the
+    /// current device stays signed in.
+    /// </summary>
+    /// <param name="dto">The current and new passwords. The DTO's UserId is ignored; the caller is
+    /// taken from the access token.</param>
+    /// <returns>200 with a new auth payload, 401 if unauthenticated, or 400 if the current password
+    /// is wrong or the new one fails the complexity rules.</returns>
+    [HttpPost("changepassword")]
+    [Authorize]
+    public async Task<ActionResult<AuthResponseDto>> ChangePassword(ChangePasswordRequestDto dto)
+    {
+        var userId = User.GetUserId();
+        if (userId is null)
+            return Unauthorized();
+
+        var applicationUser = await _userManager.FindByIdAsync(userId.Value.ToString());
+        if (applicationUser is null)
+            return Unauthorized();
+
+        var result = await _userManager.ChangePasswordAsync(applicationUser, dto.CurrentPassword, dto.NewPassword);
+        if (!result.Succeeded)
+        {
+            foreach (var e in result.Errors)
+                ModelState.AddModelError(e.Code, e.Description);
+            return ValidationProblem(ModelState);
+        }
+
+        // Invalidate every existing session: revoke all of the user's active refresh tokens. Then
+        // IssueTokensAsync mints a new one for this device, so the caller stays signed in.
+        var now = DateTime.UtcNow;
+        await _db.RefreshTokens
+            .Where(rt => rt.UserId == applicationUser.Id && rt.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
+
+        return await IssueTokensAsync(applicationUser);
+    }
+
     /// <summary>Exchange credentials for an access token + refresh cookie.</summary>
     /// <param name="dto">The login email and password.</param>
     /// <returns>200 with the auth payload, or 401 if the credentials are invalid.</returns>

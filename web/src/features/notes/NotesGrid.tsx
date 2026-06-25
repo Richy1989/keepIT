@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { useNotes, type NotesFilter } from './queries';
 import { NoteCard } from './NoteCard';
-import { LightbulbIcon } from '../../components/icons';
+import { TypewriterIcon } from '../../components/icons';
 import type { NoteDto } from '../../api/types';
 
 /** Filters notes client-side by the search query (title, body, or any checklist item). */
@@ -59,7 +59,7 @@ export function NotesGrid({
     const copy = EMPTY_COPY[filter.view];
     return (
       <div className="grid place-items-center py-24 text-center">
-        <LightbulbIcon className="mb-4 text-5xl text-border-strong" />
+        <TypewriterIcon className="mb-4 text-5xl text-border-strong" />
         <p className="text-text-muted">{search ? 'No notes match your search.' : copy.title}</p>
         {!search && <p className="mt-1 text-sm text-text-faint">{copy.hint}</p>}
       </div>

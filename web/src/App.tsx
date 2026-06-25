@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
+import { SettingsPage } from './pages/SettingsPage';
 
 /** Top-level routing + auth gating. Shows a brief splash while the session is being restored. */
 export function App() {
@@ -21,6 +22,10 @@ export function App() {
     <Routes>
       <Route path="/login" element={authed ? <Navigate to="/" replace /> : <AuthPage />} />
       <Route path="/" element={authed ? <HomePage /> : <Navigate to="/login" replace />} />
+      <Route
+        path="/settings"
+        element={authed ? <SettingsPage /> : <Navigate to="/login" replace />}
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

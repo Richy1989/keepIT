@@ -484,6 +484,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/changepassword": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangePasswordRequestDto"];
+                    "text/json": components["schemas"]["ChangePasswordRequestDto"];
+                    "application/*+json": components["schemas"]["ChangePasswordRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AuthResponseDto"];
+                        "application/json": components["schemas"]["AuthResponseDto"];
+                        "text/json": components["schemas"]["AuthResponseDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -643,6 +686,11 @@ export interface components {
             /** Format: date-time */
             accessTokenExpiresAtUtc?: string;
             user?: components["schemas"]["UserDto"];
+        };
+        ChangePasswordRequestDto: {
+            userId?: string;
+            newPassword: string;
+            currentPassword?: string;
         };
         ChecklistItemDto: {
             /** Format: uuid */

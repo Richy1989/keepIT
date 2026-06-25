@@ -1,8 +1,8 @@
-import { useAuth } from '../auth/AuthContext';
-import { TypewriterIcon, LogoutIcon, SearchIcon } from './icons';
+import { TypewriterIcon, SearchIcon } from './icons';
 import { ThemeMenu } from './ThemeMenu';
+import { AccountMenu } from './AccountMenu';
 
-/** Top bar: brand, the search field, and the current user with a sign-out button. */
+/** Top bar: brand, the search field, the appearance menu, and the profile/account menu. */
 export function Topbar({
   search,
   onSearchChange,
@@ -10,10 +10,6 @@ export function Topbar({
   search: string;
   onSearchChange: (v: string) => void;
 }) {
-  const { user, logout } = useAuth();
-  const name = user?.displayName || user?.email || '';
-  const initial = name.charAt(0).toUpperCase();
-
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border-subtle bg-canvas/85 px-3 backdrop-blur sm:gap-4 sm:px-4">
       <div className="flex items-center gap-2">
@@ -35,20 +31,7 @@ export function Topbar({
 
       <div className="flex items-center gap-2">
         <ThemeMenu />
-        <span
-          title={name}
-          className="grid size-8 place-items-center rounded-full bg-elevated text-sm font-semibold text-text-muted"
-        >
-          {initial}
-        </span>
-        <button
-          type="button"
-          onClick={() => void logout()}
-          title="Sign out"
-          className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-surface-hover hover:text-text"
-        >
-          <LogoutIcon className="text-lg" />
-        </button>
+        <AccountMenu />
       </div>
     </header>
   );
