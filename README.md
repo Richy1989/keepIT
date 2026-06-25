@@ -15,6 +15,7 @@ A masonry grid of note cards with fast, optimistic editing, lists, search, shari
 [![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 ![Status](https://img.shields.io/badge/status-work_in_progress-yellow)
 
 </div>
@@ -188,4 +189,5 @@ cd web && npm run generate:api   # OpenAPI (localhost:5025) → web/src/api/sche
 
 ## License
 
-TBD.
+Released under the [MIT License](LICENSE) — © 2026 Richard Leopold. Free to use, modify, and
+distribute; just keep the copyright and license notice.
