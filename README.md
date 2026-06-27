@@ -150,11 +150,11 @@ keepIT/
 ├─ deploy/               # single-container deployment (nginx + API in one image)
 │  ├─ Dockerfile         # multi-stage build: React → .NET → nginx+API runtime
 │  ├─ nginx.conf         # serves SPA, proxies /api to loopback API
-│  ├─ entrypoint.sh      # starts API + nginx, tears down if either exits
-│  ├─ build-and-push.sh  # build linux/amd64 image and push to Docker Hub
-│  └─ keepit.unraid.xml  # Unraid Community Apps template
+│  ├─ entrypoint.sh           # starts API + nginx, tears down if either exits
+│  ├─ build-and-push.{sh,ps1} # build linux/amd64 image and push to Docker Hub
+│  └─ keepit.unraid.xml       # Unraid Community Apps template
 ├─ scripts/
-│  └─ seed-dev-data.sh   # populate the dev DB with test data via the REST API
+│  └─ seed-dev-data.{sh,ps1}  # populate the dev DB with test data via the REST API
 ├─ android/              # native Android app (Kotlin + Compose, + widget) — planned
 ├─ docker-compose.yml    # api + postgres + web (nginx) — multi-container stack
 ├─ .env.example          # copy to .env (set JWT_KEY + POSTGRES_PASSWORD)
@@ -192,6 +192,7 @@ and a variety of notes (text, checklist, pinned, archived, trashed):
 ./scripts/seed-dev-data.sh --reset  # wipes existing notes first, then re-seeds
 ```
 
+On Windows, use the PowerShell twin: `./scripts/seed-dev-data.ps1` (same behavior, e.g. `-Reset`).
 Requires `curl` and `jq`. Run `./scripts/seed-dev-data.sh --help` for all options.
 
 ### Full stack (Docker Compose)
@@ -211,64 +212,17 @@ folder persist in named volumes.
 
 ### Option 1 — Docker Compose (multi-container)
 
-The default `docker-compose.yml` runs three containers (Postgres, API, nginx+SPA) on a
-shared internal network. Only nginx is published to the host.
-
-```yaml
-services:
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_DB: keepit
-      POSTGRES_USER: keepit
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keepit}
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keepit -d keepit"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    networks: [keepit]
-
-  api:
-    image: richy1989/keepit-api:latest   # or build: { context: ./keepIT, dockerfile: keepITCore/Dockerfile }
-    user: root
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_HTTP_PORTS: "8080"
-      ConnectionStrings__Postgres: Host=db;Port=5432;Database=keepit;Username=keepit;Password=${POSTGRES_PASSWORD:-keepit}
-      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
-      Jwt__Issuer: keepITCore
-      Jwt__Audience: keepIT.api
-      App__DataRoot: /data
-      Auth__RefreshCookie__Secure: "false"   # set to "true" when TLS terminates at the proxy
-    volumes:
-      - app-data:/data
-    depends_on:
-      db:
-        condition: service_healthy
-    networks: [keepit]
-
-  web:
-    image: richy1989/keepit-web:latest   # or build: { context: ./web }
-    ports:
-      - "8080:80"
-    depends_on: [api]
-    networks: [keepit]
-
-volumes:
-  db-data:
-  app-data:
-
-networks:
-  keepit:
-```
+The repo's [`docker-compose.yml`](docker-compose.yml) runs three containers — Postgres, the API,
+and nginx+SPA — on a shared internal network, **building the API and web images locally from this
+repo** (this path pulls nothing from Docker Hub). Only nginx is published, on port 8080.
 
 ```bash
-cp .env.example .env   # fill in JWT_KEY (32+ chars) and optionally POSTGRES_PASSWORD
-docker compose up -d
+cp .env.example .env          # set JWT_KEY (32+ chars), optionally POSTGRES_PASSWORD
+docker compose up -d --build  # builds api + web, starts them alongside Postgres
 ```
+
+Open **http://localhost:8080**. Postgres data and the API's data folder persist in named volumes.
+See [`docker-compose.yml`](docker-compose.yml) for the full definition.
 
 ### Option 2 — Single container (Unraid / simple hosts)
 
@@ -277,7 +231,7 @@ The API uses its **SQLite fallback** by default — no Postgres needed. Mount `/
 persist the database, Data Protection keys, and uploaded media.
 
 ```bash
-# Build and push (linux/amd64):
+# Build and push (linux/amd64); on Windows use ./deploy/build-and-push.ps1 -Tag v0.1.0
 ./deploy/build-and-push.sh --tag v0.1.0
 
 # Or pull the pre-built image and run:
@@ -285,7 +239,7 @@ docker run -d \
   --name keepit \
   -p 8080:80 \
   -v keepit-data:/data \
-  -e JWT_KEY="your-random-secret-at-least-32-chars" \
+  -e Jwt__Key="your-random-secret-at-least-32-chars" \
   richy1989/keepit:latest
 ```
 
@@ -298,7 +252,7 @@ docker run -d \
   --name keepit \
   -p 8080:80 \
   -v keepit-data:/data \
-  -e JWT_KEY="your-secret" \
+  -e Jwt__Key="your-secret" \
   -e "ConnectionStrings__Postgres=Host=<host>;Port=5432;Database=keepit;Username=keepit;Password=<pass>" \
   richy1989/keepit:latest
 ```
@@ -309,7 +263,8 @@ An **Unraid Community Apps template** is included at `deploy/keepit.unraid.xml`.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `JWT_KEY` | **yes** | — | Random secret, min 32 characters. Signs JWT access tokens. |
+| `Jwt__Key` | **yes** | — | Random secret, min 32 chars — signs JWT access tokens. **The variable the app actually reads**; use it for `docker run` / Unraid / the single-container image. |
+| `JWT_KEY` | compose only | — | Convenience `.env` value that `docker-compose.yml` interpolates into `Jwt__Key`. Not read directly by the app. |
 | `POSTGRES_PASSWORD` | no | `keepit` | Postgres password (used in the Compose stack). |
 | `ConnectionStrings__Postgres` | no | *(SQLite fallback)* | Full Postgres connection string. If empty, SQLite is used. |
 | `Jwt__Issuer` | no | `keepITCore` | JWT issuer claim. |
@@ -318,7 +273,7 @@ An **Unraid Community Apps template** is included at `deploy/keepit.unraid.xml`.
 | `Jwt__RefreshTokenDays` | no | `14` | Refresh token lifetime in days. |
 | `App__DataRoot` | no | `./App_Data` | Directory for SQLite DB, Data Protection keys, and media. |
 | `Auth__RefreshCookie__Secure` | no | `true` | Set to `false` if TLS does not terminate at this container. |
-| `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and Swagger UI. |
+| `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the Scalar API explorer at `/scalar/v1`. |
 
 ---
 
