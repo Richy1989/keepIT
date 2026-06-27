@@ -9,8 +9,9 @@ import type { ChecklistItemDto, NoteType } from '../../api/types';
 
 /**
  * The pinned "Take a note…" composer. Collapsed it's a single bar; clicking expands it inline into
- * a card with a title, body (or checklist), and a color picker. It saves on click-outside (Keep's
- * behaviour) and files new notes into whichever lists are currently being filtered.
+ * a card with a title, body (or checklist), and a color picker. Saving is explicit — only the Save
+ * button commits the note; clicking outside discards the draft. New notes are filed into whichever
+ * lists are currently being filtered.
  */
 export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
   const create = useCreateNote();
@@ -52,16 +53,16 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
     reset();
   }
 
-  // Click-outside saves and collapses.
+  // Click-outside cancels: the draft is discarded and the composer collapses. Saving is explicit —
+  // only the Save button commits the note.
   useEffect(() => {
     if (!open) return;
     function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) save();
+      if (ref.current && !ref.current.contains(e.target as Node)) reset();
     }
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, title, body, items, color, type]);
+  }, [open]);
 
   const swatch = noteColor(color);
 
