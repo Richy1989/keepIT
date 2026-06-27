@@ -7,9 +7,13 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using Serilog;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ---- Logging (Serilog: clean colored console, levels from the "Serilog" config section) ----
+builder.AddSerilogLogging();
 
 // ---- Options ----
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
@@ -127,6 +131,7 @@ else
 }
 
 app.UseForwardedHeaders();
+app.UseSerilogRequestLogging(); // one clean line per request (after forwarded headers, so the client IP is real)
 app.UseCors("frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
