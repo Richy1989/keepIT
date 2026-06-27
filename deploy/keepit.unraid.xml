@@ -13,7 +13,7 @@
   <Category>Productivity:</Category>
   <WebUI>http://[IP]:[PORT:80]/</WebUI>
   <TemplateURL/>
-  <Icon>https://raw.githubusercontent.com/richy1989/keepIT/main/docs/logo.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/richy1989/keepIT/main/docs/logo.png</Icon>
   <ExtraParams/>
   <PostArgs/>
   <CPUset/>
