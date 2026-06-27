@@ -15,13 +15,21 @@ export interface Selection {
   listId: string | null;
 }
 
-/** Left navigation: Notes / Archive / Trash plus the user's lists (filter, create, rename, delete). */
+/**
+ * Left navigation: Notes / Archive / Trash plus the user's lists (filter, create, rename, delete).
+ * On `md+` it's a static column; on small screens it's an off-canvas drawer toggled via `open`
+ * (slides in over the content with a tap-to-dismiss backdrop), so phones get the full width back.
+ */
 export function Sidebar({
   selection,
   onSelect,
+  open,
+  onClose,
 }: {
   selection: Selection;
   onSelect: (s: Selection) => void;
+  open: boolean;
+  onClose: () => void;
 }) {
   const { data: lists } = useLists();
   const createList = useCreateList();
@@ -47,7 +55,35 @@ export function Sidebar({
   }
 
   return (
-    <nav className="flex w-60 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border-subtle p-3">
+    <>
+      {/* Mobile-only backdrop; tap to dismiss. Sits below the top bar so it stays usable. */}
+      {open && (
+        <div
+          onClick={onClose}
+          aria-hidden="true"
+          className="fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 md:hidden"
+        />
+      )}
+      <nav
+        className={cn(
+          'fixed bottom-0 left-0 top-14 z-40 flex w-60 flex-col gap-1 overflow-y-auto border-r border-border-subtle bg-canvas p-3 transition-transform duration-200 ease-in-out',
+          'md:static md:top-auto md:z-auto md:shrink-0 md:translate-x-0 md:transition-none',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
+        {/* Mobile-only header with a close button (the drawer has no other affordance to dismiss). */}
+        <div className="mb-1 flex items-center justify-between md:hidden">
+          <span className="px-2 text-sm font-semibold text-text-muted">Menu</span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close navigation"
+            className="focus-ring grid size-7 place-items-center rounded text-text-faint transition hover:bg-surface-hover hover:text-text"
+          >
+            <XIcon className="text-base" />
+          </button>
+        </div>
+
       <NavItem
         icon={<NoteIcon className="text-lg" />}
         label="Notes"
@@ -143,7 +179,8 @@ export function Sidebar({
           onClick={() => onSelect({ view: 'trashed', listId: null })}
         />
       </div>
-    </nav>
+      </nav>
+    </>
   );
 }
 

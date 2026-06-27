@@ -23,6 +23,14 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
   );
 }
 
+export const MenuIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 6h16" />
+    <path d="M4 12h16" />
+    <path d="M4 18h16" />
+  </Icon>
+);
+
 export const PinIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M12 17v5" />
