@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings or they break as container entrypoints on Linux
+# (CRLF yields "/usr/bin/env: bash\r: No such file or directory").
+*.sh text eol=lf
+deploy/entrypoint.sh text eol=lf

@@ -1,0 +1,18 @@
+# Root build context ignore (used by deploy/Dockerfile, whose context is the repo root).
+# Keeps host build artifacts — especially web/node_modules and the SQLite data — out of the image.
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/.vite
+**/.git
+**/.vs
+**/.vscode
+**/App_Data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/.env
+**/.env.*
+**/*.user
+**/npm-debug.log

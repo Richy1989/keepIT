@@ -1,29 +1,30 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+# Multi-stage build for the keepITCore Web API (.NET 10).
+# Build context is ./keepIT (see docker-compose.yml). The API listens on 8080 and is only reached
+# through the web container's nginx. Stage names (base/build/publish/final) are kept so Visual
+# Studio's container tooling can still attach for fast-mode debugging.
+# See https://aka.ms/customizecontainer for how VS uses this file.
 
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
+# Runtime base — also the stage VS mounts into for fast-mode (Debug) container runs.
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
 
-
-# This stage is used to build the service project
+# Restore (cached unless the csproj changes), then bring in the rest of the source.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["keepITCore/keepITCore.csproj", "keepITCore/"]
-RUN dotnet restore "./keepITCore/keepITCore.csproj"
+RUN dotnet restore "keepITCore/keepITCore.csproj"
 COPY . .
 WORKDIR "/src/keepITCore"
-RUN dotnet build "./keepITCore.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-# This stage is used to publish the service project to be copied to the final stage
+# Publish a framework-dependent build (no native apphost — the entrypoint runs the DLL directly).
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./keepITCore.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "keepITCore.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+# Final runtime image: just the published output on the non-root base.
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .

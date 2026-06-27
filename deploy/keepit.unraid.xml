@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>keepIT</Name>
+  <Repository>richy1989/keepit:latest</Repository>
+  <Registry>https://hub.docker.com/r/richy1989/keepit</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <Overview>keepIT — a Google Keep-style notes app. Single self-contained image: nginx serves the React UI and reverse-proxies the .NET API, with a SQLite database. All data (database, encryption keys, uploaded images) is stored under /data — map it to your appdata share to persist it.</Overview>
+  <Category>Productivity:</Category>
+  <WebUI>http://[IP]:[PORT:80]/</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/richy1989/keepIT/main/docs/logo.svg</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Description>keepIT — a Google Keep-style notes app (web UI + REST API). This single-container build runs the React UI behind nginx, the ASP.NET Core API, and a SQLite database in one image. Mount /data to your appdata share so your notes survive container updates. Set a long random Jwt Key before exposing it.</Description>
+  <Networking>
+    <Mode>bridge</Mode>
+    <Publish>
+      <Port>
+        <HostPort>8080</HostPort>
+        <ContainerPort>80</ContainerPort>
+        <Protocol>tcp</Protocol>
+      </Port>
+    </Publish>
+  </Networking>
+  <Data>
+    <Volume>
+      <HostDir>/mnt/user/appdata/keepit</HostDir>
+      <ContainerDir>/data</ContainerDir>
+      <Mode>rw</Mode>
+    </Volume>
+  </Data>
+  <Environment>
+    <Variable>
+      <Value>change-me-to-a-random-secret-of-at-least-32-characters</Value>
+      <Name>Jwt__Key</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>Production</Value>
+      <Name>ASPNETCORE_ENVIRONMENT</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>false</Value>
+      <Name>Auth__RefreshCookie__Secure</Name>
+      <Mode/>
+    </Variable>
+  </Environment>
+  <Config Name="WebUI Port" Target="80" Default="8080" Mode="tcp" Description="Host port for the keepIT web UI. Browse to http://[Unraid-IP]:[this port]." Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="App Data" Target="/data" Default="/mnt/user/appdata/keepit" Mode="rw" Description="Host folder where keepIT stores its SQLite database, encryption keys and uploaded images. Point this at your appdata share to persist data across updates." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/keepit</Config>
+  <Config Name="JWT Key" Target="Jwt__Key" Default="" Description="REQUIRED. A random secret of at least 32 characters used to sign login tokens. Change this before first use; changing it later signs everyone out." Type="Variable" Display="always" Required="true" Mask="true">change-me-to-a-random-secret-of-at-least-32-characters</Config>
+  <Config Name="Environment" Target="ASPNETCORE_ENVIRONMENT" Default="Production" Description="Production (default) or Development. Development also enables the Scalar API explorer at /scalar/v1." Type="Variable" Display="advanced" Required="false" Mask="false">Production</Config>
+  <Config Name="Refresh Cookie Secure" Target="Auth__RefreshCookie__Secure" Default="false" Description="Keep false when accessing over plain http. Set true only when keepIT is served over https (e.g. behind a reverse proxy with TLS)." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>
