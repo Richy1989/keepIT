@@ -92,6 +92,16 @@ export function useNotes(filter: NotesFilter) {
   });
 }
 
+/**
+ * A throwaway client-side id for the optimistic note. `crypto.randomUUID()` only exists in secure
+ * contexts (https or localhost), so over plain-http LAN (e.g. a self-hosted box on its IP) it's
+ * undefined and would throw in onMutate — before the POST is ever sent. This falls back to a
+ * non-crypto id, which is fine for a temporary placeholder that the server's real id replaces.
+ */
+function makeTempId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 /** Creates a note, shown optimistically in the active view until the server confirms. */
 export function useCreateNote() {
   const qc = useQueryClient();
@@ -104,7 +114,7 @@ export function useCreateNote() {
     onMutate: async (input) => {
       await qc.cancelQueries({ queryKey: [NOTES_KEY] });
       const snapshot = snapshotNotes(qc);
-      const tempId = `temp-${crypto.randomUUID()}`;
+      const tempId = `temp-${makeTempId()}`;
       const now = new Date().toISOString();
       const optimistic: NoteDto = {
         id: tempId,
