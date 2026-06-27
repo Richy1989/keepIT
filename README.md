@@ -6,9 +6,6 @@
 
 **A dark, modern, real-time notes app.**
 
-A masonry grid of note cards with fast, optimistic editing, lists, search, sharing, and
-**real-time sync** so a note edited on one device shows up on your others without a refresh.
-
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -21,6 +18,20 @@ A masonry grid of note cards with fast, optimistic editing, lists, search, shari
 </div>
 
 <div align="center"><img src="images/screenshot_1.png" alt="keepIT — masonry grid of notes in the dark web UI" width="800"></div>
+
+Honestly? I just wanted a simple notes app, and couldn't find one with the three things I
+actually cared about — so I built it myself. With a little AI help. 😉 Modern problems require
+modern solutions.
+
+The features I really wanted:
+
+- a simple notes app with a modern web UI
+- note sharing between different users
+- a native Android app, including a home-screen widget
+
+It's since grown into a masonry grid of note cards with fast, optimistic editing, lists, search,
+sharing, and **real-time sync** — so a note edited on one device shows up on your others without
+a refresh.
 
 > **Status:** work in progress. **Implemented:** auth (register/login/JWT + refresh),
 > text & checklist notes with optimistic editing, colors, pin/archive/trash, lists with
