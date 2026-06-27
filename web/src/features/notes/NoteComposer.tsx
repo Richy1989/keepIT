@@ -150,7 +150,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
           onClick={save}
           className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-black/20 hover:text-text"
         >
-          Close
+          Save
         </button>
       </div>
     </div>
