@@ -1,5 +1,6 @@
 using keepITCore.Auth.Dtos;
 using keepITCore.Data;
+using keepITCore.Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +16,7 @@ namespace keepITCore.Auth;
 /// </summary>
 [ApiController]
 [Route("api/auth")]
-[EnableRateLimiting("auth")]
+[EnableRateLimiting(RateLimitPolicies.Auth)]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
