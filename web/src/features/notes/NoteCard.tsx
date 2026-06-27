@@ -64,7 +64,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         title={note.isPinned ? 'Unpin' : 'Pin'}
         className={cn(
           'focus-ring absolute right-2 top-2 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text',
-          note.isPinned ? 'opacity-100 text-text' : 'opacity-0 group-hover:opacity-100',
+          note.isPinned ? 'opacity-100 text-text' : 'opacity-0 group-hover:opacity-100 touch:opacity-100',
         )}
       >
         <PinIcon className="text-base" />
@@ -142,7 +142,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
 
       {/* Footer: hover toolbar (left) + always-visible timestamp (right). */}
       <div className="mt-3 flex items-center gap-1">
-        <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+        <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100 touch:opacity-100">
         {note.isTrashed ? (
           <>
             <CardTool

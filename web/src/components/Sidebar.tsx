@@ -139,7 +139,7 @@ export function Sidebar({
                   if (selection.listId === l.id) onSelect({ view: 'active', listId: null });
                 }
               }}
-              className="focus-ring absolute right-2 top-1/2 hidden -translate-y-1/2 place-items-center rounded p-1 text-text-faint transition hover:text-rose-300 group-hover/list:grid"
+              className="focus-ring absolute right-2 top-1/2 hidden -translate-y-1/2 place-items-center rounded p-1 text-text-faint transition hover:text-rose-300 group-hover/list:grid touch:grid"
             >
               <XIcon className="text-sm" />
             </button>
@@ -216,7 +216,7 @@ function NavItem({
       <span className="flex-1 truncate text-left">{label}</span>
       {count !== undefined && count > 0 && (
         // Fade out on hover so the row's delete button (absolute, same spot) doesn't overlap it.
-        <span className="text-xs text-text-faint transition group-hover/list:opacity-0">{count}</span>
+        <span className="text-xs text-text-faint transition group-hover/list:opacity-0 touch:opacity-0">{count}</span>
       )}
     </button>
   );

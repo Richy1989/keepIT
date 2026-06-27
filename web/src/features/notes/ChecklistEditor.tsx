@@ -95,7 +95,7 @@ export function ChecklistEditor({
               setOverIndex(null);
             }}
             aria-label="Drag to reorder"
-            className="shrink-0 cursor-grab text-text-faint opacity-0 transition hover:text-text-muted active:cursor-grabbing group-hover:opacity-100"
+            className="shrink-0 cursor-grab text-text-faint opacity-0 transition hover:text-text-muted active:cursor-grabbing group-hover:opacity-100 touch:opacity-100"
           >
             <GripVerticalIcon className="text-base" />
           </span>
@@ -136,7 +136,7 @@ export function ChecklistEditor({
             type="button"
             onClick={() => remove(i)}
             aria-label="Remove item"
-            className="text-text-faint opacity-0 transition hover:text-text group-hover:opacity-100"
+            className="text-text-faint opacity-0 transition hover:text-text group-hover:opacity-100 touch:opacity-100"
           >
             <XIcon className="text-sm" />
           </button>

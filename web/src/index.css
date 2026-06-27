@@ -1,5 +1,10 @@
 @import 'tailwindcss';
 
+/* Touch devices can't hover, so `group-hover`/`hover` reveal controls (card actions, the list
+   delete button, etc.) would stay permanently hidden. The `touch` variant matches pointers with no
+   hover, letting us force those controls into their revealed state on phones/tablets. */
+@custom-variant touch (@media (hover: none));
+
 /*
   Design tokens (ARCHITECTURE.md "Look & feel"). Chrome colors are theme tokens so switching
   themes is a token swap, not a rewrite:

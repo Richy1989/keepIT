@@ -122,7 +122,13 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
 
         {showColors && (
           <div className="mt-3 rounded-lg border border-border-subtle bg-canvas/40 p-2">
-            <ColorPicker value={color} onPick={setColor} />
+            <ColorPicker
+              value={color}
+              onPick={(c) => {
+                setColor(c);
+                setShowColors(false);
+              }}
+            />
           </div>
         )}
       </div>
