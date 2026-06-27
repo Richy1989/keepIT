@@ -215,7 +215,8 @@ function NavItem({
       <span className={cn(active ? 'text-accent' : 'text-text-faint')}>{icon}</span>
       <span className="flex-1 truncate text-left">{label}</span>
       {count !== undefined && count > 0 && (
-        <span className="text-xs text-text-faint">{count}</span>
+        // Fade out on hover so the row's delete button (absolute, same spot) doesn't overlap it.
+        <span className="text-xs text-text-faint transition group-hover/list:opacity-0">{count}</span>
       )}
     </button>
   );
