@@ -39,7 +39,12 @@ A masonry grid of note cards with fast, optimistic editing, lists, search, shari
 - [Project structure](#project-structure)
 - [Getting started](#getting-started)
   - [Local dev (two terminals)](#local-dev-two-terminals)
-  - [Full stack (Docker)](#full-stack-docker)
+  - [Seed dev data](#seed-dev-data)
+  - [Full stack (Docker Compose)](#full-stack-docker-compose)
+- [Deploy](#deploy)
+  - [Option 1 — Docker Compose (multi-container)](#option-1--docker-compose-multi-container)
+  - [Option 2 — Single container (Unraid / simple hosts)](#option-2--single-container-unraid--simple-hosts)
+  - [Environment variables](#environment-variables)
 - [Regenerating the API client](#regenerating-the-api-client)
 - [License](#license)
 
@@ -75,6 +80,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 - **Per-user settings** — personalize the UI (global accent color).
 - **Dark web UI** — masonry grid, composer, sidebar, editor modal.
 - **Docker Compose stack** — API + Postgres + web (nginx).
+- **Single-container image** — API + nginx bundled for simple self-hosted deployments (Unraid).
 
 ### 🔜 Next (web + API)
 
@@ -100,7 +106,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 | Realtime   | **SignalR** hub pushing note changes to other devices *(planned)*  |
 | Frontend   | **React 19** + Vite + TypeScript, TanStack Query, React Router, Tailwind |
 | API client | Typed TS client **generated from OpenAPI** via `openapi-typescript` + `openapi-fetch` (C# DTOs are source of truth) |
-| Deploy     | Docker Compose (nginx serves the SPA and reverse-proxies the API)  |
+| Deploy     | Docker Compose (multi-container) **or** single Docker image (nginx + API bundled) |
 
 ## Architecture at a glance
 
@@ -131,7 +137,7 @@ keepIT/
 │  │  ├─ Data/           # EF Core entities, DbContext, migrations
 │  │  ├─ Notes/          # notes controller + DTOs
 │  │  ├─ Lists/          # lists controller + DTOs
-│  │  ├─ Infrastructure/ # OpenAPI transformers, DB provider selection
+│  │  ├─ Infrastructure/ # OpenAPI, logging, security, DB provider selection
 │  │  └─ Program.cs
 │  └─ keepITCore.slnx
 ├─ web/                  # React app (Vite + TS)
@@ -141,9 +147,17 @@ keepIT/
 │     ├─ components/     # shared UI (Sidebar, Topbar, icons, ColorPicker)
 │     ├─ features/       # notes & lists (cards, editor, query hooks)
 │     └─ pages/          # AuthPage, HomePage
+├─ deploy/               # single-container deployment (nginx + API in one image)
+│  ├─ Dockerfile         # multi-stage build: React → .NET → nginx+API runtime
+│  ├─ nginx.conf         # serves SPA, proxies /api to loopback API
+│  ├─ entrypoint.sh      # starts API + nginx, tears down if either exits
+│  ├─ build-and-push.sh  # build linux/amd64 image and push to Docker Hub
+│  └─ keepit.unraid.xml  # Unraid Community Apps template
+├─ scripts/
+│  └─ seed-dev-data.sh   # populate the dev DB with test data via the REST API
 ├─ android/              # native Android app (Kotlin + Compose, + widget) — planned
-├─ docker-compose.yml    # api + postgres + web (nginx)
-├─ .env.example          # copy to .env (set JWT_KEY)
+├─ docker-compose.yml    # api + postgres + web (nginx) — multi-container stack
+├─ .env.example          # copy to .env (set JWT_KEY + POSTGRES_PASSWORD)
 ├─ ARCHITECTURE.md       # full design & rationale
 └─ CLAUDE.md             # short always-on rules
 ```
@@ -168,15 +182,145 @@ npm run dev
 
 Open **http://localhost:5173** and register an account.
 
-### Full stack (Docker)
+### Seed dev data
+
+After starting the backend, run the seed script to populate it with a test user, lists,
+and a variety of notes (text, checklist, pinned, archived, trashed):
 
 ```bash
-cp .env.example .env        # then set JWT_KEY to a random 32+ char secret
+./scripts/seed-dev-data.sh          # creates test@test.com / Test1234#1234
+./scripts/seed-dev-data.sh --reset  # wipes existing notes first, then re-seeds
+```
+
+Requires `curl` and `jq`. Run `./scripts/seed-dev-data.sh --help` for all options.
+
+### Full stack (Docker Compose)
+
+```bash
+cp .env.example .env        # set JWT_KEY to a random 32+ char secret
 docker compose up --build   # api + postgres + web (nginx)
 ```
 
-Open **http://localhost:8080**. nginx (the web container) serves the frontend and reverse-proxies
-`/api` to the backend on one origin; Postgres data and the API's data folder persist in named volumes.
+Open **http://localhost:8080**. nginx (the web container) serves the frontend and
+reverse-proxies `/api` to the backend on one origin; Postgres data and the API's data
+folder persist in named volumes.
+
+---
+
+## Deploy
+
+### Option 1 — Docker Compose (multi-container)
+
+The default `docker-compose.yml` runs three containers (Postgres, API, nginx+SPA) on a
+shared internal network. Only nginx is published to the host.
+
+```yaml
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: keepit
+      POSTGRES_USER: keepit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keepit}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keepit -d keepit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [keepit]
+
+  api:
+    image: richy1989/keepit-api:latest   # or build: { context: ./keepIT, dockerfile: keepITCore/Dockerfile }
+    user: root
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__Postgres: Host=db;Port=5432;Database=keepit;Username=keepit;Password=${POSTGRES_PASSWORD:-keepit}
+      Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env}
+      Jwt__Issuer: keepITCore
+      Jwt__Audience: keepIT.api
+      App__DataRoot: /data
+      Auth__RefreshCookie__Secure: "false"   # set to "true" when TLS terminates at the proxy
+    volumes:
+      - app-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [keepit]
+
+  web:
+    image: richy1989/keepit-web:latest   # or build: { context: ./web }
+    ports:
+      - "8080:80"
+    depends_on: [api]
+    networks: [keepit]
+
+volumes:
+  db-data:
+  app-data:
+
+networks:
+  keepit:
+```
+
+```bash
+cp .env.example .env   # fill in JWT_KEY (32+ chars) and optionally POSTGRES_PASSWORD
+docker compose up -d
+```
+
+### Option 2 — Single container (Unraid / simple hosts)
+
+`deploy/Dockerfile` bundles the React SPA, the .NET API, and nginx into **one image**.
+The API uses its **SQLite fallback** by default — no Postgres needed. Mount `/data` to
+persist the database, Data Protection keys, and uploaded media.
+
+```bash
+# Build and push (linux/amd64):
+./deploy/build-and-push.sh --tag v0.1.0
+
+# Or pull the pre-built image and run:
+docker run -d \
+  --name keepit \
+  -p 8080:80 \
+  -v keepit-data:/data \
+  -e JWT_KEY="your-random-secret-at-least-32-chars" \
+  richy1989/keepit:latest
+```
+
+Open **http://localhost:8080** (or your host's IP on port 8080).
+
+To use **Postgres instead of SQLite**, pass the connection string:
+
+```bash
+docker run -d \
+  --name keepit \
+  -p 8080:80 \
+  -v keepit-data:/data \
+  -e JWT_KEY="your-secret" \
+  -e "ConnectionStrings__Postgres=Host=<host>;Port=5432;Database=keepit;Username=keepit;Password=<pass>" \
+  richy1989/keepit:latest
+```
+
+An **Unraid Community Apps template** is included at `deploy/keepit.unraid.xml`.
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `JWT_KEY` | **yes** | — | Random secret, min 32 characters. Signs JWT access tokens. |
+| `POSTGRES_PASSWORD` | no | `keepit` | Postgres password (used in the Compose stack). |
+| `ConnectionStrings__Postgres` | no | *(SQLite fallback)* | Full Postgres connection string. If empty, SQLite is used. |
+| `Jwt__Issuer` | no | `keepITCore` | JWT issuer claim. |
+| `Jwt__Audience` | no | `keepIT.api` | JWT audience claim. |
+| `Jwt__AccessTokenMinutes` | no | `15` | Access token lifetime in minutes. |
+| `Jwt__RefreshTokenDays` | no | `14` | Refresh token lifetime in days. |
+| `App__DataRoot` | no | `./App_Data` | Directory for SQLite DB, Data Protection keys, and media. |
+| `Auth__RefreshCookie__Secure` | no | `true` | Set to `false` if TLS does not terminate at this container. |
+| `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and Swagger UI. |
+
+---
 
 ## Regenerating the API client
 
