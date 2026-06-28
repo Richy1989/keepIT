@@ -4,7 +4,7 @@
 
 # keepIT
 
-**A dark, modern, real-time notes app.**
+**A modern, real-time notes app.**
 
 [![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
