@@ -1,6 +1,7 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Notes.Dtos;
+using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,10 +19,16 @@ namespace keepITCore.Notes;
 public class NotesController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IRealtimeNotifier _notifier;
 
-    /// <summary>Injects the database context.</summary>
+    /// <summary>Injects the database context and the realtime change notifier.</summary>
     /// <param name="db">The EF Core context.</param>
-    public NotesController(AppDbContext db) => _db = db;
+    /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
+    public NotesController(AppDbContext db, IRealtimeNotifier notifier)
+    {
+        _db = db;
+        _notifier = notifier;
+    }
 
     /// <summary>
     /// Lists the caller's notes (pinned first, then most-recently updated). Defaults to the active
@@ -108,6 +115,7 @@ public class NotesController : ControllerBase
 
         _db.Notes.Add(note);
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
 
         var created = await LoadDtoAsync(note.Id, ownerId.Value);
         return CreatedAtAction(nameof(GetNote), new { id = note.Id }, created);
@@ -164,6 +172,7 @@ public class NotesController : ControllerBase
             _db.ChecklistItems.Remove(stale);
 
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes);
         return Ok((await LoadDtoAsync(id, ownerId.Value))!);
     }
 
@@ -186,6 +195,7 @@ public class NotesController : ControllerBase
         note.UpdatedAtUtc = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
         return Ok((await LoadDtoAsync(id, ownerId.Value))!);
     }
 
@@ -214,6 +224,7 @@ public class NotesController : ControllerBase
             _db.NoteLists.Add(new NoteList { NoteId = note.Id, ListId = listId, UserId = ownerId.Value });
 
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
         return Ok((await LoadDtoAsync(id, ownerId.Value))!);
     }
 
@@ -231,6 +242,7 @@ public class NotesController : ControllerBase
 
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
         return NoContent();
     }
 

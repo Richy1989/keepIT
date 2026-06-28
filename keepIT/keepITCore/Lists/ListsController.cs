@@ -1,6 +1,7 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Lists.Dtos;
+using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,10 +19,16 @@ namespace keepITCore.Lists;
 public class ListsController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IRealtimeNotifier _notifier;
 
-    /// <summary>Injects the database context.</summary>
+    /// <summary>Injects the database context and the realtime change notifier.</summary>
     /// <param name="db">The EF Core context.</param>
-    public ListsController(AppDbContext db) => _db = db;
+    /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
+    public ListsController(AppDbContext db, IRealtimeNotifier notifier)
+    {
+        _db = db;
+        _notifier = notifier;
+    }
 
     /// <summary>Lists the caller's lists (alphabetical), each with its active-note count.</summary>
     /// <returns>200 with the caller's lists.</returns>
@@ -67,6 +74,7 @@ public class ListsController : ControllerBase
 
         _db.Lists.Add(list);
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists);
 
         return CreatedAtAction(nameof(GetLists), new { id = list.Id }, ToDto(list, 0));
     }
@@ -88,6 +96,7 @@ public class ListsController : ControllerBase
         if (dto.Color is not null) list.Color = dto.Color;
 
         await _db.SaveChangesAsync();
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists);
 
         var count = await _db.NoteLists.CountAsync(nl => nl.ListId == id && nl.UserId == ownerId && !nl.Note.IsTrashed);
         return Ok(ToDto(list, count));
@@ -107,6 +116,8 @@ public class ListsController : ControllerBase
 
         _db.Lists.Remove(list);
         await _db.SaveChangesAsync();
+        // Deleting a list drops its note memberships, so notes' listIds change too.
+        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists, RealtimeResources.Notes);
         return NoContent();
     }
 

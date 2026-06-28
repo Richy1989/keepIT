@@ -3,8 +3,10 @@ using keepITCore.Data;
 using keepITCore.Infrastructure;
 using keepITCore.Infrastructure.Security;
 using keepITCore.Service;
+using keepITCore.SignalR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using Serilog;
@@ -102,6 +104,13 @@ builder.Services.AddOpenApi(options =>
 //Adding a service which helps in creating images
 builder.Services.AddScoped<ImageService>();
 
+//Add the SignalR Service
+builder.Services.AddSignalR();
+// Route Clients.User(...) by the JWT "sub" claim (our tokens don't emit NameIdentifier).
+builder.Services.AddSingleton<IUserIdProvider, SubUserIdProvider>();
+// Lets controllers push change signals to a user's other devices after a mutation.
+builder.Services.AddSingleton<IRealtimeNotifier, RealtimeNotifier>();
+
 var app = builder.Build();
 
 // ---- Database init: Postgres uses migrations; SQLite dev DB is created from the model ----
@@ -137,5 +146,9 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Mapped under /api so the existing reverse-proxy + WebSocket-upgrade rules (vite dev proxy and
+// nginx) route it without extra config. The browser's SignalR client connects to /api/realtime.
+app.MapHub<RealTimeHub>("/api/realtime");
 
 app.Run();
