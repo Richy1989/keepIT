@@ -283,8 +283,8 @@ An **Unraid Community Apps template** is included at `deploy/keepit.unraid.xml`.
 | `Jwt__AccessTokenMinutes` | no | `15` | Access token lifetime in minutes. |
 | `Jwt__RefreshTokenDays` | no | `14` | Refresh token lifetime in days. |
 | `App__DataRoot` | no | `./App_Data` | Directory for SQLite DB, Data Protection keys, and media. |
-| `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the API — used to recover the real client IP for per-IP rate limiting. **Must match your topology:** `1` for the bare stack (nginx → api), `2` behind another proxy like Traefik (Traefik → nginx → api). Too low collapses all clients into one rate-limit bucket; too high lets clients spoof their IP. |
-| `Auth__RefreshCookie__Secure` | no | `true` | Refresh cookie is HTTPS-only. Keep `true` behind TLS (and on `http://localhost`, which browsers treat as secure); set `false` only when serving over plain HTTP on a non-localhost address. |
+| `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the API — used to recover the real client IP for per-IP rate limiting. **Must match your topology:** `1` for the bare Compose stack (nginx → api) or single-container accessed directly, `2` behind another proxy like Traefik (Traefik → nginx → api). Too low collapses all clients into one rate-limit bucket; too high lets clients spoof their IP. |
+| `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single-container image) | Refresh cookie is HTTPS-only. Keep `true` behind TLS (and on `http://localhost`, which browsers treat as secure); set `false` only when serving over plain HTTP on a non-localhost address (e.g. LAN IP without TLS). |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the Scalar API explorer at `/scalar/v1`. |
 
 ---

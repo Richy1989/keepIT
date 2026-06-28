@@ -55,6 +55,11 @@
       <Mode/>
     </Variable>
     <Variable>
+      <Value>1</Value>
+      <Name>App__ForwardedProxyHops</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
       <Value></Value>
       <Name>POSTGRES_HOST</Name>
       <Mode/>
@@ -85,6 +90,7 @@
   <Config Name="JWT Key" Target="Jwt__Key" Default="" Description="REQUIRED. A random secret of at least 32 characters used to sign login tokens. Change this before first use; changing it later signs everyone out." Type="Variable" Display="always" Required="true" Mask="true">change-me-to-a-random-secret-of-at-least-32-characters</Config>
   <Config Name="Environment" Target="ASPNETCORE_ENVIRONMENT" Default="Production" Description="Production (default) or Development. Development also enables the Scalar API explorer at /scalar/v1." Type="Variable" Display="advanced" Required="false" Mask="false">Production</Config>
   <Config Name="Refresh Cookie Secure" Target="Auth__RefreshCookie__Secure" Default="false" Description="Keep false when accessing over plain http. Set true only when keepIT is served over https (e.g. behind a reverse proxy with TLS)." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="Proxy Hops" Target="App__ForwardedProxyHops" Default="1" Description="Number of reverse-proxy hops in front of keepIT. Set to 1 if accessed directly or through one proxy (e.g. Traefik alone). Set to 2 if Traefik sits in front of this container (Traefik → nginx → api). Must be exact: too low and all clients share one rate-limit bucket; too high and clients can spoof their IP." Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
   <Config Name="Postgres Host" Target="POSTGRES_HOST" Default="" Description="Optional. LEAVE EMPTY to use the built-in SQLite database (recommended for testing). This field is the switch: empty = SQLite, filled = Postgres. Set it to your Postgres host/container to switch databases (then also set Postgres Password)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Postgres Port" Target="POSTGRES_PORT" Default="" Description="Optional Postgres port (defaults to 5432 if empty). Ignored while Postgres Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Postgres Database" Target="POSTGRES_DB" Default="" Description="Optional Postgres database name (defaults to 'keepit'). Ignored while Postgres Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
