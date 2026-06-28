@@ -14,7 +14,7 @@ search, and live sync so a note edited on one device appears on others without a
 Two independent deployables talking over HTTP + WebSocket:
 
 - **`web/`** — React (Vite, TypeScript). The UI and all client logic.
-- **`src/keepITCore`** — ASP.NET Core Web API (.NET 10). Business logic, persistence, auth, realtime.
+- **`keepIT/keepITCore`** — ASP.NET Core Web API (.NET 10). Business logic, persistence, auth, realtime.
 
 They are built, versioned, and deployed separately. We deliberately do **not** host React
 inside ASP.NET Core (the old SPA template approach) — keeping them separate lets either side
@@ -32,8 +32,10 @@ A note edit travels **down** the stack; live changes from other devices travel *
 
 1. User edits a note → TanStack Query **mutation** fires with an optimistic update → UI changes instantly.
 2. The mutation calls the **typed API client** → `keepITCore` endpoint → EF Core → PostgreSQL.
-3. The API broadcasts the change over the **SignalR hub** → other devices receive it →
-   they invalidate the relevant TanStack Query cache key → their UI re-syncs.
+3. After saving, the endpoint pushes a per-user **change signal** over the **SignalR hub**
+   (`Changed(["notes","lists"])`) → the user's other devices receive it → they invalidate the
+   matching TanStack Query cache keys → their UI re-syncs. The signal names *what* changed; the
+   data itself is reloaded by TanStack Query, not carried in the message.
 4. If the mutation errors, TanStack Query rolls the optimistic change back automatically.
 
 ## The API contract (most important rule)
@@ -45,13 +47,14 @@ The C# DTOs are the single source of truth for the API shape.
 - Workflow: change a C# DTO → regenerate the client → TypeScript compile errors point at
   every frontend spot that needs updating. No hand-maintained mirror types, no silent drift.
 
-Generator options (pick one and wire it into `npm run generate:api`):
-- **Kiota** — Microsoft's own, integrates cleanly with .NET.
-- **openapi-typescript** + **openapi-fetch** — lighter, very popular, minimal runtime.
+**Chosen:** **openapi-typescript** + **openapi-fetch** (light, minimal runtime), wired into
+`npm run generate:api` → emits `web/src/api/schema.d.ts`, consumed by the typed client in
+`web/src/api/client.ts`. (Kiota was the considered alternative.)
 
 ## Backend (`keepITCore`, .NET 10)
 
-- **Endpoints:** controllers or minimal APIs — pick one style and stay consistent.
+- **Endpoints:** **controllers** (`[ApiController]`), one per resource (`NotesController`,
+  `ListsController`, `AuthController`, `UserSettingsController`).
 - **Persistence:** EF Core. **PostgreSQL (Npgsql) in production; SQLite as a dev fallback** —
   the provider is chosen at startup from configuration (see **Data & database
   configuration**). Entities + `DbContext` + migrations in `keepITCore/Data`.
@@ -61,9 +64,12 @@ Generator options (pick one and wire it into `npm run generate:api`):
 - **Auth:** ASP.NET Core Identity issues JWTs. Access token returned to the client and held
   in memory; refresh token set as an **httpOnly cookie** (safer against XSS than localStorage).
   A 401 triggers a silent refresh.
-- **Validation:** FluentValidation on incoming requests.
-- **Realtime:** a SignalR hub (e.g. `NotesHub`) broadcasts create/update/delete events.
-  `@microsoft/signalr` is the official TS client on the frontend.
+- **Validation:** **DataAnnotations** on the request DTOs, validated automatically by
+  `[ApiController]` before the action runs (a 400 `ValidationProblemDetails` with the messages).
+  Password complexity is additionally enforced by ASP.NET Core Identity.
+- **Realtime:** a SignalR hub (`RealTimeHub`, mapped at `/api/realtime`) pushes per-user
+  **change signals** to a user's other devices after a mutation. `@microsoft/signalr` is the
+  TS client on the frontend. See **SignalR realtime** for the contract and fan-out model.
 
 ## Data & database configuration
 
@@ -156,16 +162,48 @@ and password hashing; the API issues tokens.
   not enough; the caller must own the media item **or** own/have a share on a note that
   references it.
 
-**SignalR auth**
-- The `NotesHub` requires authentication too. Browsers can't set custom headers on the
-  WebSocket handshake, so the access token is passed via the query string
-  (`?access_token=…`); configure JWT bearer's `OnMessageReceived` to read it for hub paths.
-- The hub broadcasts a note's changes to everyone with access to it — the owner's other
-  devices **and** every collaborator's devices. Use a **group per note** (`note:{noteId}`)
-  that a connection joins for each note it can access; private (unshared) notes are simply a
-  group of one user. Realtime never leaks to a user who has neither ownership nor a share.
-- When a share is granted or revoked, update the affected user's group membership so access
-  changes take effect live (a revoked collaborator stops receiving updates immediately).
+**SignalR auth** (see **SignalR realtime** below for the full model)
+- `RealTimeHub` is `[Authorize]`. Browsers can't set custom headers on the WebSocket
+  handshake, so the access token is passed via the query string (`?access_token=…`); JWT
+  bearer's `OnMessageReceived` reads it, scoped to the `/api/realtime` path.
+
+## SignalR realtime
+
+The realtime layer keeps a user's open devices in sync. It is intentionally a thin
+**invalidation** channel, not a data channel: the server says *what changed*, and each client
+reloads it through TanStack Query (which owns all server state). This avoids the hub contract
+mirroring the DTOs and keeps the REST API the single source of data.
+
+**Implemented today — per-user fan-out.**
+- **Hub:** `keepITCore/SignalR/RealTimeHub.cs`, mapped at **`/api/realtime`** (under `/api`
+  so the existing dev proxy and nginx WebSocket-upgrade rules route it with no extra config).
+- **Contract:** one strongly-typed client method, `Changed(IReadOnlyList<string> resources)`,
+  where each resource is `"notes"` or `"lists"` (`RealtimeResources`). The browser only
+  *receives*; mutations stay on REST, so the hub has **no callable server methods**.
+- **Push path:** controllers depend on `IRealtimeNotifier` (a thin wrapper over
+  `IHubContext<RealTimeHub, IRealTimeHub>`), and after each successful `SaveChanges` call
+  `NotifyAsync(ownerId, …)` with the resources that mutation affected (e.g. a note create
+  touches `notes` **and** `lists`, since list counts change).
+- **Targeting:** `Clients.User(userId)`, which reaches *every* connection that user has open —
+  3 devices, all 3 get it. A custom **`IUserIdProvider` (`SubUserIdProvider`)** maps a
+  connection to the JWT **`sub`** claim, because our tokens don't emit `NameIdentifier` (which
+  SignalR's default provider expects). The originating device also receives its own signal and
+  harmlessly re-validates (TanStack dedupes in-flight loads).
+- **Client:** `web/src/realtime/RealtimeSync.tsx` holds one authenticated connection while
+  signed in, invalidates the matching query keys on `Changed`, refreshes the token in
+  `accessTokenFactory` when it's expiring, and re-syncs everything on reconnect
+  (`withAutomaticReconnect` + `onreconnected`).
+- **Scale-out caveat:** `Clients.User` is in-process. A single API instance (the current
+  deploy) reaches all of a user's devices. Running **multiple** API instances behind a load
+  balancer requires a **Redis backplane** (`AddSignalR().AddStackExchangeRedis(...)`) or a
+  device connected to another instance misses pushes. See **Deployment** (`redis` service).
+
+**Planned — sharing-aware fan-out.** When **Sharing / collaboration** lands, a note's changes
+must reach the owner's devices **and** every collaborator's devices. The intended model is a
+**group per note** (`note:{noteId}`) that a connection joins for each note it can access
+(a private note is a group of one user); on share grant/revoke, update the affected user's
+group membership so access changes take effect live. Realtime must never leak to a user who
+has neither ownership nor a share.
 
 ## Sharing / collaboration
 
@@ -228,7 +266,8 @@ refinement.
   background refetch, optimistic mutations. Do not duplicate this into a global store.
 - **Client/UI state:** plain React state, or Zustand only for genuinely client-side UI state.
 - **HTTP:** the generated typed client (openapi-fetch or a Kiota client).
-- **Realtime:** `@microsoft/signalr`; on an incoming event, invalidate the matching query key.
+- **Realtime:** `@microsoft/signalr` in `web/src/realtime/RealtimeSync.tsx`; on an incoming
+  `Changed` signal, invalidate the matching TanStack Query key(s). See **SignalR realtime**.
 - **Styling:** Tailwind. Masonry via CSS columns or a small masonry lib. See **Look & feel**
   for the visual direction (Keep-like layout, dark-first, modern).
 - **Layout shell:** a left **sidebar** (Notes, Lists, Archive, Trash + the user's lists for
@@ -257,9 +296,11 @@ contract, never a reason to special-case the backend.
 - **Offline-first.** Phones go offline; the app should keep working. Cache notes locally (Room),
   show them immediately, and queue mutations to replay when connectivity returns — the mobile
   analogue of the web's optimistic updates, reconciled against the server on reconnect.
-- **Realtime.** Use the official SignalR Kotlin/Java client against `NotesHub`, passing the
-  access token via the query string exactly as the web client does (see **SignalR auth**).
-  Fall back to refetch-on-resume when a socket isn't held open in the background.
+- **Realtime.** Use the official SignalR Kotlin/Java client against `RealTimeHub`
+  (`/api/realtime`), passing the access token via the query string exactly as the web client
+  does, and handle the same `Changed(resources)` signal by refreshing the affected local
+  caches (see **SignalR realtime**). Fall back to refetch-on-resume when a socket isn't held
+  open in the background.
 
 ### Home-screen widget
 
