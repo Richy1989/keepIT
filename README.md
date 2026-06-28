@@ -35,8 +35,9 @@ a refresh.
 
 > **Status:** work in progress. **Implemented:** auth (register/login/JWT + refresh),
 > text & checklist notes with optimistic editing, colors, pin/archive/trash, lists with
-> filtering, per-user settings (accent color), the dark web UI, and a Docker Compose stack.
-> **Planned next:** sharing, image notes / media upload, and real-time sync — followed by a
+> filtering, per-user settings (accent color), **real-time sync across a user's devices**,
+> the dark web UI, and a Docker Compose stack.
+> **Planned next:** sharing, image notes / media upload — followed by a
 > **native Android app with a home-screen widget**. See the [Roadmap](#roadmap) below,
 > [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, and
 > [`CLAUDE.md`](CLAUDE.md) for the short always-on rules.
@@ -70,7 +71,7 @@ Notes come in several types, and any note can be styled:
 - 🔍 Search, pin, and archive (soft-delete / trash). ✅
 - 🖼️ **Image notes** — one or more images as the note's content. *(planned)*
 - 👥 **Shared notes** — share a note with other users as viewer or editor. *(planned)*
-- 🔄 **Real-time sync** across devices via SignalR. *(planned)*
+- 🔄 **Real-time sync** across a user's devices via SignalR — edit on one, see it on the others without a refresh. ✅ *(sharing-aware sync for collaborators follows sharing)*
 - ⚙️ **Per-user settings** — personalize the UI (e.g. global accent color). ✅
 - 📱 **Native Android app + home-screen widget** — a Kotlin app talking to the same REST API,
   with a widget for quick capture and at-a-glance notes. *(planned)*
@@ -90,6 +91,8 @@ current focus; the Android client is a future, separate deliverable on top of th
 - **Search** — find notes from the top search bar.
 - **Per-user settings** — personalize the UI (global accent color).
 - **Dark web UI** — masonry grid, composer, sidebar, editor modal.
+- **Real-time sync** — authenticated SignalR hub (`RealTimeHub` at `/api/realtime`) pushes
+  per-user change signals so a user's other open devices refetch and update live.
 - **Docker Compose stack** — API + Postgres + web (nginx).
 - **Single-container image** — API + nginx bundled for simple self-hosted deployments (Unraid).
 
@@ -97,8 +100,10 @@ current focus; the Android client is a future, separate deliverable on top of th
 
 - **Image notes & media upload** — `IMediaStorage` + `MediaItem`, thumbnails, served via the API.
 - **Background images** — image (not just color) behind a note.
-- **Sharing / collaboration** — share a note as viewer or editor (`NoteShare`).
-- **Real-time sync** — SignalR `NotesHub` pushing changes to a user's other devices and collaborators.
+- **Sharing / collaboration** — share a note as viewer or editor (`NoteShare`), with the
+  real-time hub extended to push changes to collaborators (not just the owner's own devices).
+- **Realtime at scale** — Redis backplane so the SignalR hub fans out across multiple API
+  instances (single instance works today without it).
 
 ### 🧭 Later
 
@@ -114,7 +119,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 | Backend    | ASP.NET Core Web API on **.NET 10** (`keepITCore`)                 |
 | Data       | EF Core → **PostgreSQL 17** (JSONB metadata, full-text search), **SQLite** dev fallback |
 | Auth       | ASP.NET Core Identity + **JWT** (access token in memory, refresh token in an httpOnly cookie) |
-| Realtime   | **SignalR** hub pushing note changes to other devices *(planned)*  |
+| Realtime   | **SignalR** hub (`/api/realtime`, JWT-authed) pushing per-user change signals to a user's other devices |
 | Frontend   | **React 19** + Vite + TypeScript, TanStack Query, React Router, Tailwind |
 | API client | Typed TS client **generated from OpenAPI** via `openapi-typescript` + `openapi-fetch` (C# DTOs are source of truth) |
 | Deploy     | Docker Compose (multi-container) **or** single Docker image (nginx + API bundled) |
@@ -148,6 +153,7 @@ keepIT/
 │  │  ├─ Data/           # EF Core entities, DbContext, migrations
 │  │  ├─ Notes/          # notes controller + DTOs
 │  │  ├─ Lists/          # lists controller + DTOs
+│  │  ├─ SignalR/        # realtime hub, per-user id provider, change notifier
 │  │  ├─ Infrastructure/ # OpenAPI, logging, security, DB provider selection
 │  │  └─ Program.cs
 │  └─ keepITCore.slnx
@@ -157,6 +163,7 @@ keepIT/
 │     ├─ auth/           # auth context/provider, in-memory token store
 │     ├─ components/     # shared UI (Sidebar, Topbar, icons, ColorPicker)
 │     ├─ features/       # notes & lists (cards, editor, query hooks)
+│     ├─ realtime/       # SignalR client → invalidates TanStack Query on server push
 │     └─ pages/          # AuthPage, HomePage
 ├─ deploy/               # single-container deployment (nginx + API in one image)
 │  ├─ Dockerfile         # multi-stage build: React → .NET → nginx+API runtime
