@@ -162,7 +162,7 @@ keepIT/
 │  ├─ Dockerfile         # multi-stage build: React → .NET → nginx+API runtime
 │  ├─ nginx.conf         # serves SPA, proxies /api to loopback API
 │  ├─ entrypoint.sh           # starts API + nginx, tears down if either exits
-│  ├─ build-and-push.{sh,ps1} # build linux/amd64 image and push to Docker Hub
+│  ├─ build-and-push.{sh,ps1} # maintainer-only: build + push the image to Docker Hub
 │  └─ keepit.unraid.xml       # Unraid Community Apps template
 ├─ scripts/
 │  └─ seed-dev-data.{sh,ps1}  # populate the dev DB with test data via the REST API
@@ -241,11 +241,9 @@ See [`docker-compose.yml`](docker-compose.yml) for the full definition.
 The API uses its **SQLite fallback** by default — no Postgres needed. Mount `/data` to
 persist the database, Data Protection keys, and uploaded media.
 
-```bash
-# Build and push (linux/amd64); on Windows use ./deploy/build-and-push.ps1 -Tag v0.1.0
-./deploy/build-and-push.sh --tag v0.1.0
+Pull the pre-built image from Docker Hub and run it:
 
-# Or pull the pre-built image and run:
+```bash
 docker run -d \
   --name keepit \
   -p 8080:80 \
@@ -269,6 +267,20 @@ docker run -d \
 ```
 
 An **Unraid Community Apps template** is included at `deploy/keepit.unraid.xml`.
+
+**Prefer to build your own image?** Build it locally from the repo root (no Docker Hub account
+needed) and run your own tag:
+
+```bash
+docker build -f deploy/Dockerfile -t keepit:local .
+docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
+  -e Jwt__Key="your-random-secret-at-least-32-chars" keepit:local
+```
+
+> **Maintainer note:** `deploy/build-and-push.{sh,ps1}` builds the `linux/amd64` image and
+> **pushes it to `richy1989/keepit` on Docker Hub** — that's how the pre-built image above is
+> published. It requires push access to that repo, so it's not part of running keepIT yourself;
+> use the local `docker build` above instead.
 
 ### Environment variables
 
