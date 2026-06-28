@@ -102,7 +102,6 @@ current focus; the Android client is a future, separate deliverable on top of th
 
 - **Native Android app** — Kotlin/Jetpack Compose client against the same REST API + SignalR,
   with a **home-screen widget** for quick capture and glanceable notes.
-- **Light theme** — token-swap from the dark-first design.
 - **Pending share invites** — share by email to users who haven't signed up yet.
 
 ## Tech stack
