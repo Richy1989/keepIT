@@ -20,8 +20,7 @@
 <div align="center"><img src="images/screenshot_1.png" alt="keepIT — masonry grid of notes in the dark web UI" width="800"></div>
 
 Honestly? I just wanted a simple notes app, and couldn't find one with the three things I
-actually cared about — so I built it myself. With a little AI help. 😉 Modern problems require
-modern solutions.
+actually cared about — so I built it myself. With a little AI help 😉, modern problems require modern solutions.
 
 The features I really wanted:
 
