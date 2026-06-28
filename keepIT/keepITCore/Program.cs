@@ -59,7 +59,7 @@ builder.Services.AddAppIdentity();
 builder.Services.AddJwtBearerAuthentication(jwtOptions);
 
 // ---- Edge protection: trust the proxy's forwarded headers, then throttle abusive callers ----
-builder.Services.AddProxyForwardedHeaders();
+builder.Services.AddProxyForwardedHeaders(builder.Configuration);
 builder.Services.AddKeepItRateLimiting();
 
 // ---- CORS (frontend is a separate origin; cookies require AllowCredentials + explicit origins) ----

@@ -33,14 +33,7 @@ It's since grown into a masonry grid of note cards with fast, optimistic editing
 sharing, and **real-time sync** — so a note edited on one device shows up on your others without
 a refresh.
 
-> **Status:** work in progress. **Implemented:** auth (register/login/JWT + refresh),
-> text & checklist notes with optimistic editing, colors, pin/archive/trash, lists with
-> filtering, per-user settings (accent color), **real-time sync across a user's devices**,
-> the dark web UI, and a Docker Compose stack.
-> **Planned next:** sharing, image notes / media upload — followed by a
-> **native Android app with a home-screen widget**. See the [Roadmap](#roadmap) below,
-> [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design, and
-> [`CLAUDE.md`](CLAUDE.md) for the short always-on rules.
+> **Status:** work in progress.
 
 ## Contents
 
@@ -290,7 +283,8 @@ An **Unraid Community Apps template** is included at `deploy/keepit.unraid.xml`.
 | `Jwt__AccessTokenMinutes` | no | `15` | Access token lifetime in minutes. |
 | `Jwt__RefreshTokenDays` | no | `14` | Refresh token lifetime in days. |
 | `App__DataRoot` | no | `./App_Data` | Directory for SQLite DB, Data Protection keys, and media. |
-| `Auth__RefreshCookie__Secure` | no | `true` | Set to `false` if TLS does not terminate at this container. |
+| `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the API — used to recover the real client IP for per-IP rate limiting. **Must match your topology:** `1` for the bare stack (nginx → api), `2` behind another proxy like Traefik (Traefik → nginx → api). Too low collapses all clients into one rate-limit bucket; too high lets clients spoof their IP. |
+| `Auth__RefreshCookie__Secure` | no | `true` | Refresh cookie is HTTPS-only. Keep `true` behind TLS (and on `http://localhost`, which browsers treat as secure); set `false` only when serving over plain HTTP on a non-localhost address. |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the Scalar API explorer at `/scalar/v1`. |
 
 ---

@@ -42,8 +42,18 @@ services:
       Jwt__Issuer: keepITCore
       Jwt__Audience: keepIT.api
       App__DataRoot: /data
-      # Traefik terminates TLS; the cookie must be Secure so browsers only send it over HTTPS.
-      Auth__RefreshCookie__Secure: "true"
+      # Refresh cookie is Secure (HTTPS-only) by default — correct when TLS is terminated by a
+      # reverse proxy in front (e.g. Traefik). Browsers also treat http://localhost as secure, so
+      # the localhost dev flow works. Set REFRESH_COOKIE_SECURE=false in .env only if you access
+      # this stack over plain HTTP on a non-localhost address (e.g. a LAN IP), or the browser drops
+      # the cookie and silent refresh fails.
+      Auth__RefreshCookie__Secure: ${REFRESH_COOKIE_SECURE:-true}
+      # Number of trusted reverse-proxy hops in front of the API; the API uses it to recover the
+      # real client IP from X-Forwarded-For (which the per-IP rate limiter keys on). This file as
+      # written is one hop (browser → nginx → api). If you front it with another proxy such as
+      # Traefik (Traefik → nginx → api), set FORWARDED_PROXY_HOPS=2 in .env — otherwise every
+      # request is attributed to the proxy's IP and all clients share one rate-limit bucket.
+      App__ForwardedProxyHops: ${FORWARDED_PROXY_HOPS:-1}
     volumes:
       - app-data:/data
     depends_on:

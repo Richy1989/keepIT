@@ -13,7 +13,7 @@ namespace keepITCore.SignalR
         /// <summary>
         /// Tells a user's other devices that some of their server data changed, so they refetch.
         /// Carries the affected resource names (see <see cref="RealtimeResources"/>) rather than the
-        /// changed rows — TanStack Query owns the data and reloads it (ARCHITECTURE.md).
+        /// changed rows — TanStack Query owns the data and reloads it.
         /// </summary>
         Task Changed(IReadOnlyList<string> resources);
     }

@@ -302,6 +302,62 @@ contract, never a reason to special-case the backend.
   caches (see **SignalR realtime**). Fall back to refetch-on-resume when a socket isn't held
   open in the background.
 
+### UI & design parity (native, shared design language)
+
+The Android UI should read as **the same product as the web app on a phone** — same colors,
+card style, accent system, and Keep-like interaction model — while behaving natively. The
+chosen approach is **native Compose with a shared *design language*, not shared code and not
+pixel-cloning**:
+
+- **Why this works cheaply here:** the web design is already **fully token-based**
+  (`web/src/index.css` — semantic chrome tokens plus a per-note palette, themed for dark / dim
+  / light, with 8 independent accents). Those tokens are just values, so they port to a Compose
+  theme directly. The web has also **already designed the phone layout** (responsive grid,
+  off-canvas drawer, touch-revealed controls), so there's an existing phone form to match.
+- **The tokens are the contract.** Treat `index.css` as the canonical design system and keep
+  raw hex out of components on **both** clients (the web already does this — cards use
+  `var(--note-…)`, not literals). On Android, transcribe the token block into a single Compose
+  token object (a `data class` of `Color`s provided via `CompositionLocal`), **not** ad-hoc
+  Material colors scattered through composables. One source per side, same values.
+- **Map, don't reinvent:**
+  - Chrome tokens (`canvas`, `surface`, `elevated`, `border-*`, `text-*`, `accent`,
+    `accent-strong`) → fields on the Compose token object; switch the whole object for
+    dark / dim / light, exactly as `data-theme` swaps CSS vars.
+  - Per-note palette → a Compose `Map<String, NoteColors>` keyed by the **same** color keys the
+    `Note.color` DTO stores (`"rose"`, `"amber"`, …). The Android app reads the same key off the
+    same DTO and resolves the same swatch — palette stays in lockstep across clients.
+  - Accent is independent of theme (mirror `data-accent`): 8 accent pairs the user can pick.
+  - Typography: bundle **Inter** (the web's font) so weights/metrics match.
+  - Masonry grid → Compose **`LazyVerticalStaggeredGrid`** (a staggered grid of colored cards
+    is a near-1:1 fit); card corner radius from `--radius-card` (`0.875rem` ≈ **14dp**).
+- **A first-pass translation of the dark baseline** (keep this generated-or-copied from the CSS
+  tokens, never re-picked by eye):
+
+  ```kotlin
+  // Dark baseline — values copied from web/src/index.css @theme. Provide via CompositionLocal;
+  // swap the whole object for dim/light, and override `accent`/`accentStrong` per accent.
+  object KeepItDark {
+      val canvas        = Color(0xFF0A0A0B)
+      val surface       = Color(0xFF18181B)
+      val surfaceHover  = Color(0xFF1F1F23)
+      val elevated      = Color(0xFF202024)
+      val borderSubtle  = Color(0xFF27272A)
+      val borderStrong  = Color(0xFF3F3F46)
+      val text          = Color(0xFFECECEE)
+      val textMuted     = Color(0xFFA1A1AA)
+      val textFaint     = Color(0xFF71717A)
+      val accent        = Color(0xFFFBBF24) // default (yellow); per-accent override
+      val accentStrong  = Color(0xFFF59E0B)
+  }
+  ```
+
+- **Don't chase system-chrome parity.** Match the *palette, typography, card design, and accent
+  system* — that's what reads as "the same app." Let the status bar, navigation/back behavior,
+  ripples, and insets follow Android conventions rather than forcing them to mimic the browser.
+- **Explicitly rejected:** a WebView/TWA/Capacitor wrapper (identical pixels but a non-native
+  feel, and the home-screen widget still needs native code regardless), and a pixel-exact native
+  clone (fights Material conventions and users' muscle memory).
+
 ### Home-screen widget
 
 The widget is the headline reason for going native:
@@ -330,10 +386,12 @@ and more modern**, not a pixel clone.
 - **Dark-first theme.** The default and primary theme is **dark** — deep neutral background
   (near-black/charcoal, e.g. `zinc-900/950`), slightly elevated note cards (`zinc-800`) so
   the masonry grid reads as cards floating above the canvas, and an accessible accent color
-  for actions/active list. Keep's note background **colors** still apply per note and must be
+  for actions/active list. Keep's note background **colors** still apply per note and are
   re-tuned to look right on a dark canvas (muted/desaturated palette, not the bright pastels
-  Keep uses on white). A light theme is optional later; design tokens (CSS variables / Tailwind
-  theme) should make dark vs light a token swap, not a rewrite.
+  Keep uses on white). Themes are a **token swap, not a rewrite** (CSS variables written to
+  `<html>` by `SettingsProvider`, with a pre-paint script to avoid a flash): **dark** is the
+  baseline, and **dim** and **light** themes plus **8 independent accent colors** are
+  implemented as token overrides (`data-theme` / `data-accent`).
 - **Modern, restrained styling.** Generous spacing, soft rounded corners, subtle elevation
   via shadow/border rather than heavy chrome, smooth micro-interactions (card hover lift,
   optimistic add/remove transitions), and good empty/loading states. Avoid the flat,
@@ -455,7 +513,7 @@ Both image notes and background images need somewhere to put binaries. Rules:
 built toward — is a single `docker compose up` that brings up every piece as a container.
 
 - **Everything runs in Docker.** `docker-compose.yml` defines the full stack as services:
-  - **`api`** — the `keepITCore` container (built from `src/keepITCore/Dockerfile`).
+  - **`api`** — the `keepITCore` container (built from `keepIT/keepITCore/Dockerfile`).
   - **`db`** — PostgreSQL (with a named volume for its data).
   - **`web`** — the React frontend, built to static files and served by a small **nginx**
     container that is also the single entrypoint: it reverse-proxies `/api` to the `api`
@@ -474,15 +532,18 @@ built toward — is a single `docker compose up` that brings up every piece as a
 - Each service reads its config from the environment (the `.env` file / Compose `environment`),
   so the same images run unchanged in dev, staging, and prod with only env values differing.
 
-## Build order (suggested)
+## Build order
 
-1. Get `keepITCore` returning a valid OpenAPI/Swagger document.
-2. Wire `npm run generate:api` to produce the typed client off that document.
-3. Stand up the note CRUD endpoints + EF Core model + migration. Wire startup provider
-   selection (Postgres-from-env, else SQLite under `App__DataRoot`) at the same time.
-4. Add TanStack Query hooks and the optimistic mutation flow.
-5. Add the SignalR hub and cache invalidation on the client.
-6. Layer in auth (Identity + JWT + refresh cookie).
+The original build sequence — all of the foundation below is **implemented**:
 
-Everything builds on steps 1–2: get the contract working first so the frontend is
-type-safe from day one.
+1. ✅ `keepITCore` returning a valid OpenAPI/Swagger document.
+2. ✅ `npm run generate:api` producing the typed client off that document.
+3. ✅ Note (and list) CRUD endpoints + EF Core model + migrations, with startup provider
+   selection (Postgres-from-env, else SQLite under `App__DataRoot`).
+4. ✅ TanStack Query hooks and the optimistic mutation flow.
+5. ✅ SignalR hub + per-user change signals and cache invalidation on the client.
+6. ✅ Auth (Identity + JWT + refresh cookie).
+
+Everything built on steps 1–2: the contract came first so the frontend is type-safe from day
+one. **Remaining roadmap** (see README): sharing/collaboration, image notes & media upload,
+the Redis backplane for multi-instance realtime, and the native Android client.

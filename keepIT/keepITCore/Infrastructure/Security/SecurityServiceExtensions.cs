@@ -24,12 +24,27 @@ public static class SecurityServiceExtensions
     /// headers is safe here because the API is only reachable through the reverse proxy (it's not
     /// published to the host). If you ever expose the API directly, restrict trust to the proxy
     /// network instead of clearing it.
+    ///
+    /// <para><b><see cref="ForwardedHeadersOptions.ForwardLimit"/> must equal the number of trusted
+    /// proxy hops in front of the API</b> — each hop appends one <c>X-Forwarded-For</c> entry, and
+    /// the middleware unwinds exactly this many from the right. Set it too low and a proxy's own IP
+    /// is read as the client (so every request shares one rate-limit bucket); set it too high and a
+    /// client can spoof its IP via a forged <c>X-Forwarded-For</c> (dodging the per-IP limit). The
+    /// count is read from <c>App:ForwardedProxyHops</c> so it can match each deployment without a
+    /// rebuild: the bare local stack (nginx only) is <c>1</c>; behind another proxy such as Traefik
+    /// (Traefik → nginx → api) it's <c>2</c>. Defaults to <c>1</c>.</b></para>
     /// </summary>
-    public static IServiceCollection AddProxyForwardedHeaders(this IServiceCollection services)
+    /// <param name="services">The service collection.</param>
+    /// <param name="configuration">App configuration, read for <c>App:ForwardedProxyHops</c>.</param>
+    public static IServiceCollection AddProxyForwardedHeaders(this IServiceCollection services, IConfiguration configuration)
     {
+        var proxyHops = configuration.GetValue<int?>("App:ForwardedProxyHops") ?? 1;
+        if (proxyHops < 1) proxyHops = 1;
+
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.ForwardLimit = proxyHops;
             options.KnownIPNetworks.Clear();
             options.KnownProxies.Clear();
         });
