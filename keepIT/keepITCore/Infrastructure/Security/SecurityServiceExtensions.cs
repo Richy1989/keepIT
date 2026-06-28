@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -47,10 +48,24 @@ public static class SecurityServiceExtensions
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Per-client-IP fixed window, applied to /api/auth/* via [EnableRateLimiting(RateLimitPolicies.Auth)].
+            // Global default: sliding window of 120 req/min per IP. Covers all endpoints that
+            // don't opt into a tighter named policy. Generous enough for real-time note editing
+            // (bursts of saves) but stops abusive crawling or scripted enumeration.
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+            {
+                var ip = (httpContext.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString();
+                return RateLimitPartition.GetSlidingWindowLimiter(ip, _ => new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = 120,
+                    Window = TimeSpan.FromMinutes(1),
+                    SegmentsPerWindow = 6,
+                });
+            });
+
+            // Tighter per-IP fixed window on auth endpoints (password guessing / signup abuse).
             options.AddPolicy(RateLimitPolicies.Auth, httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
-                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    partitionKey: (httpContext.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString(),
                     factory: _ => new FixedWindowRateLimiterOptions
                     {
                         PermitLimit = 10,

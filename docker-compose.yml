@@ -42,9 +42,8 @@ services:
       Jwt__Issuer: keepITCore
       Jwt__Audience: keepIT.api
       App__DataRoot: /data
-      # The reverse proxy terminates plain HTTP in this sample, so the cookie can't require Secure.
-      # With real TLS at the proxy, set this true.
-      Auth__RefreshCookie__Secure: "false"
+      # Traefik terminates TLS; the cookie must be Secure so browsers only send it over HTTPS.
+      Auth__RefreshCookie__Secure: "true"
     volumes:
       - app-data:/data
     depends_on:
