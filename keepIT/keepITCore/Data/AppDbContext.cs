@@ -28,6 +28,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>User-created lists (the "List" concept; see <see cref="KeepList"/>).</summary>
     public DbSet<KeepList> Lists => Set<KeepList>();
 
+    /// <summary>Per-user notifications (many per user).</summary>
+    public DbSet<UserNotification> Notifications => Set<UserNotification>();
+
     /// <summary>Per-user note↔list memberships.</summary>
     public DbSet<NoteList> NoteLists => Set<NoteList>();
 
@@ -129,6 +132,40 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithMany()
                 .HasForeignKey(s => s.OwnerId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<UserNotification>(e =>
+        {
+            e.HasKey(s => s.Id);
+            // Many notifications per user; index the owner for the per-user list query.
+            e.HasIndex(s => s.OwnerId);
+            e.Property(s => s.Severity).HasMaxLength(32).IsRequired();
+            e.Property(s => s.NotificationText).HasMaxLength(200).IsRequired();
+
+            e.HasOne(s => s.Owner)
+                .WithMany()
+                .HasForeignKey(s => s.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // TPH: one table for all notification kinds, keyed by the Type discriminator. Subtype
+            // columns (the ShareInvite fields below) are nullable since they don't apply to every row.
+            e.HasDiscriminator(s => s.Type)
+                .HasValue<SystemNotification>(NotificationType.System)
+                .HasValue<ShareInviteNotification>(NotificationType.ShareInvite);
+        });
+
+        builder.Entity<ShareNote>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.OwnerId);
+            e.Property(s => s.SharedNoteTitle).IsRequired();
+            e.Property(s => s.SharedNoteId).IsRequired();
+        });
+
+        builder.Entity<ShareInviteNotification>(e =>
+        {
+            e.Property(s => s.SharedNoteTitle).HasMaxLength(1000);
+            e.Property(s => s.SharedByUserEmail).HasMaxLength(256);
         });
     }
 }

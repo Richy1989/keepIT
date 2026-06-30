@@ -246,6 +246,25 @@ public class NotesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Shares a note with another user by email. Placeholder for the upcoming sharing feature: the real
+    /// implementation will create a <c>NoteShare</c> and raise a <c>ShareInviteNotification</c> for the
+    /// recipient to accept or decline. Not wired up yet — returns 501.
+    /// </summary>
+    /// <param name="id">The note to share (must be the caller's).</param>
+    /// <param name="sharedUserEmail">The recipient's email.</param>
+    /// <returns>501 Not Implemented until the sharing feature lands.</returns>
+    [HttpPut("{id:guid}/share")]
+    public  ActionResult<NoteDto> Share(Guid id, string? sharedUserEmail)
+    {
+        //var ownerId = User.GetUserId();
+        //if (ownerId is null) return Unauthorized();
+
+        //var noteToShare = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == ownerId);
+        //var userToShareTo = await _db.Users.FirstOrDefaultAsync(n => n.Email == sharedUserEmail);
+        return StatusCode(StatusCodes.Status501NotImplemented);
+    }
+
     // ---- helpers ----
 
     /// <summary>Loads a note (no tracking) and projects it to a DTO, or null if not the caller's.</summary>

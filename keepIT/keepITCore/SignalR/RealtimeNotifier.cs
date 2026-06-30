@@ -8,6 +8,7 @@ namespace keepITCore.SignalR
     {
         public const string Notes = "notes";
         public const string Lists = "lists";
+        public const string Notification = "notification";
     }
 
     /// <summary>
