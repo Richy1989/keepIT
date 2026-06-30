@@ -34,6 +34,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>Per-user note↔list memberships.</summary>
     public DbSet<NoteList> NoteLists => Set<NoteList>();
 
+    public DbSet<ShareNoteRequest> ShareNoteRequests => Set<ShareNoteRequest>();
+
     /// <summary>Per-user user settings.</summary>
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
 
@@ -154,11 +156,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .HasValue<ShareInviteNotification>(NotificationType.ShareInvite);
         });
 
-        builder.Entity<ShareNote>(e =>
+        builder.Entity<ShareNoteRequest>(e =>
         {
             e.HasKey(s => s.Id);
             e.HasIndex(s => s.OwnerId);
-            e.Property(s => s.SharedNoteTitle).IsRequired();
+            e.Property(s => s.SharedNoteTitle).HasMaxLength(1000).IsRequired();
             e.Property(s => s.SharedNoteId).IsRequired();
         });
 

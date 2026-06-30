@@ -1,6 +1,6 @@
 ﻿namespace keepITCore.Data
 {
-    public class ShareNote
+    public class ShareNoteRequest
     {
         public Guid Id { get; set; }
 
@@ -17,6 +17,6 @@
         public string? SharedNoteTitle { get; set; }
 
         /// <summary>The email of the user offering the note, for display. Set only for ShareInvite.</summary>
-        public string? SharedByUserEmail { get; set; }
+        public Guid? SharedFromUserId { get; set; }
     }
 }

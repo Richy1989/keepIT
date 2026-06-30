@@ -255,14 +255,29 @@ public class NotesController : ControllerBase
     /// <param name="sharedUserEmail">The recipient's email.</param>
     /// <returns>501 Not Implemented until the sharing feature lands.</returns>
     [HttpPut("{id:guid}/share")]
-    public  ActionResult<NoteDto> Share(Guid id, string? sharedUserEmail)
+    public async Task<ActionResult<NoteDto>> Share(Guid id, string? sharedUserEmail)
     {
-        //var ownerId = User.GetUserId();
-        //if (ownerId is null) return Unauthorized();
+        var ownerId = User.GetUserId();
+        if (ownerId is null) return Unauthorized();
 
-        //var noteToShare = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == ownerId);
-        //var userToShareTo = await _db.Users.FirstOrDefaultAsync(n => n.Email == sharedUserEmail);
-        return StatusCode(StatusCodes.Status501NotImplemented);
+        var noteToShare = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == ownerId);
+        var userToShareTo = await _db.Users.FirstOrDefaultAsync(n => n.Email == sharedUserEmail);
+
+        if (userToShareTo is null || noteToShare is null) return NotFound();
+
+        ShareNoteRequest shareNote = new()
+        {
+            Id = Guid.NewGuid(),
+            OwnerId = userToShareTo.Id,
+            SharedNoteId = noteToShare.Id,
+            SharedFromUserId = ownerId.Value
+            
+        };
+
+        _db.ShareNoteRequests.Add(shareNote);
+        await _db.SaveChangesAsync();
+
+        return Ok((await LoadDtoAsync(id, ownerId.Value))!);
     }
 
     // ---- helpers ----
