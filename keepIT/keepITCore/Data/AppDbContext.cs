@@ -34,7 +34,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>Per-user note↔list memberships.</summary>
     public DbSet<NoteList> NoteLists => Set<NoteList>();
 
-    public DbSet<ShareNoteRequest> ShareNoteRequests => Set<ShareNoteRequest>();
+    /// <summary>Per-user pin/archive/trash view state for notes.</summary>
+    public DbSet<NoteUserState> NoteUserStates => Set<NoteUserState>();
+
+    /// <summary>Non-owner access grants (who a note is shared with, and at what role).</summary>
+    public DbSet<NoteShare> NoteShares => Set<NoteShare>();
 
     /// <summary>Per-user user settings.</summary>
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
@@ -122,6 +126,38 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        builder.Entity<NoteUserState>(e =>
+        {
+            // One private view-state per (note, user); purged with the note.
+            e.HasKey(us => new { us.NoteId, us.UserId });
+            e.HasIndex(us => us.UserId);
+
+            e.HasOne(us => us.Note)
+                .WithMany(n => n.UserStates)
+                .HasForeignKey(us => us.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<NoteShare>(e =>
+        {
+            e.HasKey(s => s.Id);
+            // At most one share per (note, grantee); look-ups go by note or by grantee.
+            e.HasIndex(s => new { s.NoteId, s.GranteeId }).IsUnique();
+            e.HasIndex(s => s.GranteeId);
+
+            e.HasOne(s => s.Note)
+                .WithMany(n => n.NoteShares)
+                .HasForeignKey(s => s.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Don't cascade-delete a user's account into notes shared *to* them; a share is severed
+            // explicitly on revoke. Restrict keeps an accidental user delete from nuking shares.
+            e.HasOne(s => s.Grantee)
+                .WithMany()
+                .HasForeignKey(s => s.GranteeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<UserSettings>(e =>
         {
             e.HasKey(s => s.Id);
@@ -154,14 +190,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasDiscriminator(s => s.Type)
                 .HasValue<SystemNotification>(NotificationType.System)
                 .HasValue<ShareInviteNotification>(NotificationType.ShareInvite);
-        });
-
-        builder.Entity<ShareNoteRequest>(e =>
-        {
-            e.HasKey(s => s.Id);
-            e.HasIndex(s => s.OwnerId);
-            e.Property(s => s.SharedNoteTitle).HasMaxLength(1000).IsRequired();
-            e.Property(s => s.SharedNoteId).IsRequired();
         });
 
         builder.Entity<ShareInviteNotification>(e =>

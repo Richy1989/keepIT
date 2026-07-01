@@ -73,6 +73,8 @@ builder.Services.AddCors(options =>
 
 // ---- App services ----
 builder.Services.AddScoped<ITokenService, TokenService>();
+// Central "own OR shared" note authorization + realtime recipient resolution (used by note endpoints).
+builder.Services.AddScoped<keepITCore.Notes.NoteAccessService>();
 builder.Services
     .AddControllers()
      .ConfigureApiBehaviorOptions(options =>

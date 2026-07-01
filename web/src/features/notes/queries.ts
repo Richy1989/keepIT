@@ -127,6 +127,11 @@ export function useCreateNote() {
         isTrashed: false,
         createdAtUtc: now,
         updatedAtUtc: now,
+        // A freshly created note is owned by the caller with full access, shared with no one.
+        isOwner: true,
+        role: null,
+        canEdit: true,
+        isShared: false,
         checklistItems: input.checklistItems ?? [],
         listIds: input.listIds ?? [],
       };

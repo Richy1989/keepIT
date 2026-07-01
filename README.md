@@ -61,9 +61,10 @@ Notes come in several types, and any note can be styled:
 - 🎨 **Customizable backgrounds** — set a background **color** on any note. ✅ (background **images** planned)
 - 🗂️ **Lists** — organize notes into named collections (a note can be in many) and filter the grid by list. ✅
 - 🔍 Search, pin, and archive (soft-delete / trash). ✅
+- 👥 **Shared notes** — share a note with other users as **viewer** or **editor** via an invite they accept; the note's content is shared, while pin/archive/trash and list filing stay private to each person. ✅
+- 🔔 **Notifications** — an in-app inbox (share invites to accept/decline, plus system messages), updated live. ✅
+- 🔄 **Real-time sync** via SignalR — edit on one device, see it on your others without a refresh; for a shared note, changes reach every collaborator too. ✅
 - 🖼️ **Image notes** — one or more images as the note's content. *(planned)*
-- 👥 **Shared notes** — share a note with other users as viewer or editor. *(planned)*
-- 🔄 **Real-time sync** across a user's devices via SignalR — edit on one, see it on the others without a refresh. ✅ *(sharing-aware sync for collaborators follows sharing)*
 - ⚙️ **Per-user settings** — personalize the UI (e.g. global accent color). ✅
 - 📱 **Native Android app + home-screen widget** — a Kotlin app talking to the same REST API,
   with a widget for quick capture and at-a-glance notes. *(planned)*
@@ -83,8 +84,14 @@ current focus; the Android client is a future, separate deliverable on top of th
 - **Search** — find notes from the top search bar.
 - **Per-user settings** — personalize the UI (global accent color).
 - **Dark web UI** — masonry grid, composer, sidebar, editor modal.
-- **Real-time sync** — authenticated SignalR hub (`RealTimeHub` at `/api/realtime`) pushes
-  per-user change signals so a user's other open devices refetch and update live.
+- **Sharing / collaboration** — invite a user (by email) to a note as **viewer** or **editor**;
+  they accept from their notifications. Content is shared; pin/archive/trash and list filing are
+  per-user (`NoteShare` + a per-user `NoteUserState` overlay).
+- **Notifications** — a per-user inbox for share invites (accept/decline) and system messages,
+  pushed live over the realtime hub.
+- **Real-time sync** — authenticated SignalR hub (`RealTimeHub` at `/api/realtime`) pushes change
+  signals so a user's other devices refetch live; for shared notes it fans out to every
+  collaborator (owner + grantees), not just the editor's own devices.
 - **Docker Compose stack** — API + Postgres + web (nginx).
 - **Single-container image** — API + nginx bundled for simple self-hosted deployments (Unraid).
 
@@ -92,8 +99,6 @@ current focus; the Android client is a future, separate deliverable on top of th
 
 - **Image notes & media upload** — `IMediaStorage` + `MediaItem`, thumbnails, served via the API.
 - **Background images** — image (not just color) behind a note.
-- **Sharing / collaboration** — share a note as viewer or editor (`NoteShare`), with the
-  real-time hub extended to push changes to collaborators (not just the owner's own devices).
 - **Realtime at scale** — Redis backplane so the SignalR hub fans out across multiple API
   instances (single instance works today without it).
 
@@ -110,7 +115,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 | Backend    | ASP.NET Core Web API on **.NET 10** (`keepITCore`)                 |
 | Data       | EF Core → **PostgreSQL 17** (JSONB metadata, full-text search), **SQLite** dev fallback |
 | Auth       | ASP.NET Core Identity + **JWT** (access token in memory, refresh token in an httpOnly cookie) |
-| Realtime   | **SignalR** hub (`/api/realtime`, JWT-authed) pushing per-user change signals to a user's other devices |
+| Realtime   | **SignalR** hub (`/api/realtime`, JWT-authed) pushing change signals to a user's other devices — and to every collaborator on a shared note |
 | Frontend   | **React 19** + Vite + TypeScript, TanStack Query, React Router, Tailwind |
 | API client | Typed TS client **generated from OpenAPI** via `openapi-typescript` + `openapi-fetch` (C# DTOs are source of truth) |
 | Deploy     | Docker Compose (multi-container) **or** single Docker image (nginx + API bundled) |
@@ -142,8 +147,10 @@ keepIT/
 │  ├─ keepITCore/        # ASP.NET Core Web API (.NET 10)
 │  │  ├─ Auth/           # Identity + JWT, token service, DTOs
 │  │  ├─ Data/           # EF Core entities, DbContext, migrations
-│  │  ├─ Notes/          # notes controller + DTOs
+│  │  ├─ Notes/          # notes + shares controllers, access service, DTOs
 │  │  ├─ Lists/          # lists controller + DTOs
+│  │  ├─ Settings/       # per-user settings controller + DTOs
+│  │  ├─ Notifications/  # per-user inbox controller + DTOs (share invites, system messages)
 │  │  ├─ SignalR/        # realtime hub, per-user id provider, change notifier
 │  │  ├─ Infrastructure/ # OpenAPI, logging, security, DB provider selection
 │  │  └─ Program.cs
@@ -152,10 +159,10 @@ keepIT/
 │  └─ src/
 │     ├─ api/            # generated typed client (schema.d.ts) + client
 │     ├─ auth/           # auth context/provider, in-memory token store
-│     ├─ components/     # shared UI (Sidebar, Topbar, icons, ColorPicker)
-│     ├─ features/       # notes & lists (cards, editor, query hooks)
+│     ├─ components/     # shared UI (Sidebar, Topbar, account/theme menus, icons, ColorPicker)
+│     ├─ features/       # notes, lists, notifications, settings, account (cards, editor, share dialog, notifications bell, query hooks)
 │     ├─ realtime/       # SignalR client → invalidates TanStack Query on server push
-│     └─ pages/          # AuthPage, HomePage
+│     └─ pages/          # AuthPage, HomePage, SettingsPage
 ├─ deploy/               # single-container deployment (nginx + API in one image)
 │  ├─ Dockerfile         # multi-stage build: React → .NET → nginx+API runtime
 │  ├─ nginx.conf         # serves SPA, proxies /api to loopback API

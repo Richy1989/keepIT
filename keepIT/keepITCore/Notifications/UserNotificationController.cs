@@ -91,21 +91,48 @@ namespace keepITCore.Notifications
         [HttpPost("{id:guid}/respond")]
         public async Task<IActionResult> RespondToShare(Guid id, ShareResponseDto response)
         {
-            var ownerId = User.GetUserId();
-            if (ownerId is null) return Unauthorized();
+            var callerId = User.GetUserId();
+            if (callerId is null) return Unauthorized();
 
-            var notification = await _db.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == ownerId);
+            var notification = await _db.Notifications.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == callerId);
             if (notification is null) return NotFound();
             if (notification is not ShareInviteNotification invite)
                 return BadRequest(new { error = "This notification is not a share invite." });
 
-            // TODO (sharing feature): on accept, grant the recipient access to invite.SharedNoteId by
-            // creating the NoteShare row; on decline, drop the pending share. Until the sharing feature
-            // and its NoteShare entity exist, answering simply consumes the invite. `invite` and
-            // `response.Accept` carry everything that wiring will need.
+            if (response.Accept)
+            {
+                // The note may have been deleted (or its share otherwise resolved) between invite and
+                // answer. If it's gone, just consume the invite — there's nothing to grant.
+                var note = await _db.Notes.AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.Id == invite.SharedNoteId);
+
+                // Guard against a duplicate accept (e.g. two devices) creating a second share row.
+                var alreadyShared = note is not null && await _db.NoteShares
+                    .AnyAsync(s => s.NoteId == invite.SharedNoteId && s.GranteeId == callerId);
+
+                if (note is not null && !alreadyShared)
+                {
+                    _db.NoteShares.Add(new NoteShare
+                    {
+                        Id = Guid.NewGuid(),
+                        NoteId = invite.SharedNoteId,
+                        GranteeId = callerId.Value,
+                        Role = invite.Role,
+                        CreatedByUserId = invite.SharedByUserId,
+                        CreatedAtUtc = DateTime.UtcNow,
+                    });
+                    // Give the grantee a per-user view row so the note shows up in their grid.
+                    _db.NoteUserStates.Add(new NoteUserState { NoteId = invite.SharedNoteId, UserId = callerId.Value });
+                }
+            }
+
+            // Either answer consumes the invite.
             _db.Notifications.Remove(invite);
             await _db.SaveChangesAsync();
-            await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notification);
+            // Refresh the caller's notifications (invite gone) and, on accept, their grid (new note).
+            await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notification, RealtimeResources.Notes, RealtimeResources.Lists);
+            // Let the owner's collaborators view update too (a share was added/settled).
+            await _notifier.NotifyAsync(invite.SharedByUserId, RealtimeResources.Notes);
 
             return NoContent();
         }
@@ -148,6 +175,7 @@ namespace keepITCore.Notifications
                 dto.SharedNoteId = invite.SharedNoteId;
                 dto.SharedNoteTitle = invite.SharedNoteTitle;
                 dto.SharedByUserEmail = invite.SharedByUserEmail;
+                dto.Role = invite.Role;
             }
 
             return dto;

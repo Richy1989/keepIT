@@ -298,15 +298,6 @@ namespace keepITCore.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsPinned")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsTrashed")
-                        .HasColumnType("boolean");
-
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
@@ -348,6 +339,61 @@ namespace keepITCore.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("NoteLists");
+                });
+
+            modelBuilder.Entity("keepITCore.Data.NoteShare", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GranteeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GranteeId");
+
+                    b.HasIndex("NoteId", "GranteeId")
+                        .IsUnique();
+
+                    b.ToTable("NoteShares");
+                });
+
+            modelBuilder.Entity("keepITCore.Data.NoteUserState", b =>
+                {
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsTrashed")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("NoteId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("NoteUserStates");
                 });
 
             modelBuilder.Entity("keepITCore.Data.RefreshToken", b =>
@@ -456,6 +502,9 @@ namespace keepITCore.Data.Migrations
             modelBuilder.Entity("keepITCore.Data.ShareInviteNotification", b =>
                 {
                     b.HasBaseType("keepITCore.Data.UserNotification");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
 
                     b.Property<string>("SharedByUserEmail")
                         .HasMaxLength(256)
@@ -584,6 +633,36 @@ namespace keepITCore.Data.Migrations
                     b.Navigation("Note");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteShare", b =>
+                {
+                    b.HasOne("keepITCore.Data.ApplicationUser", "Grantee")
+                        .WithMany()
+                        .HasForeignKey("GranteeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("keepITCore.Data.Note", "Note")
+                        .WithMany("NoteShares")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Grantee");
+
+                    b.Navigation("Note");
+                });
+
+            modelBuilder.Entity("keepITCore.Data.NoteUserState", b =>
+                {
+                    b.HasOne("keepITCore.Data.Note", "Note")
+                        .WithMany("UserStates")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Note");
+                });
+
             modelBuilder.Entity("keepITCore.Data.RefreshToken", b =>
                 {
                     b.HasOne("keepITCore.Data.ApplicationUser", "User")
@@ -632,6 +711,10 @@ namespace keepITCore.Data.Migrations
                     b.Navigation("ChecklistItems");
 
                     b.Navigation("NoteLists");
+
+                    b.Navigation("NoteShares");
+
+                    b.Navigation("UserStates");
                 });
 #pragma warning restore 612, 618
         }

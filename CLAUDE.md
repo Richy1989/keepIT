@@ -22,11 +22,13 @@ file is only the always-on rules. Scope today is **web + API**; a native Android
 - **Frontend and backend are separate deployables** over HTTP + WebSocket. Never host React inside ASP.NET Core.
 - **Note edits are optimistic** — instant UI, rollback on error.
 - **Refresh token stays in the httpOnly cookie.** Never put any token in localStorage.
-- **A new mutating endpoint must push realtime.** After `SaveChangesAsync`, call `IRealtimeNotifier.NotifyAsync(ownerId, …)` with the affected resources (`notes`/`lists`) — mirror the existing controllers — or other devices won't resync.
+- **Note access is "own OR shared", never a bare `OwnerId == me`.** Resolve every note endpoint's access through `NoteAccessService` (`Notes/NoteAccessService.cs`): read needs ownership or any share; content writes need ownership or an **Editor** share; hard-delete is owner-only. Pin/archive/trash and list membership are **per-user** — write the caller's `NoteUserState` / `NoteList` row, not the shared note.
+- **A new mutating endpoint must push realtime.** After `SaveChangesAsync`, call `IRealtimeNotifier.NotifyAsync(userId, …)` with the affected resources (`notes` / `lists` / `notification`). For a **shared** note's content, fan out to the whole recipient set (`NoteAccessService.RecipientIdsAsync`, i.e. owner + grantees); for **per-user** changes notify only the caller — mirror the existing controllers, or devices won't resync.
 
 ## Conventions
 
-- **C#:** standard .NET naming; request/response DTOs suffixed `Dto`; EF entities in `keepITCore/Data/`; one controller per resource. Request validation is **DataAnnotations on the DTOs** (no FluentValidation). Every endpoint is owner-scoped via `User.GetUserId()` — a caller can never touch another user's data.
+- **C#:** standard .NET naming; request/response DTOs suffixed `Dto`; EF entities in `keepITCore/Data/`; one controller per resource. Request validation is **DataAnnotations on the DTOs** (no FluentValidation). Every endpoint is scoped via `User.GetUserId()` — a caller reaches only data they own **or** have a share on (see the access hard rule); private resources (lists, settings, notifications) stay strictly owner-scoped.
+- **Enums** that cross the wire carry `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` so the OpenAPI doc (and generated TS client) get a string-name union, not a number.
 - **TypeScript:** generated client in `web/src/api/`; query hooks co-located in `features/<name>/queries.ts`; new features under `web/src/features/`.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `infra:`, `docs:`, `chore:`.
 
@@ -37,7 +39,9 @@ keepIT/
 ├─ keepIT/keepITCore/       # ASP.NET Core Web API (.NET 10)
 │  ├─ Auth/                 # Identity + JWT + refresh cookie
 │  ├─ Data/                 # EF Core entities, AppDbContext, migrations
-│  ├─ Notes/ Lists/ Settings/   # one controller + DTOs per resource
+│  ├─ Notes/                # NotesController + NoteSharesController + NoteAccessService + DTOs
+│  ├─ Lists/ Settings/      # one controller + DTOs per resource
+│  ├─ Notifications/        # UserNotificationController + DTOs (per-user inbox, TPH)
 │  ├─ SignalR/              # RealTimeHub, IRealtimeNotifier, SubUserIdProvider
 │  ├─ Infrastructure/       # OpenAPI, logging, DB provider selection, security/rate limiting
 │  └─ Program.cs
@@ -45,7 +49,7 @@ keepIT/
 │  ├─ api/                  # generated schema.d.ts, typed client, shared types
 │  ├─ auth/                 # AuthProvider, AuthContext, in-memory token store
 │  ├─ components/           # shared UI (Sidebar, Topbar, ColorPicker, icons …)
-│  ├─ features/             # notes/ lists/ settings/ account/ — each has queries.ts + components
+│  ├─ features/             # notes/ lists/ settings/ account/ notifications/ — each has queries.ts + components
 │  ├─ realtime/             # RealtimeSync.tsx — SignalR connection + cache invalidation
 │  ├─ pages/                # AuthPage, HomePage, SettingsPage
 │  └─ lib/                  # utilities (cn, apiError, useDismiss)
@@ -57,6 +61,7 @@ keepIT/
 
 - Windows host; **PowerShell** is the primary shell. Repo line endings are **LF** (`.gitattributes`).
 - No test projects yet.
+- **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration. The **SQLite dev DB uses `EnsureCreated`, not migrations** — it won't alter an existing file, so delete `App_Data/keepit.db` to rebuild the schema locally. `App_Data/` is user data (gitignored) — never commit it.
 
 ## Common commands
 

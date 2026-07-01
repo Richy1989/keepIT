@@ -39,5 +39,8 @@ namespace keepITCore.Notifications.Dtos
 
         /// <summary>The email of the user offering the note, for display. Set only for ShareInvite.</summary>
         public string? SharedByUserEmail { get; set; }
+
+        /// <summary>The role being offered (viewer/editor). Set only for ShareInvite.</summary>
+        public NoteRole? Role { get; set; }
     }
 }
