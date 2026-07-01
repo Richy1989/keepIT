@@ -73,6 +73,8 @@ builder.Services.AddCors(options =>
 
 // ---- App services ----
 builder.Services.AddScoped<ITokenService, TokenService>();
+// Central "own OR shared" note authorization + realtime recipient resolution (used by note endpoints).
+builder.Services.AddScoped<keepITCore.Notes.NoteAccessService>();
 builder.Services
     .AddControllers()
      .ConfigureApiBehaviorOptions(options =>
@@ -134,10 +136,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();                  // OpenAPI document at /openapi/v1.json
     app.MapScalarApiReference();       // interactive API UI at /scalar/v1
 }
-else
-{
-    app.UseHttpsRedirection();
-}
+
+// No UseHttpsRedirection here on purpose: TLS terminates at the reverse proxy (Traefik/nginx), so
+// the API always sees plain HTTP. With no HTTPS port configured the middleware would no-op anyway —
+// and if one were ever configured it would redirect-loop behind the proxy (the redirect check runs
+// before forwarded headers restore the original scheme). Enforce HTTPS at the proxy instead.
 
 app.UseForwardedHeaders();
 app.UseSerilogRequestLogging(); // one clean line per request (after forwarded headers, so the client IP is real)

@@ -28,8 +28,17 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>User-created lists (the "List" concept; see <see cref="KeepList"/>).</summary>
     public DbSet<KeepList> Lists => Set<KeepList>();
 
+    /// <summary>Per-user notifications (many per user).</summary>
+    public DbSet<UserNotification> Notifications => Set<UserNotification>();
+
     /// <summary>Per-user note↔list memberships.</summary>
     public DbSet<NoteList> NoteLists => Set<NoteList>();
+
+    /// <summary>Per-user pin/archive/trash view state for notes.</summary>
+    public DbSet<NoteUserState> NoteUserStates => Set<NoteUserState>();
+
+    /// <summary>Non-owner access grants (who a note is shared with, and at what role).</summary>
+    public DbSet<NoteShare> NoteShares => Set<NoteShare>();
 
     /// <summary>Per-user user settings.</summary>
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
@@ -115,6 +124,52 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithMany(l => l.NoteLists)
                 .HasForeignKey(nl => nl.ListId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Real FK to the user (no navigation needed) so deleting an account can't leave
+            // orphaned membership rows behind.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(nl => nl.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<NoteUserState>(e =>
+        {
+            // One private view-state per (note, user); purged with the note.
+            e.HasKey(us => new { us.NoteId, us.UserId });
+            e.HasIndex(us => us.UserId);
+
+            e.HasOne(us => us.Note)
+                .WithMany(n => n.UserStates)
+                .HasForeignKey(us => us.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Real FK to the user (no navigation needed) so deleting an account can't leave
+            // orphaned view-state rows behind.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(us => us.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<NoteShare>(e =>
+        {
+            e.HasKey(s => s.Id);
+            // At most one share per (note, grantee); look-ups go by note or by grantee.
+            e.HasIndex(s => new { s.NoteId, s.GranteeId }).IsUnique();
+            e.HasIndex(s => s.GranteeId);
+
+            e.HasOne(s => s.Note)
+                .WithMany(n => n.NoteShares)
+                .HasForeignKey(s => s.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Don't cascade-delete a user's account into notes shared *to* them; a share is severed
+            // explicitly on revoke. Restrict keeps an accidental user delete from nuking shares.
+            e.HasOne(s => s.Grantee)
+                .WithMany()
+                .HasForeignKey(s => s.GranteeId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<UserSettings>(e =>
@@ -129,6 +184,32 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithMany()
                 .HasForeignKey(s => s.OwnerId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<UserNotification>(e =>
+        {
+            e.HasKey(s => s.Id);
+            // Many notifications per user; index the owner for the per-user list query.
+            e.HasIndex(s => s.OwnerId);
+            e.Property(s => s.Severity).HasMaxLength(32).IsRequired();
+            e.Property(s => s.NotificationText).HasMaxLength(200).IsRequired();
+
+            e.HasOne(s => s.Owner)
+                .WithMany()
+                .HasForeignKey(s => s.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // TPH: one table for all notification kinds, keyed by the Type discriminator. Subtype
+            // columns (the ShareInvite fields below) are nullable since they don't apply to every row.
+            e.HasDiscriminator(s => s.Type)
+                .HasValue<SystemNotification>(NotificationType.System)
+                .HasValue<ShareInviteNotification>(NotificationType.ShareInvite);
+        });
+
+        builder.Entity<ShareInviteNotification>(e =>
+        {
+            e.Property(s => s.SharedNoteTitle).HasMaxLength(1000);
+            e.Property(s => s.SharedByUserEmail).HasMaxLength(256);
         });
     }
 }

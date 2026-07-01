@@ -142,6 +142,152 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserNotificationDto"][];
+                        "application/json": components["schemas"]["UserNotificationDto"][];
+                        "text/json": components["schemas"]["UserNotificationDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/{id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ShareResponseDto"];
+                    "text/json": components["schemas"]["ShareResponseDto"];
+                    "application/*+json": components["schemas"]["ShareResponseDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notes": {
         parameters: {
             query?: never;
@@ -385,6 +531,132 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/notes/{noteId}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteShareDto"][];
+                        "application/json": components["schemas"]["NoteShareDto"][];
+                        "text/json": components["schemas"]["NoteShareDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateShareDto"];
+                    "text/json": components["schemas"]["CreateShareDto"];
+                    "application/*+json": components["schemas"]["CreateShareDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notes/{noteId}/shares/{granteeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                    granteeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                    granteeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateShareRoleDto"];
+                    "text/json": components["schemas"]["UpdateShareRoleDto"];
+                    "application/*+json": components["schemas"]["UpdateShareRoleDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         trace?: never;
     };
     "/api/lists": {
@@ -786,6 +1058,10 @@ export interface components {
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
             listIds?: null | string[];
         };
+        CreateShareDto: {
+            email: string;
+            role?: components["schemas"]["NoteRole"];
+        };
         /** Format: binary */
         IFormFile: string;
         ListDto: {
@@ -816,8 +1092,23 @@ export interface components {
             createdAtUtc?: string;
             /** Format: date-time */
             updatedAtUtc?: string;
+            isOwner?: boolean;
+            role?: null | components["schemas"]["NoteRole"];
+            canEdit?: boolean;
+            isShared?: boolean;
             checklistItems?: components["schemas"]["ChecklistItemDto"][];
             listIds?: string[];
+        };
+        /** @enum {unknown} */
+        NoteRole: "Viewer" | "Editor" | null;
+        NoteShareDto: {
+            /** Format: uuid */
+            granteeId?: string;
+            email?: string;
+            role?: components["schemas"]["NoteRole"];
+            /** Format: date-time */
+            createdAtUtc?: string;
+            pending?: boolean;
         };
         NoteStateDto: {
             isPinned?: null | boolean;
@@ -826,6 +1117,8 @@ export interface components {
         };
         /** @enum {unknown} */
         NoteType: "Text" | "Checklist" | "Image";
+        /** @enum {unknown} */
+        NotificationType: "System" | "ShareInvite";
         RegisterRequestDto: {
             email: string;
             password: string;
@@ -833,6 +1126,9 @@ export interface components {
         };
         SetNoteListsDto: {
             listIds?: string[];
+        };
+        ShareResponseDto: {
+            accept?: boolean;
         };
         UpdateListDto: {
             name?: null | string;
@@ -845,11 +1141,29 @@ export interface components {
             color?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
         };
+        UpdateShareRoleDto: {
+            role?: components["schemas"]["NoteRole"];
+        };
         UserDto: {
             /** Format: uuid */
             id?: string;
             email?: string;
             displayName?: null | string;
+        };
+        UserNotificationDto: {
+            /** Format: uuid */
+            id?: null | string;
+            type?: components["schemas"]["NotificationType"];
+            notificationText?: string;
+            severity?: string;
+            isActive?: boolean;
+            /** Format: date-time */
+            createdAtUtc?: string;
+            /** Format: uuid */
+            sharedNoteId?: null | string;
+            sharedNoteTitle?: null | string;
+            sharedByUserEmail?: null | string;
+            role?: null | components["schemas"]["NoteRole"];
         };
         UserSettingsDto: {
             /** Format: uuid */

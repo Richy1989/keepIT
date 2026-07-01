@@ -47,7 +47,9 @@ public class ListsController : ControllerBase
                 Name = l.Name,
                 Color = l.Color,
                 CreatedAtUtc = l.CreatedAtUtc,
-                NoteCount = l.NoteLists.Count(nl => nl.UserId == ownerId && !nl.Note.IsTrashed),
+                // Trash is per-user now: exclude notes the caller has trashed in their own view.
+                NoteCount = l.NoteLists.Count(nl =>
+                    nl.UserId == ownerId && !nl.Note.UserStates.Any(us => us.UserId == ownerId && us.IsTrashed)),
             })
             .ToListAsync();
 
@@ -98,7 +100,8 @@ public class ListsController : ControllerBase
         await _db.SaveChangesAsync();
         await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists);
 
-        var count = await _db.NoteLists.CountAsync(nl => nl.ListId == id && nl.UserId == ownerId && !nl.Note.IsTrashed);
+        var count = await _db.NoteLists.CountAsync(nl =>
+            nl.ListId == id && nl.UserId == ownerId && !nl.Note.UserStates.Any(us => us.UserId == ownerId && us.IsTrashed));
         return Ok(ToDto(list, count));
     }
 

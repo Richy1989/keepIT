@@ -9,9 +9,11 @@ using Microsoft.EntityFrameworkCore;
 namespace keepITCore.Notes;
 
 /// <summary>
-/// CRUD for the caller's notes. Every action is scoped to the authenticated user's id
-/// (<see cref="ClaimsPrincipalExtensions.GetUserId"/>) — a caller can never read or mutate another
-/// user's notes. Sharing/collaboration is a later pass; for now ownership is the only access path.
+/// CRUD for a caller's notes. Access is "own OR shared" — every action resolves the caller's
+/// <see cref="NoteAccess"/> through <see cref="NoteAccessService"/> (never a bare <c>OwnerId ==</c>
+/// filter), so a collaborator can reach a shared note but no one can touch a note they neither own
+/// nor hold a share on. Content mutations require Editor access; pin/archive/trash and list
+/// membership are per-user and only need read access.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -20,24 +22,28 @@ public class NotesController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IRealtimeNotifier _notifier;
+    private readonly NoteAccessService _access;
 
-    /// <summary>Injects the database context and the realtime change notifier.</summary>
+    /// <summary>Injects the database context, the realtime notifier, and the access resolver.</summary>
     /// <param name="db">The EF Core context.</param>
-    /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
-    public NotesController(AppDbContext db, IRealtimeNotifier notifier)
+    /// <param name="notifier">Pushes change signals to affected users' devices.</param>
+    /// <param name="access">Resolves "own OR shared" access and the realtime recipient set.</param>
+    public NotesController(AppDbContext db, IRealtimeNotifier notifier, NoteAccessService access)
     {
         _db = db;
         _notifier = notifier;
+        _access = access;
     }
 
     /// <summary>
-    /// Lists the caller's notes (pinned first, then most-recently updated). Defaults to the active
-    /// grid; pass <paramref name="archived"/> or <paramref name="trashed"/> for those views, and
-    /// one or more <c>listId</c> values to filter to notes in any of those lists (union).
+    /// Lists the notes in the caller's grid (owned or shared with them), pinned first then most-
+    /// recently updated. The pin/archive/trash view is the caller's own; pass <paramref name="archived"/>
+    /// or <paramref name="trashed"/> for those views, and one or more <c>listId</c> values to filter
+    /// to notes in any of the caller's matching lists (union).
     /// </summary>
     /// <param name="listIds">Optional list ids to filter by (repeatable: <c>?listId=…&amp;listId=…</c>).</param>
-    /// <param name="archived">When true, return archived notes instead of the active grid.</param>
-    /// <param name="trashed">When true, return trashed notes (overrides <paramref name="archived"/>).</param>
+    /// <param name="archived">When true, return the caller's archived notes instead of the active grid.</param>
+    /// <param name="trashed">When true, return the caller's trashed notes (overrides <paramref name="archived"/>).</param>
     /// <returns>200 with the matching notes.</returns>
     [HttpGet]
     public async Task<ActionResult<List<NoteDto>>> GetNotes(
@@ -45,43 +51,45 @@ public class NotesController : ControllerBase
         [FromQuery] bool archived = false,
         [FromQuery] bool trashed = false)
     {
-        var ownerId = User.GetUserId();
-        if (ownerId is null) return Unauthorized();
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
 
-        var query = _db.Notes.AsNoTracking().Where(n => n.OwnerId == ownerId);
+        // The grid is driven off the caller's per-user state rows: one exists for every note in
+        // their grid (owned or accepted-share), and it carries their private pin/archive/trash view.
+        var query = _db.NoteUserStates.AsNoTracking().Where(us => us.UserId == callerId);
 
-        // Trash is its own view; otherwise split active vs archived.
         query = trashed
-            ? query.Where(n => n.IsTrashed)
-            : query.Where(n => !n.IsTrashed && n.IsArchived == archived);
+            ? query.Where(us => us.IsTrashed)
+            : query.Where(us => !us.IsTrashed && us.IsArchived == archived);
 
         if (listIds is { Length: > 0 })
-            query = query.Where(n => n.NoteLists.Any(nl => nl.UserId == ownerId && listIds.Contains(nl.ListId)));
+            query = query.Where(us => us.Note.NoteLists.Any(nl => nl.UserId == callerId && listIds.Contains(nl.ListId)));
 
-        var notes = await query
-            .Include(n => n.ChecklistItems)
-            .Include(n => n.NoteLists.Where(nl => nl.UserId == ownerId))
-            .OrderByDescending(n => n.IsPinned)
-            .ThenByDescending(n => n.UpdatedAtUtc)
+        var states = await query
+            .Include(us => us.Note).ThenInclude(n => n.ChecklistItems)
+            .Include(us => us.Note).ThenInclude(n => n.NoteLists.Where(nl => nl.UserId == callerId))
+            .Include(us => us.Note).ThenInclude(n => n.NoteShares)
+            .OrderByDescending(us => us.IsPinned)
+            .ThenByDescending(us => us.Note.UpdatedAtUtc)
             .ToListAsync();
 
-        return Ok(notes.Select(n => ToDto(n, ownerId.Value)).ToList());
+        return Ok(states.Select(us => ToDto(us.Note, us, callerId.Value)).ToList());
     }
 
-    /// <summary>Gets a single note by id.</summary>
+    /// <summary>Gets a single note by id (if the caller owns it or has a share on it).</summary>
     /// <param name="id">The note id.</param>
-    /// <returns>200 with the note, or 404 if it doesn't exist or isn't the caller's.</returns>
+    /// <returns>200 with the note, or 404 if it doesn't exist or the caller has no access.</returns>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<NoteDto>> GetNote(Guid id)
     {
-        var ownerId = User.GetUserId();
-        if (ownerId is null) return Unauthorized();
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
 
-        var dto = await LoadDtoAsync(id, ownerId.Value);
+        var dto = await LoadDtoAsync(id, callerId.Value);
         return dto is null ? NotFound() : Ok(dto);
     }
 
-    /// <summary>Creates a note for the caller.</summary>
+    /// <summary>Creates a note for the caller (its owner).</summary>
     /// <param name="dto">The note's type, content, optional checklist items, and lists.</param>
     /// <returns>201 with the created note.</returns>
     [HttpPost]
@@ -113,6 +121,9 @@ public class NotesController : ControllerBase
         foreach (var listId in await OwnedListIdsAsync(ownerId.Value, dto.ListIds))
             note.NoteLists.Add(new NoteList { NoteId = note.Id, ListId = listId, UserId = ownerId.Value });
 
+        // The owner's private view row — its existence puts the note in their grid.
+        note.UserStates.Add(new NoteUserState { NoteId = note.Id, UserId = ownerId.Value });
+
         _db.Notes.Add(note);
         await _db.SaveChangesAsync();
         await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
@@ -124,15 +135,19 @@ public class NotesController : ControllerBase
     /// <summary>Replaces a note's editable content (title, body, color, type, checklist items).</summary>
     /// <param name="id">The note id.</param>
     /// <param name="dto">The new content. Checklist items are replaced wholesale.</param>
-    /// <returns>200 with the updated note, or 404 if it isn't the caller's.</returns>
+    /// <returns>200 with the updated note, 403 if the caller is a viewer, or 404 if they have no access.</returns>
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<NoteDto>> Update(Guid id, UpdateNoteDto dto)
     {
-        var ownerId = User.GetUserId();
-        if (ownerId is null) return Unauthorized();
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
+
+        var access = await _access.ResolveAsync(id, callerId.Value);
+        if (access is null) return NotFound();
+        if (!access.Value.CanEdit) return Forbid();
 
         var note = await _db.Notes
-            .Where(n => n.Id == id && n.OwnerId == ownerId)
+            .Where(n => n.Id == id)
             .Include(n => n.ChecklistItems)
             .FirstOrDefaultAsync();
         if (note is null) return NotFound();
@@ -172,95 +187,136 @@ public class NotesController : ControllerBase
             _db.ChecklistItems.Remove(stale);
 
         await _db.SaveChangesAsync();
-        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes);
-        return Ok((await LoadDtoAsync(id, ownerId.Value))!);
+        // Content is shared: fan the change out to the owner and every collaborator.
+        await NotifyRecipientsAsync(id, RealtimeResources.Notes);
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
     }
 
-    /// <summary>Toggles the note's pin / archive / trash flags (the quick card actions).</summary>
+    /// <summary>
+    /// Toggles the caller's <em>private</em> pin / archive / trash view of a note. On a shared note
+    /// this changes only the caller's own grid, never other collaborators' or the owner's.
+    /// </summary>
     /// <param name="id">The note id.</param>
     /// <param name="dto">The flags to change; nulls are left as-is. Set <c>isTrashed=false</c> to restore.</param>
-    /// <returns>200 with the updated note, or 404 if it isn't the caller's.</returns>
+    /// <returns>200 with the updated note, or 404 if the caller has no access.</returns>
     [HttpPatch("{id:guid}/state")]
     public async Task<ActionResult<NoteDto>> SetState(Guid id, NoteStateDto dto)
     {
-        var ownerId = User.GetUserId();
-        if (ownerId is null) return Unauthorized();
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
 
-        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == ownerId);
-        if (note is null) return NotFound();
+        // Read access is enough — pinning/archiving/trashing your own view isn't a content mutation.
+        var access = await _access.ResolveAsync(id, callerId.Value);
+        if (access is null) return NotFound();
 
-        if (dto.IsPinned is not null) note.IsPinned = dto.IsPinned.Value;
-        if (dto.IsArchived is not null) note.IsArchived = dto.IsArchived.Value;
-        if (dto.IsTrashed is not null) note.IsTrashed = dto.IsTrashed.Value;
-        note.UpdatedAtUtc = DateTime.UtcNow;
+        var state = await _db.NoteUserStates.FirstOrDefaultAsync(us => us.NoteId == id && us.UserId == callerId);
+        if (state is null)
+        {
+            state = new NoteUserState { NoteId = id, UserId = callerId.Value };
+            _db.NoteUserStates.Add(state);
+        }
+
+        if (dto.IsPinned is not null) state.IsPinned = dto.IsPinned.Value;
+        if (dto.IsArchived is not null) state.IsArchived = dto.IsArchived.Value;
+        if (dto.IsTrashed is not null) state.IsTrashed = dto.IsTrashed.Value;
 
         await _db.SaveChangesAsync();
-        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
-        return Ok((await LoadDtoAsync(id, ownerId.Value))!);
+        // Per-user view state: only the caller's own devices need to resync.
+        await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
     }
 
-    /// <summary>Replaces the set of the caller's lists this note belongs to.</summary>
+    /// <summary>Replaces the set of the caller's lists this note belongs to (private to the caller).</summary>
     /// <param name="id">The note id.</param>
     /// <param name="dto">The complete new set of list ids (only the caller's own lists are honored).</param>
-    /// <returns>200 with the updated note, or 404 if it isn't the caller's.</returns>
+    /// <returns>200 with the updated note, or 404 if the caller has no access.</returns>
     [HttpPut("{id:guid}/lists")]
     public async Task<ActionResult<NoteDto>> SetLists(Guid id, SetNoteListsDto dto)
     {
-        var ownerId = User.GetUserId();
-        if (ownerId is null) return Unauthorized();
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
 
-        var note = await _db.Notes
-            .Where(n => n.Id == id && n.OwnerId == ownerId)
-            .Include(n => n.NoteLists.Where(nl => nl.UserId == ownerId))
-            .FirstOrDefaultAsync();
-        if (note is null) return NotFound();
+        var access = await _access.ResolveAsync(id, callerId.Value);
+        if (access is null) return NotFound();
 
-        var target = await OwnedListIdsAsync(ownerId.Value, dto.ListIds);
-        var current = note.NoteLists.Where(nl => nl.UserId == ownerId).ToList();
+        var current = await _db.NoteLists
+            .Where(nl => nl.NoteId == id && nl.UserId == callerId)
+            .ToListAsync();
+
+        var target = await OwnedListIdsAsync(callerId.Value, dto.ListIds);
 
         _db.NoteLists.RemoveRange(current.Where(nl => !target.Contains(nl.ListId)));
         var keep = current.Select(nl => nl.ListId).ToHashSet();
         foreach (var listId in target.Where(lid => !keep.Contains(lid)))
-            _db.NoteLists.Add(new NoteList { NoteId = note.Id, ListId = listId, UserId = ownerId.Value });
+            _db.NoteLists.Add(new NoteList { NoteId = id, ListId = listId, UserId = callerId.Value });
 
         await _db.SaveChangesAsync();
-        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
-        return Ok((await LoadDtoAsync(id, ownerId.Value))!);
+        // List membership is private to the caller — only their devices resync.
+        await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
     }
 
-    /// <summary>Permanently deletes a note (used to purge from trash). For soft-delete, set the trash flag.</summary>
+    /// <summary>
+    /// Permanently deletes a note (purge from trash). Owner-only — cascades its shares, per-user
+    /// state, list memberships, and checklist, so it vanishes from every collaborator's grid too.
+    /// A collaborator wanting rid of a shared note should leave the share, not delete the note.
+    /// </summary>
     /// <param name="id">The note id.</param>
-    /// <returns>204 on success, or 404 if it isn't the caller's.</returns>
+    /// <returns>204 on success, 403 if the caller isn't the owner, or 404 if they have no access.</returns>
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var ownerId = User.GetUserId();
-        if (ownerId is null) return Unauthorized();
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
 
-        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id && n.OwnerId == ownerId);
+        var access = await _access.ResolveAsync(id, callerId.Value);
+        if (access is null) return NotFound();
+        if (!access.Value.IsOwner) return Forbid();
+
+        // Capture recipients before the delete so collaborators also get told to resync.
+        var recipients = await _access.RecipientIdsAsync(id);
+
+        var note = await _db.Notes.FirstOrDefaultAsync(n => n.Id == id);
         if (note is null) return NotFound();
 
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
-        await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
+        await Task.WhenAll(recipients.Select(uid =>
+            _notifier.NotifyAsync(uid, RealtimeResources.Notes, RealtimeResources.Lists)));
         return NoContent();
     }
 
     // ---- helpers ----
 
-    /// <summary>Loads a note (no tracking) and projects it to a DTO, or null if not the caller's.</summary>
+    /// <summary>Notifies the owner and every collaborator of a note that the given resources changed.</summary>
+    /// <param name="noteId">The note whose recipients to reach.</param>
+    /// <param name="resources">The affected resource names (see <see cref="RealtimeResources"/>).</param>
+    private async Task NotifyRecipientsAsync(Guid noteId, params string[] resources)
+    {
+        var recipients = await _access.RecipientIdsAsync(noteId);
+        await Task.WhenAll(recipients.Select(uid => _notifier.NotifyAsync(uid, resources)));
+    }
+
+    /// <summary>Loads a note (no tracking) and projects it for a caller, or null if they have no access.</summary>
     /// <param name="id">The note id.</param>
-    /// <param name="ownerId">The caller's id, used to scope the query and the per-user list memberships.</param>
-    /// <returns>The note DTO, or null if it doesn't exist or isn't owned by the caller.</returns>
-    private async Task<NoteDto?> LoadDtoAsync(Guid id, Guid ownerId)
+    /// <param name="callerId">The caller, used to scope list memberships, per-user state, and access.</param>
+    /// <returns>The note DTO, or null if it doesn't exist or the caller neither owns nor has a share on it.</returns>
+    private async Task<NoteDto?> LoadDtoAsync(Guid id, Guid callerId)
     {
         var note = await _db.Notes.AsNoTracking()
-            .Where(n => n.Id == id && n.OwnerId == ownerId)
+            .Where(n => n.Id == id)
             .Include(n => n.ChecklistItems)
-            .Include(n => n.NoteLists.Where(nl => nl.UserId == ownerId))
+            .Include(n => n.NoteLists.Where(nl => nl.UserId == callerId))
+            .Include(n => n.NoteShares)
             .FirstOrDefaultAsync();
 
-        return note is null ? null : ToDto(note, ownerId);
+        if (note is null) return null;
+        if (note.OwnerId != callerId && note.NoteShares.All(s => s.GranteeId != callerId)) return null;
+
+        var state = await _db.NoteUserStates.AsNoTracking()
+            .FirstOrDefaultAsync(us => us.NoteId == id && us.UserId == callerId);
+
+        return ToDto(note, state, callerId);
     }
 
     /// <summary>Filters the requested list ids down to those the caller actually owns.</summary>
@@ -290,26 +346,37 @@ public class NotesController : ControllerBase
         Order = order,
     };
 
-    /// <summary>Projects a note entity to its client DTO, including the caller's list memberships.</summary>
-    /// <param name="n">The note entity (with checklist items and note-lists loaded).</param>
-    /// <param name="ownerId">The caller's id, used to select per-user list memberships.</param>
+    /// <summary>Projects a note entity to its client DTO for a given caller (view state + access resolved).</summary>
+    /// <param name="n">The note entity (with checklist items, the caller's note-lists, and shares loaded).</param>
+    /// <param name="state">The caller's per-user view state, or null (treated as all-false defaults).</param>
+    /// <param name="callerId">The caller, used to resolve their view, list memberships, and role.</param>
     /// <returns>The note DTO.</returns>
-    private static NoteDto ToDto(Note n, Guid ownerId) => new()
+    private static NoteDto ToDto(Note n, NoteUserState? state, Guid callerId)
     {
-        Id = n.Id,
-        Type = n.Type,
-        Title = n.Title,
-        Body = n.Body,
-        Color = n.Color,
-        IsPinned = n.IsPinned,
-        IsArchived = n.IsArchived,
-        IsTrashed = n.IsTrashed,
-        CreatedAtUtc = n.CreatedAtUtc,
-        UpdatedAtUtc = n.UpdatedAtUtc,
-        ChecklistItems = n.ChecklistItems
-            .OrderBy(c => c.Order)
-            .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, IsChecked = c.IsChecked, Order = c.Order })
-            .ToList(),
-        ListIds = n.NoteLists.Where(nl => nl.UserId == ownerId).Select(nl => nl.ListId).ToList(),
-    };
+        var isOwner = n.OwnerId == callerId;
+        var role = isOwner ? (NoteRole?)null : n.NoteShares.FirstOrDefault(s => s.GranteeId == callerId)?.Role;
+
+        return new NoteDto
+        {
+            Id = n.Id,
+            Type = n.Type,
+            Title = n.Title,
+            Body = n.Body,
+            Color = n.Color,
+            IsPinned = state?.IsPinned ?? false,
+            IsArchived = state?.IsArchived ?? false,
+            IsTrashed = state?.IsTrashed ?? false,
+            CreatedAtUtc = n.CreatedAtUtc,
+            UpdatedAtUtc = n.UpdatedAtUtc,
+            IsOwner = isOwner,
+            Role = role,
+            CanEdit = isOwner || role == NoteRole.Editor,
+            IsShared = isOwner && n.NoteShares.Count > 0,
+            ChecklistItems = n.ChecklistItems
+                .OrderBy(c => c.Order)
+                .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, IsChecked = c.IsChecked, Order = c.Order })
+                .ToList(),
+            ListIds = n.NoteLists.Where(nl => nl.UserId == callerId).Select(nl => nl.ListId).ToList(),
+        };
+    }
 }

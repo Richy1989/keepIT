@@ -1,10 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSetNoteLists, useUpdateNote } from './queries';
+import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
+import { ShareDialog } from './ShareDialog';
 import { ColorPicker } from '../../components/ColorPicker';
 import { useLists } from '../lists/queries';
-import { CheckSquareIcon, PaletteIcon } from '../../components/icons';
+import { useAuth } from '../../auth/AuthContext';
+import { CheckIcon, CheckSquareIcon, EyeIcon, PaletteIcon, ShareIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, NoteType } from '../../api/types';
 
@@ -19,11 +22,26 @@ function listsChanged(a: string[], b: string[]): boolean {
  * Full-note editor shown over the grid. Edits title, body/checklist, color, and list membership;
  * persists on close (content via PUT, list membership via the per-user lists endpoint) only when
  * something actually changed.
+ *
+ * On a shared note the caller's access governs what's editable: a viewer (`canEdit === false`) sees
+ * the content read-only but can still file it into their own lists (list membership is per-user).
+ * Only the owner can open the share dialog.
  */
 export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () => void }) {
   const update = useUpdateNote();
   const setLists = useSetNoteLists();
+  const revoke = useRevokeShare(note.id);
+  const { user } = useAuth();
   const { data: allLists } = useLists();
+
+  const canEdit = note.canEdit;
+
+  /** Collaborator-only: remove the caller's own share, dropping the note from their grid. */
+  function leaveNote() {
+    if (note.isOwner || !user) return;
+    if (!window.confirm('Leave this note? It will disappear from your grid until you are invited again.')) return;
+    revoke.mutate(user.id, { onSettled: onClose });
+  }
 
   const [type, setType] = useState<NoteType>(note.type);
   const [title, setTitle] = useState(note.title ?? '');
@@ -32,6 +50,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [color, setColor] = useState(note.color ?? 'default');
   const [listIds, setListIds] = useState<string[]>(note.listIds);
   const [showColors, setShowColors] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   function save() {
     const cleanItems = items
@@ -47,7 +66,8 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
       JSON.stringify(cleanItems.map((i) => [i.text, i.isChecked])) !==
         JSON.stringify(note.checklistItems.map((i) => [i.text, i.isChecked]));
 
-    if (contentChanged) {
+    // Only owners/editors persist content; viewers can't (the server would 403 anyway).
+    if (canEdit && contentChanged) {
       update.mutate({
         id: note.id,
         body: {
@@ -59,6 +79,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
         },
       });
     }
+    // List membership is per-user — allowed even for viewers.
     if (listsChanged(listIds, note.listIds)) {
       setLists.mutate({ id: note.id, listIds });
     }
@@ -88,22 +109,34 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
         style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
       >
         <div className="p-5">
+          {!note.isOwner && (
+            <div className="mb-3 flex items-center gap-1.5 text-xs text-text-faint">
+              <EyeIcon className="text-sm" />
+              Shared with you{note.canEdit ? ' — you can edit' : ' — view only'}
+            </div>
+          )}
           <input
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
+            readOnly={!canEdit}
             className="w-full bg-transparent text-lg font-medium outline-none placeholder:text-text-faint"
           />
           <div className="mt-3">
             {type === 'Checklist' ? (
-              <ChecklistEditor items={items} onChange={setItems} />
+              canEdit ? (
+                <ChecklistEditor items={items} onChange={setItems} />
+              ) : (
+                <ReadOnlyChecklist items={items} />
+              )
             ) : (
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 placeholder="Take a note…"
                 rows={8}
+                readOnly={!canEdit}
                 className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
               />
             )}
@@ -136,7 +169,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
             </div>
           )}
 
-          {showColors && (
+          {showColors && canEdit && (
             <div className="mt-4 rounded-lg border border-border-subtle bg-canvas/40 p-2">
               <ColorPicker value={color} onPick={setColor} />
             </div>
@@ -145,23 +178,42 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
 
         <div className="flex items-center justify-between border-t border-black/20 px-4 py-2.5">
           <div className="flex items-center gap-1">
-            <EditorTool label="Background" onClick={() => setShowColors((s) => !s)}>
-              <PaletteIcon className="text-lg" />
-            </EditorTool>
-            <EditorTool
-              label={type === 'Checklist' ? 'Switch to text' : 'Switch to checklist'}
-              onClick={() => {
-                if (type === 'Text') {
-                  setType('Checklist');
-                  if (items.length === 0)
-                    setItems([{ id: null, text: '', isChecked: false, order: 0 }]);
-                } else {
-                  setType('Text');
-                }
-              }}
-            >
-              <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent')} />
-            </EditorTool>
+            {canEdit && (
+              <>
+                <EditorTool label="Background" onClick={() => setShowColors((s) => !s)}>
+                  <PaletteIcon className="text-lg" />
+                </EditorTool>
+                <EditorTool
+                  label={type === 'Checklist' ? 'Switch to text' : 'Switch to checklist'}
+                  onClick={() => {
+                    if (type === 'Text') {
+                      setType('Checklist');
+                      if (items.length === 0)
+                        setItems([{ id: null, text: '', isChecked: false, order: 0 }]);
+                    } else {
+                      setType('Text');
+                    }
+                  }}
+                >
+                  <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent')} />
+                </EditorTool>
+              </>
+            )}
+            {note.isOwner && (
+              <EditorTool label="Share" onClick={() => setShowShare(true)}>
+                <ShareIcon className={cn('text-lg', note.isShared && 'text-accent')} />
+              </EditorTool>
+            )}
+            {!note.isOwner && (
+              <button
+                type="button"
+                onClick={leaveNote}
+                disabled={revoke.isPending}
+                className="focus-ring ml-1 rounded-md px-2 py-1 text-xs text-text-muted transition hover:bg-black/20 hover:text-text disabled:opacity-50"
+              >
+                {revoke.isPending ? 'Leaving…' : 'Leave note'}
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -172,7 +224,34 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           </button>
         </div>
       </div>
+
+      {showShare && note.isOwner && (
+        <ShareDialog note={note} onClose={() => setShowShare(false)} />
+      )}
     </div>
+  );
+}
+
+/** Static, non-interactive rendering of a checklist for viewers (no edit affordances). */
+function ReadOnlyChecklist({ items }: { items: ChecklistItemDto[] }) {
+  return (
+    <ul className="space-y-1">
+      {items.map((it, i) => (
+        <li key={it.id ?? i} className="flex items-start gap-2 text-sm">
+          <span
+            className={cn(
+              'mt-0.5 grid size-4 shrink-0 place-items-center rounded border',
+              it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-strong',
+            )}
+          >
+            {it.isChecked && <CheckIcon className="text-[10px]" />}
+          </span>
+          <span className={cn('text-text', it.isChecked && 'text-text-faint line-through')}>
+            {it.text}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -16,6 +16,14 @@ export type SetNoteListsDto = S['SetNoteListsDto'];
 export type ChecklistItemDto = S['ChecklistItemDto'];
 export type NoteType = S['NoteType'];
 
+export type NoteShareDto = S['NoteShareDto'];
+export type CreateShareDto = S['CreateShareDto'];
+export type UpdateShareRoleDto = S['UpdateShareRoleDto'];
+export type NoteRole = S['NoteRole'];
+
+export type UserNotificationDto = S['UserNotificationDto'];
+export type ShareResponseDto = S['ShareResponseDto'];
+
 export type ListDto = S['ListDto'];
 export type CreateListDto = S['CreateListDto'];
 export type UpdateListDto = S['UpdateListDto'];

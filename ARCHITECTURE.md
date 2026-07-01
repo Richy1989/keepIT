@@ -178,8 +178,8 @@ mirroring the DTOs and keeps the REST API the single source of data.
 - **Hub:** `keepITCore/SignalR/RealTimeHub.cs`, mapped at **`/api/realtime`** (under `/api`
   so the existing dev proxy and nginx WebSocket-upgrade rules route it with no extra config).
 - **Contract:** one strongly-typed client method, `Changed(IReadOnlyList<string> resources)`,
-  where each resource is `"notes"` or `"lists"` (`RealtimeResources`). The browser only
-  *receives*; mutations stay on REST, so the hub has **no callable server methods**.
+  where each resource is `"notes"`, `"lists"`, or `"notification"` (`RealtimeResources`). The
+  browser only *receives*; mutations stay on REST, so the hub has **no callable server methods**.
 - **Push path:** controllers depend on `IRealtimeNotifier` (a thin wrapper over
   `IHubContext<RealTimeHub, IRealTimeHub>`), and after each successful `SaveChanges` call
   `NotifyAsync(ownerId, …)` with the resources that mutation affected (e.g. a note create
@@ -198,12 +198,16 @@ mirroring the DTOs and keeps the REST API the single source of data.
   balancer requires a **Redis backplane** (`AddSignalR().AddStackExchangeRedis(...)`) or a
   device connected to another instance misses pushes. See **Deployment** (`redis` service).
 
-**Planned — sharing-aware fan-out.** When **Sharing / collaboration** lands, a note's changes
-must reach the owner's devices **and** every collaborator's devices. The intended model is a
-**group per note** (`note:{noteId}`) that a connection joins for each note it can access
-(a private note is a group of one user); on share grant/revoke, update the affected user's
-group membership so access changes take effect live. Realtime must never leak to a user who
-has neither ownership nor a share.
+**Implemented — sharing-aware fan-out.** A note's content changes reach the owner's devices
+**and** every collaborator's. This is done by **fanning out over the recipient set**, not SignalR
+groups: after a content mutation the controller asks `NoteAccessService.RecipientIdsAsync(noteId)`
+(owner + all grantees) and calls `NotifyAsync(userId, …)` for each, so `Clients.User` still targets
+per-user. **Per-user** changes (pin/archive/trash, list membership) notify only the acting caller,
+since no one else's view moved. A `notification` signal targets a single user (the invite
+recipient, or the answerer). A group-per-note model is a reasonable future optimization if the
+recipient fan-out ever gets expensive, but the per-user loop keeps the targeting logic in one
+place and needs no join/leave bookkeeping. The **Redis backplane** caveat above applies unchanged:
+`Clients.User` is in-process, so multi-instance still needs it.
 
 ## Sharing / collaboration
 
@@ -211,42 +215,57 @@ A note can be shared with other users so they see it in their own grid and (opti
 it. This is the one place the app deliberately relaxes strict per-user data isolation — and
 because it does, the access rules below are mandatory, not optional.
 
+**Status: implemented** (web + API). The model, access rule, and per-user overlay below are
+live; the one intentional deviation from the original plan is that sharing is an **invite/accept
+flow** rather than a direct grant (see **Endpoints**).
+
 **Model.** A `NoteShare` row grants one user (`granteeId`) access to one note at a `role`:
-- **Viewer** — read-only. Sees the note and its live updates; cannot mutate it.
-- **Editor** — read + write. Can edit body/checklist items/images like the owner, but
+- **Viewer** — read-only. Sees the note and its live updates; cannot mutate its content.
+- **Editor** — read + write. Can edit body/checklist items/color like the owner, but
   **cannot** delete the note, re-share it, or change other people's roles.
 
 The **owner** is implicit (no `NoteShare` row) and is the only one who can share/un-share,
-change roles, or hard-delete the note. Ownership never transfers.
+change roles, or hard-delete the note. Ownership never transfers. A `NoteShare` exists only
+once the recipient has **accepted** an invite — a pending invite is not yet access.
 
 **Access resolution (used by every note query/command).** A caller may act on a note iff:
 `note.ownerId == caller` **OR** a `NoteShare(noteId, granteeId == caller)` exists — and for
-writes, that share's role is `Editor`. The grid query is therefore "notes I own **UNION**
-notes shared with me," not a flat `ownerId == me` filter. Centralize this in one
-authorization helper so no endpoint can forget it.
+content writes, that share's role is `Editor`. This lives in exactly one place —
+**`NoteAccessService`** (`Notes/NoteAccessService.cs`), which returns a `NoteAccess(IsOwner,
+Role)` (with `CanEdit = IsOwner || Role == Editor`) and the realtime recipient set for a note.
+Every note endpoint resolves access through it; no endpoint hand-rolls an `ownerId == me` check.
 
-**What is and isn't shared.** The note's content is shared: title, body, checklist items,
-image notes, and background — including the referenced `MediaItem` bytes, which a
-collaborator reaches *through the note*, not by owning the media (see the media access rule
-above). **Not** shared: `List`s (private per user via the `NoteList.userId` join — a
-collaborator can file a shared note into their own lists without the owner seeing it), and a
-note's pinned/archived/trashed state is **per user** too — a collaborator pinning or
-archiving a shared note changes only their own view, not the owner's.
+**Per-user view overlay (`NoteUserState`).** Pin/archive/trash are **per user**, not columns on
+the note: a `NoteUserState(noteId, userId, isPinned, isArchived, isTrashed)` row holds one user's
+private view. **The row's existence also means "this note is in my grid"** — the owner gets one
+when the note is created, a grantee gets one when they accept — so the grid query is driven off
+this table (owned and shared notes fall out of the same query) rather than a `UNION`. A
+collaborator pinning or trashing a shared note touches only their own row.
 
-**Endpoints** (all under `/api/notes/{id}/shares`, all require the caller to be the owner
-except where noted):
-- `POST   /api/notes/{id}/shares` — share the note with a user (by email or user id) at a
-  role → creates a `NoteShare`, adds the grantee to the note's SignalR group.
-- `GET    /api/notes/{id}/shares` — list collaborators and their roles (owner, or any
+**What is and isn't shared.** The note's **content** is shared: title, body, checklist items,
+image notes, and background — including the referenced `MediaItem` bytes, which a collaborator
+reaches *through the note*, not by owning the media (see the media access rule above). **Not**
+shared: `List`s (private per user via the `NoteList.userId` join — a collaborator files a shared
+note into their own lists without the owner seeing it) and the per-user view flags above.
+
+**Endpoints.** Sharing is an **invite → accept** flow, not a silent grant (a note shouldn't
+just appear in a stranger's grid). Owner-only except where noted:
+- `POST   /api/notes/{id}/shares` — invite a user (by email) at a role. Creates a pending
+  `ShareInviteNotification` for the recipient and pushes a realtime `notification` signal; **no
+  `NoteShare` yet**. Rejects self-shares, duplicates, and non-users (`400`).
+- `GET    /api/notes/{id}/shares` — list collaborators and their roles (owner or any
   collaborator may read who else has access).
 - `PATCH  /api/notes/{id}/shares/{granteeId}` — change a collaborator's role.
-- `DELETE /api/notes/{id}/shares/{granteeId}` — revoke a share. The grantee may also call
-  this on **their own** share to *leave* a note they no longer want.
+- `DELETE /api/notes/{id}/shares/{granteeId}` — revoke a share (also drops the grantee's
+  `NoteUserState` and their private list memberships, so it leaves their grid at once). The
+  grantee may call this on **their own** share to *leave* a note.
+- **Accept/decline** happens on the notifications resource, not here: `POST
+  /api/notifications/{id}/respond` with `{ accept }`. Accept creates the `NoteShare` (at the
+  invited role) **and** the grantee's `NoteUserState`; either answer consumes the invite. See
+  **Notifications**.
 
-**Invites to non-users.** Sharing by email where no account exists yet can either be
-rejected ("user not found") or recorded as a pending invite keyed by email and resolved on
-signup. Start with the simple version (require an existing user); pending-invite is a later
-refinement.
+**Invites to non-users.** Sharing by email requires an **existing user** (a `400` otherwise).
+Recording a pending invite keyed by email and resolving it on signup is a later refinement.
 
 **Edge cases to honor.**
 - **Concurrent edits.** Two editors can touch the same note at once. Optimistic updates +
@@ -257,6 +276,26 @@ refinement.
   and any subsequent API call 403s — no stale access.
 - **Deleting a shared note.** Only the owner purges it; doing so cascades its `NoteShare`
   rows and the note vanishes from every collaborator's grid.
+
+## Notifications
+
+A lightweight per-user inbox (`/api/notifications`). Two kinds today, modelled **table-per-hierarchy**
+(one `Notifications` table, a `type` discriminator, subtype fields as nullable columns) so the
+generated TS client narrows on a `"System" | "ShareInvite"` union:
+
+- **System** — a plain text + severity message. Dismiss-only.
+- **ShareInvite** — the actionable half of **Sharing / collaboration**: the owner's `POST
+  …/shares` raises one for the recipient. It carries denormalized snapshots (sharer email, note
+  title, offered role) so it renders without joins and survives a later rename.
+
+**Endpoints** (all owner-scoped to the caller — you can only ever see/answer/delete your own):
+- `GET    /api/notifications` — the caller's notifications, newest first.
+- `POST   /api/notifications/{id}/respond` — answer a share invite (`{ accept }`). Accept creates
+  the `NoteShare` + the caller's `NoteUserState`; either answer consumes the invite.
+- `DELETE /api/notifications/{id}` — dismiss.
+
+Every mutation pushes a realtime `notification` signal to the affected user, so the top-bar bell
+updates live. The web feature lives in `web/src/features/notifications/`.
 
 ## Frontend (`web/`)
 
@@ -422,9 +461,9 @@ Refine in EF Core; this is the intent, not final schema. A single `Note` table w
 
 - `Note`: id, ownerId, **type** (`Text` | `Checklist` | `Image`), title, body (text/markdown,
   used by Text notes), color (palette enum/string, nullable), **backgroundImageId** (FK to a
-  stored media item, nullable), isPinned, isArchived, createdAt, updatedAt, and a JSONB
-  metadata column for anything flexible. A note has **either** `color` **or**
-  `backgroundImageId` set for its background, not both.
+  stored media item, nullable), createdAt, updatedAt, and a JSONB metadata column for anything
+  flexible. A note has **either** `color` **or** `backgroundImageId` set, not both. Note that
+  **pin/archive/trash are not on the note** — they're per-user (see `NoteUserState`).
 - `ChecklistItem`: id, noteId, text, isChecked, order. One-to-many from `Note`
   (populated for `Checklist` notes).
 - `NoteImage`: id, noteId, mediaId (FK), order. One-to-many from `Note`
@@ -439,10 +478,20 @@ Refine in EF Core; this is the intent, not final schema. A single `Note` table w
   affecting the owner or other collaborators. A note can belong to zero, one, or many lists.
   See **Lists** below.
 - `NoteShare`: id, noteId, granteeId (the user the note is shared with), **role**
-  (`Viewer` | `Editor`), createdAt, createdBy. One row per (note, grantee); the owner is
-  implicit and never has a `NoteShare` row. This is the single source of truth for "who can
-  see/edit a note besides its owner." See **Sharing / collaboration**.
-- Soft-delete (trash) rather than hard delete, to mirror Keep's behavior.
+  (`Viewer` | `Editor`), createdAt, createdByUserId. One row per (note, grantee), unique;
+  the owner is implicit and never has a `NoteShare` row. Created when the recipient **accepts**
+  an invite. The single source of truth for "who can see/edit a note besides its owner." See
+  **Sharing / collaboration**.
+- `NoteUserState`: noteId, userId, isPinned, isArchived, isTrashed. Composite key (noteId, userId).
+  One user's **private view** of a note; its existence puts the note in that user's grid. Created
+  for the owner on note create and for a grantee on accept; dropped on revoke, cascaded on note
+  delete. The notes grid query is driven off this table. See **Sharing / collaboration**.
+- `UserNotification`: a per-user message, **TPH** (one `Notifications` table, `type` discriminator).
+  `SystemNotification` is a plain text+severity message; `ShareInviteNotification` additionally
+  carries the offered note (id + snapshot title), the sharer (id + snapshot email), and the offered
+  `role`. See **Notifications**.
+- **Trash is soft-delete and per-user** (`NoteUserState.isTrashed`), mirroring Keep; only the owner
+  can `DELETE` (hard-purge) a note, which removes it for everyone.
 
 ## Lists
 
@@ -545,5 +594,7 @@ The original build sequence — all of the foundation below is **implemented**:
 6. ✅ Auth (Identity + JWT + refresh cookie).
 
 Everything built on steps 1–2: the contract came first so the frontend is type-safe from day
-one. **Remaining roadmap** (see README): sharing/collaboration, image notes & media upload,
-the Redis backplane for multi-instance realtime, and the native Android client.
+one. Since then, **sharing / collaboration** (invite→accept, per-user view overlay, editor/viewer
+roles) and its **notifications** inbox have shipped (web + API). **Remaining roadmap** (see README):
+image notes & media upload, the Redis backplane for multi-instance realtime, and the native
+Android client.

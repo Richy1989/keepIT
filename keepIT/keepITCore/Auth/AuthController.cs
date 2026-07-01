@@ -108,21 +108,44 @@ public class AuthController : ControllerBase
         return await IssueTokensAsync(applicationUser);
     }
 
-    /// <summary>Exchange credentials for an access token + refresh cookie.</summary>
+    /// <summary>
+    /// Exchange credentials for an access token + refresh cookie. Failed attempts count toward the
+    /// per-account lockout (see <c>AddAppIdentity</c>); a locked account gets the same generic 401 as
+    /// bad credentials so the response never reveals whether an email exists or is locked.
+    /// </summary>
     /// <param name="dto">The login email and password.</param>
-    /// <returns>200 with the auth payload, or 401 if the credentials are invalid.</returns>
+    /// <returns>200 with the auth payload, or 401 if the credentials are invalid or the account is locked.</returns>
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<AuthResponseDto>> Login(LoginRequestDto dto)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email);
-        if (user is null || !await _userManager.CheckPasswordAsync(user, dto.Password))
+        if (user is null)
             return Unauthorized(new { error = "Invalid email or password." });
+
+        if (await _userManager.IsLockedOutAsync(user))
+            return Unauthorized(new { error = "Invalid email or password." });
+
+        if (!await _userManager.CheckPasswordAsync(user, dto.Password))
+        {
+            // Count the failure; Identity trips the lockout automatically at the configured max.
+            await _userManager.AccessFailedAsync(user);
+            return Unauthorized(new { error = "Invalid email or password." });
+        }
+
+        // Successful sign-in clears the failure counter.
+        await _userManager.ResetAccessFailedCountAsync(user);
 
         return await IssueTokensAsync(user);
     }
 
-    /// <summary>Rotate the refresh cookie and mint a fresh access token. No access token required.</summary>
+    /// <summary>
+    /// Rotate the refresh cookie and mint a fresh access token. No access token required.
+    /// <para><b>Reuse detection:</b> presenting a token that was already rotated/revoked is the
+    /// signature of a stolen cookie being replayed (the legitimate client holds the newer token).
+    /// When that happens every active session for the user is revoked, so both the attacker and the
+    /// real user must sign in again — cutting off whoever only holds the copied token.</para>
+    /// </summary>
     /// <returns>200 with a new auth payload, or 401 if the refresh cookie is missing/expired/revoked.</returns>
     [HttpPost("refresh")]
     [AllowAnonymous]
@@ -136,8 +159,22 @@ public class AuthController : ControllerBase
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt => rt.TokenHash == hash);
 
-        if (stored is null || !stored.IsActive)
+        if (stored is null)
         {
+            ClearRefreshCookie();
+            return Unauthorized(new { error = "Invalid or expired refresh token." });
+        }
+
+        if (!stored.IsActive)
+        {
+            // A known-but-revoked token was replayed: assume theft and kill the whole family.
+            if (stored.RevokedAtUtc is not null && !stored.IsExpired)
+            {
+                var now = DateTime.UtcNow;
+                await _db.RefreshTokens
+                    .Where(rt => rt.UserId == stored.UserId && rt.RevokedAtUtc == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
+            }
             ClearRefreshCookie();
             return Unauthorized(new { error = "Invalid or expired refresh token." });
         }
@@ -155,6 +192,12 @@ public class AuthController : ControllerBase
             ExpiresAtUtc = expiresAt,
         });
         await _db.SaveChangesAsync();
+
+        // Housekeeping: drop this user's expired rows. Revoked-but-unexpired rows are kept on
+        // purpose — they're what makes the replay detection above possible.
+        await _db.RefreshTokens
+            .Where(rt => rt.UserId == stored.UserId && rt.ExpiresAtUtc < DateTime.UtcNow)
+            .ExecuteDeleteAsync();
 
         SetRefreshCookie(raw, expiresAt);
 

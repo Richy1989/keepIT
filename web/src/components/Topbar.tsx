@@ -1,6 +1,7 @@
 import { TypewriterIcon, SearchIcon, MenuIcon } from './icons';
 import { ThemeMenu } from './ThemeMenu';
 import { AccountMenu } from './AccountMenu';
+import { NotificationsBell } from '../features/notifications/NotificationsBell';
 
 /** Top bar: brand, the search field, the appearance menu, and the profile/account menu. */
 export function Topbar({
@@ -40,6 +41,7 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <NotificationsBell />
         <ThemeMenu />
         <AccountMenu />
       </div>

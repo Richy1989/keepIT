@@ -17,6 +17,11 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Core" Version="10.0.9" />
+    <!-- Pinned to 2.x: Microsoft.AspNetCore.OpenApi 10.0.9 (and its XML-comment source generator)
+         target Microsoft.OpenApi 2.x, where IOpenApiMediaType.Example is settable. 3.x is a breaking
+         major (Example became read-only) and won't compile against the .NET 10 OpenAPI stack. 2.9.0
+         is the latest patched 2.x — keep on this line until the ASP.NET Core package moves to 3.x. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.9.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.16.4" />

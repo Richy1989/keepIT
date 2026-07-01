@@ -1,10 +1,12 @@
 namespace keepITCore.Data;
 
 /// <summary>
-/// A single note in a user's grid. One table with a <see cref="Type"/> discriminator; type-specific
-/// data (checklist items) hangs off it. Background is a palette <see cref="Color"/> for now —
-/// background images and image notes arrive with media handling in a later pass. Scoped to
-/// <see cref="OwnerId"/>; soft-deleted via <see cref="IsTrashed"/> to mirror Keep's trash.
+/// A single note. One table with a <see cref="Type"/> discriminator; type-specific data (checklist
+/// items) hangs off it. Background is a palette <see cref="Color"/> for now — background images and
+/// image notes arrive with media handling in a later pass. Owned by <see cref="OwnerId"/> and
+/// optionally shared with others via <see cref="NoteShares"/>. Per-user view state (pin/archive/
+/// trash) lives in <see cref="UserStates"/>, not on the note, so a collaborator's pin or trash is
+/// private to their own grid (ARCHITECTURE.md "Sharing / collaboration").
 /// </summary>
 public class Note
 {
@@ -28,15 +30,6 @@ public class Note
     /// <summary>Background color key from the palette (e.g. "rose"). Null = the default canvas.</summary>
     public string? Color { get; set; }
 
-    /// <summary>Pinned notes sort to the top of the grid.</summary>
-    public bool IsPinned { get; set; }
-
-    /// <summary>Archived notes are hidden from the main grid but kept (Archive view).</summary>
-    public bool IsArchived { get; set; }
-
-    /// <summary>Soft-delete flag (trash). Trashed notes are hidden until purged or restored.</summary>
-    public bool IsTrashed { get; set; }
-
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 
@@ -45,4 +38,10 @@ public class Note
 
     /// <summary>Per-user list memberships for this note (see <see cref="NoteList"/>).</summary>
     public ICollection<NoteList> NoteLists { get; set; } = new List<NoteList>();
+
+    /// <summary>Per-user pin/archive/trash view state (see <see cref="NoteUserState"/>).</summary>
+    public ICollection<NoteUserState> UserStates { get; set; } = new List<NoteUserState>();
+
+    /// <summary>Non-owner grants of access to this note (see <see cref="NoteShare"/>).</summary>
+    public ICollection<NoteShare> NoteShares { get; set; } = new List<NoteShare>();
 }

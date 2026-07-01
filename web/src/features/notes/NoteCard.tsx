@@ -5,10 +5,13 @@ import { ColorPicker } from '../../components/ColorPicker';
 import {
   ArchiveIcon,
   CheckIcon,
+  EyeIcon,
   PaletteIcon,
+  PencilIcon,
   PinIcon,
   RestoreIcon,
   TrashIcon,
+  UsersIcon,
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, UpdateNoteDto } from '../../api/types';
@@ -42,6 +45,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
   const checkedItems = note.checklistItems.filter((i) => i.isChecked).length;
 
   function toggleItem(target: ChecklistItemDto) {
+    if (!note.canEdit) return; // viewers can't change content
     const items = note.checklistItems.map((i) =>
       i.id === target.id ? { ...i, isChecked: !i.isChecked } : i,
     );
@@ -80,6 +84,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
             <li key={it.id} className="flex items-start gap-2 text-sm">
               <button
                 type="button"
+                disabled={!note.canEdit}
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleItem(it);
@@ -89,6 +94,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
                   it.isChecked
                     ? 'border-accent bg-accent text-black'
                     : 'border-border-strong hover:border-text-muted',
+                  !note.canEdit && 'cursor-default',
                 )}
               >
                 {it.isChecked && <CheckIcon className="text-[10px]" />}
@@ -151,15 +157,20 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
             >
               <RestoreIcon className="text-base" />
             </CardTool>
-            <CardTool label="Delete forever" onClick={() => del.mutate(note.id)}>
-              <TrashIcon className="text-base" />
-            </CardTool>
+            {/* Purging is the owner's call; a collaborator's trash just hides it from their grid. */}
+            {note.isOwner && (
+              <CardTool label="Delete forever" onClick={() => del.mutate(note.id)}>
+                <TrashIcon className="text-base" />
+              </CardTool>
+            )}
           </>
         ) : (
           <>
-            <CardTool label="Background" onClick={() => setShowColors((s) => !s)}>
-              <PaletteIcon className="text-base" />
-            </CardTool>
+            {note.canEdit && (
+              <CardTool label="Background" onClick={() => setShowColors((s) => !s)}>
+                <PaletteIcon className="text-base" />
+              </CardTool>
+            )}
             <CardTool
               label={note.isArchived ? 'Unarchive' : 'Archive'}
               onClick={() => setState.mutate({ id: note.id, state: { isArchived: !note.isArchived } })}
@@ -175,11 +186,14 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           </>
         )}
         </div>
-        {note.createdAtUtc && (
-          <time className="ml-auto text-xs text-text-faint" dateTime={note.createdAtUtc}>
-            {formatDate(note.createdAtUtc)}
-          </time>
-        )}
+        <div className="ml-auto flex items-center gap-1.5">
+          <ShareBadge note={note} />
+          {note.createdAtUtc && (
+            <time className="text-xs text-text-faint" dateTime={note.createdAtUtc}>
+              {formatDate(note.createdAtUtc)}
+            </time>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -199,6 +213,30 @@ function formatDate(iso: string) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/**
+ * A subtle indicator of a note's share status: for the owner, a "shared with others" marker; for a
+ * collaborator, whether they hold view-only or edit access.
+ */
+function ShareBadge({ note }: { note: NoteDto }) {
+  if (note.isOwner) {
+    if (!note.isShared) return null;
+    return (
+      <span title="Shared with others" className="text-text-faint">
+        <UsersIcon className="text-sm" />
+      </span>
+    );
+  }
+  return note.canEdit ? (
+    <span title="Shared with you — you can edit" className="text-text-faint">
+      <PencilIcon className="text-sm" />
+    </span>
+  ) : (
+    <span title="Shared with you — view only" className="text-text-faint">
+      <EyeIcon className="text-sm" />
+    </span>
+  );
 }
 
 /** A small icon button in the card's hover toolbar. */
