@@ -281,8 +281,8 @@ public class NotesController : ControllerBase
 
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
-        foreach (var uid in recipients)
-            await _notifier.NotifyAsync(uid, RealtimeResources.Notes, RealtimeResources.Lists);
+        await Task.WhenAll(recipients.Select(uid =>
+            _notifier.NotifyAsync(uid, RealtimeResources.Notes, RealtimeResources.Lists)));
         return NoContent();
     }
 
@@ -293,8 +293,8 @@ public class NotesController : ControllerBase
     /// <param name="resources">The affected resource names (see <see cref="RealtimeResources"/>).</param>
     private async Task NotifyRecipientsAsync(Guid noteId, params string[] resources)
     {
-        foreach (var uid in await _access.RecipientIdsAsync(noteId))
-            await _notifier.NotifyAsync(uid, resources);
+        var recipients = await _access.RecipientIdsAsync(noteId);
+        await Task.WhenAll(recipients.Select(uid => _notifier.NotifyAsync(uid, resources)));
     }
 
     /// <summary>Loads a note (no tracking) and projects it for a caller, or null if they have no access.</summary>

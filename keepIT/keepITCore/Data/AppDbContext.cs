@@ -124,6 +124,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithMany(l => l.NoteLists)
                 .HasForeignKey(nl => nl.ListId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Real FK to the user (no navigation needed) so deleting an account can't leave
+            // orphaned membership rows behind.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(nl => nl.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<NoteUserState>(e =>
@@ -135,6 +142,13 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasOne(us => us.Note)
                 .WithMany(n => n.UserStates)
                 .HasForeignKey(us => us.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Real FK to the user (no navigation needed) so deleting an account can't leave
+            // orphaned view-state rows behind.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(us => us.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

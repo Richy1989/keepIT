@@ -4,7 +4,7 @@
     {
         public static string RootPath { get; private set; } = "./App_Data";
 
-        /// <summary>Resolves App:DataRoot (default ./data) to an absolute path and ensures it exists.</summary>
+        /// <summary>Resolves App:DataRoot (default ./App_Data) to an absolute path and ensures it exists.</summary>
         public static string EnsureDataRoot(IConfiguration config, IHostEnvironment env)
         {
             var configured = config["App:DataRoot"];

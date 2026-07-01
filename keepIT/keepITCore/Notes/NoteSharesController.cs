@@ -35,9 +35,14 @@ public class NoteSharesController : ControllerBase
         _access = access;
     }
 
-    /// <summary>Lists the note's collaborators and their roles. Any user with access may read it.</summary>
+    /// <summary>
+    /// Lists the note's collaborators and their roles, plus (for the owner) invites that are still
+    /// pending acceptance — so the owner can see and cancel an unanswered invite instead of being
+    /// stuck behind the duplicate-invite guard. Any user with access may read the accepted shares;
+    /// pending invites are only included for the owner.
+    /// </summary>
     /// <param name="noteId">The note whose collaborators to list.</param>
-    /// <returns>200 with the collaborators, or 404 if the caller has no access to the note.</returns>
+    /// <returns>200 with the collaborators (and, for the owner, pending invites), or 404 if the caller has no access.</returns>
     [HttpGet]
     public async Task<ActionResult<List<NoteShareDto>>> GetShares(Guid noteId)
     {
@@ -56,8 +61,27 @@ public class NoteSharesController : ControllerBase
                 Email = s.Grantee.Email ?? "",
                 Role = s.Role,
                 CreatedAtUtc = s.CreatedAtUtc,
+                Pending = false,
             })
             .ToListAsync();
+
+        if (access.Value.IsOwner)
+        {
+            var pending = await _db.Notifications.AsNoTracking()
+                .OfType<ShareInviteNotification>()
+                .Where(n => n.SharedNoteId == noteId)
+                .OrderBy(n => n.CreatedAtUtc)
+                .Select(n => new NoteShareDto
+                {
+                    GranteeId = n.OwnerId,
+                    Email = n.Owner.Email ?? "",
+                    Role = n.Role,
+                    CreatedAtUtc = n.CreatedAtUtc,
+                    Pending = true,
+                })
+                .ToListAsync();
+            shares.AddRange(pending);
+        }
 
         return Ok(shares);
     }
@@ -107,7 +131,11 @@ public class NoteSharesController : ControllerBase
             SharedByUserId = callerId.Value,
             SharedByUserEmail = sharerEmail,
             Role = dto.Role,
-            NotificationText = $"{sharerEmail} wants to share \"{TitleOrUntitled(note.Title)}\" with you.",
+            // NotificationText is a 200-char column; email (≤256) + title (≤1000) can blow past it,
+            // which Postgres rejects at save time (SQLite dev doesn't enforce lengths, so it only
+            // breaks in prod). The web UI renders invites from the snapshot fields anyway — this text
+            // is just a fallback — so compose it truncated to always fit.
+            NotificationText = ComposeInviteText(sharerEmail, note.Title),
             Severity = "information",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow,
@@ -145,12 +173,12 @@ public class NoteSharesController : ControllerBase
     }
 
     /// <summary>
-    /// Revokes a share. The owner may revoke anyone; a collaborator may revoke their <em>own</em>
-    /// share to leave the note. Removing the share also drops the grantee's per-user state, so the
-    /// note disappears from their grid immediately.
+    /// Revokes a share — or cancels a still-pending invite. The owner may revoke/cancel anyone; a
+    /// collaborator may revoke their <em>own</em> share to leave the note. Removing a share also
+    /// drops the grantee's per-user state, so the note disappears from their grid immediately.
     /// </summary>
     /// <param name="noteId">The note.</param>
-    /// <param name="granteeId">The collaborator whose share to revoke.</param>
+    /// <param name="granteeId">The collaborator (or invitee) whose share/invite to remove.</param>
     /// <returns>204 on success, 403 if the caller may not revoke this share, or 404 if not found.</returns>
     [HttpDelete("{granteeId:guid}")]
     public async Task<IActionResult> RevokeShare(Guid noteId, Guid granteeId)
@@ -164,7 +192,20 @@ public class NoteSharesController : ControllerBase
         if (!access.Value.IsOwner && callerId != granteeId) return Forbid();
 
         var share = await _db.NoteShares.FirstOrDefaultAsync(s => s.NoteId == noteId && s.GranteeId == granteeId);
-        if (share is null) return NotFound();
+        if (share is null)
+        {
+            // No accepted share — the owner may instead be cancelling a pending invite.
+            var invite = await _db.Notifications.OfType<ShareInviteNotification>()
+                .FirstOrDefaultAsync(n => n.SharedNoteId == noteId && n.OwnerId == granteeId);
+            if (invite is null) return NotFound();
+            if (!access.Value.IsOwner) return Forbid();
+
+            _db.Notifications.Remove(invite);
+            await _db.SaveChangesAsync();
+            // The invitee's bell should drop the cancelled invite.
+            await _notifier.NotifyAsync(granteeId, RealtimeResources.Notification);
+            return NoContent();
+        }
 
         _db.NoteShares.Remove(share);
         var state = await _db.NoteUserStates.FirstOrDefaultAsync(us => us.NoteId == noteId && us.UserId == granteeId);
@@ -182,4 +223,20 @@ public class NoteSharesController : ControllerBase
     /// <summary>A display-safe note title for invite text.</summary>
     private static string TitleOrUntitled(string? title) =>
         string.IsNullOrWhiteSpace(title) ? "Untitled note" : title;
+
+    /// <summary>
+    /// Builds the invite's fallback text, guaranteed to fit the 200-char NotificationText column:
+    /// the title is clipped first (it's the unbounded part), and the whole string clipped as a
+    /// belt-and-braces for extreme emails.
+    /// </summary>
+    private static string ComposeInviteText(string? sharerEmail, string? title)
+    {
+        var clippedTitle = Clip(TitleOrUntitled(title), 60);
+        var text = $"{sharerEmail} wants to share \"{clippedTitle}\" with you.";
+        return Clip(text, 200);
+    }
+
+    /// <summary>Truncates to <paramref name="max"/> chars, appending an ellipsis when clipped.</summary>
+    private static string Clip(string value, int max) =>
+        value.Length <= max ? value : value[..(max - 1)] + "…";
 }

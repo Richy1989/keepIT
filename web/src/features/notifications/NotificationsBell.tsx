@@ -1,24 +1,40 @@
 import { useCallback, useRef, useState } from 'react';
-import { useDismissNotification, useNotifications, useRespondToShare } from './queries';
+import {
+  useDismissNotification,
+  useMarkNotificationsRead,
+  useNotifications,
+  useRespondToShare,
+} from './queries';
 import { useDismiss } from '../../lib/useDismiss';
 import { cn } from '../../lib/cn';
 import { BellIcon, XIcon } from '../../components/icons';
 import type { UserNotificationDto } from '../../api/types';
 
 /**
- * Bell in the top bar with an unread badge and a dropdown of the caller's notifications. Share
- * invites offer Accept / Decline; plain system messages are dismiss-only. Realtime keeps the list
- * live — `RealtimeSync` invalidates the notifications query on a `notification` push.
+ * Bell in the top bar with an unread badge and a dropdown of the caller's notifications. The badge
+ * counts *unread* (`isActive`) notifications; opening the dropdown marks everything read. Share
+ * invites offer Accept / Decline (and stay answerable after being read); plain system messages are
+ * dismiss-only. Realtime keeps the list live — `RealtimeSync` invalidates the notifications query
+ * on a `notification` push.
  */
 export function NotificationsBell() {
   const { data: notifications } = useNotifications();
+  const markRead = useMarkNotificationsRead();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
   useDismiss(ref, open, close);
 
   const items = notifications ?? [];
-  const count = items.length;
+  const unread = items.filter((n) => n.isActive).length;
+
+  function toggle() {
+    setOpen((o) => {
+      // Opening acknowledges everything currently in the list.
+      if (!o && unread > 0) markRead.mutate();
+      return !o;
+    });
+  }
 
   return (
     <div className="relative" ref={ref}>
@@ -26,13 +42,13 @@ export function NotificationsBell() {
         type="button"
         aria-label="Notifications"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
         className="focus-ring relative grid size-9 place-items-center rounded-lg text-text-muted transition hover:bg-surface-hover hover:text-text"
       >
         <BellIcon className="text-lg" />
-        {count > 0 && (
+        {unread > 0 && (
           <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-semibold leading-4 text-black">
-            {count > 9 ? '9+' : count}
+            {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
@@ -42,7 +58,7 @@ export function NotificationsBell() {
           <div className="border-b border-border-subtle px-3 py-2.5">
             <p className="text-sm font-medium text-text">Notifications</p>
           </div>
-          {count === 0 ? (
+          {items.length === 0 ? (
             <p className="px-3 py-6 text-center text-sm text-text-faint">You're all caught up.</p>
           ) : (
             <ul className="max-h-[70vh] divide-y divide-border-subtle overflow-y-auto">

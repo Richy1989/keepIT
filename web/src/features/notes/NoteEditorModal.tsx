@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSetNoteLists, useUpdateNote } from './queries';
+import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
 import { ShareDialog } from './ShareDialog';
 import { ColorPicker } from '../../components/ColorPicker';
 import { useLists } from '../lists/queries';
+import { useAuth } from '../../auth/AuthContext';
 import { CheckIcon, CheckSquareIcon, EyeIcon, PaletteIcon, ShareIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, NoteType } from '../../api/types';
@@ -28,9 +30,18 @@ function listsChanged(a: string[], b: string[]): boolean {
 export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () => void }) {
   const update = useUpdateNote();
   const setLists = useSetNoteLists();
+  const revoke = useRevokeShare(note.id);
+  const { user } = useAuth();
   const { data: allLists } = useLists();
 
   const canEdit = note.canEdit;
+
+  /** Collaborator-only: remove the caller's own share, dropping the note from their grid. */
+  function leaveNote() {
+    if (note.isOwner || !user) return;
+    if (!window.confirm('Leave this note? It will disappear from your grid until you are invited again.')) return;
+    revoke.mutate(user.id, { onSettled: onClose });
+  }
 
   const [type, setType] = useState<NoteType>(note.type);
   const [title, setTitle] = useState(note.title ?? '');
@@ -192,6 +203,16 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               <EditorTool label="Share" onClick={() => setShowShare(true)}>
                 <ShareIcon className={cn('text-lg', note.isShared && 'text-accent')} />
               </EditorTool>
+            )}
+            {!note.isOwner && (
+              <button
+                type="button"
+                onClick={leaveNote}
+                disabled={revoke.isPending}
+                className="focus-ring ml-1 rounded-md px-2 py-1 text-xs text-text-muted transition hover:bg-black/20 hover:text-text disabled:opacity-50"
+              >
+                {revoke.isPending ? 'Leaving…' : 'Leave note'}
+              </button>
             )}
           </div>
           <button

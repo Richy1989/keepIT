@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { apiErrorMessage } from '../../lib/apiError';
+import { NOTES_KEY } from './queries';
+import { LISTS_KEY } from '../lists/queries';
 import type { NoteRole } from '../../api/types';
 
 /** TanStack Query key for one note's collaborator list. */
@@ -51,7 +53,11 @@ export function useUpdateShareRole(noteId: string) {
   });
 }
 
-/** Revokes a collaborator's access to a note. */
+/**
+ * Revokes a collaborator's access (or cancels a pending invite). Also used by a collaborator to
+ * remove *themselves* — "leave note" — so the notes/lists caches are refreshed too: for the owner
+ * that updates the shared badge, for a leaver the note drops out of their grid.
+ */
 export function useRevokeShare(noteId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -61,6 +67,10 @@ export function useRevokeShare(noteId: string) {
       });
       if (error) throw new Error('Failed to remove the collaborator.');
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: noteSharesKey(noteId) }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: noteSharesKey(noteId) });
+      void qc.invalidateQueries({ queryKey: [NOTES_KEY] });
+      void qc.invalidateQueries({ queryKey: [LISTS_KEY] });
+    },
   });
 }

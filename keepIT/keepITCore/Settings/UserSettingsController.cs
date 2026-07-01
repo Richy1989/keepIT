@@ -3,6 +3,7 @@ using keepITCore.Data;
 using keepITCore.Infrastructure;
 using keepITCore.Service;
 using keepITCore.Settings.Dtos;
+using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -27,17 +28,21 @@ namespace keepITCore.Settings
             new(StringComparer.Ordinal) { "yellow", "orange", "red", "pink", "purple", "blue", "teal", "green" };
 
         private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
-        private const long MaxFileSize = 2 * 1024 * 1024; // 5 MB
+        private const long MaxFileSize = 2 * 1024 * 1024; // 2 MB
 
         private readonly AppDbContext _db;
         private readonly ImageService _imgService;
+        private readonly IRealtimeNotifier _notifier;
 
-        /// <summary>Injects the database context.</summary>
+        /// <summary>Injects the database context, the image storage service, and the realtime notifier.</summary>
         /// <param name="db">The EF Core context.</param>
-        public UserSettingsController(AppDbContext db, ImageService imgService)
+        /// <param name="imgService">Validates and stores uploaded images.</param>
+        /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
+        public UserSettingsController(AppDbContext db, ImageService imgService, IRealtimeNotifier notifier)
         {
             _db = db;
             _imgService = imgService;
+            _notifier = notifier;
         }
         /// <summary>Returns the caller's settings, creating defaults on first access.</summary>
         /// <returns>200 with the settings.</returns>
@@ -80,13 +85,22 @@ namespace keepITCore.Settings
             settings.Theme = dto.Theme;
             settings.GlobalAccentColor = dto.GlobalAccentColor;
             await _db.SaveChangesAsync();
+            // Theme/accent are per-user but multi-device: the user's other open devices restyle live.
+            await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Settings);
 
             return Ok(ToDto(settings));
         }
 
-        
+        /// <summary>
+        /// Uploads the caller's profile image. The upload is validated by extension, size, and the
+        /// file's actual content signature (see <see cref="ImageService"/>); the previous image file
+        /// is deleted so re-uploads don't accumulate orphans on the data volume.
+        /// </summary>
+        /// <param name="file">The image (jpg/png/webp/gif, ≤2 MB).</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>200 with the stored filename, or 400 on an invalid file.</returns>
         [HttpPost("uploadProfileImage")]
-        [RequestSizeLimit(6 * 1024 * 1024)]
+        [RequestSizeLimit(3 * 1024 * 1024)] // multipart overhead headroom above the 2 MB payload cap
         public async Task<IActionResult> Upload(IFormFile file, CancellationToken ct)
         {
             var ownerId = User.GetUserId();
@@ -102,42 +116,91 @@ namespace keepITCore.Settings
             if (!AllowedExtensions.Contains(ext))
                 return BadRequest("Unsupported file type.");
 
-            var applicationUser = _db.Users.Where(u => u.Id == ownerId).FirstOrDefault();
-            if (applicationUser == null) return NotFound();
+            var applicationUser = await _db.Users.FirstOrDefaultAsync(u => u.Id == ownerId, ct);
+            if (applicationUser is null) return NotFound();
 
             string uploadPath = FolderManagement.GetUserProfileImageFolder(ownerId.Value.ToString());
             var fileName = await _imgService.Upload(file, uploadPath, ct);
+            if (fileName is null)
+                return BadRequest("The file is not a valid image.");
 
+            var previous = applicationUser.ProfileImageFileName;
             applicationUser.ProfileImageFileName = fileName;
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
 
+            // The DB now points at the new file — the old one is unreachable, so remove it.
+            if (!string.IsNullOrEmpty(previous))
+            {
+                var previousPath = Path.Combine(uploadPath, previous);
+                try { System.IO.File.Delete(previousPath); }
+                catch (IOException) { /* best-effort cleanup; an orphan is harmless */ }
+            }
+
+            await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Settings);
             return Ok(new { fileName });
         }
 
-        [HttpGet("getProfileImage/{userId}")]
-        public async Task<IActionResult> GetProfileImage(CancellationToken ct)
+        /// <summary>
+        /// Streams a user's profile image. A caller may fetch their own avatar, or the avatar of a
+        /// user they're connected to through sharing (note owner ↔ collaborator, fellow collaborators
+        /// on the same note, or a pending invite between them) — that's what the share UI needs,
+        /// without making every avatar public to any signed-in user.
+        /// </summary>
+        /// <param name="userId">The user whose image to fetch.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>200 with the image, or 404 if there is none or the caller isn't connected to them.</returns>
+        [HttpGet("getProfileImage/{userId:guid}")]
+        public async Task<IActionResult> GetProfileImage(Guid userId, CancellationToken ct)
         {
-            var ownerId = User.GetUserId();
-            if (ownerId is null) return Unauthorized();
+            var callerId = User.GetUserId();
+            if (callerId is null) return Unauthorized();
+
+            // Same 404 for "no image" and "no permission" so the endpoint can't be used to probe ids.
+            if (userId != callerId && !await AreConnectedAsync(callerId.Value, userId, ct))
+                return NotFound();
 
             var fileName = await _db.Users
-                .Where(u => u.Id == ownerId)
+                .Where(u => u.Id == userId)
                 .Select(u => u.ProfileImageFileName)
                 .FirstOrDefaultAsync(ct);
 
             if (fileName is null)
                 return NotFound();
 
-            var path = Path.Combine(FolderManagement.GetUserProfileImageFolder(ownerId.Value.ToString()), fileName);
+            var path = Path.Combine(FolderManagement.GetUserProfileImageFolder(userId.ToString()), fileName);
             if (!System.IO.File.Exists(path))
                 return NotFound();
 
-            var contentType = fileName.EndsWith(".png") ? "image/png"
-                            : fileName.EndsWith(".webp") ? "image/webp"
-                            : "image/jpeg";
+            var contentType = Path.GetExtension(fileName).ToLowerInvariant() switch
+            {
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                ".gif" => "image/gif",
+                _ => "image/jpeg",
+            };
 
             var stream = System.IO.File.OpenRead(path);
             return File(stream, contentType); // streams the file to the client
+        }
+
+        /// <summary>
+        /// True when two users are related through sharing: one owns a note the other collaborates
+        /// on, they collaborate on the same note, or a share invite is pending between them.
+        /// </summary>
+        /// <param name="callerId">The requesting user.</param>
+        /// <param name="targetId">The user whose avatar is requested.</param>
+        /// <param name="ct">Cancellation token.</param>
+        private async Task<bool> AreConnectedAsync(Guid callerId, Guid targetId, CancellationToken ct)
+        {
+            var viaShares = await _db.NoteShares.AnyAsync(s =>
+                (s.GranteeId == targetId && (s.Note.OwnerId == callerId
+                    || _db.NoteShares.Any(o => o.NoteId == s.NoteId && o.GranteeId == callerId)))
+                || (s.GranteeId == callerId && s.Note.OwnerId == targetId), ct);
+            if (viaShares) return true;
+
+            return await _db.Notifications.OfType<ShareInviteNotification>().AnyAsync(n =>
+                (n.OwnerId == callerId && n.SharedByUserId == targetId) ||
+                (n.OwnerId == targetId && n.SharedByUserId == callerId), ct);
         }
 
         /// <summary>Inserts and returns a default settings row for the user.</summary>

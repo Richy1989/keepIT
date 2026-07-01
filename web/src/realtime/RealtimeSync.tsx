@@ -7,6 +7,7 @@ import { refreshAccessToken } from '../api/client';
 import { NOTES_KEY } from '../features/notes/queries';
 import { LISTS_KEY } from '../features/lists/queries';
 import { NOTIFICATIONS_KEY } from '../features/notifications/queries';
+import { SETTINGS_KEY } from '../features/settings/queries';
 
 /**
  * Resource names the server sends on `Changed`. Must mirror `RealtimeResources` in the backend
@@ -16,6 +17,7 @@ const RESOURCE_QUERY_KEY: Record<string, string> = {
   notes: NOTES_KEY,
   lists: LISTS_KEY,
   notification: NOTIFICATIONS_KEY,
+  settings: SETTINGS_KEY,
 };
 
 /**
@@ -57,7 +59,7 @@ export function RealtimeSync() {
     });
 
     // A reconnect means we were offline and may have missed pushes — refetch everything to resync.
-    connection.onreconnected(() => invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY]));
+    connection.onreconnected(() => invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]));
 
     let stopped = false;
     connection.start().catch((err) => {

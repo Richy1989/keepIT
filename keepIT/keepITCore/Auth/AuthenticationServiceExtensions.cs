@@ -26,6 +26,13 @@ public static class AuthenticationServiceExtensions
             {
                 options.User.RequireUniqueEmail = true;
                 options.Password.RequiredLength = 8;
+
+                // Per-account lockout: the per-IP rate limit alone doesn't stop a distributed
+                // password-guessing run against one account. Five failures locks the account for
+                // 15 minutes; AuthController counts failures via AccessFailedAsync on bad passwords.
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<AppDbContext>()

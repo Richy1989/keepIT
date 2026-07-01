@@ -92,17 +92,28 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
             </li>
             {(shares ?? []).map((s) => (
               <li key={s.granteeId} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm">
-                <span className="flex-1 truncate text-text" title={s.email}>
+                <span
+                  className={cn('flex-1 truncate', s.pending ? 'text-text-muted' : 'text-text')}
+                  title={s.email}
+                >
                   {s.email}
                 </span>
-                <RolePicker
-                  value={s.role}
-                  compact
-                  onChange={(r) => updateRole.mutate({ granteeId: s.granteeId, role: r })}
-                />
+                {s.pending ? (
+                  // No accepted share yet — the role can't be changed until they accept.
+                  <span className="text-xs italic text-text-faint">
+                    Pending · {s.role.toLowerCase()}
+                  </span>
+                ) : (
+                  <RolePicker
+                    value={s.role}
+                    compact
+                    onChange={(r) => updateRole.mutate({ granteeId: s.granteeId, role: r })}
+                  />
+                )}
                 <button
                   type="button"
-                  aria-label={`Remove ${s.email}`}
+                  aria-label={s.pending ? `Cancel invite for ${s.email}` : `Remove ${s.email}`}
+                  title={s.pending ? 'Cancel invite' : 'Remove'}
                   onClick={() => revoke.mutate(s.granteeId)}
                   className="focus-ring grid size-6 place-items-center rounded-full text-text-faint transition hover:bg-black/20 hover:text-text"
                 >

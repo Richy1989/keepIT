@@ -172,6 +172,22 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         post: {
             parameters: {
                 query?: never;
@@ -179,24 +195,14 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["UserNotificationDto"];
-                    "text/json": components["schemas"]["UserNotificationDto"];
-                    "application/*+json": components["schemas"]["UserNotificationDto"];
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "text/plain": components["schemas"]["UserNotificationDto"];
-                        "application/json": components["schemas"]["UserNotificationDto"];
-                        "text/json": components["schemas"]["UserNotificationDto"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -1102,6 +1108,7 @@ export interface components {
             role?: components["schemas"]["NoteRole"];
             /** Format: date-time */
             createdAtUtc?: string;
+            pending?: boolean;
         };
         NoteStateDto: {
             isPinned?: null | boolean;

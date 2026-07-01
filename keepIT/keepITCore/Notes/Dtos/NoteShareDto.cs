@@ -14,6 +14,9 @@ public class NoteShareDto
     /// <summary>The collaborator's role (viewer/editor).</summary>
     public NoteRole Role { get; set; }
 
-    /// <summary>When the share was granted.</summary>
+    /// <summary>When the share was granted (or the invite sent, when <see cref="Pending"/>).</summary>
     public DateTime CreatedAtUtc { get; set; }
+
+    /// <summary>True while this is an unanswered invite (no access yet); false for an accepted share.</summary>
+    public bool Pending { get; set; }
 }

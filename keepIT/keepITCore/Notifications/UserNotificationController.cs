@@ -13,15 +13,14 @@ namespace keepITCore.Notifications
     /// that tells the client what to render and which actions to offer (a plain System message is
     /// dismiss-only; a ShareInvite can be accepted or declined). Every action is scoped to the
     /// authenticated user; a caller can never see, answer, or delete another user's notifications.
+    /// Notifications are created <em>server-side only</em> (e.g. by the share flow) — there is
+    /// deliberately no client-facing create endpoint.
     /// </summary>
     [ApiController]
     [Authorize]
     [Route("api/notifications")]
     public class UserNotificationController : ControllerBase
     {
-        /// <summary>Allowed severity levels. Keep in sync with the frontend's severity set.</summary>
-        private static readonly HashSet<string> AllowedSeverity = new(StringComparer.Ordinal) { "warning", "error", "information" };
-
         private readonly AppDbContext _db;
         private readonly IRealtimeNotifier _notifier;
 
@@ -50,35 +49,25 @@ namespace keepITCore.Notifications
             return Ok(notifications.Select(ToDto).ToList());
         }
 
-        /// <summary>Creates a plain <see cref="NotificationType.System"/> notification for the caller.</summary>
-        /// <param name="notificationDto">The notification's text and severity. Everything else is ignored.</param>
-        /// <returns>201 with the created notification, or 400 on an invalid severity.</returns>
-        [HttpPost]
-        public async Task<ActionResult<UserNotificationDto>> AddNotification(UserNotificationDto notificationDto)
+        /// <summary>
+        /// Marks all of the caller's notifications as read (clears <c>IsActive</c>). The bell badge
+        /// counts active notifications, so opening the dropdown calls this to zero the badge; the
+        /// notifications themselves stay listed (and a share invite stays answerable) until dismissed.
+        /// </summary>
+        /// <returns>204 always (idempotent).</returns>
+        [HttpPost("mark-read")]
+        public async Task<IActionResult> MarkAllRead()
         {
             var ownerId = User.GetUserId();
             if (ownerId is null) return Unauthorized();
 
-            if (!AllowedSeverity.Contains(notificationDto.Severity))
-                ModelState.AddModelError(nameof(notificationDto.Severity), $"Severity must be one of: {string.Join(", ", AllowedSeverity)}.");
-            if (!ModelState.IsValid)
-                return ValidationProblem(ModelState);
+            var changed = await _db.Notifications
+                .Where(n => n.OwnerId == ownerId && n.IsActive)
+                .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsActive, false));
 
-            var newNotification = new SystemNotification
-            {
-                Id = Guid.NewGuid(),
-                OwnerId = ownerId.Value,
-                NotificationText = notificationDto.NotificationText,
-                Severity = notificationDto.Severity,
-                IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow,
-            };
-
-            _db.Notifications.Add(newNotification);
-            await _db.SaveChangesAsync();
-            await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notification);
-
-            return CreatedAtAction(nameof(GetNotifications), new { id = newNotification.Id }, ToDto(newNotification));
+            if (changed > 0)
+                await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notification);
+            return NoContent();
         }
 
         /// <summary>
@@ -128,7 +117,21 @@ namespace keepITCore.Notifications
 
             // Either answer consumes the invite.
             _db.Notifications.Remove(invite);
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                // Two devices answered the same invite concurrently: the unique (NoteId, GranteeId)
+                // index rejected the duplicate share, or the invite row was already deleted. The
+                // first answer won and the outcome is what the caller wanted — treat as success,
+                // but make sure this device's stray invite row (if any) is still consumed.
+                _db.ChangeTracker.Clear();
+                await _db.Notifications
+                    .Where(n => n.Id == id && n.OwnerId == callerId)
+                    .ExecuteDeleteAsync();
+            }
             // Refresh the caller's notifications (invite gone) and, on accept, their grid (new note).
             await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notification, RealtimeResources.Notes, RealtimeResources.Lists);
             // Let the owner's collaborators view update too (a share was added/settled).

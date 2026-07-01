@@ -40,6 +40,21 @@ export function useRespondToShare() {
   });
 }
 
+/**
+ * Marks all notifications as read (clears the unread badge). The rows stay listed — and a share
+ * invite stays answerable — until dismissed; only `isActive` flips.
+ */
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await api.POST('/api/notifications/mark-read');
+      if (error) throw new Error('Failed to mark notifications read.');
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: [NOTIFICATIONS_KEY] }),
+  });
+}
+
 /** Dismisses (permanently deletes) a notification. */
 export function useDismissNotification() {
   const qc = useQueryClient();
