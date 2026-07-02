@@ -83,7 +83,7 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
                 modifier = GlanceModifier.fillMaxWidth(),
                 style = TextStyle(
                     color = ColorProvider(Accent),
-                    fontSize = 16.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                 ),
             )
@@ -93,7 +93,7 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
                 Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = "No notes yet — tap + to add one.",
-                        style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+                        style = TextStyle(color = ColorProvider(TextMuted), fontSize = 14.sp),
                     )
                 }
             } else {
@@ -146,7 +146,7 @@ private fun NoteRow(context: Context, note: WidgetNote) {
                     maxLines = 1,
                     style = TextStyle(
                         color = ColorProvider(TextColor),
-                        fontSize = 13.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                     ),
                 )
@@ -156,20 +156,20 @@ private fun NoteRow(context: Context, note: WidgetNote) {
                 Text(
                     text = line,
                     maxLines = 1,
-                    style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+                    style = TextStyle(color = ColorProvider(TextMuted), fontSize = 14.sp),
                 )
             }
             if (note.preview.isNotBlank()) {
                 Text(
                     text = note.preview,
                     maxLines = if (note.title.isBlank()) 2 else 1,
-                    style = TextStyle(color = ColorProvider(TextMuted), fontSize = 12.sp),
+                    style = TextStyle(color = ColorProvider(TextMuted), fontSize = 14.sp),
                 )
             }
             if (note.title.isBlank() && note.preview.isBlank() && note.checklist.isEmpty()) {
                 Text(
                     text = "Empty note",
-                    style = TextStyle(color = ColorProvider(BorderTextFaint), fontSize = 12.sp),
+                    style = TextStyle(color = ColorProvider(BorderTextFaint), fontSize = 14.sp),
                 )
             }
         }

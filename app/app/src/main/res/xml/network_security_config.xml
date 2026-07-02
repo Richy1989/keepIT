@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Trust user-installed CA certificates in addition to the system store. Since Android 7, apps ignore
+  user-added CAs by default — so a self-hosted keepIT behind a self-signed / private-CA certificate
+  fails with "Trust anchor for certification path not found" even when the cert is installed on the
+  device and the system browser trusts it. Opting into `user` anchors fixes that; TLS is still fully
+  validated, just against the CAs the device owner chose to trust (the browser's model).
+
+  cleartextTrafficPermitted stays true because the server URL is user-entered and LAN / emulator
+  setups are often plain http (http://10.0.2.2:5025). A network security config overrides the
+  manifest's usesCleartextTraffic, so the flag lives here now.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
