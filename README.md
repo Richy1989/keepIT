@@ -217,12 +217,18 @@ After starting the backend, run the seed script to populate it with a test user,
 and a variety of notes (text, checklist, pinned, archived, trashed):
 
 ```bash
-./scripts/seed-dev-data.sh          # creates test@test.com / Test1234#1234
+./scripts/seed-dev-data.sh          # creates test@test.com / Test1234#1234 on the local backend
 ./scripts/seed-dev-data.sh --reset  # wipes existing notes first, then re-seeds
+
+# Target another instance / account (a bare host is assumed https). If registration is disabled
+# on that server, create the account first — the script then just logs in and seeds it.
+./scripts/seed-dev-data.sh --domain keepit.example.com --user me@example.com --password 'S3cret!pw'
 ```
 
-On Windows, use the PowerShell twin: `./scripts/seed-dev-data.ps1` (same behavior, e.g. `-Reset`).
-Requires `curl` and `jq`. Run `./scripts/seed-dev-data.sh --help` for all options.
+On Windows, use the PowerShell twin with named parameters:
+`./scripts/seed-dev-data.ps1 -Reset` or
+`./scripts/seed-dev-data.ps1 -Domain keepit.example.com -User me@example.com -Password 'S3cret!pw'`.
+Requires `curl` and `jq` (bash version). Run `./scripts/seed-dev-data.sh --help` for all options.
 
 ### Full stack (Docker Compose)
 

@@ -12,18 +12,20 @@
       1. Start the backend (dotnet run --project keepIT/keepITCore).
       2. Run this script.
 
-    The user is registered if missing, or logged in if it already exists. Pass -Reset to delete the
-    user's existing notes and lists first, so re-running gives you a clean, known data set instead of
-    piling duplicates on top.
+    The user is registered if missing, or logged in if it already exists (or if registration is
+    disabled on the server). Pass -Reset to delete the user's existing notes and lists first, so
+    re-running gives you a clean, known data set instead of piling duplicates on top.
 
-.PARAMETER BaseUrl
-    Backend base URL. Defaults to http://localhost:5025 (the dev "http" launch profile).
+.PARAMETER Domain
+    Backend URL or host. A full URL (http://localhost:5025) is used as-is; a bare host
+    (keepit.example.com) is assumed https:// — except localhost / an IP, which get http://.
+    Defaults to http://localhost:5025 (the dev "http" launch profile). Alias: -BaseUrl.
 
-.PARAMETER Email
-    Test account email. Defaults to test@test.com.
+.PARAMETER User
+    Account email (login identity). Defaults to test@test.com. Alias: -Email.
 
 .PARAMETER Password
-    Test account password. Defaults to Test1234#1234.
+    Account password. Defaults to Test1234#1234.
 
 .PARAMETER Reset
     Delete the account's existing notes and lists before seeding (fresh, idempotent data set).
@@ -33,18 +35,39 @@
 
 .EXAMPLE
     ./scripts/seed-dev-data.ps1 -Reset
+
+.EXAMPLE
+    ./scripts/seed-dev-data.ps1 -Domain keepit.example.com -User me@example.com -Password 'S3cret!pw'
 #>
 [CmdletBinding()]
 param(
-    [string]$BaseUrl = "http://localhost:5025",
-    [string]$Email = "test@test.com",
+    [Alias("BaseUrl")]
+    [string]$Domain = "http://localhost:5025",
+    [Alias("Email")]
+    [string]$User = "test@test.com",
     [string]$Password = "Test1234#1234",
     [string]$DisplayName = "Test User",
     [switch]$Reset
 )
 
 $ErrorActionPreference = "Stop"
-$BaseUrl = $BaseUrl.TrimEnd("/")
+
+# Turn -Domain into a base URL: a full URL is used as-is; a bare host gets https:// (or http:// for
+# localhost / an IPv4). The trailing slash is trimmed either way.
+function Resolve-BaseUrl {
+    param([string]$Value)
+    $v = $Value.Trim()
+    if ($v -notmatch "://") {
+        if ($v -match '^(localhost|127\.0\.0\.1|(\d{1,3}\.){3}\d{1,3})(:\d+)?$') {
+            $v = "http://$v"
+        } else {
+            $v = "https://$v"
+        }
+    }
+    return $v.TrimEnd("/")
+}
+
+$BaseUrl = Resolve-BaseUrl $Domain
 $script:Token = $null
 
 function Invoke-Api {
@@ -90,22 +113,25 @@ try {
 }
 
 # ---- 2. Register the test user, or log in if it already exists ----------------------------------
-Write-Host "→ Ensuring test user $Email ..." -ForegroundColor Cyan
+Write-Host "→ Ensuring account $User ..." -ForegroundColor Cyan
 $auth = $null
 try {
     $auth = Invoke-Api -Method POST -Path "/api/auth/register" -Anonymous -Body @{
-        email       = $Email
+        email       = $User
         password    = $Password
         displayName = $DisplayName
     }
     Write-Host "  registered new account" -ForegroundColor Green
 } catch {
-    if ((Get-HttpStatus $_) -eq 409) {
+    # 409 = the account already exists; 403 = registration is disabled on this server. Either way the
+    # account should already be there, so log in with the supplied credentials.
+    $status = Get-HttpStatus $_
+    if ($status -eq 409 -or $status -eq 403) {
         $auth = Invoke-Api -Method POST -Path "/api/auth/login" -Anonymous -Body @{
-            email    = $Email
+            email    = $User
             password = $Password
         }
-        Write-Host "  account exists — logged in" -ForegroundColor Green
+        Write-Host "  signed in to existing account" -ForegroundColor Green
     } else {
         throw
     }
@@ -244,6 +270,6 @@ Set-NoteState "Meeting follow-ups"       @{ isTrashed = $true }
 # ---- Done ---------------------------------------------------------------------------------------
 Write-Host ""
 Write-Host "✓ Seed complete." -ForegroundColor Green
-Write-Host "  User:  $Email / $Password"
+Write-Host "  User:  $User / $Password"
 Write-Host "  Lists: $($lists.Count)   Notes: $($createdNotes.Count) (some pinned / archived / trashed)"
 Write-Host "  Sign in at the frontend (http://localhost:5173) or via $BaseUrl."

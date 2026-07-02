@@ -9,16 +9,21 @@
 #   1. Start the backend:  dotnet run --project keepIT/keepITCore
 #   2. Run this script.
 #
-# The user is registered if missing, or logged in if it already exists. Pass --reset to delete the
-# user's existing notes and lists first, for a clean, known data set instead of piling on duplicates.
+# The user is registered if missing, or logged in if it already exists (or if registration is
+# disabled on the server). Pass --reset to delete the user's existing notes and lists first, for a
+# clean, known data set instead of piling on duplicates.
 #
 # Usage:
-#   ./scripts/seed-dev-data.sh [--reset] [--base-url URL] [--email E] [--password P] [--display-name N]
+#   ./scripts/seed-dev-data.sh [--reset] [--domain URL|HOST] [--user EMAIL] [--password P] [--display-name N]
+#
+# --domain takes a full URL (http://localhost:5025) or a bare host/domain (keepit.example.com). A
+# bare host is assumed https:// — except localhost / an IP, which get http://. Defaults to the local
+# dev backend. --base-url and --email are kept as aliases for --domain and --user.
 #
 # Requires: curl, jq
 set -euo pipefail
 
-BASE_URL="http://localhost:5025"
+DOMAIN="http://localhost:5025"
 EMAIL="test@test.com"
 PASSWORD="Test1234#1234"
 DISPLAY_NAME="Test User"
@@ -26,12 +31,12 @@ RESET=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --reset)        RESET=1; shift ;;
-        --base-url)     BASE_URL="$2"; shift 2 ;;
-        --email)        EMAIL="$2"; shift 2 ;;
-        --password)     PASSWORD="$2"; shift 2 ;;
-        --display-name) DISPLAY_NAME="$2"; shift 2 ;;
-        -h|--help)      grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '!/usr/bin/env'; exit 0 ;;
+        --reset)             RESET=1; shift ;;
+        --domain|--base-url) DOMAIN="$2"; shift 2 ;;
+        --user|--email)      EMAIL="$2"; shift 2 ;;
+        --password)          PASSWORD="$2"; shift 2 ;;
+        --display-name)      DISPLAY_NAME="$2"; shift 2 ;;
+        -h|--help)           grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '!/usr/bin/env'; exit 0 ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
 done
@@ -40,7 +45,21 @@ for tool in curl jq; do
     command -v "$tool" >/dev/null 2>&1 || { echo "Error: '$tool' is required but not installed." >&2; exit 1; }
 done
 
-BASE_URL="${BASE_URL%/}"
+# Turns a --domain value into a base URL: a full URL is used as-is; a bare host gets https:// (or
+# http:// for localhost / an IPv4). The trailing slash is trimmed either way.
+resolve_base_url() {
+    local v="$1"
+    if [[ "$v" != *"://"* ]]; then
+        if [[ "$v" =~ ^(localhost|127\.0\.0\.1|([0-9]{1,3}\.){3}[0-9]{1,3})(:[0-9]+)?$ ]]; then
+            v="http://$v"
+        else
+            v="https://$v"
+        fi
+    fi
+    echo "${v%/}"
+}
+
+BASE_URL="$(resolve_base_url "$DOMAIN")"
 TOKEN=""
 
 # Colors (skipped when not a terminal or NO_COLOR is set).
@@ -94,11 +113,13 @@ reg_body="$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" --arg d "$DISPLAY_NAME" \
 request POST "/api/auth/register" "$reg_body" anon
 if [[ "$_CODE" == "200" || "$_CODE" == "201" ]]; then
     echo "${C_GREEN}  registered new account${C_RESET}"
-elif [[ "$_CODE" == "409" ]]; then
+elif [[ "$_CODE" == "409" || "$_CODE" == "403" ]]; then
+    # 409 = the account already exists; 403 = registration is disabled on this server. Either way
+    # the account should already be there, so log in with the supplied credentials.
     login_body="$(jq -n --arg e "$EMAIL" --arg p "$PASSWORD" '{email:$e, password:$p}')"
     request POST "/api/auth/login" "$login_body" anon
-    [[ "$_CODE" == "200" ]] || { echo "Login failed (HTTP $_CODE): $_BODY" >&2; exit 1; }
-    echo "${C_GREEN}  account exists — logged in${C_RESET}"
+    [[ "$_CODE" == "200" ]] || { echo "Login failed (HTTP $_CODE): $_BODY. If registration is disabled, create the account first, then pass --user/--password." >&2; exit 1; }
+    echo "${C_GREEN}  signed in to existing account${C_RESET}"
 else
     echo "Register failed (HTTP $_CODE): $_BODY" >&2; exit 1
 fi
