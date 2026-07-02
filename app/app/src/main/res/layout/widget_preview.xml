@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static preview shown in the widget picker (referenced by keepit_widget_info previewLayout). It's a
+  representative mock — the live widget is Glance/Compose — matching the dark canvas, note cards, and
+  the floating "+" so the picker shows what you'll get.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_preview_bg"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="keepIT"
+            android:textColor="#FBBF24"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/widget_preview_chip_bg"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="8dp"
+            android:text="Shopping"
+            android:textColor="#ECECEE"
+            android:textSize="13sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/widget_preview_chip_bg"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="8dp"
+            android:text="Meeting notes…"
+            android:textColor="#A1A1AA"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <ImageView
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:background="@drawable/widget_preview_fab_bg"
+        android:padding="16dp"
+        android:src="@drawable/ic_add"
+        android:contentDescription="@string/widget_new_note"
+        android:tint="#000000" />
+</FrameLayout>
