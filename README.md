@@ -10,6 +10,8 @@
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Android-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -45,6 +47,7 @@ a refresh.
   - [Local dev (two terminals)](#local-dev-two-terminals)
   - [Seed dev data](#seed-dev-data)
   - [Full stack (Docker Compose)](#full-stack-docker-compose)
+  - [Android app](#android-app)
 - [Deploy](#deploy)
   - [Option 1 — Docker Compose (multi-container)](#option-1--docker-compose-multi-container)
   - [Option 2 — Single container (Unraid / simple hosts)](#option-2--single-container-unraid--simple-hosts)
@@ -66,13 +69,13 @@ Notes come in several types, and any note can be styled:
 - 🔄 **Real-time sync** via SignalR — edit on one device, see it on your others without a refresh; for a shared note, changes reach every collaborator too. ✅
 - 🖼️ **Image notes** — one or more images as the note's content. *(planned)*
 - ⚙️ **Per-user settings** — personalize the UI (e.g. global accent color). ✅
-- 📱 **Native Android app + home-screen widget** — a Kotlin app talking to the same REST API,
-  with a widget for quick capture and at-a-glance notes. *(planned)*
+- 📱 **Native Android app + home-screen widget** — a Kotlin/Jetpack Compose client on the same REST
+  API with live SignalR sync; a home-screen widget shows recent notes and a one-tap new note. ✅
 
 ## Roadmap
 
-A snapshot of where keepIT is and where it's going. The web client and REST API are the
-current focus; the Android client is a future, separate deliverable on top of the same API.
+A snapshot of where keepIT is and where it's going. The web client and REST API are the core;
+the native Android client is a separate deliverable on top of the same API.
 
 ### ✅ Done
 
@@ -94,6 +97,9 @@ current focus; the Android client is a future, separate deliverable on top of th
   collaborator (owner + grantees), not just the editor's own devices.
 - **Docker Compose stack** — API + Postgres + web (nginx).
 - **Single-container image** — API + nginx bundled for simple self-hosted deployments (Unraid).
+- **Native Android app (v1)** — Kotlin/Jetpack Compose client sharing the API and design tokens:
+  sign-in (with server URL), notes grid with lists/search, text & checklist editing, colors,
+  pin/archive/trash, live SignalR sync, and a home-screen widget (recent notes + quick-add).
 
 ### 🔜 Next (web + API)
 
@@ -104,8 +110,9 @@ current focus; the Android client is a future, separate deliverable on top of th
 
 ### 🧭 Later
 
-- **Native Android app** — Kotlin/Jetpack Compose client against the same REST API + SignalR,
-  with a **home-screen widget** for quick capture and glanceable notes.
+- **Android: sharing, notifications & settings** — bring the share dialog, notifications inbox, and
+  theme/accent settings to the app (v1 covers notes, lists, search, and the widget).
+- **Android offline mode** — local Room cache with queued mutations replayed on reconnect.
 - **Pending share invites** — share by email to users who haven't signed up yet.
 
 ## Tech stack
@@ -117,6 +124,7 @@ current focus; the Android client is a future, separate deliverable on top of th
 | Auth       | ASP.NET Core Identity + **JWT** (access token in memory, refresh token in an httpOnly cookie) |
 | Realtime   | **SignalR** hub (`/api/realtime`, JWT-authed) pushing change signals to a user's other devices — and to every collaborator on a shared note |
 | Frontend   | **React 19** + Vite + TypeScript, TanStack Query, React Router, Tailwind |
+| Android    | **Kotlin** + **Jetpack Compose** (Material 3), Retrofit/OkHttp, SignalR client, Glance widget — shares the web's design tokens |
 | API client | Typed TS client **generated from OpenAPI** via `openapi-typescript` + `openapi-fetch` (C# DTOs are source of truth) |
 | Deploy     | Docker Compose (multi-container) **or** single Docker image (nginx + API bundled) |
 
@@ -134,6 +142,9 @@ hosted inside ASP.NET Core, so either side can be deployed and scaled on its own
         ▲                                          │
         └──────── nginx (one origin in Docker) ────┘
 ```
+
+The native **Android** client (Kotlin/Compose) is a third consumer of the same REST API + SignalR
+hub, over the same HTTP/WebSocket contract.
 
 The **C# DTOs are the single source of truth** for the API shape: change a DTO,
 regenerate the typed TypeScript client, and the compiler points at every frontend
@@ -171,7 +182,11 @@ keepIT/
 │  └─ keepit.unraid.xml       # Unraid Community Apps template
 ├─ scripts/
 │  └─ seed-dev-data.{sh,ps1}  # populate the dev DB with test data via the REST API
-├─ android/              # native Android app (Kotlin + Compose, + widget) — planned
+├─ app/                  # native Android app (Kotlin + Jetpack Compose)
+│  └─ app/src/main/java/org/spaceelephant/keepitapp/
+│     ├─ data/           # Retrofit API, DTOs, session + notes repositories, SignalR client
+│     ├─ ui/             # Compose screens (login, notes grid, editor) + theme (web design tokens)
+│     └─ widget/         # Glance home-screen widget (recent notes + quick-add)
 ├─ docker-compose.yml    # api + postgres + web (nginx) — multi-container stack
 ├─ .env.example          # copy to .env (set JWT_KEY + POSTGRES_PASSWORD)
 ├─ ARCHITECTURE.md       # full design & rationale
@@ -221,6 +236,22 @@ docker compose up --build   # api + postgres + web (nginx)
 Open **http://localhost:8080**. nginx (the web container) serves the frontend and
 reverse-proxies `/api` to the backend on one origin; Postgres data and the API's data
 folder persist in named volumes.
+
+### Android app
+
+The app lives in [`app/`](app) (Kotlin + Jetpack Compose). Open it in **Android Studio**, or build
+from the command line (requires the **Android SDK**, compileSdk 36):
+
+```bash
+cd app
+./gradlew :app:assembleDebug     # build the debug APK
+./gradlew :app:installDebug      # or install onto a running device / emulator
+```
+
+On first launch, enter your **server URL** on the sign-in screen. From the Android emulator the host
+machine is reachable at `http://10.0.2.2:5025`; on a physical device use your machine's LAN IP
+(e.g. `http://192.168.1.50:5025`) or your deployed URL. The app then shares your notes live over the
+same SignalR hub as the web client, and its home-screen widget offers recent notes + a quick-add.
 
 ---
 
