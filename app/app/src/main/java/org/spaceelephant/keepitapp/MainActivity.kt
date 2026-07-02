@@ -1,47 +1,51 @@
 package org.spaceelephant.keepitapp
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.runtime.mutableStateOf
+import org.spaceelephant.keepitapp.ui.AppRoot
+import org.spaceelephant.keepitapp.ui.Destination
 import org.spaceelephant.keepitapp.ui.theme.KeepITAppTheme
 
+/**
+ * Single-activity host. The home-screen widget deep-links here with intent extras — `singleTask`
+ * launch mode routes taps on a running app through [onNewIntent], and [pendingDestination] carries
+ * the target into the compose navigation once the session allows it.
+ */
 class MainActivity : ComponentActivity() {
+
+    private val pendingDestination = mutableStateOf<Destination?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        pendingDestination.value = destinationFrom(intent)
         setContent {
             KeepITAppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                AppRoot(container = appContainer, pendingDestination = pendingDestination)
             }
         }
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        destinationFrom(intent)?.let { pendingDestination.value = it }
+    }
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    KeepITAppTheme {
-        Greeting("Android")
+    private fun destinationFrom(intent: Intent?): Destination? = when {
+        intent == null -> null
+        intent.getBooleanExtra(EXTRA_COMPOSE, false) -> Destination.Compose
+        else -> intent.getStringExtra(EXTRA_NOTE_ID)?.let { Destination.Note(it) }
+    }
+
+    companion object {
+        /** Boolean extra: open straight into the new-note composer (the widget's "+"). */
+        const val EXTRA_COMPOSE = "keepit.compose"
+
+        /** String extra: open this note in the editor (a widget note row). */
+        const val EXTRA_NOTE_ID = "keepit.noteId"
     }
 }

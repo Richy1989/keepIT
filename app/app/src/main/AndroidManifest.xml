@@ -2,7 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- usesCleartextTraffic: the server URL is user-entered, and self-hosted setups commonly run
+         plain HTTP on a LAN IP (the emulator uses http://10.0.2.2:5025). TLS is still used whenever
+         the entered URL is https. -->
     <application
+        android:name=".KeepItApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -10,11 +16,15 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.KeepITApp">
+
+        <!-- singleTask so widget taps land in the running instance via onNewIntent. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.KeepITApp"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -23,6 +33,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Home-screen widget: recent notes + quick-add (Glance). -->
+        <receiver
+            android:name=".widget.KeepItWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/keepit_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

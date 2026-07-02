@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.KeepITApp" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Dark platform theme so the pre-Compose window matches the app's dark canvas (no white flash). -->
+    <style name="Theme.KeepITApp" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0A0A0B</item>
+    </style>
 </resources>
