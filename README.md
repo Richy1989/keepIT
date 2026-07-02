@@ -30,9 +30,7 @@ The features I really wanted:
 - note sharing between different users
 - a native Android app, including a home-screen widget
 
-It's since grown into a masonry grid of note cards with fast, optimistic editing, lists, search,
-sharing, and **real-time sync** — so a note edited on one device shows up on your others without
-a refresh.
+It has since grown into a blazing-fast app with optimistic editing, lists, search, sharing, and **real-time sync** — so a note edited on one device shows up on your others without a refresh. I'm really happy with how this turned out.
 
 > **Status:** work in progress.
 
