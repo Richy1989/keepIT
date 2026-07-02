@@ -301,13 +301,15 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `Jwt__RefreshTokenDays` | no | `14` | Refresh token lifetime in days. |
 | `App__DataRoot` | no | `./App_Data` | Directory for SQLite DB, Data Protection keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the API — used to recover the real client IP for per-IP rate limiting. **Must match your topology:** `1` for the bare Compose stack (nginx → api) or single-container accessed directly, `2` behind another proxy like Traefik (Traefik → nginx → api). Too low collapses all clients into one rate-limit bucket; too high lets clients spoof their IP. |
+| `App__AllowRegistration` | no | `true` | Whether new accounts may be created. **On an internet-exposed instance**: register your own accounts first, then set `false` to close public sign-up (existing users keep working; only `/api/auth/register` is refused). |
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single-container image) | Refresh cookie is HTTPS-only. Keep `true` behind TLS (and on `http://localhost`, which browsers treat as secure); set `false` only when serving over plain HTTP on a non-localhost address (e.g. LAN IP without TLS). |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the Scalar API explorer at `/scalar/v1`. |
 
 The `Foo__Bar` vars above are read directly by the app — set them via `docker run -e` / `--env-file`
 or the Unraid template (the single-container image). **The Compose stack sets them itself**, and reads
-only four interpolation vars from `.env`: `JWT_KEY`, `POSTGRES_PASSWORD`, `REFRESH_COOKIE_SECURE`
-(→ `Auth__RefreshCookie__Secure`), and `FORWARDED_PROXY_HOPS` (→ `App__ForwardedProxyHops`).
+only five interpolation vars from `.env`: `JWT_KEY`, `POSTGRES_PASSWORD`, `REFRESH_COOKIE_SECURE`
+(→ `Auth__RefreshCookie__Secure`), `FORWARDED_PROXY_HOPS` (→ `App__ForwardedProxyHops`), and
+`ALLOW_REGISTRATION` (→ `App__AllowRegistration`).
 
 ---
 

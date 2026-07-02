@@ -18,6 +18,9 @@ namespace keepITCore.Notes;
 [ApiController]
 [Authorize]
 [Route("api/notes")]
+// Worst legitimate payload (100k body or 500×2k checklist chars + JSON overhead) stays well under
+// 2 MB; anything bigger is abuse, so reject it before model binding instead of at Kestrel's ~28 MB.
+[RequestSizeLimit(2 * 1024 * 1024)]
 public class NotesController : ControllerBase
 {
     private readonly AppDbContext _db;

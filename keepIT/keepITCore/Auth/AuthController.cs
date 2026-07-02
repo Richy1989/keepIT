@@ -23,31 +23,45 @@ public class AuthController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly AppDbContext _db;
     private readonly RefreshCookieOptions _cookieOptions;
+    private readonly IConfiguration _config;
 
-    /// <summary>Injects Identity's user manager, the token service, the DB context, and cookie options.</summary>
+    /// <summary>Injects Identity's user manager, the token service, the DB context, cookie options, and config.</summary>
     /// <param name="userManager">Identity user store for create/find/password checks.</param>
     /// <param name="tokenService">Mints access tokens and opaque refresh tokens.</param>
     /// <param name="db">Database context, used here for refresh-token persistence.</param>
     /// <param name="cookieOptions">Refresh-cookie settings (name, secure flag, path).</param>
+    /// <param name="config">App configuration, read for <c>App:AllowRegistration</c>.</param>
     public AuthController(
         UserManager<ApplicationUser> userManager,
         ITokenService tokenService,
         AppDbContext db,
-        IOptions<RefreshCookieOptions> cookieOptions)
+        IOptions<RefreshCookieOptions> cookieOptions,
+        IConfiguration config)
     {
         _userManager = userManager;
         _tokenService = tokenService;
         _db = db;
         _cookieOptions = cookieOptions.Value;
+        _config = config;
     }
 
-    /// <summary>Create an account. Returns an access token and sets the refresh cookie.</summary>
+    /// <summary>
+    /// Create an account. Returns an access token and sets the refresh cookie.
+    /// <para>Sign-up can be switched off via <c>App:AllowRegistration=false</c> — the intended mode
+    /// for a personal instance exposed to the internet: create your accounts first, then close the
+    /// door. Existing users are unaffected; only new registrations are refused.</para>
+    /// </summary>
     /// <param name="dto">The new account's email, password, and optional display name.</param>
-    /// <returns>200 with the auth payload, 409 if the email is taken, or 400 on validation errors.</returns>
+    /// <returns>200 with the auth payload, 403 when registration is disabled, 409 if the email is
+    /// taken, or 400 on validation errors.</returns>
     [HttpPost("register")]
     [AllowAnonymous]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto dto)
     {
+        if (!(_config.GetValue<bool?>("App:AllowRegistration") ?? true))
+            return StatusCode(StatusCodes.Status403Forbidden,
+                new { error = "Registration is disabled on this server." });
+
         if (await _userManager.FindByEmailAsync(dto.Email) is not null)
             return Conflict(new { error = "An account with this email already exists." });
 

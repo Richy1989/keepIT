@@ -54,6 +54,10 @@ services:
       # Traefik (Traefik → nginx → api), set FORWARDED_PROXY_HOPS=2 in .env — otherwise every
       # request is attributed to the proxy's IP and all clients share one rate-limit bucket.
       App__ForwardedProxyHops: ${FORWARDED_PROXY_HOPS:-1}
+      # Whether new accounts may be created. For a personal instance exposed to the internet:
+      # register your accounts first, then set ALLOW_REGISTRATION=false in .env to close sign-up
+      # (existing users keep working; only /api/auth/register is refused).
+      App__AllowRegistration: ${ALLOW_REGISTRATION:-true}
     volumes:
       - app-data:/data
     depends_on:
