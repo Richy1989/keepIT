@@ -244,3 +244,58 @@ export const PencilIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
   </Icon>
 );
+
+export const BoldIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" />
+  </Icon>
+);
+
+export const ItalicIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M19 4h-9" />
+    <path d="M14 20H5" />
+    <path d="M15 4 9 20" />
+  </Icon>
+);
+
+export const StrikethroughIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M16 4H9a3 3 0 0 0-2.83 4" />
+    <path d="M14 12a4 4 0 0 1 0 8H6" />
+    <path d="M4 12h16" />
+  </Icon>
+);
+
+export const HeadingIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M6 12h12" />
+    <path d="M6 20V4" />
+    <path d="M18 20V4" />
+  </Icon>
+);
+
+export const ListOrderedIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M10 12h11" />
+    <path d="M10 18h11" />
+    <path d="M10 6h11" />
+    <path d="M4 10h2" />
+    <path d="M4 6h1v4" />
+    <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+  </Icon>
+);
+
+export const LinkIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </Icon>
+);
+
+export const CodeIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="m16 18 6-6-6-6" />
+    <path d="m8 6-6 6 6 6" />
+  </Icon>
+);

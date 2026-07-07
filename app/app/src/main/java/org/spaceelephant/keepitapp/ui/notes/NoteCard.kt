@@ -34,6 +34,7 @@ import org.spaceelephant.keepitapp.data.NoteStateDto
 import org.spaceelephant.keepitapp.data.NoteTypes
 import org.spaceelephant.keepitapp.data.NotesRepository
 import org.spaceelephant.keepitapp.data.ensureUtc
+import org.spaceelephant.keepitapp.ui.markdown.MarkdownText
 import org.spaceelephant.keepitapp.ui.theme.CardShape
 import org.spaceelephant.keepitapp.ui.theme.KeepItColors
 import org.spaceelephant.keepitapp.ui.theme.noteSwatch
@@ -77,13 +78,12 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
             if (note.type == NoteTypes.CHECKLIST) {
                 ChecklistPreview(note)
             } else if (!note.body.isNullOrBlank()) {
-                Text(
-                    text = note.body,
+                MarkdownText(
+                    source = note.body,
                     color = KeepItColors.Text.copy(alpha = 0.9f),
                     fontSize = 13.sp,
                     lineHeight = 19.sp,
                     maxLines = 8,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
 

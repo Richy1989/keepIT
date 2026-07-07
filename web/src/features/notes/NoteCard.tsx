@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
+import { Markdown } from './Markdown';
 import { noteColor } from './palette';
 import { ColorPicker } from '../../components/ColorPicker';
 import {
@@ -117,9 +118,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         </ul>
       ) : (
         note.body && (
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text/90 [overflow-wrap:anywhere]">
-            {note.body.length > 600 ? `${note.body.slice(0, 600)}…` : note.body}
-          </p>
+          <Markdown text={note.body.length > 600 ? `${note.body.slice(0, 600)}…` : note.body} />
         )
       )}
 

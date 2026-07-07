@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -23,14 +24,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StrikethroughS
+import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -61,12 +70,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.spaceelephant.keepitapp.AppContainer
+import org.spaceelephant.keepitapp.ui.markdown.MarkdownAction
+import org.spaceelephant.keepitapp.ui.markdown.MarkdownText
+import org.spaceelephant.keepitapp.ui.markdown.applyMarkdown
 import org.spaceelephant.keepitapp.data.ChecklistItemDto
 import org.spaceelephant.keepitapp.data.CreateNoteDto
 import org.spaceelephant.keepitapp.data.NoteDto
@@ -114,7 +128,8 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
 
     var type by remember { mutableStateOf(NoteTypes.TEXT) }
     var title by remember { mutableStateOf("") }
-    var body by remember { mutableStateOf("") }
+    // TextFieldValue (not String) so the Markdown toolbar can rewrite the current selection.
+    var body by remember { mutableStateOf(TextFieldValue("")) }
     var color by remember { mutableStateOf<String?>(null) }
     val items = remember { mutableStateListOf<EditableItem>() }
     var listIds by remember { mutableStateOf(setOf<String>()) }
@@ -132,7 +147,7 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
         note = n
         type = n.type
         title = n.title ?: ""
-        body = n.body ?: ""
+        body = TextFieldValue(n.body ?: "")
         color = n.color
         items.clear()
         n.checklistItems.sortedBy { it.order }.forEach { items.add(EditableItem(it.id, it.text, it.isChecked)) }
@@ -169,13 +184,13 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
         scope.launch {
             if (current == null) {
                 val checklist = buildChecklist()
-                val hasContent = title.isNotBlank() || body.isNotBlank() || checklist.isNotEmpty()
+                val hasContent = title.isNotBlank() || body.text.isNotBlank() || checklist.isNotEmpty()
                 if (hasContent) {
                     repo.create(
                         CreateNoteDto(
                             type = type,
                             title = title.trim().ifBlank { null },
-                            body = if (type == NoteTypes.TEXT) body.trim().ifBlank { null } else null,
+                            body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
                             color = color,
                             checklistItems = if (type == NoteTypes.CHECKLIST) checklist else null,
                             listIds = listIds.toList().ifEmpty { null },
@@ -189,7 +204,7 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
                         UpdateNoteDto(
                             type = type,
                             title = title.trim().ifBlank { null },
-                            body = if (type == NoteTypes.TEXT) body.trim().ifBlank { null } else null,
+                            body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
                             color = color,
                             checklistItems = if (type == NoteTypes.CHECKLIST) buildChecklist() else null,
                         ),
@@ -274,6 +289,43 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
             // Editors get the color + type tools; any existing note (viewers too) gets trash/restore.
             if (canEdit || current != null) {
                 Column(modifier = Modifier.imePadding()) {
+                    // Markdown formatting row — text notes only; each button rewrites the selection.
+                    if (canEdit && type == NoteTypes.TEXT) {
+                        HorizontalDivider(color = swatch.border)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(swatch.bg)
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            FormatButton(Icons.Filled.FormatBold, "Bold") {
+                                body = applyMarkdown(body, MarkdownAction.BOLD)
+                            }
+                            FormatButton(Icons.Filled.FormatItalic, "Italic") {
+                                body = applyMarkdown(body, MarkdownAction.ITALIC)
+                            }
+                            FormatButton(Icons.Filled.StrikethroughS, "Strikethrough") {
+                                body = applyMarkdown(body, MarkdownAction.STRIKE)
+                            }
+                            FormatButton(Icons.Filled.Title, "Heading") {
+                                body = applyMarkdown(body, MarkdownAction.HEADING)
+                            }
+                            FormatButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Bullet list") {
+                                body = applyMarkdown(body, MarkdownAction.BULLET)
+                            }
+                            FormatButton(Icons.Filled.FormatListNumbered, "Numbered list") {
+                                body = applyMarkdown(body, MarkdownAction.ORDERED)
+                            }
+                            FormatButton(Icons.Filled.Link, "Link") {
+                                body = applyMarkdown(body, MarkdownAction.LINK)
+                            }
+                            FormatButton(Icons.Filled.Code, "Code") {
+                                body = applyMarkdown(body, MarkdownAction.CODE)
+                            }
+                        }
+                    }
                     HorizontalDivider(color = swatch.border)
                     Row(
                         modifier = Modifier
@@ -425,12 +477,19 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
                         Text("  Add item", color = KeepItColors.TextMuted)
                     }
                 }
+            } else if (!canEdit) {
+                // Viewers get the rendered note, not raw Markdown in a disabled field.
+                MarkdownText(
+                    source = body.text,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                )
             } else {
                 TextField(
                     value = body,
                     onValueChange = { body = it },
                     placeholder = { Text("Take a note…", color = KeepItColors.TextFaint) },
-                    readOnly = !canEdit,
                     colors = transparentFieldColors(),
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = 14.sp,
@@ -488,6 +547,14 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
 
             Spacer(modifier = Modifier.size(48.dp))
         }
+    }
+}
+
+/** One button in the Markdown formatting row. */
+@Composable
+private fun FormatButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(icon, contentDescription = label, tint = KeepItColors.TextMuted, modifier = Modifier.size(20.dp))
     }
 }
 

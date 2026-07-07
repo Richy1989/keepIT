@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.spaceelephant.keepitapp.ui.markdown.stripMarkdown
 import org.spaceelephant.keepitapp.widget.KeepItWidget
 import retrofit2.HttpException
 
@@ -148,7 +149,8 @@ class NotesRepository(
             WidgetNote(
                 id = n.id,
                 title = n.title?.takeIf { it.isNotBlank() } ?: "",
-                preview = if (isChecklist) "" else (n.body ?: "").replace('\n', ' ').take(100),
+                // The Glance widget renders plain strings, so Markdown syntax is stripped here.
+                preview = if (isChecklist) "" else stripMarkdown(n.body ?: "").replace('\n', ' ').take(100),
                 color = n.color,
                 checklist = if (isChecklist) {
                     n.checklistItems.sortedBy { it.order }.take(WIDGET_CHECKLIST_LINES).map {

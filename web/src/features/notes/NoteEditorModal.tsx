@@ -1,13 +1,22 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSetNoteLists, useUpdateNote } from './queries';
 import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
+import { Markdown } from './Markdown';
+import { MarkdownToolbar } from './MarkdownToolbar';
 import { ShareDialog } from './ShareDialog';
 import { ColorPicker } from '../../components/ColorPicker';
 import { useLists } from '../lists/queries';
 import { useAuth } from '../../auth/AuthContext';
-import { CheckIcon, CheckSquareIcon, EyeIcon, PaletteIcon, ShareIcon } from '../../components/icons';
+import {
+  CheckIcon,
+  CheckSquareIcon,
+  EyeIcon,
+  PaletteIcon,
+  PencilIcon,
+  ShareIcon,
+} from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, NoteType } from '../../api/types';
 
@@ -51,6 +60,8 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [listIds, setListIds] = useState<string[]>(note.listIds);
   const [showColors, setShowColors] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   function save() {
     const cleanItems = items
@@ -130,15 +141,44 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               ) : (
                 <ReadOnlyChecklist items={items} />
               )
+            ) : canEdit ? (
+              <>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  {preview ? (
+                    <span className="text-xs text-text-faint">Preview</span>
+                  ) : (
+                    <MarkdownToolbar textareaRef={bodyRef} onChange={setBody} />
+                  )}
+                  <button
+                    type="button"
+                    title={preview ? 'Edit' : 'Preview'}
+                    aria-label={preview ? 'Edit' : 'Preview'}
+                    onClick={() => setPreview((p) => !p)}
+                    className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-black/20 hover:text-text"
+                  >
+                    {preview ? <PencilIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+                {preview ? (
+                  body.trim() ? (
+                    <Markdown text={body} />
+                  ) : (
+                    <p className="text-sm italic text-text-faint">Nothing to preview.</p>
+                  )
+                ) : (
+                  <textarea
+                    ref={bodyRef}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder="Take a note…"
+                    rows={8}
+                    className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
+                  />
+                )}
+              </>
             ) : (
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Take a note…"
-                rows={8}
-                readOnly={!canEdit}
-                className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
-              />
+              // Viewers get the rendered note, not raw Markdown in a disabled textarea.
+              body.trim() && <Markdown text={body} />
             )}
           </div>
 
