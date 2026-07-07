@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
@@ -32,6 +34,9 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -60,7 +65,8 @@ import org.spaceelephant.keepitapp.ui.theme.KeepItColors
 /**
  * The masonry grid, the phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the
  * user's lists (with counts), a topbar with search, and the staggered note grid split into
- * Pinned/Others in the active view. Realtime keeps it live; the refresh action is a manual resync.
+ * Pinned/Others in the active view. Realtime keeps it live; pull-to-refresh (and the topbar
+ * refresh action) is a manual resync.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -220,26 +226,54 @@ fun NotesScreen(
                 }
             },
         ) { padding ->
-            Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            val pullState = rememberPullToRefreshState()
+            var refreshing by remember { mutableStateOf(false) }
+            PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    scope.launch {
+                        refreshing = true
+                        repo.refreshAll()
+                        refreshing = false
+                    }
+                },
+                state = pullState,
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = refreshing,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        color = KeepItColors.Accent,
+                    )
+                },
+                modifier = Modifier.padding(padding).fillMaxSize(),
+            ) {
                 when {
                     loading && notes.isEmpty() -> CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
                         color = KeepItColors.Accent,
                     )
 
-                    error != null && notes.isEmpty() -> Text(
-                        text = error ?: "",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center).padding(32.dp),
-                    )
+                    // Empty and error states get a scrollable box so the pull gesture still works.
+                    error != null && notes.isEmpty() -> Box(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = error ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(32.dp),
+                        )
+                    }
 
-                    visible.isEmpty() -> Column(
-                        modifier = Modifier.align(Alignment.Center).padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    visible.isEmpty() -> Box(
+                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = if (q.isNotEmpty()) "No notes match your search." else emptyCopy(filter.view),
                             color = KeepItColors.TextMuted,
+                            modifier = Modifier.padding(32.dp),
                         )
                     }
 

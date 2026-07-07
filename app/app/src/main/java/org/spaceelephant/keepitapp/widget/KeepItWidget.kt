@@ -57,12 +57,13 @@ class KeepItWidget : GlanceAppWidget() {
     }
 }
 
-// keepIT dark tokens (web index.css baseline) — Glance can't reference the compose theme.
-private val Canvas = Color(0xFF0A0A0B)
-private val Surface = Color(0xFF18181B)
-private val BorderTextFaint = Color(0xFF71717A)
+// keepIT dim tokens (web index.css `data-theme='dim'`, same as KeepItColors) — Glance can't
+// reference the compose theme.
+private val Canvas = Color(0xFF18181B)
+private val Surface = Color(0xFF232327)
+private val BorderTextFaint = Color(0xFF87878F)
 private val TextColor = Color(0xFFECECEE)
-private val TextMuted = Color(0xFFA1A1AA)
+private val TextMuted = Color(0xFFB4B4BD)
 private val Accent = Color(0xFFFBBF24)
 
 @androidx.compose.runtime.Composable

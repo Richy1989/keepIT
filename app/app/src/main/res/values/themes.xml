@@ -3,6 +3,6 @@
 
     <!-- Dark platform theme so the pre-Compose window matches the app's dark canvas (no white flash). -->
     <style name="Theme.KeepITApp" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#0A0A0B</item>
+        <item name="android:windowBackground">#18181B</item>
     </style>
 </resources>
