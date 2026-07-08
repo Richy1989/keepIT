@@ -57,7 +57,8 @@ It has since grown into a blazing-fast app with optimistic editing, lists, searc
 
 Notes come in several types, and any note can be styled:
 
-- 📝 **Text notes** — free-form text. ✅
+- 📝 **Text notes** — **Markdown** body with live rendering and a formatting toolbar (bold, italic,
+  strikethrough, headings, lists, links, code). ✅
 - ☑️ **Checklist notes** — checkbox items, tick inline, reorderable. ✅
 - 🎨 **Customizable backgrounds** — set a background **color** on any note. ✅ (background **images** planned)
 - 🗂️ **Lists** — organize notes into named collections (a note can be in many) and filter the grid by list. ✅
@@ -78,7 +79,8 @@ the native Android client is a separate deliverable on top of the same API.
 ### ✅ Done
 
 - **Auth** — register / login, JWT access token (in memory) + refresh token (httpOnly cookie).
-- **Text & checklist notes** — create, edit, and check off items with optimistic updates.
+- **Text & checklist notes** — create, edit, and check off items with optimistic updates;
+  text bodies render as **Markdown** with a formatting toolbar, on both web and Android.
 - **Note backgrounds** — per-note background **color** from a palette.
 - **Pin / archive / trash** — pin to top, archive, and soft-delete (trash).
 - **Lists** — named collections; a note can be in many; filter the grid by one or more lists.
@@ -96,7 +98,8 @@ the native Android client is a separate deliverable on top of the same API.
 - **Docker Compose stack** — API + Postgres + web (nginx).
 - **Single-container image** — API + nginx bundled for simple self-hosted deployments (Unraid).
 - **Native Android app (v1)** — Kotlin/Jetpack Compose client sharing the API and design tokens:
-  sign-in (with server URL), notes grid with lists/search, text & checklist editing, colors,
+  sign-in (with server URL), a single-column notes list with lists/search, Markdown text &
+  checklist editing, colors,
   pin/archive/trash, live SignalR sync, and a home-screen widget (recent notes + quick-add).
 
 ### 🔜 Next (web + API)
