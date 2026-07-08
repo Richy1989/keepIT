@@ -45,9 +45,9 @@ import java.time.format.DateTimeFormatter
 private const val MAX_PREVIEW_ITEMS = 6
 
 /**
- * One card in the masonry grid, styled like the web NoteCard: palette background + border, title,
- * body/checklist preview, and a footer with pin (trash view: restore / owner-only delete-forever),
- * share badge, and timestamp. Tapping the card opens the editor.
+ * One full-width row in the note list, styled like the web NoteCard: palette background + border,
+ * title, body/checklist preview, and a footer with pin (trash view: restore / owner-only
+ * delete-forever), share badge, and timestamp. Tapping the card opens the editor.
  */
 @Composable
 fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {

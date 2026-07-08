@@ -9,12 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
@@ -63,10 +61,10 @@ import org.spaceelephant.keepitapp.data.NotesView
 import org.spaceelephant.keepitapp.ui.theme.KeepItColors
 
 /**
- * The masonry grid, the phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the
- * user's lists (with counts), a topbar with search, and the staggered note grid split into
- * Pinned/Others in the active view. Realtime keeps it live; pull-to-refresh (and the topbar
- * refresh action) is a manual resync.
+ * The phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the user's lists (with
+ * counts), a topbar with search, and a single-column note list split into Pinned/Others in the
+ * active view. Realtime keeps it live; pull-to-refresh (and the topbar refresh action) is a
+ * manual resync.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -277,21 +275,19 @@ fun NotesScreen(
                         )
                     }
 
-                    else -> LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Adaptive(minSize = 160.dp),
-                        verticalItemSpacing = 12.dp,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    else -> LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
                             start = 12.dp, end = 12.dp, top = 8.dp, bottom = 96.dp,
                         ),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         if (pinned.isNotEmpty()) {
-                            item(span = StaggeredGridItemSpan.FullLine) { SectionLabel("PINNED") }
+                            item { SectionLabel("PINNED") }
                             items(pinned, key = { "p-${it.id}" }) { note ->
                                 NoteCard(note = note, repo = repo, onOpen = { onOpenNote(note.id) })
                             }
-                            item(span = StaggeredGridItemSpan.FullLine) { SectionLabel("OTHERS") }
+                            item { SectionLabel("OTHERS") }
                         }
                         items(others, key = { it.id }) { note ->
                             NoteCard(note = note, repo = repo, onOpen = { onOpenNote(note.id) })
