@@ -26,6 +26,9 @@ class RealtimeClient(
     @Volatile
     private var shouldRun = false
 
+    /** Fires after every successful (re)connect — wired to a sync so missed pushes are covered. */
+    var onConnected: (() -> Unit)? = null
+
     fun start() {
         if (shouldRun) return
         shouldRun = true
@@ -64,7 +67,10 @@ class RealtimeClient(
         hub = connection
         scope.launch(Dispatchers.IO) {
             val started = runCatching { connection.start().blockingAwait() }.isSuccess
-            if (!started && shouldRun) {
+            if (started) {
+                // (Re)connected — anything that changed while the socket was down was missed.
+                onConnected?.invoke()
+            } else if (shouldRun) {
                 delay(RETRY_DELAY_MS)
                 if (shouldRun) connect()
             }

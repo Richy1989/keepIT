@@ -1,5 +1,6 @@
 package org.spaceelephant.keepitapp.ui.notes
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -32,6 +36,8 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -41,6 +47,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +65,7 @@ import org.spaceelephant.keepitapp.AppContainer
 import org.spaceelephant.keepitapp.data.NoteDto
 import org.spaceelephant.keepitapp.data.NotesFilter
 import org.spaceelephant.keepitapp.data.NotesView
+import org.spaceelephant.keepitapp.data.offline.SyncStatus
 import org.spaceelephant.keepitapp.ui.theme.KeepItColors
 
 /**
@@ -80,11 +88,19 @@ fun NotesScreen(
     val lists by repo.lists.collectAsState()
     val filter by repo.filter.collectAsState()
     val loading by repo.loading.collectAsState()
-    val error by repo.error.collectAsState()
+    val isOnline by container.connectivity.isOnline.collectAsState()
+    val pending by container.pendingChanges.collectAsState()
+    val syncStatus by container.syncEngine.status.collectAsState()
 
     var search by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+
+    // Changes that permanently failed to sync (e.g. the note was deleted elsewhere) surface once.
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        container.syncEngine.syncErrors.collect { snackbarHostState.showSnackbar(it) }
+    }
 
     fun applyFilter(newFilter: NotesFilter) {
         scope.launch {
@@ -159,6 +175,7 @@ fun NotesScreen(
     ) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 Column {
                     TopAppBar(
@@ -212,6 +229,7 @@ fun NotesScreen(
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
+                    SyncStatusStrip(isOnline = isOnline, pending = pending, syncStatus = syncStatus)
                 }
             },
             floatingActionButton = {
@@ -247,29 +265,22 @@ fun NotesScreen(
                 modifier = Modifier.padding(padding).fillMaxSize(),
             ) {
                 when {
-                    loading && notes.isEmpty() -> CircularProgressIndicator(
+                    (loading || syncStatus == SyncStatus.SYNCING) && notes.isEmpty() -> CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
                         color = KeepItColors.Accent,
                     )
 
-                    // Empty and error states get a scrollable box so the pull gesture still works.
-                    error != null && notes.isEmpty() -> Box(
-                        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = error ?: "",
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(32.dp),
-                        )
-                    }
-
+                    // Empty states get a scrollable box so the pull gesture still works.
                     visible.isEmpty() -> Box(
                         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            text = if (q.isNotEmpty()) "No notes match your search." else emptyCopy(filter.view),
+                            text = when {
+                                q.isNotEmpty() -> "No notes match your search."
+                                !isOnline && notes.isEmpty() -> "You're offline — your notes appear once you've connected."
+                                else -> emptyCopy(filter.view)
+                            },
                             color = KeepItColors.TextMuted,
                             modifier = Modifier.padding(32.dp),
                         )
@@ -296,6 +307,37 @@ fun NotesScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * One slim line under the top bar, shown only when something is worth saying: offline (with the
+ * count of changes waiting), or an active replay. Silent whenever the app is online and in sync.
+ */
+@Composable
+private fun SyncStatusStrip(isOnline: Boolean, pending: Int, syncStatus: SyncStatus) {
+    val changes = if (pending == 1) "1 change" else "$pending changes"
+    val text = when {
+        syncStatus == SyncStatus.SYNCING && pending > 0 -> "Syncing $changes…"
+        !isOnline && pending > 0 -> "Offline — $changes will sync when you're back"
+        !isOnline -> "Offline — changes will sync when you're back"
+        pending > 0 -> "Waiting to sync $changes"
+        else -> return
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(KeepItColors.Surface)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Icon(
+            imageVector = if (!isOnline) Icons.Filled.CloudOff else Icons.Filled.CloudUpload,
+            contentDescription = null,
+            tint = KeepItColors.TextFaint,
+            modifier = Modifier.padding(end = 8.dp).size(14.dp),
+        )
+        Text(text = text, color = KeepItColors.TextMuted, fontSize = 12.sp)
     }
 }
 

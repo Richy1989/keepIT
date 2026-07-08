@@ -6,12 +6,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,17 +41,34 @@ sealed interface Destination {
 fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destination?>) {
     val sessionState by container.session.state.collectAsState()
 
-    LaunchedEffect(Unit) { container.session.restore() }
+    // Local cache + outbox come off disk first, so an offline restore lands on real content.
+    LaunchedEffect(Unit) {
+        container.notesRepo.loadFromDisk()
+        container.session.restore()
+    }
 
     LaunchedEffect(sessionState) {
-        when (sessionState) {
+        when (val s = sessionState) {
             is SessionState.SignedIn -> {
+                container.notesRepo.onSignedIn(s.user.id)
                 container.realtime.start()
-                container.notesRepo.refreshAll()
+                container.syncEngine.kick()
             }
             is SessionState.SignedOut -> container.realtime.stop()
             SessionState.Loading -> Unit
         }
+    }
+
+    // Returning to the foreground is a natural moment to push queued changes / pull fresh ones.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, sessionState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && sessionState is SessionState.SignedIn) {
+                container.syncEngine.kick()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     when (sessionState) {

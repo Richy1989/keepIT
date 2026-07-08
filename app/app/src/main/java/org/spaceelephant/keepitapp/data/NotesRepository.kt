@@ -2,15 +2,30 @@ package org.spaceelephant.keepitapp.data
 
 import android.content.Context
 import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.spaceelephant.keepitapp.data.offline.CacheSnapshot
+import org.spaceelephant.keepitapp.data.offline.LocalStore
+import org.spaceelephant.keepitapp.data.offline.Outbox
+import org.spaceelephant.keepitapp.data.offline.PendingOp
+import org.spaceelephant.keepitapp.data.offline.SyncEngine
+import org.spaceelephant.keepitapp.data.offline.activeListCounts
+import org.spaceelephant.keepitapp.data.offline.applyOp
+import org.spaceelephant.keepitapp.data.offline.applyPending
+import org.spaceelephant.keepitapp.data.offline.visibleNotes
 import org.spaceelephant.keepitapp.ui.markdown.stripMarkdown
 import org.spaceelephant.keepitapp.widget.KeepItWidget
-import retrofit2.HttpException
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 
 /** Which slice of notes the grid shows — mirrors the web's `NotesView`. */
 enum class NotesView { ACTIVE, ARCHIVED, TRASHED }
@@ -36,111 +51,162 @@ data class WidgetNote(
 )
 
 /**
- * App-scoped server state for notes and lists (the TanStack-Query analogue): screens collect the
- * [notes]/[lists] flows; mutations call the API and then refetch, and SignalR pushes trigger the
- * same refetch for changes made on other devices. Also maintains the home-screen widget's cache of
- * recent notes after every active-grid load.
+ * App-scoped, **offline-first** state for notes and lists. The merged cache (all three views) is
+ * the source of truth the UI reads: it's loaded from disk at startup, refreshed by the sync
+ * engine's fetches, and mutated *locally and instantly* — every mutation applies to the cache and
+ * lands in the persisted outbox, then the sync engine replays it whenever the server is reachable.
+ * Filtering (view / lists / ordering) is local, so browsing works fully offline. The home-screen
+ * widget's snapshot is rewritten on every cache change.
  */
 class NotesRepository(
     private val client: ApiClient,
     private val appContext: Context,
-) {
+    private val store: LocalStore,
+    private val outbox: Outbox,
+    scope: CoroutineScope,
+) : SyncEngine.CacheUpdater {
+
     private val widgetPrefs = appContext.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
 
     val filter = MutableStateFlow(NotesFilter())
 
-    private val _notes = MutableStateFlow<List<NoteDto>>(emptyList())
-    val notes: StateFlow<List<NoteDto>> = _notes
+    /** Every note the user can see, across active/archive/trash — pending local edits applied. */
+    private val cache = MutableStateFlow<List<NoteDto>>(emptyList())
+    private val cachedLists = MutableStateFlow<List<ListDto>>(emptyList())
 
-    private val _lists = MutableStateFlow<List<ListDto>>(emptyList())
-    val lists: StateFlow<List<ListDto>> = _lists
+    /** Which user the on-disk cache belongs to; a different sign-in wipes it. */
+    private var cacheUserId: String = ""
+    private var lastSyncUtc: String = ""
+
+    /** temp id → server id for notes created offline, so an open editor survives the remap. */
+    private val idAliases = ConcurrentHashMap<String, String>()
+
+    /** Wired by the app container after construction (repo and engine reference each other). */
+    var syncEngine: SyncEngine? = null
+
+    val notes: StateFlow<List<NoteDto>> =
+        combine(cache, filter) { all, f -> visibleNotes(all, f) }
+            .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Lists with their counts recomputed locally, so the drawer stays correct offline. */
+    val lists: StateFlow<List<ListDto>> =
+        combine(cachedLists, cache) { ls, all ->
+            val counts = activeListCounts(all)
+            ls.map { it.copy(noteCount = counts[it.id] ?: 0) }
+        }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     val loading = MutableStateFlow(false)
-    val error = MutableStateFlow<String?>(null)
 
-    /** Wired by the app container: fires when a request 401s irrecoverably (session expired). */
-    var onUnauthorized: (() -> Unit)? = null
-
-    suspend fun refreshAll() {
-        refreshNotes()
-        refreshLists()
+    /** Restores cache + outbox from disk. Call once at startup, before the session resolves. */
+    suspend fun loadFromDisk() {
+        outbox.load()
+        val snapshot = store.loadCache() ?: return
+        cacheUserId = snapshot.userId
+        lastSyncUtc = snapshot.lastSyncUtc
+        cache.value = snapshot.notes
+        cachedLists.value = snapshot.lists
     }
 
-    /** Reloads the grid for the current filter. Server order: pinned first, then last-updated. */
-    suspend fun refreshNotes() {
-        val f = filter.value
+    /**
+     * Ties the local store to the signed-in user: a different account wipes the previous user's
+     * cache and queued changes (they must never replay as someone else).
+     */
+    suspend fun onSignedIn(userId: String) {
+        if (cacheUserId.isNotEmpty() && cacheUserId != userId) {
+            cache.value = emptyList()
+            cachedLists.value = emptyList()
+            idAliases.clear()
+            outbox.clear()
+        }
+        cacheUserId = userId
+        persistCache()
+    }
+
+    /** Drops all local data (sign-out). The widget keeps its last snapshot, as before. */
+    suspend fun clearLocal() {
+        cache.value = emptyList()
+        cachedLists.value = emptyList()
+        cacheUserId = ""
+        lastSyncUtc = ""
+        idAliases.clear()
+        outbox.clear()
+        store.clear()
+    }
+
+    /** Full sync: replay queued changes, then refetch everything. No-op offline (cache stands). */
+    suspend fun refreshAll() {
         loading.value = true
-        runCatching {
-            client.api.notes(
-                archived = f.view == NotesView.ARCHIVED,
-                trashed = f.view == NotesView.TRASHED,
-                listIds = f.listIds.toList().ifEmpty { null },
-            )
-        }.onSuccess { fetched ->
-            _notes.value = fetched
-            error.value = null
-            // The widget mirrors the default active grid (not archived/trash/list-filtered views).
-            if (f.view == NotesView.ACTIVE && f.listIds.isEmpty()) updateWidget(fetched)
-        }.onFailure(::handleFailure)
+        syncEngine?.sync()
         loading.value = false
     }
 
-    suspend fun refreshLists() {
-        runCatching { client.api.lists() }
-            .onSuccess { _lists.value = it }
-            .onFailure(::handleFailure)
-    }
-
-    suspend fun setFilter(newFilter: NotesFilter) {
+    fun setFilter(newFilter: NotesFilter) {
         filter.value = newFilter
-        refreshNotes()
     }
 
-    fun noteById(id: String): NoteDto? = _notes.value.find { it.id == id }
+    fun noteById(id: String): NoteDto? {
+        val real = resolve(id)
+        return cache.value.find { it.id == real }
+    }
 
-    /** Fetches one note directly (widget deep links can target a note not in the current grid). */
+    /** Cache first; a direct GET only as fallback (widget deep links after a cache wipe). */
     suspend fun fetchNote(id: String): NoteDto? =
-        runCatching { client.api.note(id) }.onFailure(::handleFailure).getOrNull()
+        noteById(id) ?: runCatching { client.api.note(resolve(id)) }.getOrNull()
 
-    suspend fun create(dto: CreateNoteDto): NoteDto? =
-        runCatching { client.api.createNote(dto) }
-            .onSuccess { refreshAll() }
-            .onFailure(::handleFailure)
-            .getOrNull()
+    // ---- mutations: instant local apply + persisted outbox + sync kick ----
 
-    suspend fun update(id: String, dto: UpdateNoteDto): NoteDto? =
-        runCatching { client.api.updateNote(id, dto) }
-            .onSuccess { refreshNotes() }
-            .onFailure(::handleFailure)
-            .getOrNull()
-
-    suspend fun setState(id: String, state: NoteStateDto) {
-        runCatching { client.api.setNoteState(id, state) }
-            .onSuccess { refreshAll() }
-            .onFailure(::handleFailure)
+    /** Creates the note locally under a temp id; the sync replaces it with the server's. */
+    suspend fun create(dto: CreateNoteDto): NoteDto {
+        val op = PendingOp.Create(tempId = PendingOp.newTempId(), dto = dto, enqueuedAtUtc = nowUtc())
+        mutate(op)
+        return cache.value.first { it.id == op.tempId }
     }
 
-    suspend fun setLists(id: String, listIds: List<String>) {
-        runCatching { client.api.setNoteLists(id, SetNoteListsDto(listIds)) }
-            .onSuccess { refreshAll() }
-            .onFailure(::handleFailure)
+    suspend fun update(id: String, dto: UpdateNoteDto) =
+        mutate(PendingOp.Update(resolve(id), dto, enqueuedAtUtc = nowUtc()))
+
+    suspend fun setState(id: String, state: NoteStateDto) =
+        mutate(PendingOp.SetState(resolve(id), state, enqueuedAtUtc = nowUtc()))
+
+    suspend fun setLists(id: String, listIds: List<String>) =
+        mutate(PendingOp.SetLists(resolve(id), listIds, enqueuedAtUtc = nowUtc()))
+
+    suspend fun delete(id: String) =
+        mutate(PendingOp.Delete(resolve(id), enqueuedAtUtc = nowUtc()))
+
+    private suspend fun mutate(op: PendingOp) {
+        // Intent lands on disk before the cache: after a crash the worst case is a re-sent op
+        // (replay is idempotent), never a change that looks saved but was lost.
+        outbox.enqueue(op)
+        cache.update { applyOp(it, op) }
+        persistCache()
+        syncEngine?.kick()
     }
 
-    suspend fun delete(id: String) {
-        runCatching { client.api.deleteNote(id) }
-            .onSuccess { refreshAll() }
-            .onFailure(::handleFailure)
+    private fun resolve(id: String): String = idAliases[id] ?: id
+
+    // ---- SyncEngine.CacheUpdater ----
+
+    override suspend fun onFetched(notes: List<NoteDto>, lists: List<ListDto>, stillPending: List<PendingOp>) {
+        // Overlay anything still queued so local edits don't flicker away mid-replay.
+        cache.value = applyPending(notes, stillPending)
+        cachedLists.value = lists
+        lastSyncUtc = nowUtc()
+        persistCache()
     }
 
-    private fun handleFailure(t: Throwable) {
-        if (t is HttpException && t.code() == 401) {
-            onUnauthorized?.invoke()
-            return
-        }
-        error.value = apiErrorMessage(t, "Couldn't reach the server.")
+    override suspend fun onIdRemapped(tempId: String, realId: String) {
+        idAliases[tempId] = realId
+        cache.update { all -> all.map { if (it.id == tempId) it.copy(id = realId) else it } }
+        persistCache()
     }
 
-    // ---- widget cache ----
+    // ---- persistence + widget ----
+
+    private suspend fun persistCache() {
+        store.saveCache(CacheSnapshot(cacheUserId, cache.value, cachedLists.value, lastSyncUtc))
+        updateWidget(visibleNotes(cache.value, NotesFilter()))
+    }
 
     /** Writes the top notes to the widget's local cache and asks Glance to re-render. */
     private suspend fun updateWidget(notes: List<NoteDto>) {
@@ -170,6 +236,8 @@ class NotesRepository(
         private const val WIDGET_NOTE_COUNT = 6
         private const val WIDGET_CHECKLIST_LINES = 4
         private val WidgetJson = Json { ignoreUnknownKeys = true }
+
+        private fun nowUtc(): String = Instant.now().toString()
 
         /** Read side for the Glance widget (sync, no network, works while signed out). */
         fun readWidgetNotes(context: Context): List<WidgetNote> {

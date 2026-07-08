@@ -21,7 +21,15 @@ import okhttp3.Route
 import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import java.io.IOException
 import java.time.Instant
+
+/**
+ * Outcome of a refresh-token call. The distinction matters offline: only a server that actually
+ * *rejected* the cookie may end the session — an unreachable server is a connectivity problem and
+ * must never sign the user out (or destroy the refresh cookie).
+ */
+enum class RefreshResult { SUCCESS, REJECTED, NETWORK_ERROR }
 
 /**
  * In-memory holder for the short-lived JWT access token — the Android twin of the web's
@@ -178,32 +186,57 @@ class ApiClient(context: Context) {
     /**
      * Calls `POST /api/auth/refresh` on the bare client (cookie-authenticated, rotating the cookie)
      * and stores the fresh access token. Single-flight: concurrent callers serialize on the lock and
-     * the second caller returns immediately if the first already produced a fresh token.
+     * the second caller returns immediately if the first already produced a fresh token. Only a 4xx
+     * counts as [RefreshResult.REJECTED] — a 5xx or an unreachable server is [RefreshResult.NETWORK_ERROR]
+     * and leaves the refresh cookie intact so the session survives being offline.
      */
-    fun refreshBlocking(): Boolean {
-        val base = baseUrl ?: return false
+    fun refreshBlocking(): RefreshResult {
+        val base = baseUrl ?: return RefreshResult.REJECTED
         synchronized(refreshLock) {
-            if (!tokenStore.isExpiringSoon()) return true
+            if (!tokenStore.isExpiringSoon()) return RefreshResult.SUCCESS
             val request = Request.Builder()
                 .url(base + "api/auth/refresh")
                 .post(ByteArray(0).toRequestBody(null))
                 .build()
             return try {
                 bareClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        tokenStore.clear()
-                        false
-                    } else {
-                        val body = response.body?.string() ?: return false
-                        val auth = json.decodeFromString<AuthResponseDto>(body)
-                        tokenStore.set(auth.accessToken, auth.accessTokenExpiresAtUtc)
-                        true
+                    when {
+                        response.code in 400..499 -> {
+                            tokenStore.clear()
+                            RefreshResult.REJECTED
+                        }
+
+                        !response.isSuccessful -> RefreshResult.NETWORK_ERROR
+
+                        else -> {
+                            val body = response.body?.string() ?: return RefreshResult.NETWORK_ERROR
+                            val auth = json.decodeFromString<AuthResponseDto>(body)
+                            tokenStore.set(auth.accessToken, auth.accessTokenExpiresAtUtc)
+                            RefreshResult.SUCCESS
+                        }
                     }
                 }
             } catch (_: Exception) {
-                false
+                RefreshResult.NETWORK_ERROR
             }
         }
+    }
+
+    // ---- last-user snapshot (offline session restore) ----
+
+    /** Remembers who is signed in, so an offline app start can restore the session locally. */
+    fun saveLastUser(user: UserDto) {
+        prefs.edit().putString("last_user", json.encodeToString(UserDto.serializer(), user)).apply()
+    }
+
+    fun loadLastUser(): UserDto? {
+        val raw = prefs.getString("last_user", null) ?: return null
+        return runCatching { json.decodeFromString<UserDto>(raw) }.getOrNull()
+    }
+
+    /** Explicit sign-out only — session *expiry* keeps it so offline restore still works. */
+    fun clearLastUser() {
+        prefs.edit().remove("last_user").apply()
     }
 
     /** Drops the in-memory token and the persisted refresh cookie (sign-out / session expiry). */
@@ -229,12 +262,21 @@ class ApiClient(context: Context) {
         }
     }
 
-    /** On a 401, refreshes once and retries; a second 401 (or failed refresh) gives up. */
+    /**
+     * On a 401, refreshes once and retries; a second 401 (or a *rejected* refresh) gives up. A
+     * refresh that failed only because the server was unreachable throws instead — the call then
+     * fails as an IOException (transient, retried by the sync engine later), not as a 401 that
+     * would wrongly end the session.
+     */
     private inner class TokenAuthenticator : Authenticator {
         override fun authenticate(route: Route?, response: Response): Request? {
             if (isAuthFree(response.request.url)) return null
             if (response.priorResponse != null) return null // already retried once
-            if (!refreshBlocking()) return null
+            when (refreshBlocking()) {
+                RefreshResult.SUCCESS -> Unit
+                RefreshResult.REJECTED -> return null
+                RefreshResult.NETWORK_ERROR -> throw IOException("Token refresh failed: server unreachable")
+            }
             val token = tokenStore.accessToken ?: return null
             return response.request.newBuilder().header("Authorization", "Bearer $token").build()
         }

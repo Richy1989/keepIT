@@ -3,6 +3,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Offline mode: detect connectivity returning to replay queued changes. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- networkSecurityConfig: trusts user-installed CAs (self-hosted self-signed / private-CA certs)
          on top of the system store, and permits cleartext for LAN / emulator http. See the config. -->
