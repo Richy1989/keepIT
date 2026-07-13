@@ -201,7 +201,11 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           <div className="flex items-center gap-1.5">
             <ShareBadge note={note} />
             {note.createdAtUtc && (
-              <time className="text-xs text-text-faint" dateTime={note.createdAtUtc}>
+              <time
+                className="whitespace-nowrap text-xs text-text-faint"
+                dateTime={note.createdAtUtc}
+                title={formatDateFull(note.createdAtUtc)}
+              >
                 {formatDate(note.createdAtUtc)}
               </time>
             )}
@@ -212,14 +216,29 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
   );
 }
 
+/** Normalizes a backend UTC timestamp: the SQLite dev provider can omit the zone designator. */
+function parseBackendUtc(iso: string): Date {
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`);
+}
+
 /**
- * Formats a backend UTC timestamp in the viewer's local time. Backend values are UTC; Postgres
- * emits a trailing 'Z' but the SQLite dev provider can return DateTimes with no zone designator,
- * which the browser would otherwise parse as local time — so we append 'Z' when it's missing.
+ * Compact footer date, sized for a narrow masonry column (the full timestamp lives in the
+ * tooltip): time only for today, month + day within the year, month + day + year otherwise.
  */
 function formatDate(iso: string) {
-  const utc = /[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`;
-  return new Date(utc).toLocaleString(undefined, {
+  const d = parseBackendUtc(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
+}
+
+/** The unabridged local timestamp, for the footer date's tooltip. */
+function formatDateFull(iso: string) {
+  return parseBackendUtc(iso).toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

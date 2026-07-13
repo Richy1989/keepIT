@@ -30,7 +30,7 @@ export function ReminderChip({ note, onClick }: { note: NoteDto; onClick: () => 
       )}
     >
       <ClockIcon className="text-sm" />
-      <span>{formatReminderTime(note.remindAtUtc)}</span>
+      <span className="whitespace-nowrap">{formatReminderTime(note.remindAtUtc)}</span>
       {recurring && <RepeatIcon className="text-[10px]" />}
     </button>
   );
