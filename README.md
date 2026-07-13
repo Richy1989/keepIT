@@ -101,6 +101,14 @@ the native Android client is a separate deliverable on top of the same API.
   sign-in (with server URL), a single-column notes list with lists/search, Markdown text &
   checklist editing, colors,
   pin/archive/trash, live SignalR sync, and a home-screen widget (recent notes + quick-add).
+- **Android offline-first** — notes and lists cached on-device with a persisted outbox; browse and
+  edit offline, queued changes replay when the server is reachable again.
+- **Reminders** — per-user one-time or recurring reminders on any note you can access (viewers
+  too); a server dispatcher fires them into the notification inbox. The web shows a chip on the
+  card and the bell; **Android delivers them as native notifications** from locally scheduled
+  alarms (works offline and with the app closed) that deep-link into the note — share invites and
+  other inbox items also surface natively, and an in-app **Settings** screen manages the
+  notification & exact-alarm permissions.
 
 ### 🔜 Next (web + API)
 
@@ -111,9 +119,8 @@ the native Android client is a separate deliverable on top of the same API.
 
 ### 🧭 Later
 
-- **Android: sharing, notifications & settings** — bring the share dialog, notifications inbox, and
-  theme/accent settings to the app (v1 covers notes, lists, search, and the widget).
-- **Android offline mode** — local Room cache with queued mutations replayed on reconnect.
+- **Android: sharing & appearance settings** — bring the share dialog and theme/accent settings to
+  the app (notifications are already native; there is deliberately no in-app inbox on Android).
 - **Pending share invites** — share by email to users who haven't signed up yet.
 
 ## Tech stack

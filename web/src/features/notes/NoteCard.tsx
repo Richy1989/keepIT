@@ -196,14 +196,16 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           </>
         )}
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex flex-col items-end gap-1">
           {!note.isTrashed && <ReminderChip note={note} onClick={() => setShowReminder(true)} />}
-          <ShareBadge note={note} />
-          {note.createdAtUtc && (
-            <time className="text-xs text-text-faint" dateTime={note.createdAtUtc}>
-              {formatDate(note.createdAtUtc)}
-            </time>
-          )}
+          <div className="flex items-center gap-1.5">
+            <ShareBadge note={note} />
+            {note.createdAtUtc && (
+              <time className="text-xs text-text-faint" dateTime={note.createdAtUtc}>
+                {formatDate(note.createdAtUtc)}
+              </time>
+            )}
+          </div>
         </div>
       </div>
     </div>

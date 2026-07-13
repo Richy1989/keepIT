@@ -37,6 +37,19 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
 
     is PendingOp.SetLists -> notes.map { n -> if (n.id != op.noteId) n else n.copy(listIds = op.listIds) }
 
+    // Setting always resets the fired state, mirroring the server's SetReminder.
+    is PendingOp.SetReminder -> notes.map { n ->
+        if (n.id != op.noteId) n else n.copy(
+            remindAtUtc = op.dto.remindAtUtc,
+            reminderRecurrence = op.dto.recurrence,
+            reminderFired = false,
+        )
+    }
+
+    is PendingOp.ClearReminder -> notes.map { n ->
+        if (n.id != op.noteId) n else n.copy(remindAtUtc = null, reminderRecurrence = null, reminderFired = false)
+    }
+
     is PendingOp.Delete -> notes.filter { it.id != op.noteId }
 }
 

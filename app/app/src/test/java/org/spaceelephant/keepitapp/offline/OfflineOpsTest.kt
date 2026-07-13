@@ -14,6 +14,8 @@ import org.spaceelephant.keepitapp.data.NoteStateDto
 import org.spaceelephant.keepitapp.data.NoteTypes
 import org.spaceelephant.keepitapp.data.NotesFilter
 import org.spaceelephant.keepitapp.data.NotesView
+import org.spaceelephant.keepitapp.data.ReminderRecurrences
+import org.spaceelephant.keepitapp.data.SetNoteReminderDto
 import org.spaceelephant.keepitapp.data.UpdateNoteDto
 import org.spaceelephant.keepitapp.data.offline.PendingOp
 import org.spaceelephant.keepitapp.data.offline.applyOp
@@ -94,6 +96,34 @@ class OfflineOpsTest {
     }
 
     @Test
+    fun `setReminder stores the reminder and resets the fired state`() {
+        val fired = note("n1").copy(remindAtUtc = "2026-07-01T08:00:00Z", reminderFired = true)
+        val op = PendingOp.SetReminder(
+            "n1",
+            SetNoteReminderDto(remindAtUtc = "2026-07-20T08:00:00Z", recurrence = ReminderRecurrences.WEEKLY),
+        )
+        val result = applyOp(listOf(fired), op).single()
+
+        assertEquals("2026-07-20T08:00:00Z", result.remindAtUtc)
+        assertEquals(ReminderRecurrences.WEEKLY, result.reminderRecurrence)
+        assertFalse(result.reminderFired)
+    }
+
+    @Test
+    fun `clearReminder wipes all reminder fields`() {
+        val withReminder = note("n1").copy(
+            remindAtUtc = "2026-07-20T08:00:00Z",
+            reminderRecurrence = ReminderRecurrences.DAILY,
+            reminderFired = true,
+        )
+        val result = applyOp(listOf(withReminder), PendingOp.ClearReminder("n1")).single()
+
+        assertNull(result.remindAtUtc)
+        assertNull(result.reminderRecurrence)
+        assertFalse(result.reminderFired)
+    }
+
+    @Test
     fun `applyPending overlays queued ops onto a fresh fetch`() {
         val fetched = listOf(note("n1", title = "Server"))
         val ops = listOf(
@@ -168,6 +198,33 @@ class OfflineOpsTest {
         assertNull(merged.isTrashed)
     }
 
+    @Test
+    fun `reminder ops are a last-wins pair`() {
+        val ops = coalesce(
+            coalesce(
+                listOf(PendingOp.SetReminder("n1", SetNoteReminderDto("2026-07-20T08:00:00Z"))),
+                PendingOp.ClearReminder("n1"),
+            ),
+            PendingOp.SetReminder("n1", SetNoteReminderDto("2026-07-21T09:00:00Z")),
+        )
+
+        val only = ops.single() as PendingOp.SetReminder
+        assertEquals("2026-07-21T09:00:00Z", only.dto.remindAtUtc)
+    }
+
+    @Test
+    fun `clearReminder against a pending create queues nothing`() {
+        val ops = coalesce(
+            listOf(
+                PendingOp.Create("local-1", CreateNoteDto(title = "t")),
+                PendingOp.SetReminder("local-1", SetNoteReminderDto("2026-07-20T08:00:00Z")),
+            ),
+            PendingOp.ClearReminder("local-1"),
+        )
+
+        assertTrue(ops.single() is PendingOp.Create) // the set is dropped, no clear is queued
+    }
+
     // ---- visibleNotes ----
 
     @Test
@@ -208,6 +265,8 @@ class OfflineOpsTest {
             PendingOp.Update("n1", UpdateNoteDto(type = NoteTypes.TEXT, body = "b")),
             PendingOp.SetState("n1", NoteStateDto(isTrashed = true)),
             PendingOp.SetLists("n1", listOf("a", "b")),
+            PendingOp.SetReminder("n1", SetNoteReminderDto("2026-07-20T08:00:00Z", ReminderRecurrences.DAILY)),
+            PendingOp.ClearReminder("n3"),
             PendingOp.Delete("n2"),
         )
         val decoded = json.decodeFromString<List<PendingOp>>(json.encodeToString(ops))

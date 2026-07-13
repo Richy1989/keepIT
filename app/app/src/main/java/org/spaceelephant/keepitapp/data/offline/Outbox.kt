@@ -48,6 +48,8 @@ class Outbox(private val store: LocalStore) {
                 is PendingOp.Update -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.SetState -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.SetLists -> if (op.noteId == tempId) op.copy(noteId = realId) else op
+                is PendingOp.SetReminder -> if (op.noteId == tempId) op.copy(noteId = realId) else op
+                is PendingOp.ClearReminder -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.Delete -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.Create -> op
             }
@@ -74,6 +76,9 @@ class Outbox(private val store: LocalStore) {
  *   doesn't exist server-side yet, so one POST carries the final content. Otherwise they replace
  *   any earlier op of the same kind for the note (absolute payloads: only the last matters).
  * - **SetState** merges field-wise into an earlier queued SetState (non-null flags overwrite).
+ * - **SetReminder / ClearReminder** are a last-wins pair: either replaces any earlier reminder op
+ *   for the note. A Clear against a note that only exists locally queues nothing (the server never
+ *   had a reminder to clear); a Set stays queued behind the Create and is remapped with it.
  * - **Delete** of a queued Create annihilates every op for that note — nothing is ever sent.
  *   Deleting an existing note drops its queued edits (the server purge makes them moot).
  *
@@ -128,6 +133,14 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
             } else {
                 ops + incoming
             }
+        }
+
+        is PendingOp.SetReminder, is PendingOp.ClearReminder -> {
+            val remaining = ops.filterNot {
+                (it is PendingOp.SetReminder || it is PendingOp.ClearReminder) && it.targetId == id
+            }
+            if (incoming is PendingOp.ClearReminder && pendingCreate != null) remaining
+            else remaining + incoming
         }
 
         is PendingOp.Delete -> {

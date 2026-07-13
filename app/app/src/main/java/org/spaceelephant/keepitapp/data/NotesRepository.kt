@@ -72,6 +72,9 @@ class NotesRepository(
 
     /** Every note the user can see, across active/archive/trash — pending local edits applied. */
     private val cache = MutableStateFlow<List<NoteDto>>(emptyList())
+
+    /** The unfiltered cache, read-only — the reminder scheduler derives its alarms from this. */
+    val allNotes: StateFlow<List<NoteDto>> get() = cache
     private val cachedLists = MutableStateFlow<List<ListDto>>(emptyList())
 
     /** Which user the on-disk cache belongs to; a different sign-in wipes it. */
@@ -170,6 +173,12 @@ class NotesRepository(
 
     suspend fun setLists(id: String, listIds: List<String>) =
         mutate(PendingOp.SetLists(resolve(id), listIds, enqueuedAtUtc = nowUtc()))
+
+    suspend fun setReminder(id: String, dto: SetNoteReminderDto) =
+        mutate(PendingOp.SetReminder(resolve(id), dto, enqueuedAtUtc = nowUtc()))
+
+    suspend fun clearReminder(id: String) =
+        mutate(PendingOp.ClearReminder(resolve(id), enqueuedAtUtc = nowUtc()))
 
     suspend fun delete(id: String) =
         mutate(PendingOp.Delete(resolve(id), enqueuedAtUtc = nowUtc()))

@@ -88,6 +88,8 @@ class SyncEngine(
                     is PendingOp.Update -> client.api.updateNote(op.noteId, op.dto)
                     is PendingOp.SetState -> client.api.setNoteState(op.noteId, op.state)
                     is PendingOp.SetLists -> client.api.setNoteLists(op.noteId, SetNoteListsDto(op.listIds))
+                    is PendingOp.SetReminder -> client.api.setReminder(op.noteId, op.dto)
+                    is PendingOp.ClearReminder -> client.api.clearReminder(op.noteId)
                     is PendingOp.Delete -> client.api.deleteNote(op.noteId)
                 }
                 outbox.removeFirst(op.opId)
@@ -142,6 +144,8 @@ class SyncEngine(
             is PendingOp.Update -> "an edit"
             is PendingOp.SetState -> "a note change"
             is PendingOp.SetLists -> "a list change"
+            is PendingOp.SetReminder -> "a reminder"
+            is PendingOp.ClearReminder -> "a reminder change"
             is PendingOp.Delete -> "a deletion"
         }
         val why = when (code) {

@@ -20,7 +20,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +57,7 @@ private const val MAX_PREVIEW_ITEMS = 6
 fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
     val scope = rememberCoroutineScope()
     val swatch = noteSwatch(note.color)
+    var showReminder by remember { mutableStateOf(false) }
 
     Surface(
         color = swatch.bg,
@@ -139,6 +144,15 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
 
                 Spacer(modifier = Modifier.weight(1f))
 
+                // Reminders are per-user, so viewers get this too — hidden only in the trash.
+                if (!note.isTrashed) {
+                    ReminderChip(
+                        note = note,
+                        onClick = { showReminder = true },
+                        modifier = Modifier.padding(end = 6.dp),
+                    )
+                }
+
                 ShareBadge(note)
 
                 Text(
@@ -149,6 +163,15 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
                 )
             }
         }
+    }
+
+    if (showReminder) {
+        ReminderDialog(
+            note = note,
+            onSave = { dto -> scope.launch { repo.setReminder(note.id, dto) } },
+            onClear = { scope.launch { repo.clearReminder(note.id) } },
+            onDismiss = { showReminder = false },
+        )
     }
 }
 

@@ -26,6 +26,7 @@ import org.spaceelephant.keepitapp.data.SessionState
 import org.spaceelephant.keepitapp.ui.auth.LoginScreen
 import org.spaceelephant.keepitapp.ui.notes.EditorScreen
 import org.spaceelephant.keepitapp.ui.notes.NotesScreen
+import org.spaceelephant.keepitapp.ui.settings.SettingsScreen
 
 /** A navigation target requested from outside the app (the home-screen widget). */
 sealed interface Destination {
@@ -107,7 +108,11 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
                 container = container,
                 onOpenNote = { nav.navigate("editor?noteId=$it") },
                 onCompose = { nav.navigate("editor") },
+                onOpenSettings = { nav.navigate("settings") },
             )
+        }
+        composable("settings") {
+            SettingsScreen(onBack = { nav.popBackStack() })
         }
         composable(
             route = "editor?noteId={noteId}",

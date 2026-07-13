@@ -6,6 +6,15 @@
     <!-- Offline mode: detect connectivity returning to replay queued changes. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Native notifications: runtime-granted on 13+; requested contextually (first reminder set)
+         and manageable in the in-app Settings screen. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Reminders fire via AlarmManager so they work offline / app closed. Exact timing is special
+         app access the user grants in Settings; without it alarms fall back to a ~10-min window. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Alarms don't survive a reboot — re-arm from the persisted reminder snapshot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- networkSecurityConfig: trusts user-installed CAs (self-hosted self-signed / private-CA certs)
          on top of the system store, and permits cleartext for LAN / emulator http. See the config. -->
     <application
@@ -34,6 +43,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Fires due note reminders as native notifications (AlarmManager target). -->
+        <receiver
+            android:name=".notifications.ReminderAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Re-arms the reminder alarm after events that silently drop it: reboot, app update, and
+             the exact-alarm grant (system broadcasts reach non-exported receivers). -->
+        <receiver
+            android:name=".notifications.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Home-screen widget: recent notes + quick-add (Glance). -->
         <receiver

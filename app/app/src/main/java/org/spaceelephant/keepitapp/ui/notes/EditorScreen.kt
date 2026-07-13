@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Code
@@ -134,6 +135,7 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
     val items = remember { mutableStateListOf<EditableItem>() }
     var listIds by remember { mutableStateOf(setOf<String>()) }
     var showColors by remember { mutableStateOf(false) }
+    var showReminder by remember { mutableStateOf(false) }
     // The row whose text field should grab focus next (a just-added checklist item).
     var focusTargetLocalId by remember { mutableStateOf<Long?>(null) }
 
@@ -354,6 +356,17 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
                                 )
                             }
                         }
+                        // Reminders are per-user (read access suffices) — existing notes only,
+                        // since a reminder needs a note id to attach to.
+                        if (current != null && !current.isTrashed) {
+                            IconButton(onClick = { showReminder = true }) {
+                                Icon(
+                                    Icons.Filled.Alarm,
+                                    contentDescription = "Remind me",
+                                    tint = if (current.remindAtUtc != null) KeepItColors.Accent else KeepItColors.TextMuted,
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.weight(1f))
                         // Move to trash / restore — right-aligned action, like the web card's trash tool.
                         if (current != null) {
@@ -394,6 +407,13 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
                         text = if (n.canEdit) "Shared with you — you can edit" else "Shared with you — view only",
                         color = KeepItColors.TextFaint,
                         fontSize = 12.sp,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
+                if (n.remindAtUtc != null) {
+                    ReminderChip(
+                        note = n,
+                        onClick = { showReminder = true },
                         modifier = Modifier.padding(bottom = 6.dp),
                     )
                 }
@@ -546,6 +566,28 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.size(48.dp))
+        }
+    }
+
+    // Reminder picker — applies immediately (per-user state, independent of save-on-close).
+    note?.let { current ->
+        if (showReminder) {
+            ReminderDialog(
+                note = current,
+                onSave = { dto ->
+                    scope.launch {
+                        repo.setReminder(current.id, dto)
+                        note = repo.noteById(current.id) ?: current
+                    }
+                },
+                onClear = {
+                    scope.launch {
+                        repo.clearReminder(current.id)
+                        note = repo.noteById(current.id) ?: current
+                    }
+                },
+                onDismiss = { showReminder = false },
+            )
         }
     }
 }

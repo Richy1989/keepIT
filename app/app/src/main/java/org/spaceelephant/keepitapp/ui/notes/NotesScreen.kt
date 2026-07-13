@@ -80,6 +80,7 @@ fun NotesScreen(
     container: AppContainer,
     onOpenNote: (String) -> Unit,
     onCompose: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val repo = container.notesRepo
     val scope = rememberCoroutineScope()
@@ -170,6 +171,18 @@ fun NotesScreen(
                         )
                     }
                 }
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = KeepItColors.BorderSubtle,
+                )
+                NavigationDrawerItem(
+                    label = { Text("Settings") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onOpenSettings()
+                    },
+                )
             }
         },
     ) {

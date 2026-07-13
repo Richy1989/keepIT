@@ -4,6 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.spaceelephant.keepitapp.data.CreateNoteDto
 import org.spaceelephant.keepitapp.data.NoteStateDto
+import org.spaceelephant.keepitapp.data.SetNoteReminderDto
 import org.spaceelephant.keepitapp.data.UpdateNoteDto
 import java.util.UUID
 
@@ -29,6 +30,8 @@ sealed class PendingOp {
             is Update -> noteId
             is SetState -> noteId
             is SetLists -> noteId
+            is SetReminder -> noteId
+            is ClearReminder -> noteId
             is Delete -> noteId
         }
 
@@ -64,6 +67,23 @@ sealed class PendingOp {
     data class SetLists(
         val noteId: String,
         val listIds: List<String>,
+        override val opId: String = newOpId(),
+        override val enqueuedAtUtc: String = "",
+    ) : PendingOp()
+
+    @Serializable
+    @SerialName("setReminder")
+    data class SetReminder(
+        val noteId: String,
+        val dto: SetNoteReminderDto,
+        override val opId: String = newOpId(),
+        override val enqueuedAtUtc: String = "",
+    ) : PendingOp()
+
+    @Serializable
+    @SerialName("clearReminder")
+    data class ClearReminder(
+        val noteId: String,
         override val opId: String = newOpId(),
         override val enqueuedAtUtc: String = "",
     ) : PendingOp()

@@ -22,6 +22,22 @@ object NoteRoles {
     const val EDITOR = "Editor"
 }
 
+/** `ReminderRecurrence` values as sent on the wire. */
+object ReminderRecurrences {
+    const val NONE = "None"
+    const val DAILY = "Daily"
+    const val WEEKLY = "Weekly"
+    const val MONTHLY = "Monthly"
+    const val YEARLY = "Yearly"
+}
+
+/** `NotificationType` values as sent on the wire. */
+object NotificationTypes {
+    const val SYSTEM = "System"
+    const val SHARE_INVITE = "ShareInvite"
+    const val REMINDER = "Reminder"
+}
+
 @Serializable
 data class UserDto(
     val id: String,
@@ -64,6 +80,12 @@ data class NoteDto(
     val isPinned: Boolean = false,
     val isArchived: Boolean = false,
     val isTrashed: Boolean = false,
+    /** The caller's reminder on this note (per-user, like the flags above). Null = none set. */
+    val remindAtUtc: String? = null,
+    /** The reminder's recurrence ([ReminderRecurrences]); null when no reminder is set. */
+    val reminderRecurrence: String? = null,
+    /** True when a one-time reminder has already fired (renders as past until cleared or rescheduled). */
+    val reminderFired: Boolean = false,
     val createdAtUtc: String = "",
     val updatedAtUtc: String = "",
     val isOwner: Boolean = true,
@@ -102,6 +124,39 @@ data class NoteStateDto(
 
 @Serializable
 data class SetNoteListsDto(val listIds: List<String>)
+
+/**
+ * Sets (or replaces) the caller's reminder on a note. `remindAtUtc` is an ISO-8601 UTC instant; a
+ * past value is allowed — the server's dispatcher fires it on its next tick.
+ */
+@Serializable
+data class SetNoteReminderDto(
+    val remindAtUtc: String,
+    val recurrence: String = ReminderRecurrences.NONE,
+)
+
+/**
+ * A server-created notification from the caller's inbox (`GET api/notifications`) — the flat shape
+ * with a [NotificationTypes] discriminator plus the superset of subtype fields (null when they
+ * don't apply). The app surfaces active ones as native Android notifications.
+ */
+@Serializable
+data class UserNotificationDto(
+    val id: String? = null,
+    val type: String = NotificationTypes.SYSTEM,
+    val notificationText: String = "",
+    val severity: String = "",
+    val isActive: Boolean = true,
+    val createdAtUtc: String = "",
+    // ShareInvite-only fields.
+    val sharedNoteId: String? = null,
+    val sharedNoteTitle: String? = null,
+    val sharedByUserEmail: String? = null,
+    val role: String? = null,
+    // Reminder-only fields.
+    val reminderNoteId: String? = null,
+    val reminderNoteTitle: String? = null,
+)
 
 @Serializable
 data class ListDto(

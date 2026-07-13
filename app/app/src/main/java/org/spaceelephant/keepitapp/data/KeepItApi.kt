@@ -59,8 +59,22 @@ interface KeepItApi {
     @DELETE("api/notes/{id}")
     suspend fun deleteNote(@Path("id") id: String)
 
+    /** Sets (or replaces) the caller's per-user reminder — read access suffices, viewers included. */
+    @PUT("api/notes/{id}/reminder")
+    suspend fun setReminder(@Path("id") id: String, @Body body: SetNoteReminderDto): NoteDto
+
+    /** Clears the caller's reminder (idempotent — 200 even if none was set). */
+    @DELETE("api/notes/{id}/reminder")
+    suspend fun clearReminder(@Path("id") id: String): NoteDto
+
     // ---- lists ----
 
     @GET("api/lists")
     suspend fun lists(): List<ListDto>
+
+    // ---- notifications ----
+
+    /** The caller's notification inbox, newest first — surfaced as native Android notifications. */
+    @GET("api/notifications")
+    suspend fun notifications(): List<UserNotificationDto>
 }
