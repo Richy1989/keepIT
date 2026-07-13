@@ -2,10 +2,13 @@ import { useState, type ReactNode } from 'react';
 import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
 import { noteColor } from './palette';
+import { ReminderChip } from './ReminderChip';
+import { ReminderMenu } from './ReminderMenu';
 import { ColorPicker } from '../../components/ColorPicker';
 import {
   ArchiveIcon,
   CheckIcon,
+  ClockIcon,
   EyeIcon,
   PaletteIcon,
   PencilIcon,
@@ -41,6 +44,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
   const update = useUpdateNote();
   const del = useDeleteNote();
   const [showColors, setShowColors] = useState(false);
+  const [showReminder, setShowReminder] = useState(false);
   const swatch = noteColor(note.color);
 
   const checkedItems = note.checklistItems.filter((i) => i.isChecked).length;
@@ -145,6 +149,9 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         </div>
       )}
 
+      {/* Reminder popover. */}
+      {showReminder && <ReminderMenu note={note} onClose={() => setShowReminder(false)} />}
+
       {/* Footer: hover toolbar (left) + always-visible timestamp (right). */}
       <div className="mt-3 flex items-center gap-1">
         <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100 touch:opacity-100">
@@ -170,6 +177,10 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
                 <PaletteIcon className="text-base" />
               </CardTool>
             )}
+            {/* Reminders are per-user, so viewers get this too — no canEdit gate. */}
+            <CardTool label="Remind me" onClick={() => setShowReminder((s) => !s)}>
+              <ClockIcon className="text-base" />
+            </CardTool>
             <CardTool
               label={note.isArchived ? 'Unarchive' : 'Archive'}
               onClick={() => setState.mutate({ id: note.id, state: { isArchived: !note.isArchived } })}
@@ -186,6 +197,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         )}
         </div>
         <div className="ml-auto flex items-center gap-1.5">
+          {!note.isTrashed && <ReminderChip note={note} onClick={() => setShowReminder(true)} />}
           <ShareBadge note={note} />
           {note.createdAtUtc && (
             <time className="text-xs text-text-faint" dateTime={note.createdAtUtc}>

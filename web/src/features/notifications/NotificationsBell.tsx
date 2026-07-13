@@ -121,6 +121,26 @@ function NotificationRow({ notification: n }: { notification: UserNotificationDt
     );
   }
 
+  if (n.type === 'Reminder') {
+    return (
+      <div className="flex items-start gap-2.5 px-3 py-3">
+        <SeverityDot severity={n.severity} />
+        <p className="min-w-0 flex-1 text-sm text-text">
+          Reminder: <span className="font-medium">{n.reminderNoteTitle || 'a note'}</span>
+        </p>
+        <button
+          type="button"
+          aria-label="Dismiss"
+          disabled={busy || !n.id}
+          onClick={() => n.id && dismiss.mutate(n.id)}
+          className="focus-ring -mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-text-faint transition hover:bg-black/20 hover:text-text disabled:opacity-50"
+        >
+          <XIcon className="text-sm" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start gap-2.5 px-3 py-3">
       <SeverityDot severity={n.severity} />

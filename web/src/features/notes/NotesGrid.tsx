@@ -16,6 +16,7 @@ function matchesSearch(n: NoteDto, q: string): boolean {
 
 const EMPTY_COPY: Record<NotesFilter['view'], { title: string; hint: string }> = {
   active: { title: 'Notes you add appear here', hint: 'Use the box above to capture your first note.' },
+  reminders: { title: 'No reminders set', hint: 'Add one from a note’s clock icon and it will show up here.' },
   archived: { title: 'No archived notes', hint: 'Archived notes are kept here, out of your way.' },
   trashed: { title: 'Trash is empty', hint: 'Notes you delete land here before being purged.' },
 };

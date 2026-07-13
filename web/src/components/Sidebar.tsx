@@ -6,7 +6,7 @@ import {
   useUpdateList,
 } from '../features/lists/queries';
 import type { NotesView } from '../features/notes/queries';
-import { ArchiveIcon, ListIcon, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons';
+import { ArchiveIcon, ClockIcon, ListIcon, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons';
 import { cn } from '../lib/cn';
 
 /** What the grid is currently showing: a view plus an optional single-list filter. */
@@ -89,6 +89,12 @@ export function Sidebar({
         label="Notes"
         active={selection.view === 'active' && selection.listId === null}
         onClick={() => onSelect({ view: 'active', listId: null })}
+      />
+      <NavItem
+        icon={<ClockIcon className="text-lg" />}
+        label="Reminders"
+        active={selection.view === 'reminders'}
+        onClick={() => onSelect({ view: 'reminders', listId: null })}
       />
 
       <div className="mt-4 mb-1 flex items-center justify-between px-3">

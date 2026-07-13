@@ -21,6 +21,15 @@ public class NoteDto
     public bool IsArchived { get; set; }
     public bool IsTrashed { get; set; }
 
+    /// <summary>The caller's reminder on this note (per-user, like the flags above). Null = none set.</summary>
+    public DateTime? RemindAtUtc { get; set; }
+
+    /// <summary>The reminder's recurrence; null when no reminder is set.</summary>
+    public ReminderRecurrence? ReminderRecurrence { get; set; }
+
+    /// <summary>True when a one-time reminder has already fired (renders as past until cleared or rescheduled).</summary>
+    public bool ReminderFired { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 

@@ -6,10 +6,16 @@ import {
 } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { LISTS_KEY } from '../lists/queries';
-import type { CreateNoteDto, NoteDto, NoteStateDto, UpdateNoteDto } from '../../api/types';
+import type {
+  CreateNoteDto,
+  NoteDto,
+  NoteStateDto,
+  SetNoteReminderDto,
+  UpdateNoteDto,
+} from '../../api/types';
 
 /** Which slice of notes the grid is showing. */
-export type NotesView = 'active' | 'archived' | 'trashed';
+export type NotesView = 'active' | 'archived' | 'trashed' | 'reminders';
 
 /** The grid's current filter — a view plus an optional set of list ids (union). */
 export interface NotesFilter {
@@ -23,14 +29,24 @@ export const NOTES_KEY = 'notes';
 export const notesQueryKey = (f: NotesFilter) =>
   [NOTES_KEY, f.view, [...f.listIds].sort()] as const;
 
-/** Pinned first, then most recently updated — matches the server ordering. */
-function sortNotes(a: NoteDto, b: NoteDto): number {
-  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-  return b.updatedAtUtc.localeCompare(a.updatedAtUtc);
+/**
+ * The sort comparator for a view — matches the server ordering: the reminders view is soonest-due
+ * first (pins ignored); everything else is pinned first, then most recently updated.
+ */
+function sortNotesFor(view: NotesView): (a: NoteDto, b: NoteDto) => number {
+  if (view === 'reminders') {
+    return (a, b) => (a.remindAtUtc ?? '').localeCompare(b.remindAtUtc ?? '');
+  }
+  return (a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+    return b.updatedAtUtc.localeCompare(a.updatedAtUtc);
+  };
 }
 
 /** Whether a note belongs in a cache identified by (view, listIds). Drives optimistic placement. */
 function belongsToView(n: NoteDto, view: NotesView, listIds: string[]): boolean {
+  // Reminders spans active and archived (like Keep), never trash.
+  if (view === 'reminders') return n.remindAtUtc != null && !n.isTrashed;
   if (view === 'trashed') return n.isTrashed;
   if (n.isTrashed) return false;
   if (view === 'archived') return n.isArchived;
@@ -50,7 +66,7 @@ function reconcileNote(qc: QueryClient, noteId: string, patched: NoteDto | null)
     const listIds = (key[2] as string[]) ?? [];
     let next = data.filter((n) => n.id !== noteId);
     if (patched && belongsToView(patched, view, listIds)) {
-      next = [...next, patched].sort(sortNotes);
+      next = [...next, patched].sort(sortNotesFor(view));
     }
     qc.setQueryData(key, next);
   }
@@ -82,6 +98,7 @@ export function useNotes(filter: NotesFilter) {
           query: {
             archived: filter.view === 'archived',
             trashed: filter.view === 'trashed',
+            reminders: filter.view === 'reminders',
             listId: filter.listIds.length ? filter.listIds : undefined,
           },
         },
@@ -125,6 +142,9 @@ export function useCreateNote() {
         isPinned: false,
         isArchived: false,
         isTrashed: false,
+        remindAtUtc: null,
+        reminderRecurrence: null,
+        reminderFired: false,
         createdAtUtc: now,
         updatedAtUtc: now,
         // A freshly created note is owned by the caller with full access, shared with no one.
@@ -211,6 +231,43 @@ export function useSetNoteState() {
           isArchived: state.isArchived ?? current.isArchived,
           isTrashed: state.isTrashed ?? current.isTrashed,
           updatedAtUtc: new Date().toISOString(),
+        });
+      }
+      return { snapshot };
+    },
+    onError: (_e, _v, ctx) => ctx && restoreNotes(qc, ctx.snapshot),
+    onSettled: () => invalidateAfter(qc),
+  });
+}
+
+/**
+ * Sets (pass a reminder) or clears (pass null) the caller's private reminder on a note, reflected
+ * instantly. Per-user like pin/archive — never bumps `updatedAtUtc` or touches shared content.
+ */
+export function useSetNoteReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reminder }: { id: string; reminder: SetNoteReminderDto | null }) => {
+      const { data, error } =
+        reminder === null
+          ? await api.DELETE('/api/notes/{id}/reminder', { params: { path: { id } } })
+          : await api.PUT('/api/notes/{id}/reminder', { params: { path: { id } }, body: reminder });
+      if (error || !data) throw new Error('Failed to update reminder.');
+      return data;
+    },
+    onMutate: async ({ id, reminder }) => {
+      await qc.cancelQueries({ queryKey: [NOTES_KEY] });
+      const snapshot = snapshotNotes(qc);
+      const current = qc
+        .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
+        .flatMap(([, data]) => data ?? [])
+        .find((n) => n.id === id);
+      if (current) {
+        reconcileNote(qc, id, {
+          ...current,
+          remindAtUtc: reminder?.remindAtUtc ?? null,
+          reminderRecurrence: reminder ? (reminder.recurrence ?? 'None') : null,
+          reminderFired: false, // set/reschedule resets the fired state; cleared has none
         });
       }
       return { snapshot };

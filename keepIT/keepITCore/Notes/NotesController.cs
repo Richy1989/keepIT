@@ -47,12 +47,15 @@ public class NotesController : ControllerBase
     /// <param name="listIds">Optional list ids to filter by (repeatable: <c>?listId=…&amp;listId=…</c>).</param>
     /// <param name="archived">When true, return the caller's archived notes instead of the active grid.</param>
     /// <param name="trashed">When true, return the caller's trashed notes (overrides <paramref name="archived"/>).</param>
+    /// <param name="reminders">When true, return the caller's notes with a reminder set (active and
+    /// archived, never trashed), soonest first (overrides the other view flags).</param>
     /// <returns>200 with the matching notes.</returns>
     [HttpGet]
     public async Task<ActionResult<List<NoteDto>>> GetNotes(
         [FromQuery(Name = "listId")] Guid[]? listIds,
         [FromQuery] bool archived = false,
-        [FromQuery] bool trashed = false)
+        [FromQuery] bool trashed = false,
+        [FromQuery] bool reminders = false)
     {
         var callerId = User.GetUserId();
         if (callerId is null) return Unauthorized();
@@ -61,9 +64,12 @@ public class NotesController : ControllerBase
         // their grid (owned or accepted-share), and it carries their private pin/archive/trash view.
         var query = _db.NoteUserStates.AsNoTracking().Where(us => us.UserId == callerId);
 
-        query = trashed
-            ? query.Where(us => us.IsTrashed)
-            : query.Where(us => !us.IsTrashed && us.IsArchived == archived);
+        query = reminders
+            // The reminders view spans active *and* archived (like Keep), but never trash.
+            ? query.Where(us => !us.IsTrashed && us.Note.Reminders.Any(r => r.UserId == us.UserId))
+            : trashed
+                ? query.Where(us => us.IsTrashed)
+                : query.Where(us => !us.IsTrashed && us.IsArchived == archived);
 
         if (listIds is { Length: > 0 })
             query = query.Where(us => us.Note.NoteLists.Any(nl => nl.UserId == callerId && listIds.Contains(nl.ListId)));
@@ -72,9 +78,16 @@ public class NotesController : ControllerBase
             .Include(us => us.Note).ThenInclude(n => n.ChecklistItems)
             .Include(us => us.Note).ThenInclude(n => n.NoteLists.Where(nl => nl.UserId == callerId))
             .Include(us => us.Note).ThenInclude(n => n.NoteShares)
+            .Include(us => us.Note).ThenInclude(n => n.Reminders.Where(r => r.UserId == callerId))
             .OrderByDescending(us => us.IsPinned)
             .ThenByDescending(us => us.Note.UpdatedAtUtc)
             .ToListAsync();
+
+        // The reminders view sorts by what's due next, ignoring pins (small result set, in-memory).
+        if (reminders)
+            states = states
+                .OrderBy(us => us.Note.Reminders.FirstOrDefault()?.RemindAtUtc ?? DateTime.MaxValue)
+                .ToList();
 
         return Ok(states.Select(us => ToDto(us.Note, us, callerId.Value)).ToList());
     }
@@ -229,6 +242,69 @@ public class NotesController : ControllerBase
         return Ok((await LoadDtoAsync(id, callerId.Value))!);
     }
 
+    /// <summary>
+    /// Sets (or replaces) the caller's <em>private</em> reminder on a note. Like pin/archive/trash
+    /// this is per-user — read access suffices (viewers set their own), and no other collaborator
+    /// sees it. Rescheduling always resets the fired state.
+    /// </summary>
+    /// <param name="id">The note id.</param>
+    /// <param name="dto">When to remind (UTC) and how often to repeat.</param>
+    /// <returns>200 with the updated note, or 404 if the caller has no access.</returns>
+    [HttpPut("{id:guid}/reminder")]
+    public async Task<ActionResult<NoteDto>> SetReminder(Guid id, SetNoteReminderDto dto)
+    {
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
+
+        var access = await _access.ResolveAsync(id, callerId.Value);
+        if (access is null) return NotFound();
+
+        var reminder = await _db.NoteReminders.FirstOrDefaultAsync(r => r.NoteId == id && r.UserId == callerId);
+        if (reminder is null)
+        {
+            reminder = new NoteReminder { NoteId = id, UserId = callerId.Value };
+            _db.NoteReminders.Add(reminder);
+        }
+
+        // JSON binding can yield a Local or Unspecified Kind; Npgsql requires Utc for timestamptz.
+        reminder.RemindAtUtc = dto.RemindAtUtc.Kind switch
+        {
+            DateTimeKind.Utc => dto.RemindAtUtc,
+            DateTimeKind.Local => dto.RemindAtUtc.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dto.RemindAtUtc, DateTimeKind.Utc),
+        };
+        reminder.Recurrence = dto.Recurrence;
+        reminder.FiredAtUtc = null;
+
+        await _db.SaveChangesAsync();
+        // Per-user state: only the caller's own devices need to resync.
+        await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notes);
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
+    }
+
+    /// <summary>Clears the caller's reminder on a note (idempotent — 200 even if none was set).</summary>
+    /// <param name="id">The note id.</param>
+    /// <returns>200 with the updated note, or 404 if the caller has no access.</returns>
+    [HttpDelete("{id:guid}/reminder")]
+    public async Task<ActionResult<NoteDto>> ClearReminder(Guid id)
+    {
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
+
+        var access = await _access.ResolveAsync(id, callerId.Value);
+        if (access is null) return NotFound();
+
+        var reminder = await _db.NoteReminders.FirstOrDefaultAsync(r => r.NoteId == id && r.UserId == callerId);
+        if (reminder is not null)
+        {
+            _db.NoteReminders.Remove(reminder);
+            await _db.SaveChangesAsync();
+            await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notes);
+        }
+
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
+    }
+
     /// <summary>Replaces the set of the caller's lists this note belongs to (private to the caller).</summary>
     /// <param name="id">The note id.</param>
     /// <param name="dto">The complete new set of list ids (only the caller's own lists are honored).</param>
@@ -311,6 +387,7 @@ public class NotesController : ControllerBase
             .Include(n => n.ChecklistItems)
             .Include(n => n.NoteLists.Where(nl => nl.UserId == callerId))
             .Include(n => n.NoteShares)
+            .Include(n => n.Reminders.Where(r => r.UserId == callerId))
             .FirstOrDefaultAsync();
 
         if (note is null) return null;
@@ -358,6 +435,7 @@ public class NotesController : ControllerBase
     {
         var isOwner = n.OwnerId == callerId;
         var role = isOwner ? (NoteRole?)null : n.NoteShares.FirstOrDefault(s => s.GranteeId == callerId)?.Role;
+        var reminder = n.Reminders.FirstOrDefault(r => r.UserId == callerId);
 
         return new NoteDto
         {
@@ -369,6 +447,9 @@ public class NotesController : ControllerBase
             IsPinned = state?.IsPinned ?? false,
             IsArchived = state?.IsArchived ?? false,
             IsTrashed = state?.IsTrashed ?? false,
+            RemindAtUtc = reminder?.RemindAtUtc,
+            ReminderRecurrence = reminder?.Recurrence,
+            ReminderFired = reminder?.FiredAtUtc is not null,
             CreatedAtUtc = n.CreatedAtUtc,
             UpdatedAtUtc = n.UpdatedAtUtc,
             IsOwner = isOwner,

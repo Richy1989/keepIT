@@ -40,6 +40,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>Non-owner access grants (who a note is shared with, and at what role).</summary>
     public DbSet<NoteShare> NoteShares => Set<NoteShare>();
 
+    /// <summary>Per-user note reminders (fired by the reminder dispatcher).</summary>
+    public DbSet<NoteReminder> NoteReminders => Set<NoteReminder>();
+
     /// <summary>Per-user user settings.</summary>
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
 
@@ -152,6 +155,28 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        builder.Entity<NoteReminder>(e =>
+        {
+            // One reminder per (note, user); purged with the note.
+            e.HasKey(r => new { r.NoteId, r.UserId });
+            e.HasIndex(r => r.UserId);
+            // The dispatcher's due-scan filters on RemindAtUtc. Plain (unfiltered) index: a filtered
+            // one would need provider-specific SQL, and the SQLite dev DB renders this same model.
+            e.HasIndex(r => r.RemindAtUtc);
+
+            e.HasOne(r => r.Note)
+                .WithMany(n => n.Reminders)
+                .HasForeignKey(r => r.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Real FK to the user (no navigation needed) so deleting an account can't leave
+            // orphaned reminder rows behind.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         builder.Entity<NoteShare>(e =>
         {
             e.HasKey(s => s.Id);
@@ -203,13 +228,19 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             // columns (the ShareInvite fields below) are nullable since they don't apply to every row.
             e.HasDiscriminator(s => s.Type)
                 .HasValue<SystemNotification>(NotificationType.System)
-                .HasValue<ShareInviteNotification>(NotificationType.ShareInvite);
+                .HasValue<ShareInviteNotification>(NotificationType.ShareInvite)
+                .HasValue<ReminderNotification>(NotificationType.Reminder);
         });
 
         builder.Entity<ShareInviteNotification>(e =>
         {
             e.Property(s => s.SharedNoteTitle).HasMaxLength(1000);
             e.Property(s => s.SharedByUserEmail).HasMaxLength(256);
+        });
+
+        builder.Entity<ReminderNotification>(e =>
+        {
+            e.Property(s => s.ReminderNoteTitle).HasMaxLength(1000);
         });
     }
 }

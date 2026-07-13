@@ -213,6 +213,9 @@ public class NoteSharesController : ControllerBase
         // The grantee's private list memberships on this note are theirs alone — drop them too.
         var memberships = await _db.NoteLists.Where(nl => nl.NoteId == noteId && nl.UserId == granteeId).ToListAsync();
         _db.NoteLists.RemoveRange(memberships);
+        // And their private reminder on it — access is gone, so it must never fire.
+        var reminder = await _db.NoteReminders.FirstOrDefaultAsync(r => r.NoteId == noteId && r.UserId == granteeId);
+        if (reminder is not null) _db.NoteReminders.Remove(reminder);
 
         await _db.SaveChangesAsync();
         // Access is gone: the grantee's devices must drop the note from their grid.

@@ -112,6 +112,8 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, SubUserIdProvider>();
 // Lets controllers push change signals to a user's other devices after a mutation.
 builder.Services.AddSingleton<IRealtimeNotifier, RealtimeNotifier>();
+// Fires due note reminders (creates the notification + realtime push).
+builder.Services.AddHostedService<keepITCore.Notes.ReminderDispatcherService>();
 
 var app = builder.Build();
 

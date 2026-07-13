@@ -42,5 +42,13 @@ namespace keepITCore.Notifications.Dtos
 
         /// <summary>The role being offered (viewer/editor). Set only for ShareInvite.</summary>
         public NoteRole? Role { get; set; }
+
+        // ---- Reminder-only fields (null for every other Type) ----
+
+        /// <summary>The note the reminder was set on. Set only when <see cref="Type"/> is Reminder.</summary>
+        public Guid? ReminderNoteId { get; set; }
+
+        /// <summary>The note's title when the reminder fired, for display. Set only for Reminder.</summary>
+        public string? ReminderNoteTitle { get; set; }
     }
 }

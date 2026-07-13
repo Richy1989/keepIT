@@ -44,4 +44,7 @@ public class Note
 
     /// <summary>Non-owner grants of access to this note (see <see cref="NoteShare"/>).</summary>
     public ICollection<NoteShare> NoteShares { get; set; } = new List<NoteShare>();
+
+    /// <summary>Per-user reminders on this note (see <see cref="NoteReminder"/>).</summary>
+    public ICollection<NoteReminder> Reminders { get; set; } = new List<NoteReminder>();
 }

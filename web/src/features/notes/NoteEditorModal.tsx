@@ -5,6 +5,8 @@ import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
 import { Markdown } from './Markdown';
 import { MarkdownToolbar } from './MarkdownToolbar';
+import { ReminderChip } from './ReminderChip';
+import { ReminderMenu } from './ReminderMenu';
 import { ShareDialog } from './ShareDialog';
 import { ColorPicker } from '../../components/ColorPicker';
 import { useLists } from '../lists/queries';
@@ -12,6 +14,7 @@ import { useAuth } from '../../auth/AuthContext';
 import {
   CheckIcon,
   CheckSquareIcon,
+  ClockIcon,
   EyeIcon,
   PaletteIcon,
   PencilIcon,
@@ -59,6 +62,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [color, setColor] = useState(note.color ?? 'default');
   const [listIds, setListIds] = useState<string[]>(note.listIds);
   const [showColors, setShowColors] = useState(false);
+  const [showReminder, setShowReminder] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [preview, setPreview] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -214,6 +218,9 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               <ColorPicker value={color} onPick={setColor} />
             </div>
           )}
+
+          {/* Applies instantly (like pin) — independent of the editor's save-on-close diff. */}
+          {showReminder && <ReminderMenu note={note} onClose={() => setShowReminder(false)} />}
         </div>
 
         <div className="flex items-center justify-between border-t border-black/20 px-4 py-2.5">
@@ -239,11 +246,16 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                 </EditorTool>
               </>
             )}
+            {/* Reminders are per-user, so viewers get this too — no canEdit gate. */}
+            <EditorTool label="Remind me" onClick={() => setShowReminder((s) => !s)}>
+              <ClockIcon className={cn('text-lg', note.remindAtUtc != null && 'text-accent')} />
+            </EditorTool>
             {note.isOwner && (
               <EditorTool label="Share" onClick={() => setShowShare(true)}>
                 <ShareIcon className={cn('text-lg', note.isShared && 'text-accent')} />
               </EditorTool>
             )}
+            <ReminderChip note={note} onClick={() => setShowReminder(true)} />
             {!note.isOwner && (
               <button
                 type="button"

@@ -341,6 +341,35 @@ namespace keepITCore.Data.Migrations
                     b.ToTable("NoteLists");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteReminder", b =>
+                {
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FiredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Recurrence")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("RemindAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("NoteId", "UserId");
+
+                    b.HasIndex("RemindAtUtc");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("NoteReminders");
+                });
+
             modelBuilder.Entity("keepITCore.Data.NoteShare", b =>
                 {
                     b.Property<Guid>("Id")
@@ -499,6 +528,20 @@ namespace keepITCore.Data.Migrations
                     b.ToTable("UserSettings");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.ReminderNotification", b =>
+                {
+                    b.HasBaseType("keepITCore.Data.UserNotification");
+
+                    b.Property<Guid>("ReminderNoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReminderNoteTitle")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasDiscriminator().HasValue(2);
+                });
+
             modelBuilder.Entity("keepITCore.Data.ShareInviteNotification", b =>
                 {
                     b.HasBaseType("keepITCore.Data.UserNotification");
@@ -639,6 +682,23 @@ namespace keepITCore.Data.Migrations
                     b.Navigation("Note");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteReminder", b =>
+                {
+                    b.HasOne("keepITCore.Data.Note", "Note")
+                        .WithMany("Reminders")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("keepITCore.Data.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Note");
+                });
+
             modelBuilder.Entity("keepITCore.Data.NoteShare", b =>
                 {
                     b.HasOne("keepITCore.Data.ApplicationUser", "Grantee")
@@ -725,6 +785,8 @@ namespace keepITCore.Data.Migrations
                     b.Navigation("NoteLists");
 
                     b.Navigation("NoteShares");
+
+                    b.Navigation("Reminders");
 
                     b.Navigation("UserStates");
                 });

@@ -181,6 +181,12 @@ namespace keepITCore.Notifications
                 dto.Role = invite.Role;
             }
 
+            if (s is ReminderNotification reminder)
+            {
+                dto.ReminderNoteId = reminder.ReminderNoteId;
+                dto.ReminderNoteTitle = reminder.ReminderNoteTitle;
+            }
+
             return dto;
         }
     }

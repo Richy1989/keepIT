@@ -301,6 +301,7 @@ export interface paths {
                     listId?: string[];
                     archived?: boolean;
                     trashed?: boolean;
+                    reminders?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -486,6 +487,74 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/notes/{id}/reminder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetNoteReminderDto"];
+                    "text/json": components["schemas"]["SetNoteReminderDto"];
+                    "application/*+json": components["schemas"]["SetNoteReminderDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteDto"];
+                        "application/json": components["schemas"]["NoteDto"];
+                        "text/json": components["schemas"]["NoteDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["NoteDto"];
+                        "application/json": components["schemas"]["NoteDto"];
+                        "text/json": components["schemas"]["NoteDto"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/notes/{id}/lists": {
@@ -1089,6 +1158,10 @@ export interface components {
             isArchived?: boolean;
             isTrashed?: boolean;
             /** Format: date-time */
+            remindAtUtc?: null | string;
+            reminderRecurrence?: null | components["schemas"]["ReminderRecurrence"];
+            reminderFired?: boolean;
+            /** Format: date-time */
             createdAtUtc?: string;
             /** Format: date-time */
             updatedAtUtc?: string;
@@ -1118,14 +1191,21 @@ export interface components {
         /** @enum {unknown} */
         NoteType: "Text" | "Checklist" | "Image";
         /** @enum {unknown} */
-        NotificationType: "System" | "ShareInvite";
+        NotificationType: "System" | "ShareInvite" | "Reminder";
         RegisterRequestDto: {
             email: string;
             password: string;
             displayName?: null | string;
         };
+        /** @enum {unknown} */
+        ReminderRecurrence: "None" | "Daily" | "Weekly" | "Monthly" | "Yearly" | null;
         SetNoteListsDto: {
             listIds?: string[];
+        };
+        SetNoteReminderDto: {
+            /** Format: date-time */
+            remindAtUtc?: string;
+            recurrence?: components["schemas"]["ReminderRecurrence"];
         };
         ShareResponseDto: {
             accept?: boolean;
@@ -1164,6 +1244,9 @@ export interface components {
             sharedNoteTitle?: null | string;
             sharedByUserEmail?: null | string;
             role?: null | components["schemas"]["NoteRole"];
+            /** Format: uuid */
+            reminderNoteId?: null | string;
+            reminderNoteTitle?: null | string;
         };
         UserSettingsDto: {
             /** Format: uuid */
