@@ -13,7 +13,11 @@
 
 </div>
 
-<div align="center"><img src="images/screenshot_1.png" alt="keepIT — masonry grid of notes in the dark web UI" width="800"></div>
+<div align="center">
+  <img src="images/screenshot_1.png" alt="keepIT web app — masonry grid of notes in the dark UI" height="490">
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="images/screenshot_phone.png" alt="keepIT Android app — notes on a phone" height="490">
+</div>
 
 Honestly? I just wanted a simple notes app, and couldn't find one with the three things I
 actually cared about — so I built it myself. With a little AI help 😉, modern problems require modern solutions.
