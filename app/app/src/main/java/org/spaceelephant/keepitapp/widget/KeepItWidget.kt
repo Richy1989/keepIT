@@ -10,6 +10,8 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
@@ -18,11 +20,13 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.ColorFilter
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
@@ -35,6 +39,7 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import org.spaceelephant.keepitapp.MainActivity
 import org.spaceelephant.keepitapp.R
+import org.spaceelephant.keepitapp.appContainer
 import org.spaceelephant.keepitapp.data.NotesRepository
 import org.spaceelephant.keepitapp.data.WidgetNote
 
@@ -54,6 +59,19 @@ class KeepItWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val notes = NotesRepository.readWidgetNotes(context)
         provideContent { WidgetContent(context, notes) }
+    }
+}
+
+/**
+ * The header refresh button. Runs a one-shot sync in the background (no activity launch): the sync
+ * lands in [NotesRepository]'s cache, which re-renders every widget via `updateAll`. Works even
+ * while the app is closed — [org.spaceelephant.keepitapp.data.ApiClient] restores the access token
+ * from the persisted refresh cookie; if the session has truly expired the sync is a no-op and the
+ * widget keeps its last-known notes.
+ */
+class RefreshAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        context.appContainer.syncEngine.sync()
     }
 }
 
@@ -79,15 +97,32 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
         contentAlignment = Alignment.BottomEnd,
     ) {
         Column(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) {
-            Text(
-                text = "keepIT",
+            // Header: title on the left, a refresh control on the right. The refresh runs a
+            // background ActionCallback (no activity launch) so tapping it pulls fresh notes and
+            // re-renders the widget in place — the header/body are otherwise not tappable, so this
+            // is the only way to update without opening a note.
+            Row(
                 modifier = GlanceModifier.fillMaxWidth(),
-                style = TextStyle(
-                    color = ColorProvider(Accent),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "keepIT",
+                    modifier = GlanceModifier.defaultWeight(),
+                    style = TextStyle(
+                        color = ColorProvider(Accent),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+                Image(
+                    provider = ImageProvider(R.drawable.ic_refresh),
+                    contentDescription = "Refresh notes",
+                    colorFilter = ColorFilter.tint(ColorProvider(TextMuted)),
+                    modifier = GlanceModifier
+                        .size(20.dp)
+                        .clickable(actionRunCallback<RefreshAction>()),
+                )
+            }
             Spacer(modifier = GlanceModifier.height(8.dp))
 
             if (notes.isEmpty()) {
