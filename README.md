@@ -10,7 +10,6 @@
 [![Android](https://img.shields.io/badge/Android-app-3DDC84?logo=android&logoColor=white)](#the-android-app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 ![Status](https://img.shields.io/badge/status-work_in_progress-yellow)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/spaceelephant)
 
 </div>
 
@@ -30,6 +29,8 @@ The features I really wanted:
 - a native Android app, including a home-screen widget
 
 It has since grown into a blazing-fast app with optimistic editing, lists, search, sharing, and **real-time sync** — so a note edited on one device shows up on your others without a refresh. I'm really happy with how this turned out.
+
+[<img src="https://camo.githubusercontent.com/0cf29a542375e1a46e84d8bf5805a4e5c0a6ee98b6547ccdc0c55eed49d99c69/68747470733a2f2f63646e2e6275796d6561636f666665652e636f6d2f627574746f6e732f76322f64656661756c742d79656c6c6f772e706e67" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/spaceelephant)
 
 > **Status:** work in progress.
 
