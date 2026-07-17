@@ -68,6 +68,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           # VERSION_NAME / VERSION_CODE are read from $GITHUB_ENV set above.
         run: |
+          chmod +x ./gradlew   # git tracks the exec bit, but keep this as a Windows-edit safety net
           ./gradlew :app:assembleRelease --no-daemon
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/keepit-${GITHUB_REF_NAME}.apk"
 
