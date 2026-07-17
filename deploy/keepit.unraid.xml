@@ -66,6 +66,41 @@
     </Variable>
     <Variable>
       <Value></Value>
+      <Name>App__PublicBaseUrl</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>Email__SmtpHost</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>Email__From</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>Email__SmtpUsername</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
+      <Name>Email__SmtpPassword</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>587</Value>
+      <Name>Email__SmtpPort</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value>true</Value>
+      <Name>Email__UseStartTls</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
+      <Value></Value>
       <Name>POSTGRES_HOST</Name>
       <Mode/>
     </Variable>
@@ -97,6 +132,13 @@
   <Config Name="Refresh Cookie Secure" Target="Auth__RefreshCookie__Secure" Default="false" Description="Keep false when accessing over plain http. Set true only when keepIT is served over https (e.g. behind a reverse proxy with TLS)." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
   <Config Name="Proxy Hops" Target="App__ForwardedProxyHops" Default="1" Description="Number of reverse-proxy hops in front of the API. This image already contains one nginx hop, so: 1 = you reach keepIT directly (browser → this container); 2 = another reverse proxy such as Traefik sits in front (Traefik → nginx → api). Must be exact: too low and all clients share one rate-limit bucket; too high and clients can spoof their IP." Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
   <Config Name="Allow Registration" Target="App__AllowRegistration" Default="true" Description="Whether new accounts may be created. If keepIT is reachable from the internet, register your own accounts first and then set this to false so strangers cannot sign up. Existing users keep working." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Public Base URL" Target="App__PublicBaseUrl" Default="" Description="Optional. Public address of your instance (e.g. https://notes.example.com), used to build password-reset links in emails. Usually auto-detected from the request; set it only if reset links point to the wrong host." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP Host" Target="Email__SmtpHost" Default="" Description="Optional. SMTP server for outgoing email (password-reset links). LEAVE EMPTY to run without email — reset links then land in the container log instead. Setting this is the switch that enables email delivery (then also set From)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP From" Target="Email__From" Default="" Description="From address for outgoing email, e.g. keepIT &lt;no-reply@example.com&gt;. Required once SMTP Host is set; ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP Username" Target="Email__SmtpUsername" Default="" Description="Optional SMTP login username. Leave empty (with SMTP Password) for an unauthenticated relay. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP Password" Target="Email__SmtpPassword" Default="" Description="Optional SMTP login password, paired with SMTP Username. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="SMTP Port" Target="Email__SmtpPort" Default="587" Description="SMTP port — 587 for STARTTLS submission (default), 465 for implicit TLS (set Use STARTTLS to false too). Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false">587</Config>
+  <Config Name="Use STARTTLS" Target="Email__UseStartTls" Default="true" Description="true = STARTTLS on port 587 (default); false = implicit TLS on port 465. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
   <Config Name="Postgres Host" Target="POSTGRES_HOST" Default="" Description="Optional. LEAVE EMPTY to use the built-in SQLite database (recommended for testing). This field is the switch: empty = SQLite, filled = Postgres. Set it to your Postgres host/container to switch databases (then also set Postgres Password)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Postgres Port" Target="POSTGRES_PORT" Default="" Description="Optional Postgres port (defaults to 5432 if empty). Ignored while Postgres Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Postgres Database" Target="POSTGRES_DB" Default="" Description="Optional Postgres database name (defaults to 'keepit'). Ignored while Postgres Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
