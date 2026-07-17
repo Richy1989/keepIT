@@ -1,0 +1,82 @@
+name: Release
+
+# A git tag `vX.Y.Z` is a release: build & push the multi-arch Docker image, build the signed
+# Android APK (version derived from the tag), and publish a GitHub Release with the APK attached.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Derive versions from the tag: vX.Y.Z -> VERSION_NAME=X.Y.Z, VERSION_CODE=X*10000+Y*100+Z
+      # (monotonic). Assumes clean semver tags for real releases.
+      - name: Compute version
+        run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_NAME"
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not a clean vMAJOR.MINOR.PATCH semver tag." >&2
+            exit 1
+          fi
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))" >> "$GITHUB_ENV"
+
+      # ---- Docker image (web + API), multi-arch, to Docker Hub ----
+      - uses: docker/setup-qemu-action@v3      # emulation for the arm64 build
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: richy1989/keepit
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # ---- Signed Android APK ----
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/keepit-release.jks"
+      - name: Build signed release APK
+        working-directory: app
+        env:
+          KEYSTORE_PATH: ${{ runner.temp }}/keepit-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # VERSION_NAME / VERSION_CODE are read from $GITHUB_ENV set above.
+        run: |
+          ./gradlew :app:assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/keepit-${GITHUB_REF_NAME}.apk"
+
+      # ---- GitHub Release ----
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/keepit-*.apk
+          generate_release_notes: true
+          body: |
+            **Docker:** `docker pull richy1989/keepit:${{ env.VERSION_NAME }}`
+
+            The Android APK is attached below — download and install it directly (sideload).

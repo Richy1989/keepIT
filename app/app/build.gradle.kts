@@ -1,8 +1,23 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Release signing credentials come from app/keystore.properties (local, gitignored) or, in CI, from
+// env vars. Same signingConfig works both ways: props file wins, env is the fallback. Absent both,
+// release builds are simply left unsigned (debug builds are never affected).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+fun cred(key: String, env: String): String? =
+    keystoreProps.getProperty(key) ?: System.getenv(env)
+
+val hasReleaseSigning = cred("storeFile", "KEYSTORE_PATH") != null
 
 android {
     namespace = "org.spaceelephant.keepitapp"
@@ -16,14 +31,30 @@ android {
         applicationId = "org.spaceelephant.keepitapp"
         minSdk = 34
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // Version tracks the release tag: CI passes VERSION_NAME/VERSION_CODE derived from vX.Y.Z.
+        // Local/dev builds fall back so plain `assembleDebug` still works.
+        versionName = System.getenv("VERSION_NAME") ?: "1.0-dev"
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(cred("storeFile", "KEYSTORE_PATH")!!)
+                storePassword = cred("storePassword", "KEYSTORE_PASSWORD")
+                keyAlias = cred("keyAlias", "KEY_ALIAS")
+                keyPassword = cred("keyPassword", "KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Only sign when creds are available (CI or a local keystore.properties); otherwise the
+            // release APK is left unsigned rather than failing the build.
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = false
             }

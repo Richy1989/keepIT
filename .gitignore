@@ -67,3 +67,7 @@ Desktop.ini
 # ---- Docker ----
 # (compose env overrides, if any)
 docker-compose.override.yml
+
+# ---- Local-only docs ----
+# Release runbook kept out of the public repo (has infra/signing specifics).
+RELEASING.md
