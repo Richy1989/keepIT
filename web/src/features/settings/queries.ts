@@ -39,3 +39,18 @@ export function useUpdateSettings() {
     onSuccess: (data) => qc.setQueryData([SETTINGS_KEY], data),
   });
 }
+
+/**
+ * Sends a test email to the caller's own address to check the server's SMTP configuration. The
+ * server answers 200 for every completed test — the payload says whether the message went out via
+ * SMTP, landed in the server log (SMTP unconfigured), or failed (with the delivery error).
+ */
+export function useSendTestEmail() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await api.POST('/api/settings/test-email');
+      if (error || !data) throw error ?? new Error('Failed to run the email test.');
+      return data;
+    },
+  });
+}

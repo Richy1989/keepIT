@@ -3,20 +3,23 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
+import { TestEmailSetting } from '../features/settings/TestEmailSetting';
 import {
   ChevronLeftIcon,
   LogoutIcon,
+  MailIcon,
   ShieldIcon,
   TypewriterIcon,
   UserIcon,
 } from '../components/icons';
 import { cn } from '../lib/cn';
 
-type SectionKey = 'general' | 'security';
+type SectionKey = 'general' | 'security' | 'email';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof UserIcon }[] = [
   { key: 'general', label: 'General', icon: UserIcon },
   { key: 'security', label: 'Security', icon: ShieldIcon },
+  { key: 'email', label: 'Email', icon: MailIcon },
 ];
 
 /** Account settings: section nav on the left, the active section's controls on the right. */
@@ -110,6 +113,15 @@ export function SettingsPage() {
                 description="Update your password. This signs you out of your other devices."
               >
                 <ChangePasswordForm />
+              </SettingCard>
+            )}
+
+            {active === 'email' && (
+              <SettingCard
+                title="Email delivery"
+                description="keepIT emails password-reset links. Send yourself a test message to check the server's SMTP configuration."
+              >
+                <TestEmailSetting />
               </SettingCard>
             )}
           </div>

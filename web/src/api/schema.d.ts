@@ -68,6 +68,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/test-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["TestEmailResultDto"];
+                        "application/json": components["schemas"]["TestEmailResultDto"];
+                        "text/json": components["schemas"]["TestEmailResultDto"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/uploadProfileImage": {
         parameters: {
             query?: never;
@@ -1295,6 +1332,12 @@ export interface components {
         };
         ShareResponseDto: {
             accept?: boolean;
+        };
+        TestEmailResultDto: {
+            smtpConfigured?: boolean;
+            sent?: boolean;
+            sentTo?: string;
+            error?: null | string;
         };
         UpdateListDto: {
             name?: null | string;

@@ -1,12 +1,14 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Infrastructure;
+using keepITCore.Infrastructure.Email;
 using keepITCore.Service;
 using keepITCore.Settings.Dtos;
 using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace keepITCore.Settings
 {
@@ -33,16 +35,31 @@ namespace keepITCore.Settings
         private readonly AppDbContext _db;
         private readonly ImageService _imgService;
         private readonly IRealtimeNotifier _notifier;
+        private readonly IEmailSender _emailSender;
+        private readonly EmailOptions _emailOptions;
+        private readonly ILogger<UserSettingsController> _logger;
 
-        /// <summary>Injects the database context, the image storage service, and the realtime notifier.</summary>
+        /// <summary>Injects the database context, the image storage service, the realtime notifier, and email.</summary>
         /// <param name="db">The EF Core context.</param>
         /// <param name="imgService">Validates and stores uploaded images.</param>
         /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
-        public UserSettingsController(AppDbContext db, ImageService imgService, IRealtimeNotifier notifier)
+        /// <param name="emailSender">Delivers the test email (SMTP, or the server log when unconfigured).</param>
+        /// <param name="emailOptions">Email settings, read to report whether SMTP is configured.</param>
+        /// <param name="logger">Controller logger.</param>
+        public UserSettingsController(
+            AppDbContext db,
+            ImageService imgService,
+            IRealtimeNotifier notifier,
+            IEmailSender emailSender,
+            IOptions<EmailOptions> emailOptions,
+            ILogger<UserSettingsController> logger)
         {
             _db = db;
             _imgService = imgService;
             _notifier = notifier;
+            _emailSender = emailSender;
+            _emailOptions = emailOptions.Value;
+            _logger = logger;
         }
         /// <summary>Returns the caller's settings, creating defaults on first access.</summary>
         /// <returns>200 with the settings.</returns>
@@ -89,6 +106,55 @@ namespace keepITCore.Settings
             await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Settings);
 
             return Ok(ToDto(settings));
+        }
+
+        /// <summary>
+        /// Sends a test email to the caller's own account address, to check the server's email
+        /// configuration. Always 200 — the result payload distinguishes delivered-via-SMTP,
+        /// written-to-the-server-log (SMTP unconfigured), and failed (with the delivery error, so
+        /// the operator can fix the <c>Email__*</c> settings). Only the caller's own address can be
+        /// targeted, so the endpoint can't be used to spam third parties.
+        /// </summary>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>200 with the test result.</returns>
+        [HttpPost("test-email")]
+        public async Task<ActionResult<TestEmailResultDto>> SendTestEmail(CancellationToken ct)
+        {
+            var ownerId = User.GetUserId();
+            if (ownerId is null) return Unauthorized();
+
+            var email = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == ownerId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync(ct);
+            if (email is null) return Unauthorized();
+
+            var result = new TestEmailResultDto
+            {
+                SmtpConfigured = _emailOptions.IsConfigured,
+                SentTo = email,
+            };
+
+            try
+            {
+                await _emailSender.SendAsync(
+                    email,
+                    "keepIT test email",
+                    "This is a test email from your keepIT server.\n\n" +
+                    "If you're reading this in your inbox, email delivery (SMTP) is configured " +
+                    "correctly and password-reset links will reach their recipients.",
+                    ct);
+                result.Sent = true;
+            }
+            catch (Exception ex)
+            {
+                // Surfacing the error is the point of the test: the caller is checking their own
+                // server's SMTP settings and needs to see what went wrong.
+                _logger.LogError(ex, "Test email delivery failed");
+                result.Error = ex.Message;
+            }
+
+            return Ok(result);
         }
 
         /// <summary>

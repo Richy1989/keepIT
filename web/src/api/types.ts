@@ -31,6 +31,7 @@ export type CreateListDto = S['CreateListDto'];
 export type UpdateListDto = S['UpdateListDto'];
 
 export type UserSettingsDto = S['UserSettingsDto'];
+export type TestEmailResultDto = S['TestEmailResultDto'];
 
 export type AuthResponseDto = S['AuthResponseDto'];
 export type UserDto = S['UserDto'];
