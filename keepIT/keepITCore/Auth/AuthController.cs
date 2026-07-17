@@ -97,8 +97,7 @@ public class AuthController : ControllerBase
     /// tokens (signing out other devices) and issues a fresh access token + refresh cookie so the
     /// current device stays signed in.
     /// </summary>
-    /// <param name="dto">The current and new passwords. The DTO's UserId is ignored; the caller is
-    /// taken from the access token.</param>
+    /// <param name="dto">The current and new passwords. The caller is taken from the access token.</param>
     /// <returns>200 with a new auth payload, 401 if unauthenticated, or 400 if the current password
     /// is wrong or the new one fails the complexity rules.</returns>
     [HttpPost("changepassword")]

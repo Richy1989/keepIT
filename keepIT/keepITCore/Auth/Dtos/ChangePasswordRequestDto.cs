@@ -3,13 +3,12 @@ using System.ComponentModel.DataAnnotations;
 namespace keepITCore.Auth.Dtos;
 
 /// <summary>
-/// Payload to change the password of a rfegistered user
+/// Payload to change the password of a registered user. The caller's identity comes from the
+/// access token — deliberately no user id in the body, so the endpoint can't be aimed at anyone
+/// else's account.
 /// </summary>
 public class ChangePasswordRequestDto
 {
-    [MaxLength(256)]
-    public string UserId { get; set; } = null!;
-
     /// <summary>
     /// The new account password. The annotation only checks the length; the full complexity rule
     /// (one digit, an uppercase letter, a lowercase letter, and a symbol) is enforced by Identity.
