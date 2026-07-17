@@ -32,6 +32,7 @@ export type UpdateListDto = S['UpdateListDto'];
 
 export type UserSettingsDto = S['UserSettingsDto'];
 export type TestEmailResultDto = S['TestEmailResultDto'];
+export type MetaDto = S['MetaDto'];
 
 export type AuthResponseDto = S['AuthResponseDto'];
 export type UserDto = S['UserDto'];

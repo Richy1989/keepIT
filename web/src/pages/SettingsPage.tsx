@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
+import { useServerMeta } from '../features/settings/queries';
 import {
   ChevronLeftIcon,
   LogoutIcon,
@@ -26,6 +27,7 @@ const SECTIONS: { key: SectionKey; label: string; icon: typeof UserIcon }[] = [
 export function SettingsPage() {
   const { user, logout } = useAuth();
   const [active, setActive] = useState<SectionKey>('general');
+  const meta = useServerMeta();
 
   return (
     <div className="h-full overflow-y-auto bg-canvas">
@@ -126,6 +128,12 @@ export function SettingsPage() {
             )}
           </div>
         </div>
+
+        {meta.data && (
+          <p className="mt-8 text-center text-xs text-text-faint">
+            keepIT · server v{meta.data.version}
+          </p>
+        )}
       </div>
     </div>
   );

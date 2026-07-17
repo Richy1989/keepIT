@@ -40,6 +40,19 @@ export function useUpdateSettings() {
   });
 }
 
+/** The server's public metadata (version). Anonymous endpoint; the value can't change mid-session. */
+export function useServerMeta() {
+  return useQuery({
+    queryKey: ['meta'],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/meta');
+      if (error || !data) throw new Error('Failed to load server info.');
+      return data;
+    },
+  });
+}
+
 /**
  * Sends a test email to the caller's own address to check the server's SMTP configuration. The
  * server answers 200 for every completed test — the payload says whether the message went out via
