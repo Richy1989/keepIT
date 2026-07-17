@@ -145,8 +145,10 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `App__PublicBaseUrl` | no | *(auto-detected)* | Public address of your instance (e.g. `https://notes.example.com`), used to build password-reset links. Usually auto-detected from the request; set it if reset links point to the wrong host. |
 | `Email__SmtpHost` | no | — | SMTP server for outgoing email (password-reset links). Leave empty to run without email — reset links then land in the server log. |
 | `Email__From` | with SMTP | — | From address, e.g. `keepIT <no-reply@example.com>`. Required once `Email__SmtpHost` is set. |
-| `Email__SmtpUsername` / `Email__SmtpPassword` | no | — | SMTP credentials; leave empty for an unauthenticated relay. |
-| `Email__SmtpPort` / `Email__UseStartTls` | no | `587` / `true` | SMTP port and TLS mode — the defaults suit STARTTLS submission; for implicit TLS use port `465` with `Email__UseStartTls=false`. |
+| `Email__SmtpUsername` | no | — | SMTP login username. Leave empty (along with the password) for an unauthenticated relay. |
+| `Email__SmtpPassword` | no | — | SMTP login password, paired with `Email__SmtpUsername`. |
+| `Email__SmtpPort` | no | `587` | SMTP port — `587` for STARTTLS submission, `465` for implicit TLS (set `Email__UseStartTls=false` too). |
+| `Email__UseStartTls` | no | `true` | `true` = STARTTLS (port 587); `false` = implicit TLS (port 465). |
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Sign-in cookie is HTTPS-only. Keep `true` behind TLS; set `false` only when serving plain HTTP on a non-localhost address (e.g. a LAN IP without TLS). |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |
