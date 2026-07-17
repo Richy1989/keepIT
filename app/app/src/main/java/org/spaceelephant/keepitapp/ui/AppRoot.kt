@@ -26,11 +26,13 @@ import org.spaceelephant.keepitapp.data.SessionState
 import org.spaceelephant.keepitapp.ui.auth.LoginScreen
 import org.spaceelephant.keepitapp.ui.notes.EditorScreen
 import org.spaceelephant.keepitapp.ui.notes.NotesScreen
+import org.spaceelephant.keepitapp.ui.notifications.NotificationsScreen
 import org.spaceelephant.keepitapp.ui.settings.SettingsScreen
 
-/** A navigation target requested from outside the app (the home-screen widget). */
+/** A navigation target requested from outside the app (the widget, a tray notification). */
 sealed interface Destination {
     data object Compose : Destination
+    data object Inbox : Destination
     data class Note(val id: String) : Destination
 }
 
@@ -96,6 +98,7 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
     LaunchedEffect(pendingDestination.value) {
         when (val destination = pendingDestination.value) {
             Destination.Compose -> nav.navigate("editor")
+            Destination.Inbox -> nav.navigate("notifications")
             is Destination.Note -> nav.navigate("editor?noteId=${destination.id}")
             null -> Unit
         }
@@ -109,10 +112,14 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
                 onOpenNote = { nav.navigate("editor?noteId=$it") },
                 onCompose = { nav.navigate("editor") },
                 onOpenSettings = { nav.navigate("settings") },
+                onOpenNotifications = { nav.navigate("notifications") },
             )
         }
         composable("settings") {
-            SettingsScreen(onBack = { nav.popBackStack() })
+            SettingsScreen(container = container, onBack = { nav.popBackStack() })
+        }
+        composable("notifications") {
+            NotificationsScreen(container = container, onBack = { nav.popBackStack() })
         }
         composable(
             route = "editor?noteId={noteId}",

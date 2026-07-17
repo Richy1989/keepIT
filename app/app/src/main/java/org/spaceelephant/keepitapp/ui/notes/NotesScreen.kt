@@ -22,9 +22,14 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -62,9 +68,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.spaceelephant.keepitapp.AppContainer
+import org.spaceelephant.keepitapp.data.ListDto
 import org.spaceelephant.keepitapp.data.NoteDto
 import org.spaceelephant.keepitapp.data.NotesFilter
 import org.spaceelephant.keepitapp.data.NotesView
+import org.spaceelephant.keepitapp.data.apiErrorMessage
 import org.spaceelephant.keepitapp.data.offline.SyncStatus
 import org.spaceelephant.keepitapp.ui.theme.KeepItColors
 
@@ -81,6 +89,7 @@ fun NotesScreen(
     onOpenNote: (String) -> Unit,
     onCompose: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenNotifications: () -> Unit,
 ) {
     val repo = container.notesRepo
     val scope = rememberCoroutineScope()
@@ -101,6 +110,17 @@ fun NotesScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
         container.syncEngine.syncErrors.collect { snackbarHostState.showSnackbar(it) }
+    }
+
+    // List management (online-only): the dialog being shown, if any.
+    var newListOpen by remember { mutableStateOf(false) }
+    var renameTarget by remember { mutableStateOf<ListDto?>(null) }
+    var deleteTarget by remember { mutableStateOf<ListDto?>(null) }
+
+    fun runListAction(fallback: String, block: suspend () -> Result<Unit>) {
+        scope.launch {
+            block().onFailure { snackbarHostState.showSnackbar(apiErrorMessage(it, fallback)) }
+        }
     }
 
     fun applyFilter(newFilter: NotesFilter) {
@@ -142,38 +162,88 @@ fun NotesScreen(
                     selected = filter.view == NotesView.TRASHED,
                     onClick = { applyFilter(NotesFilter(NotesView.TRASHED)) },
                 )
-                if (lists.isNotEmpty()) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        color = KeepItColors.BorderSubtle,
-                    )
-                    Text(
-                        text = "LISTS",
-                        color = KeepItColors.TextFaint,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
-                    )
-                    lists.forEach { list ->
-                        val selected = filter.view == NotesView.ACTIVE && list.id in filter.listIds
-                        NavigationDrawerItem(
-                            label = {
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    Text(list.name, modifier = Modifier.weight(1f))
-                                    Text("${list.noteCount}", color = KeepItColors.TextFaint)
-                                }
-                            },
-                            selected = selected,
-                            onClick = {
-                                val ids = if (selected) filter.listIds - list.id else filter.listIds + list.id
-                                applyFilter(NotesFilter(NotesView.ACTIVE, ids))
-                            },
-                        )
-                    }
-                }
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 8.dp),
                     color = KeepItColors.BorderSubtle,
+                )
+                Text(
+                    text = "LISTS",
+                    color = KeepItColors.TextFaint,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                )
+                lists.forEach { list ->
+                    val selected = filter.view == NotesView.ACTIVE && list.id in filter.listIds
+                    var listMenuOpen by remember(list.id) { mutableStateOf(false) }
+                    NavigationDrawerItem(
+                        label = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(list.name, modifier = Modifier.weight(1f))
+                                Text("${list.noteCount}", color = KeepItColors.TextFaint)
+                            }
+                        },
+                        badge = {
+                            Box {
+                                IconButton(onClick = { listMenuOpen = true }) {
+                                    Icon(
+                                        Icons.Filled.MoreVert,
+                                        contentDescription = "List options",
+                                        tint = KeepItColors.TextFaint,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = listMenuOpen,
+                                    onDismissRequest = { listMenuOpen = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        onClick = { listMenuOpen = false; renameTarget = list },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        onClick = { listMenuOpen = false; deleteTarget = list },
+                                    )
+                                }
+                            }
+                        },
+                        selected = selected,
+                        onClick = {
+                            val ids = if (selected) filter.listIds - list.id else filter.listIds + list.id
+                            applyFilter(NotesFilter(NotesView.ACTIVE, ids))
+                        },
+                    )
+                }
+                NavigationDrawerItem(
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = KeepItColors.TextMuted,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text("  New list", color = KeepItColors.TextMuted)
+                        }
+                    },
+                    selected = false,
+                    onClick = { newListOpen = true },
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = KeepItColors.BorderSubtle,
+                )
+                NavigationDrawerItem(
+                    label = { Text("Notifications") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onOpenNotifications()
+                    },
                 )
                 NavigationDrawerItem(
                     label = { Text("Settings") },
@@ -321,6 +391,97 @@ fun NotesScreen(
             }
         }
     }
+
+    // ---- list management dialogs (create / rename / delete-confirm) ----
+
+    if (newListOpen) {
+        ListNameDialog(
+            title = "New list",
+            confirmLabel = "Create",
+            initial = "",
+            onConfirm = { name ->
+                newListOpen = false
+                runListAction("Could not create the list.") { repo.createList(name) }
+            },
+            onDismiss = { newListOpen = false },
+        )
+    }
+
+    renameTarget?.let { target ->
+        ListNameDialog(
+            title = "Rename list",
+            confirmLabel = "Rename",
+            initial = target.name,
+            onConfirm = { name ->
+                renameTarget = null
+                runListAction("Could not rename the list.") { repo.renameList(target.id, name) }
+            },
+            onDismiss = { renameTarget = null },
+        )
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            containerColor = KeepItColors.Surface,
+            title = { Text("Delete \"${target.name}\"?") },
+            text = {
+                Text(
+                    "The list goes away; the notes filed in it are kept.",
+                    color = KeepItColors.TextMuted,
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    deleteTarget = null
+                    runListAction("Could not delete the list.") { repo.deleteList(target.id) }
+                }) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text("Cancel", color = KeepItColors.TextMuted)
+                }
+            },
+        )
+    }
+}
+
+/** Name prompt shared by create and rename. Confirm is disabled while the name is blank. */
+@Composable
+private fun ListNameDialog(
+    title: String,
+    confirmLabel: String,
+    initial: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = KeepItColors.Surface,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(enabled = name.isNotBlank(), onClick = { onConfirm(name.trim()) }) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = KeepItColors.TextMuted)
+            }
+        },
+    )
 }
 
 /**

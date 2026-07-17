@@ -33,7 +33,7 @@ android {
         targetSdk = 36
         // Version tracks the release tag: CI passes VERSION_NAME/VERSION_CODE derived from vX.Y.Z.
         // Local/dev builds fall back so plain `assembleDebug` still works.
-        versionName = System.getenv("VERSION_NAME") ?: "1.0-dev"
+        versionName = System.getenv("VERSION_NAME") ?: "0.0.0-dev"
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

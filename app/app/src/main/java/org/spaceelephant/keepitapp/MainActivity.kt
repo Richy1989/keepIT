@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private fun destinationFrom(intent: Intent?): Destination? = when {
         intent == null -> null
         intent.getBooleanExtra(EXTRA_COMPOSE, false) -> Destination.Compose
+        intent.getBooleanExtra(EXTRA_INBOX, false) -> Destination.Inbox
         else -> intent.getStringExtra(EXTRA_NOTE_ID)?.let { Destination.Note(it) }
     }
 
@@ -47,5 +48,8 @@ class MainActivity : ComponentActivity() {
 
         /** String extra: open this note in the editor (a widget note row). */
         const val EXTRA_NOTE_ID = "keepit.noteId"
+
+        /** Boolean extra: open the in-app notification inbox (a tapped tray notification). */
+        const val EXTRA_INBOX = "keepit.inbox"
     }
 }

@@ -83,6 +83,17 @@ class SessionRepository(private val client: ApiClient) {
             client.api.forgotPassword(ForgotPasswordRequestDto(email))
         }
 
+    /**
+     * Changes the signed-in user's password. On success the server revokes every other device's
+     * session and returns fresh tokens for this one — store them so this device stays signed in.
+     */
+    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> =
+        runCatching {
+            val response = client.api.changePassword(ChangePasswordRequestDto(currentPassword, newPassword))
+            client.tokenStore.set(response.accessToken, response.accessTokenExpiresAtUtc)
+            client.saveLastUser(response.user)
+        }
+
     private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> =
         runCatching {
             client.configure(serverUrl)

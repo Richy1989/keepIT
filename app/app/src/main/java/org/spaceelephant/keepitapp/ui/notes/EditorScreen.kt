@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StrikethroughS
@@ -136,6 +137,7 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
     var listIds by remember { mutableStateOf(setOf<String>()) }
     var showColors by remember { mutableStateOf(false) }
     var showReminder by remember { mutableStateOf(false) }
+    var showShare by remember { mutableStateOf(false) }
     // The row whose text field should grab focus next (a just-added checklist item).
     var focusTargetLocalId by remember { mutableStateOf<Long?>(null) }
 
@@ -366,6 +368,14 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
                                     tint = if (current.remindAtUtc != null) KeepItColors.Accent else KeepItColors.TextMuted,
                                 )
                             }
+                            // Share management — owners invite/revoke, collaborators see & leave.
+                            IconButton(onClick = { showShare = true }) {
+                                Icon(
+                                    Icons.Filled.PersonAdd,
+                                    contentDescription = "Share note",
+                                    tint = if (current.isShared) KeepItColors.Accent else KeepItColors.TextMuted,
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         // Move to trash / restore — right-aligned action, like the web card's trash tool.
@@ -566,6 +576,21 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.size(48.dp))
+        }
+    }
+
+    // Share sheet — server-backed, independent of save-on-close.
+    note?.let { current ->
+        if (showShare) {
+            ShareSheet(
+                container = container,
+                note = current,
+                onDismiss = { showShare = false },
+                onLeft = {
+                    showShare = false
+                    onDone()
+                },
+            )
         }
     }
 

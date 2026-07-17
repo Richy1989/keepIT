@@ -183,6 +183,32 @@ class NotesRepository(
     suspend fun delete(id: String) =
         mutate(PendingOp.Delete(resolve(id), enqueuedAtUtc = nowUtc()))
 
+    // ---- lists CRUD: online-only (like the web), applied to the cache on success ----
+
+    /** Creates a list. Online-only — offline callers get a failed [Result] to surface. */
+    suspend fun createList(name: String): Result<Unit> = runCatching {
+        val created = client.api.createList(CreateListDto(name.trim()))
+        cachedLists.update { (it + created).sortedBy { l -> l.name.lowercase() } }
+        persistCache()
+    }
+
+    /** Renames a list. Online-only. */
+    suspend fun renameList(id: String, name: String): Result<Unit> = runCatching {
+        val updated = client.api.updateList(id, UpdateListDto(name = name.trim()))
+        cachedLists.update { all -> all.map { if (it.id == id) updated else it }.sortedBy { l -> l.name.lowercase() } }
+        persistCache()
+    }
+
+    /** Deletes a list (notes survive, memberships go). Online-only. */
+    suspend fun deleteList(id: String): Result<Unit> = runCatching {
+        client.api.deleteList(id)
+        cachedLists.update { all -> all.filter { it.id != id } }
+        // Notes filed in the list still carry its id locally; drop it and clear the filter if active.
+        cache.update { all -> all.map { n -> if (id in n.listIds) n.copy(listIds = n.listIds - id) else n } }
+        filter.update { f -> if (id in f.listIds) f.copy(listIds = f.listIds - id) else f }
+        persistCache()
+    }
+
     private suspend fun mutate(op: PendingOp) {
         // Intent lands on disk before the cache: after a crash the worst case is a re-sent op
         // (replay is idempotent), never a change that looks saved but was lost.

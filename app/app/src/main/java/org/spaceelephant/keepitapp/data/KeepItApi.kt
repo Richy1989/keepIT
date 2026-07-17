@@ -36,6 +36,16 @@ interface KeepItApi {
     @GET("api/auth/me")
     suspend fun me(): UserDto
 
+    /** Changes the password. The server revokes all other sessions and returns fresh tokens for this one. */
+    @POST("api/auth/changepassword")
+    suspend fun changePassword(@Body body: ChangePasswordRequestDto): AuthResponseDto
+
+    // ---- meta ----
+
+    /** The server's public metadata (version). Anonymous. */
+    @GET("api/meta")
+    suspend fun meta(): MetaDto
+
     // ---- notes ----
 
     /** The caller's grid for a view; `listId` may repeat to filter by lists (union). */
@@ -72,14 +82,54 @@ interface KeepItApi {
     @DELETE("api/notes/{id}/reminder")
     suspend fun clearReminder(@Path("id") id: String): NoteDto
 
+    // ---- note shares ----
+
+    /** The note's collaborators; for the owner this also includes still-pending invites. */
+    @GET("api/notes/{id}/shares")
+    suspend fun shares(@Path("id") noteId: String): List<NoteShareDto>
+
+    /** Invites a user by email (owner-only). Access is granted only when they accept. */
+    @POST("api/notes/{id}/shares")
+    suspend fun createShare(@Path("id") noteId: String, @Body body: CreateShareDto)
+
+    /** Changes a collaborator's role (owner-only). */
+    @PATCH("api/notes/{id}/shares/{granteeId}")
+    suspend fun updateShareRole(
+        @Path("id") noteId: String,
+        @Path("granteeId") granteeId: String,
+        @Body body: UpdateShareRoleDto,
+    )
+
+    /** Revokes a share or cancels a pending invite; a collaborator revokes themselves to leave. */
+    @DELETE("api/notes/{id}/shares/{granteeId}")
+    suspend fun revokeShare(@Path("id") noteId: String, @Path("granteeId") granteeId: String)
+
     // ---- lists ----
 
     @GET("api/lists")
     suspend fun lists(): List<ListDto>
+
+    @POST("api/lists")
+    suspend fun createList(@Body body: CreateListDto): ListDto
+
+    @PATCH("api/lists/{id}")
+    suspend fun updateList(@Path("id") id: String, @Body body: UpdateListDto): ListDto
+
+    /** Deletes a list. Notes filed in it are untouched — only the memberships go. */
+    @DELETE("api/lists/{id}")
+    suspend fun deleteList(@Path("id") id: String)
 
     // ---- notifications ----
 
     /** The caller's notification inbox, newest first — surfaced as native Android notifications. */
     @GET("api/notifications")
     suspend fun notifications(): List<UserNotificationDto>
+
+    /** Answers a share invite (accept = gain access / decline). Either way the invite is consumed. */
+    @POST("api/notifications/{id}/respond")
+    suspend fun respondToInvite(@Path("id") id: String, @Body body: ShareResponseDto)
+
+    /** Dismisses (permanently deletes) one notification. */
+    @DELETE("api/notifications/{id}")
+    suspend fun deleteNotification(@Path("id") id: String)
 }

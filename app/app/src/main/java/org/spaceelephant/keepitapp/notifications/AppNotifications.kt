@@ -90,18 +90,25 @@ object AppNotifications {
         notify(context, reminderTag(noteId), notification)
     }
 
-    /** Posts a non-reminder server notification (share invite / system message). */
+    /**
+     * Posts a non-reminder server notification (share invite / system message). Tapping it lands on
+     * the in-app inbox, where an invite can actually be answered.
+     */
     fun postGeneral(context: Context, notificationId: String, text: String) {
         val notification = builder(context, CHANNEL_GENERAL)
             .setContentTitle(context.getString(R.string.app_name))
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setCategory(NotificationCompat.CATEGORY_SOCIAL)
-            .setContentIntent(openAppIntent(context))
+            .setContentIntent(openInboxIntent(context))
             .setOnlyAlertOnce(true)
             .build()
         notify(context, "inbox-$notificationId", notification)
     }
+
+    /** Removes one inbox item's tray copy (answered or dismissed in-app). */
+    fun cancelGeneral(context: Context, notificationId: String) =
+        NotificationManagerCompat.from(context).cancel("inbox-$notificationId", NOTIFICATION_ID)
 
     /** Removes one note's reminder from the tray (snooze pressed — the snoozed copy comes back later). */
     fun cancelReminder(context: Context, noteId: String) =
@@ -138,12 +145,13 @@ object AppNotifications {
             },
         )
 
-    private fun openAppIntent(context: Context): PendingIntent =
+    private fun openInboxIntent(context: Context): PendingIntent =
         activityIntent(
             context,
             Intent(context, MainActivity::class.java).apply {
-                action = Intent.ACTION_MAIN
-                data = "keepit://home".toUri()
+                action = Intent.ACTION_VIEW
+                data = "keepit://notifications".toUri()
+                putExtra(MainActivity.EXTRA_INBOX, true)
             },
         )
 

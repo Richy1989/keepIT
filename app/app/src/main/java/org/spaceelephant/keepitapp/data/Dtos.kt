@@ -65,6 +65,17 @@ data class RegisterRequestDto(
 @Serializable
 data class ForgotPasswordRequestDto(val email: String)
 
+/** Changes the signed-in user's password; the caller comes from the access token. */
+@Serializable
+data class ChangePasswordRequestDto(
+    val currentPassword: String,
+    val newPassword: String,
+)
+
+/** Public facts about the server instance (`GET api/meta`, anonymous). */
+@Serializable
+data class MetaDto(val version: String = "")
+
 @Serializable
 data class ChecklistItemDto(
     val id: String? = null,
@@ -169,3 +180,35 @@ data class ListDto(
     val noteCount: Int = 0,
     val createdAtUtc: String = "",
 )
+
+@Serializable
+data class CreateListDto(val name: String, val color: String? = null)
+
+/** Renames and/or recolors a list; a null field is left unchanged. */
+@Serializable
+data class UpdateListDto(val name: String? = null, val color: String? = null)
+
+/**
+ * One collaborator on a note (from `GET api/notes/{id}/shares`): who and at what [NoteRoles] role.
+ * [pending] marks an invite that hasn't been answered yet (owner-only rows).
+ */
+@Serializable
+data class NoteShareDto(
+    val granteeId: String,
+    val email: String = "",
+    val role: String = NoteRoles.VIEWER,
+    val createdAtUtc: String = "",
+    val pending: Boolean = false,
+)
+
+/** Invites a user (by email) to collaborate on a note at a [NoteRoles] role. */
+@Serializable
+data class CreateShareDto(val email: String, val role: String = NoteRoles.VIEWER)
+
+/** Changes an existing collaborator's role. */
+@Serializable
+data class UpdateShareRoleDto(val role: String)
+
+/** The recipient's answer to a share invite: accept (gain access) or decline. */
+@Serializable
+data class ShareResponseDto(val accept: Boolean)
