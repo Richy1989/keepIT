@@ -111,7 +111,21 @@ docker compose up -d --build  # builds everything locally, then starts the stack
 
 Open **http://localhost:8080**. Data persists in named Docker volumes.
 
-**Use PostgreSQL with the single container** instead of the built-in database:
+**Use PostgreSQL with the single container** instead of the built-in database — either the
+discrete variables (`POSTGRES_HOST` is the switch; port/db/user default to `5432`/`keepit`/`keepit`):
+
+```bash
+docker run -d \
+  --name keepit \
+  -p 8080:80 \
+  -v keepit-data:/data \
+  -e Jwt__Key="your-secret" \
+  -e POSTGRES_HOST=<host> \
+  -e POSTGRES_PASSWORD=<pass> \
+  richy1989/keepit:latest
+```
+
+…or a full connection string (takes precedence when both are set):
 
 ```bash
 docker run -d \
@@ -140,8 +154,12 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | --- | --- | --- | --- |
 | `Jwt__Key` | **yes** | — | Random secret, min 32 chars — keeps sign-ins secure. **The variable the app actually reads**; use it for `docker run` / Unraid / the single-container image. |
 | `JWT_KEY` | compose only | — | Convenience `.env` value that `docker-compose.yml` passes through as `Jwt__Key`. Not read directly by the app. |
-| `POSTGRES_PASSWORD` | no | `keepit` | Postgres password (used in the Compose stack). |
-| `ConnectionStrings__Postgres` | no | *(built-in SQLite)* | Full Postgres connection string. If empty, a zero-setup SQLite database is used. |
+| `ConnectionStrings__Postgres` | no | *(built-in SQLite)* | Full Postgres connection string. If neither this nor `POSTGRES_HOST` is set, a zero-setup SQLite database is used. Takes precedence over the discrete `POSTGRES_*` variables below. |
+| `POSTGRES_HOST` | no | — | Postgres host — the friendlier alternative to a full connection string: setting it switches the API to Postgres, built from the `POSTGRES_*` variables. |
+| `POSTGRES_PORT` | no | `5432` | Postgres port (discrete setup only). |
+| `POSTGRES_DB` | no | `keepit` | Postgres database name (discrete setup only). |
+| `POSTGRES_USER` | no | `keepit` | Postgres username (discrete setup only). |
+| `POSTGRES_PASSWORD` | no | `keepit` | Postgres password. Read by the API for the discrete setup, and by the Compose stack for both the `db` service and the connection string it hands the API. |
 | `App__AllowRegistration` | no | `true` | Whether new accounts may be created. On an internet-exposed instance: register your own accounts first, then set `false` to close public sign-up. |
 | `App__DataRoot` | no | `./App_Data` | Directory for the database, security keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the app — `1` for the plain setups above, `2` if you put another proxy (e.g. Traefik) in front. |
