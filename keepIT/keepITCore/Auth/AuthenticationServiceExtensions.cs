@@ -38,6 +38,12 @@ public static class AuthenticationServiceExtensions
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
 
+        // Password-reset (and other data-protection) tokens default to a 1-day lifespan; a reset
+        // link sitting in an inbox is an account-takeover key, so cap it at 2 hours. Tokens are
+        // also single-use: a successful reset rolls the security stamp, voiding older tokens.
+        services.Configure<DataProtectionTokenProviderOptions>(options =>
+            options.TokenLifespan = TimeSpan.FromHours(2));
+
         return services;
     }
 

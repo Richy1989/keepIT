@@ -71,6 +71,18 @@ class SessionRepository(private val client: ApiClient) {
             client.api.register(RegisterRequestDto(email, password, displayName?.takeIf { it.isNotBlank() }))
         }
 
+    /**
+     * Requests a password-reset link for [email]. No session is involved — the server always
+     * answers 204 (it never reveals whether the address is registered), and the reset itself is
+     * completed in the browser via the emailed link. The user then signs in here with the new
+     * password.
+     */
+    suspend fun requestPasswordReset(serverUrl: String, email: String): Result<Unit> =
+        runCatching {
+            client.configure(serverUrl)
+            client.api.forgotPassword(ForgotPasswordRequestDto(email))
+        }
+
     private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> =
         runCatching {
             client.configure(serverUrl)

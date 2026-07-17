@@ -51,24 +51,34 @@ fun LoginScreen(session: SessionRepository) {
     var password by rememberSaveable { mutableStateOf("") }
     var displayName by rememberSaveable { mutableStateOf("") }
     var registerMode by rememberSaveable { mutableStateOf(false) }
+    // Forgot-password: request the reset link here; the reset completes in the browser via the
+    // emailed link (there is no native reset screen on purpose — the link targets the web app).
+    var forgotMode by rememberSaveable { mutableStateOf(false) }
+    var resetRequested by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     fun submit() {
-        if (busy || serverUrl.isBlank() || email.isBlank() || password.isBlank()) return
+        if (busy || serverUrl.isBlank() || email.isBlank() || (!forgotMode && password.isBlank())) return
         busy = true
         error = null
         scope.launch {
-            val result = if (registerMode) {
-                session.register(serverUrl, email.trim(), password, displayName)
+            if (forgotMode) {
+                session.requestPasswordReset(serverUrl, email.trim())
+                    .onSuccess { resetRequested = true }
+                    .onFailure { error = apiErrorMessage(it, "Could not request a reset link.") }
             } else {
-                session.login(serverUrl, email.trim(), password)
-            }
-            result.onFailure {
-                error = apiErrorMessage(
-                    it,
-                    if (registerMode) "Could not create the account." else "Invalid email or password.",
-                )
+                val result = if (registerMode) {
+                    session.register(serverUrl, email.trim(), password, displayName)
+                } else {
+                    session.login(serverUrl, email.trim(), password)
+                }
+                result.onFailure {
+                    error = apiErrorMessage(
+                        it,
+                        if (registerMode) "Could not create the account." else "Invalid email or password.",
+                    )
+                }
             }
             busy = false
         }
@@ -102,9 +112,30 @@ fun LoginScreen(session: SessionRepository) {
                     color = KeepItColors.Accent,
                 )
                 Text(
-                    text = if (registerMode) "Create your account" else "Welcome back",
+                    text = when {
+                        forgotMode -> "Reset your password"
+                        registerMode -> "Create your account"
+                        else -> "Welcome back"
+                    },
                     color = KeepItColors.TextMuted,
                 )
+
+                if (forgotMode && resetRequested) {
+                    Text(
+                        text = "If an account exists for ${email.trim()}, a reset link is on its " +
+                            "way (valid for 2 hours). Open it, choose a new password, then sign " +
+                            "in here.",
+                        color = KeepItColors.Accent,
+                        fontSize = 13.sp,
+                    )
+                    Button(
+                        onClick = { forgotMode = false; resetRequested = false; error = null },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Back to sign in")
+                    }
+                    return@Column
+                }
 
                 OutlinedTextField(
                     value = serverUrl,
@@ -132,15 +163,17 @@ fun LoginScreen(session: SessionRepository) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (!forgotMode) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
 
                 error?.let {
                     Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
@@ -148,7 +181,8 @@ fun LoginScreen(session: SessionRepository) {
 
                 Button(
                     onClick = ::submit,
-                    enabled = !busy && serverUrl.isNotBlank() && email.isNotBlank() && password.isNotBlank(),
+                    enabled = !busy && serverUrl.isNotBlank() && email.isNotBlank() &&
+                        (forgotMode || password.isNotBlank()),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     if (busy) {
@@ -158,15 +192,32 @@ fun LoginScreen(session: SessionRepository) {
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                     } else {
-                        Text(if (registerMode) "Create account" else "Sign in")
+                        Text(
+                            when {
+                                forgotMode -> "Send reset link"
+                                registerMode -> "Create account"
+                                else -> "Sign in"
+                            },
+                        )
                     }
                 }
 
-                TextButton(onClick = { registerMode = !registerMode; error = null }) {
-                    Text(
-                        text = if (registerMode) "Have an account? Sign in" else "New here? Create an account",
-                        color = KeepItColors.TextMuted,
-                    )
+                if (forgotMode) {
+                    TextButton(onClick = { forgotMode = false; error = null }) {
+                        Text(text = "Back to sign in", color = KeepItColors.TextMuted)
+                    }
+                } else {
+                    TextButton(onClick = { registerMode = !registerMode; error = null }) {
+                        Text(
+                            text = if (registerMode) "Have an account? Sign in" else "New here? Create an account",
+                            color = KeepItColors.TextMuted,
+                        )
+                    }
+                    if (!registerMode) {
+                        TextButton(onClick = { forgotMode = true; error = null }) {
+                            Text(text = "Forgot password?", color = KeepItColors.TextMuted)
+                        }
+                    }
                 }
             }
         }

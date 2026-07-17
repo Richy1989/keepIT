@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 /** Top-level routing + auth gating. Shows a brief splash while the session is being restored. */
@@ -21,6 +22,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={authed ? <Navigate to="/" replace /> : <AuthPage />} />
+      {/* Reachable signed in or out: the emailed token authorizes the reset, not the session. */}
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/" element={authed ? <HomePage /> : <Navigate to="/login" replace />} />
       <Route
         path="/settings"

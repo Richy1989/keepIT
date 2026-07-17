@@ -25,6 +25,11 @@ interface KeepItApi {
     @POST("api/auth/register")
     suspend fun register(@Body body: RegisterRequestDto): AuthResponseDto
 
+    /** Requests a reset link (always 204 — the server never reveals whether the email exists).
+     *  The reset itself is completed in the browser via the emailed link, not in the app. */
+    @POST("api/auth/forgot-password")
+    suspend fun forgotPassword(@Body body: ForgotPasswordRequestDto)
+
     @POST("api/auth/logout")
     suspend fun logout()
 

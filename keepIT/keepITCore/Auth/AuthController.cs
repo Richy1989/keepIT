@@ -1,5 +1,6 @@
 using keepITCore.Auth.Dtos;
 using keepITCore.Data;
+using keepITCore.Infrastructure.Email;
 using keepITCore.Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -24,25 +25,33 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _db;
     private readonly RefreshCookieOptions _cookieOptions;
     private readonly IConfiguration _config;
+    private readonly IEmailSender _emailSender;
+    private readonly ILogger<AuthController> _logger;
 
-    /// <summary>Injects Identity's user manager, the token service, the DB context, cookie options, and config.</summary>
+    /// <summary>Injects Identity's user manager, the token service, the DB context, cookie options, config, and email.</summary>
     /// <param name="userManager">Identity user store for create/find/password checks.</param>
     /// <param name="tokenService">Mints access tokens and opaque refresh tokens.</param>
     /// <param name="db">Database context, used here for refresh-token persistence.</param>
     /// <param name="cookieOptions">Refresh-cookie settings (name, secure flag, path).</param>
-    /// <param name="config">App configuration, read for <c>App:AllowRegistration</c>.</param>
+    /// <param name="config">App configuration, read for <c>App:AllowRegistration</c> and <c>App:PublicBaseUrl</c>.</param>
+    /// <param name="emailSender">Delivers the password-reset link (SMTP, or the server log when unconfigured).</param>
+    /// <param name="logger">Controller logger.</param>
     public AuthController(
         UserManager<ApplicationUser> userManager,
         ITokenService tokenService,
         AppDbContext db,
         IOptions<RefreshCookieOptions> cookieOptions,
-        IConfiguration config)
+        IConfiguration config,
+        IEmailSender emailSender,
+        ILogger<AuthController> logger)
     {
         _userManager = userManager;
         _tokenService = tokenService;
         _db = db;
         _cookieOptions = cookieOptions.Value;
         _config = config;
+        _emailSender = emailSender;
+        _logger = logger;
     }
 
     /// <summary>
@@ -120,6 +129,92 @@ public class AuthController : ControllerBase
             .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
 
         return await IssueTokensAsync(applicationUser);
+    }
+
+    /// <summary>
+    /// Request a password-reset link. <b>Always returns 204</b>, whether or not an account exists
+    /// for the address — the response must not reveal which emails are registered (same
+    /// non-enumeration stance as login's generic 401). When the account exists, a single-use,
+    /// time-limited reset token is generated and the link is delivered via <see cref="IEmailSender"/>
+    /// — SMTP when configured, otherwise the server log (self-hosted operators own the logs).
+    /// </summary>
+    /// <param name="dto">The account email to send the reset link to.</param>
+    /// <returns>204 No Content, always (or 400 on validation errors).</returns>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequestDto dto)
+    {
+        var user = await _userManager.FindByEmailAsync(dto.Email);
+        if (user is not null)
+        {
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var link = $"{PublicBaseUrl()}/reset-password" +
+                       $"?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
+
+            try
+            {
+                await _emailSender.SendAsync(
+                    user.Email!,
+                    "Reset your keepIT password",
+                    "Someone (hopefully you) requested a password reset for your keepIT account.\n\n" +
+                    $"Open this link to choose a new password:\n{link}\n\n" +
+                    "The link is valid for 2 hours and can be used once. If you didn't request " +
+                    "this, you can safely ignore this email — your password is unchanged.");
+            }
+            catch (Exception ex)
+            {
+                // Swallow delivery failures: a 500 only for existing accounts would leak which
+                // emails are registered. The operator sees the problem here in the log.
+                _logger.LogError(ex, "Failed to deliver password-reset email");
+            }
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Complete a password reset with the token from the emailed link. On success, clears any
+    /// lockout and revokes <b>all</b> of the user's refresh tokens (the reset was triggered because
+    /// the account may be compromised or the password lost — every existing session must die). The
+    /// user signs in again with the new password; no tokens are issued here.
+    /// </summary>
+    /// <param name="dto">The email + reset token from the link, and the new password.</param>
+    /// <returns>204 on success, 400 with a generic error for an invalid/expired token (no account
+    /// enumeration), or 400 with details when the new password fails the complexity rules.</returns>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequestDto dto)
+    {
+        // Unknown email gets the same generic error as a bad token: the link as a whole is invalid.
+        var user = await _userManager.FindByEmailAsync(dto.Email);
+        if (user is null)
+            return BadRequest(new { error = "This reset link is invalid or has expired." });
+
+        var result = await _userManager.ResetPasswordAsync(user, dto.Token, dto.NewPassword);
+        if (!result.Succeeded)
+        {
+            // A bad/expired/reused token stays generic; password-rule failures are surfaced so the
+            // user can actually fix them (they've already proven control of the email at this point).
+            if (result.Errors.All(e => e.Code == nameof(IdentityErrorDescriber.InvalidToken)))
+                return BadRequest(new { error = "This reset link is invalid or has expired." });
+
+            foreach (var e in result.Errors)
+                ModelState.AddModelError(e.Code, e.Description);
+            return ValidationProblem(ModelState);
+        }
+
+        // Fresh start: a successful reset proves control of the email, so clear any lockout state
+        // (an attacker may have caused it by guessing) …
+        await _userManager.ResetAccessFailedCountAsync(user);
+        await _userManager.SetLockoutEndDateAsync(user, null);
+
+        // … and sign out every device, mirroring ChangePassword.
+        var now = DateTime.UtcNow;
+        await _db.RefreshTokens
+            .Where(rt => rt.UserId == user.Id && rt.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
+
+        return NoContent();
     }
 
     /// <summary>
@@ -258,6 +353,25 @@ public class AuthController : ControllerBase
     }
 
     // ---- helpers ----
+
+    /// <summary>
+    /// The frontend's public base URL, used to build the password-reset link. Resolution order:
+    /// explicit <c>App:PublicBaseUrl</c> config → the request's <c>Origin</c> header (dev: Vite on
+    /// :5173 posts cross-origin to :5025) → the request's own scheme+host (prod: nginx serves SPA
+    /// and API from one origin, so the API's host <em>is</em> the frontend host).
+    /// </summary>
+    private string PublicBaseUrl()
+    {
+        var configured = _config["App:PublicBaseUrl"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured.TrimEnd('/');
+
+        var origin = Request.Headers.Origin.ToString();
+        if (!string.IsNullOrWhiteSpace(origin) && origin != "null")
+            return origin.TrimEnd('/');
+
+        return $"{Request.Scheme}://{Request.Host}";
+    }
 
     /// <summary>
     /// Issues a new refresh token (persisted) and access token for the user, sets the refresh

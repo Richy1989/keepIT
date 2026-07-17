@@ -89,6 +89,9 @@ A few things worth knowing:
 - **Your data** lives in the `keepit-data` volume — back that up and you've backed up your notes.
 - **Once your accounts are created**, you can close public sign-up by adding
   `-e App__AllowRegistration=false` — recommended if your server is reachable from the internet.
+- **Forgot password** works without any mail server: the reset link is written to the server
+  log (`docker logs keepit`), where you — the operator — can grab it. To have it emailed to
+  users instead, configure SMTP with the `Email__*` settings below.
 - Running **Unraid**? A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
@@ -139,6 +142,11 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `App__AllowRegistration` | no | `true` | Whether new accounts may be created. On an internet-exposed instance: register your own accounts first, then set `false` to close public sign-up. |
 | `App__DataRoot` | no | `./App_Data` | Directory for the database, security keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the app — `1` for the plain setups above, `2` if you put another proxy (e.g. Traefik) in front. |
+| `App__PublicBaseUrl` | no | *(auto-detected)* | Public address of your instance (e.g. `https://notes.example.com`), used to build password-reset links. Usually auto-detected from the request; set it if reset links point to the wrong host. |
+| `Email__SmtpHost` | no | — | SMTP server for outgoing email (password-reset links). Leave empty to run without email — reset links then land in the server log. |
+| `Email__From` | with SMTP | — | From address, e.g. `keepIT <no-reply@example.com>`. Required once `Email__SmtpHost` is set. |
+| `Email__SmtpUsername` / `Email__SmtpPassword` | no | — | SMTP credentials; leave empty for an unauthenticated relay. |
+| `Email__SmtpPort` / `Email__UseStartTls` | no | `587` / `true` | SMTP port and TLS mode — the defaults suit STARTTLS submission; for implicit TLS use port `465` with `Email__UseStartTls=false`. |
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Sign-in cookie is HTTPS-only. Keep `true` behind TLS; set `false` only when serving plain HTTP on a non-localhost address (e.g. a LAN IP without TLS). |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |

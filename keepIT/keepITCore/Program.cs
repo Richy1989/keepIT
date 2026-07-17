@@ -1,6 +1,7 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Infrastructure;
+using keepITCore.Infrastructure.Email;
 using keepITCore.Infrastructure.Security;
 using keepITCore.Service;
 using keepITCore.SignalR;
@@ -70,6 +71,9 @@ builder.Services.AddCors(options =>
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials()));
+
+// ---- Outbound email (password-reset links): SMTP when configured, else logged ----
+builder.Services.AddAppEmail(builder.Configuration);
 
 // ---- App services ----
 builder.Services.AddScoped<ITokenService, TokenService>();

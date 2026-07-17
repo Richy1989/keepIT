@@ -63,6 +63,9 @@ data class RegisterRequestDto(
 )
 
 @Serializable
+data class ForgotPasswordRequestDto(val email: String)
+
+@Serializable
 data class ChecklistItemDto(
     val id: String? = null,
     val text: String = "",
