@@ -10,6 +10,7 @@
 [![Android](https://img.shields.io/badge/Android-app-3DDC84?logo=android&logoColor=white)](#the-android-app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 ![Status](https://img.shields.io/badge/status-work_in_progress-yellow)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy_Me_a_Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/spaceelephant)
 
 </div>
 
@@ -39,6 +40,7 @@ It has since grown into a blazing-fast app with optimistic editing, lists, searc
 - [The Android app](#the-android-app)
 - [What's next](#whats-next)
 - [For developers](#for-developers)
+- [Support](#support)
 - [License](#license)
 
 ## What you can do with it
@@ -208,6 +210,12 @@ Open **http://localhost:5173** and register an account — or seed test data
 ```bash
 ./scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.ps1
 ```
+
+## Support
+
+keepIT is free and self-hosted — no accounts, no subscriptions. If it's useful to you and you'd
+like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/spaceelephant). Much
+appreciated, but never expected.
 
 ## License
 
