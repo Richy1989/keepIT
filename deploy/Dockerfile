@@ -21,12 +21,19 @@ RUN npm run build
 
 # ---- 2. Publish the .NET API ----
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS api
+# The release version (git tag, e.g. 0.2.0) and commit sha, injected by the release workflow. The
+# SDK's automatic sha-stamping needs a .git folder, which the build context doesn't have — so the
+# sha comes in as an arg. Local `docker build` without args produces an honest "0.0.0-dev".
+ARG VERSION=0.0.0-dev
+ARG COMMIT=
 WORKDIR /src
 COPY keepIT/keepITCore/keepITCore.csproj keepITCore/
 RUN dotnet restore keepITCore/keepITCore.csproj
 COPY keepIT/ ./
 WORKDIR /src/keepITCore
-RUN dotnet publish keepITCore.csproj -c Release -o /app/publish /p:UseAppHost=false
+RUN INFOVERSION="$VERSION"; [ -n "$COMMIT" ] && INFOVERSION="$VERSION+$COMMIT"; \
+    dotnet publish keepITCore.csproj -c Release -o /app/publish /p:UseAppHost=false \
+      /p:Version="$VERSION" /p:InformationalVersion="$INFOVERSION"
 
 # ---- 3. Runtime: API + nginx in one image ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final

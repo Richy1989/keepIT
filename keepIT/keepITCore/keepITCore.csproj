@@ -6,6 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>d31aa9dd-53d5-4fcd-80d1-dc992d5d5634</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <!-- The default for builds that don't inject a real version (local dev, IDE). Release builds
+         override it: the Docker build passes /p:Version from the git tag (see deploy/Dockerfile and
+         the release workflow). Local git builds get "+<sha>" appended automatically by the SDK's
+         built-in SourceLink; the Docker build receives the sha as a build arg (no .git in context). -->
+    <Version>0.0.0-dev</Version>
   </PropertyGroup>
 
   <ItemGroup>

@@ -50,6 +50,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Baked into the API's assembly version; served back via GET /api/meta.
+          build-args: |
+            VERSION=${{ env.VERSION_NAME }}
+            COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
