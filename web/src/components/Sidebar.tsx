@@ -6,6 +6,7 @@ import {
   useUpdateList,
 } from '../features/lists/queries';
 import type { NotesView } from '../features/notes/queries';
+import { useServerMeta } from '../features/settings/queries';
 import { ArchiveIcon, ClockIcon, ListIcon, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons';
 import { cn } from '../lib/cn';
 
@@ -32,6 +33,7 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const { data: lists } = useLists();
+  const meta = useServerMeta();
   const createList = useCreateList();
   const updateList = useUpdateList();
   const deleteList = useDeleteList();
@@ -185,6 +187,13 @@ export function Sidebar({
           onClick={() => onSelect({ view: 'trashed', listId: null })}
         />
       </div>
+
+      {/* Pinned to the bottom (mt-auto); scrolls with the nav only when it overflows. */}
+      {meta.data && (
+        <div className="mt-auto px-3 pt-3 text-xs text-text-faint">
+          keepIT v{meta.data.version}
+        </div>
+      )}
       </nav>
     </>
   );
