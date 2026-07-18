@@ -7,207 +7,282 @@ making structural decisions.
 ## Goal
 
 A Keep-style notes app: masonry grid of note cards, fast/optimistic editing, lists,
-search, and live sync so a note edited on one device appears on others without a refresh.
+search, sharing between users, per-note reminders, and live sync so a note edited on one
+device appears on others without a refresh — plus a native Android app with offline
+support and a home-screen widget, all self-hosted.
 
 ## Shape of the system
 
-Two independent deployables talking over HTTP + WebSocket:
+One backend, three clients:
 
-- **`web/`** — React (Vite, TypeScript). The UI and all client logic.
-- **`keepIT/keepITCore`** — ASP.NET Core Web API (.NET 10). Business logic, persistence, auth, realtime.
+- **`keepIT/keepITCore`** — ASP.NET Core Web API (.NET 10). Business logic, persistence,
+  auth, realtime, background jobs. **The single backend for every client** — the contract,
+  auth, and realtime model are client-agnostic, never web-specific.
+- **`web/`** — React (Vite, TypeScript). The web UI and all its client logic.
+- **`app/`** — native Android app (Kotlin, Jetpack Compose). Offline-first, with native
+  reminder notifications and a home-screen widget. Not part of the Docker stack — it ships
+  as an APK (attached to GitHub Releases) and talks to the same HTTP + SignalR API.
 
-They are built, versioned, and deployed separately. We deliberately do **not** host React
-inside ASP.NET Core (the old SPA template approach) — keeping them separate lets either side
-be redeployed or scaled alone and keeps the boundary clean.
-
-A third client is **planned**: a **native Android app** (see **Android client** below). It is
-not a third deployable in the Docker stack — it ships through the Play Store / an APK — but it
-is a first-class consumer of the same `keepITCore` HTTP + SignalR API. The architectural
-consequence is that **`keepITCore` is the single backend for every client**: the contract,
-auth, and realtime model below must stay client-agnostic, not web-specific.
+Web and API are built, versioned, and deployed separately over HTTP + WebSocket. We
+deliberately do **not** host React inside ASP.NET Core (the old SPA template approach) —
+keeping them separate lets either side be redeployed alone and keeps the boundary clean.
+(The single-container Docker image co-locates nginx and the API as separate *processes* in
+one image for deployment convenience — see **Deployment** — but the SPA is still served by
+nginx, never by ASP.NET.)
 
 ## Data flow
 
 A note edit travels **down** the stack; live changes from other devices travel **back up**.
 
 1. User edits a note → TanStack Query **mutation** fires with an optimistic update → UI changes instantly.
-2. The mutation calls the **typed API client** → `keepITCore` endpoint → EF Core → PostgreSQL.
+2. The mutation calls the **typed API client** → `keepITCore` endpoint → EF Core → PostgreSQL (or SQLite in dev).
 3. After saving, the endpoint pushes a per-user **change signal** over the **SignalR hub**
    (`Changed(["notes","lists"])`) → the user's other devices receive it → they invalidate the
    matching TanStack Query cache keys → their UI re-syncs. The signal names *what* changed; the
-   data itself is reloaded by TanStack Query, not carried in the message.
+   data itself is reloaded through the REST API, not carried in the message.
 4. If the mutation errors, TanStack Query rolls the optimistic change back automatically.
+
+The Android app follows the same shape but batches it for offline: mutations apply to a local
+cache immediately and queue in an **outbox**; a sync engine replays the queue and refetches
+when connectivity (or a SignalR push) arrives. See **Android client**.
 
 ## The API contract (most important rule)
 
 The C# DTOs are the single source of truth for the API shape.
 
-- `keepITCore` exposes an **OpenAPI/Swagger** document.
-- A **typed TypeScript client** is generated from that document into `web/src/api/`.
-- Workflow: change a C# DTO → regenerate the client → TypeScript compile errors point at
-  every frontend spot that needs updating. No hand-maintained mirror types, no silent drift.
-
-**Chosen:** **openapi-typescript** + **openapi-fetch** (light, minimal runtime), wired into
-`npm run generate:api` → emits `web/src/api/schema.d.ts`, consumed by the typed client in
-`web/src/api/client.ts`. (Kiota was the considered alternative.)
+- `keepITCore` exposes an **OpenAPI** document (`/openapi/v1.json` in Development, with the
+  interactive Scalar UI at `/scalar/v1`).
+- A **typed TypeScript client** is generated from that document into `web/src/api/`:
+  **openapi-typescript** + **openapi-fetch** (light, minimal runtime), wired into
+  `npm run generate:api` → emits `web/src/api/schema.d.ts`, consumed by the typed client in
+  `web/src/api/client.ts`. Workflow: change a C# DTO → regenerate → TypeScript compile errors
+  point at every frontend spot that needs updating. No hand-maintained mirrors, no silent drift.
+- Enums that cross the wire carry `JsonStringEnumConverter`, so the document (and the TS
+  client) get a union of string names (`"Text" | "Checklist"`), not opaque numbers. A schema
+  transformer (`NumericSchemaTransformer`) also strips .NET's lenient integer-or-string unions
+  so numbers generate as plain numbers.
+- **Known deviation — the Android app hand-mirrors the DTOs** (`app/.../data/Dtos.kt`,
+  kotlinx.serialization): no Kotlin OpenAPI generator is wired up yet. The C# DTOs remain
+  authoritative — when one changes, `Dtos.kt` must be updated by hand to match. Enum-like
+  fields travel as their C# enum names and are modeled as strings with the known values as
+  constants. Wiring up a generated Kotlin client is still the intended end state.
 
 ## Backend (`keepITCore`, .NET 10)
 
-- **Endpoints:** **controllers** (`[ApiController]`), one per resource (`NotesController`,
-  `ListsController`, `AuthController`, `UserSettingsController`).
+- **Endpoints:** **controllers** (`[ApiController]`), one per resource — `NotesController`,
+  `NoteSharesController`, `ListsController`, `AuthController`, `UserSettingsController`,
+  `UserNotificationController`, `MetaController`.
 - **Persistence:** EF Core. **PostgreSQL (Npgsql) in production; SQLite as a dev fallback** —
-  the provider is chosen at startup from configuration (see **Data & database
-  configuration**). Entities + `DbContext` + migrations in `keepITCore/Data`.
-- **PostgreSQL specifics:** use JSONB for flexible note metadata; use Postgres full-text
-  search for note search rather than `LIKE` scans. These are Postgres-only — keep them behind
-  the provider abstraction so the SQLite dev path degrades gracefully (see that section).
-- **Auth:** ASP.NET Core Identity issues JWTs. Access token returned to the client and held
-  in memory; refresh token set as an **httpOnly cookie** (safer against XSS than localStorage).
-  A 401 triggers a silent refresh.
+  the provider is chosen at startup from configuration (see **Data & database configuration**).
+  Entities + `AppDbContext` + migrations in `keepITCore/Data`.
+- **Auth:** ASP.NET Core Identity issues JWTs. Access token in the response body, held in
+  memory client-side; refresh token as a rotating **httpOnly cookie** (see **Auth flow**).
 - **Validation:** **DataAnnotations** on the request DTOs, validated automatically by
-  `[ApiController]` before the action runs (a 400 `ValidationProblemDetails` with the messages).
-  Password complexity is additionally enforced by ASP.NET Core Identity.
-- **Realtime:** a SignalR hub (`RealTimeHub`, mapped at `/api/realtime`) pushes per-user
-  **change signals** to a user's other devices after a mutation. `@microsoft/signalr` is the
-  TS client on the frontend. See **SignalR realtime** for the contract and fan-out model.
+  `[ApiController]` before the action runs. A custom `InvalidModelStateResponseFactory`
+  surfaces the first error message in `ValidationProblemDetails.Detail` so clients can show
+  one friendly line. Password complexity is additionally enforced by Identity.
+- **Realtime:** SignalR hub (`RealTimeHub`, mapped at `/api/realtime`) pushes per-user change
+  signals after mutations. See **SignalR realtime**.
+- **Background work:** `ReminderDispatcherService`, a hosted service that fires due note
+  reminders every 30 s. See **Reminders**.
+- **Logging:** Serilog — clean colored console, one request-log line per request, levels from
+  the `Serilog` config section.
+- **Edge protection:** forwarded-headers handling + per-IP rate limiting registered in
+  `Infrastructure/Security/`. See **Security & abuse protection**.
+- **Email:** an `IEmailSender` abstraction — SMTP (`SmtpEmailSender`) when `Email__SmtpHost`
+  is configured, otherwise `LogOnlyEmailSender` writes the message to the server log. Used by
+  password reset and the settings page's test-email button. On a self-hosted instance the
+  operator owns the logs, so "reset link lands in the log" is a legitimate no-SMTP mode.
 
 ## Data & database configuration
 
 Everything the backend persists is driven by **environment variables**, and everything it
 writes to disk lives under **one common data folder**. PostgreSQL is the real database;
-SQLite exists only to make local dev frictionless.
+SQLite exists to make local dev and the single-container deployment zero-setup.
 
 ### Provider selection (Postgres, else SQLite)
 
-At startup the app decides its EF Core provider from configuration:
+At startup (`Infrastructure/DatabaseSetup.cs`) the app resolves a Postgres connection string
+from configuration:
 
-- **If a Postgres connection is configured → use PostgreSQL (Npgsql).**
-- **Otherwise → fall back to SQLite**, a file under the data folder
-  (`{DataRoot}/keepit.db`).
+- `ConnectionStrings__Postgres` — a full connection string; takes precedence.
+- …or discrete parts: **`POSTGRES_HOST` is the switch** — setting it builds the string from
+  `POSTGRES_HOST`/`POSTGRES_PORT`/`POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`
+  (defaults `5432`/`keepit`/`keepit`).
 
-"Configured" means a Postgres connection string is present, assembled from env vars. Support
-both a single connection string and discrete parts, e.g.:
+If a connection string resolves → **Npgsql**; otherwise → **SQLite** at `{DataRoot}/keepit.db`
+(logged clearly). This keeps `dotnet run` and the single-container image working with zero
+setup, while Compose/prod just set the env vars.
 
-```
-ConnectionStrings__Postgres = Host=db;Port=5432;Database=keepit;Username=keepit;Password=…
-# or discrete:
-POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
-```
+> SQLite note: the project deliberately uses `Microsoft.EntityFrameworkCore.Sqlite.Core` plus
+> the patched `SourceGear.sqlite3` native binary (registered manually in `Program.cs`) to avoid
+> the vulnerable `SQLitePCLRaw.lib.e_sqlite3` bundle.
 
-If `ConnectionStrings__Postgres` (or a complete set of `POSTGRES_*` parts) resolves to a
-non-empty connection string, register Npgsql; if nothing usable is found, log a clear
-"no Postgres configured — using SQLite dev database at {path}" and register SQLite. This keeps
-`dotnet run` working out of the box with zero setup, while Docker/prod just sets the env vars.
+### Database initialization
+
+- **Postgres runs migrations at startup** (`Database.Migrate()` in `Program.cs`) — the
+  migrations in `Data/Migrations` are **Postgres-authoritative** (the design-time factory
+  `AppDbContextFactory` targets Npgsql).
+- **SQLite uses `EnsureCreated()`** — a throwaway dev DB created from the current model. It
+  won't alter an existing file after entity changes; delete `App_Data/keepit.db` to rebuild.
 
 ### One common data folder
 
-All backend-generated data lives under a single configurable root so it's trivial to back up,
-mount as one Docker volume, and `.gitignore`:
+`App__DataRoot` (default `./App_Data`, resolved and created by
+`Infrastructure/FolderManagement.cs`) is the one folder the backend writes into — trivial to
+back up and to mount as a single Docker volume:
 
-- `App__DataRoot` — env var, **default `./App_Data`**. The one folder the core writes into.
-  (Named `App_Data`, not `data`, so it never collides with the C# `Data/` source folder on
-  case-insensitive filesystems like Windows/macOS.)
-  - `{DataRoot}/keepit.db` — the SQLite dev database (only when SQLite is in use).
-  - `{DataRoot}/media/…` — uploaded media files. **This supersedes the standalone
-    `App__MediaRoot` default**: media now defaults to `{DataRoot}/media` (an explicit
-    `App__MediaRoot` may still override it for media specifically).
-  - Any other on-disk artifacts the core produces (e.g. Data Protection keys for cookie/token
-    protection) go here too, so nothing app-generated is scattered outside this folder.
-- The whole `App_Data/` folder is **user data**: never commit it — add it to `.gitignore` and
-  `.dockerignore`, and mount it as a Docker volume so it survives redeploys.
+- `{DataRoot}/keepit.db` — the SQLite database (only when SQLite is in use).
+- `{DataRoot}/keys/` — ASP.NET Data Protection keys (cookie/token protection).
+- `{DataRoot}/users/{userId}/profile_image/` — uploaded profile images.
 
-### Provider differences to respect
+(Named `App_Data`, not `data`, so it never collides with the C# `Data/` source folder on
+case-insensitive filesystems.) The whole folder is **user data**: gitignored, dockerignored,
+mounted as a volume so it survives redeploys — never commit it.
 
-The SQLite fallback is a **dev convenience, not a second supported target** — Postgres is the
-source of truth. Because the two providers differ:
+### What was deliberately *not* built
 
-- **Migrations are provider-specific.** EF Core generates different SQL per provider. Keep the
-  **Postgres migrations authoritative** (in `keepITCore/Data/Migrations`); for the SQLite dev
-  path, either keep a parallel SQLite migrations set or use `EnsureCreated()`/auto-migrate on
-  startup for throwaway local DBs. Don't try to share one migration across both.
-- **JSONB & full-text search are Postgres-only.** SQLite has JSON1 and FTS5 but they map
-  differently. Access these through a small abstraction (e.g. a search service / query helper)
-  so on SQLite the app can degrade to a simpler `LIKE`-based search and plain JSON columns,
-  while Postgres uses JSONB + full-text. Feature parity isn't the goal for the dev DB.
+Earlier drafts planned Postgres JSONB metadata columns and Postgres full-text search. Neither
+exists: the model needed no flexible metadata yet, and at personal-notes scale **search is
+client-side** (the web app filters the already-cached grid by title/body/checklist text —
+instant, no endpoint, no provider divergence). Server-side search only becomes worth it if a
+user's dataset outgrows "fetch the grid", and would then be a Postgres-only feature behind a
+service abstraction.
 
 ## Auth flow
 
-JWT-based login is the standard for the whole app. ASP.NET Core Identity manages users
-and password hashing; the API issues tokens.
+JWT-based login for the whole app. ASP.NET Core Identity manages users and password hashing;
+the API issues tokens.
 
 **Tokens**
-- **Access token** — short-lived JWT (e.g. ~15 min). Returned in the response body and held
-  **in memory** on the client (never localStorage). Sent as `Authorization: Bearer <token>`.
-- **Refresh token** — long-lived, opaque, set as an **httpOnly + Secure + SameSite** cookie
-  so JS can't read it. Stored/rotated server-side so it can be revoked. A 401 from the API
-  triggers a silent refresh; if refresh fails, the client logs out.
+- **Access token** — short-lived JWT (`Jwt__AccessTokenMinutes`, default 15). Returned in the
+  response body and held **in memory** on the client (web: `tokenStore.ts`; Android: an
+  in-memory `TokenStore`). Sent as `Authorization: Bearer <token>`. Carries the user id in
+  the `sub` claim.
+- **Refresh token** — long-lived (`Jwt__RefreshTokenDays`, default 14), opaque, set as an
+  **httpOnly + Secure + SameSite=Strict** cookie so JS can't read it. Stored server-side
+  **hashed** (`RefreshToken` entity: token hash, expiry, revocation, replaced-by chain) so a
+  DB leak doesn't leak usable tokens and individual tokens can be revoked. A 401 triggers a
+  silent refresh; if refresh fails, the client signs out.
+- **Rotation + reuse detection.** Every `/refresh` revokes the presented token and issues a
+  replacement. Presenting a token that was already rotated/revoked (but not expired) is the
+  signature of a stolen cookie being replayed — **all** of the user's active refresh tokens
+  are revoked, forcing both the attacker and the real user to sign in again. Expired rows are
+  cleaned up opportunistically; revoked-but-unexpired rows are kept because they *are* the
+  replay detector.
 
-**Endpoints** (contract is C# DTOs as usual; all under `/api/auth`)
-- `POST /register` — create account → returns access token + sets refresh cookie.
-- `POST /login` — credentials → returns access token + sets refresh cookie.
-- `POST /refresh` — reads the refresh cookie, rotates it, returns a new access token.
-  No access token required.
-- `POST /logout` — revokes the current refresh token and clears the cookie.
-- `GET  /me` — returns the current user (requires a valid access token).
+**Endpoints** (all under `/api/auth`; contract is the C# DTOs as usual)
+- `POST /register` — create account → access token + refresh cookie. Refused with 403 when
+  `App__AllowRegistration=false` — the intended mode for an internet-exposed personal
+  instance: create your accounts, then close the door (existing users are unaffected).
+- `POST /login` — credentials → access token + refresh cookie. Failed attempts count toward
+  Identity's per-account **lockout**; a locked account gets the same generic 401 as bad
+  credentials (no account/lock-state enumeration).
+- `POST /refresh` — rotates the cookie, returns a new access token. No access token required.
+- `POST /logout` — revokes the current refresh token and clears the cookie. Idempotent.
+- `POST /changepassword` — verifies the current password, sets the new one, then **revokes
+  every refresh token** (signs out all other devices) and issues fresh tokens so the current
+  device stays signed in.
+- `POST /forgot-password` — **always 204**, whether or not the account exists (no email
+  enumeration). When it does, a single-use, time-limited Identity reset token is generated and
+  the link is delivered via `IEmailSender` (SMTP or the server log). The link points at the
+  frontend's `/reset-password` page; its base URL is `App__PublicBaseUrl` if set, else the
+  request's `Origin` header (dev: Vite origin), else the request's own scheme+host (prod:
+  one origin anyway).
+- `POST /reset-password` — completes the reset with the emailed token. Clears any lockout
+  (proving control of the email outranks a possibly attacker-induced lockout) and revokes all
+  refresh tokens; the user signs in fresh. Bad/expired tokens get a generic error; password-
+  rule failures are surfaced in detail (the caller has already proven email control).
+- `GET  /me` — the current user (requires a valid access token).
+
+The whole controller is rate-limited (see **Security & abuse protection**).
 
 **Authorization rule (applies everywhere)**
-- Every endpoint requires a valid JWT **except** `register`, `login`, and `refresh`.
-- Every `Note`, `ChecklistItem`, `NoteImage`, `MediaItem`, and `List` belongs to an
-  `ownerId`. **Ownership is fixed; access is what queries check.** A caller's access to a
-  note is *ownership **or** an explicit share* (see **Sharing / collaboration**). Every
-  query/command resolves the caller's access first and a user can never read or mutate a
-  note they neither own nor have a share on. `List`s are always private to their owner and
-  are never shared (see Sharing for how collaborators organize a shared note).
-- `GET /api/media/{id}` enforces this access check before streaming bytes — owning the id is
-  not enough; the caller must own the media item **or** own/have a share on a note that
-  references it.
+- Every endpoint requires a valid JWT **except** register, login, refresh, logout,
+  forgot-/reset-password, and `GET /api/meta`.
+- Every resource row carries an owner id, and every query is scoped via `User.GetUserId()`.
+  A caller's access to a **note** is *ownership OR an explicit share*, resolved through
+  `NoteAccessService` — never a bare `OwnerId == me` (see **Sharing / collaboration**).
+  Private resources (lists, settings, notifications, reminders, per-user note state) are
+  strictly caller-scoped.
+- Profile images have their own narrow rule — see **Profile images**.
 
-**SignalR auth** (see **SignalR realtime** below for the full model)
-- `RealTimeHub` is `[Authorize]`. Browsers can't set custom headers on the WebSocket
-  handshake, so the access token is passed via the query string (`?access_token=…`); JWT
-  bearer's `OnMessageReceived` reads it, scoped to the `/api/realtime` path.
+**SignalR auth**
+- `RealTimeHub` is `[Authorize]`. Browsers can't set headers on the WebSocket handshake, so
+  the access token is passed via the query string (`?access_token=…`); JWT bearer's
+  `OnMessageReceived` reads it, scoped to the `/api/realtime` path. The Android SignalR client
+  authenticates the same way.
+
+## Security & abuse protection
+
+The app is designed to be self-hosted and possibly internet-exposed, so the edge is hardened
+in the API itself (`Infrastructure/Security/`) and in the nginx config:
+
+- **Rate limiting** (per client IP): a global sliding window of **120 req/min** on everything,
+  and a tighter fixed window of **10 req/min** on `/api/auth/*` (password guessing / signup
+  abuse) via the named `auth` policy. Rejected callers get 429 + `Retry-After`.
+- **Forwarded headers:** the API sits behind nginx (and possibly Traefik), so it trusts
+  `X-Forwarded-For`/`-Proto` to recover the real client IP — which the rate limiter keys on.
+  **`App__ForwardedProxyHops` must equal the number of proxy hops** (1 for the plain stacks,
+  2 behind Traefik → nginx): too low and all clients share the proxy's rate-limit bucket, too
+  high and a client can spoof its IP with a forged header.
+- **No HTTPS redirect in the API** — TLS terminates at the proxy; a redirect inside the API
+  would loop behind it. `Auth__RefreshCookie__Secure` controls the cookie's Secure flag
+  (`true` behind TLS; `false` only for plain-HTTP LAN use).
+- **Request size limits:** note endpoints cap payloads at 2 MB (`[RequestSizeLimit]`) —
+  rejecting abuse before model binding instead of at Kestrel's ~28 MB default.
+- **Upload validation:** profile images are checked by extension, size (≤2 MB), **and content
+  signature** (magic bytes — JPEG/PNG/GIF/WebP) in `Service/ImageService.cs`; stored under a
+  fresh GUID filename, never the client's (path-traversal defense).
+- **Non-enumeration stance:** login, lockout, forgot-password, reset-password, and the
+  profile-image endpoint all return the same generic response for "doesn't exist" and "no
+  permission", so none of them can be used to probe which emails/ids are registered.
+- **nginx (`web/nginx.conf` and `deploy/nginx.conf`):** security headers (nosniff,
+  frame-ancestors DENY, referrer policy, HSTS — inert on plain HTTP, effective under TLS) and
+  a same-origin **CSP** (inline script/style allowances only for the pre-paint theme script
+  and React inline note colors).
 
 ## SignalR realtime
 
 The realtime layer keeps a user's open devices in sync. It is intentionally a thin
 **invalidation** channel, not a data channel: the server says *what changed*, and each client
-reloads it through TanStack Query (which owns all server state). This avoids the hub contract
-mirroring the DTOs and keeps the REST API the single source of data.
+reloads it through the REST API. This avoids the hub contract mirroring the DTOs and keeps
+REST the single source of data.
 
-**Implemented today — per-user fan-out.**
 - **Hub:** `keepITCore/SignalR/RealTimeHub.cs`, mapped at **`/api/realtime`** (under `/api`
-  so the existing dev proxy and nginx WebSocket-upgrade rules route it with no extra config).
+  so the dev proxy and nginx WebSocket-upgrade rules route it with no extra config).
 - **Contract:** one strongly-typed client method, `Changed(IReadOnlyList<string> resources)`,
-  where each resource is `"notes"`, `"lists"`, or `"notification"` (`RealtimeResources`). The
-  browser only *receives*; mutations stay on REST, so the hub has **no callable server methods**.
+  where each resource is `"notes"`, `"lists"`, `"notification"`, or `"settings"`
+  (`RealtimeResources`). Clients only *receive*; mutations stay on REST, so the hub has **no
+  callable server methods**.
 - **Push path:** controllers depend on `IRealtimeNotifier` (a thin wrapper over
   `IHubContext<RealTimeHub, IRealTimeHub>`), and after each successful `SaveChanges` call
-  `NotifyAsync(ownerId, …)` with the resources that mutation affected (e.g. a note create
-  touches `notes` **and** `lists`, since list counts change).
-- **Targeting:** `Clients.User(userId)`, which reaches *every* connection that user has open —
-  3 devices, all 3 get it. A custom **`IUserIdProvider` (`SubUserIdProvider`)** maps a
-  connection to the JWT **`sub`** claim, because our tokens don't emit `NameIdentifier` (which
-  SignalR's default provider expects). The originating device also receives its own signal and
-  harmlessly re-validates (TanStack dedupes in-flight loads).
-- **Client:** `web/src/realtime/RealtimeSync.tsx` holds one authenticated connection while
-  signed in, invalidates the matching query keys on `Changed`, refreshes the token in
-  `accessTokenFactory` when it's expiring, and re-syncs everything on reconnect
-  (`withAutomaticReconnect` + `onreconnected`).
-- **Scale-out caveat:** `Clients.User` is in-process. A single API instance (the current
-  deploy) reaches all of a user's devices. Running **multiple** API instances behind a load
-  balancer requires a **Redis backplane** (`AddSignalR().AddStackExchangeRedis(...)`) or a
-  device connected to another instance misses pushes. See **Deployment** (`redis` service).
-
-**Implemented — sharing-aware fan-out.** A note's content changes reach the owner's devices
-**and** every collaborator's. This is done by **fanning out over the recipient set**, not SignalR
-groups: after a content mutation the controller asks `NoteAccessService.RecipientIdsAsync(noteId)`
-(owner + all grantees) and calls `NotifyAsync(userId, …)` for each, so `Clients.User` still targets
-per-user. **Per-user** changes (pin/archive/trash, list membership) notify only the acting caller,
-since no one else's view moved. A `notification` signal targets a single user (the invite
-recipient, or the answerer). A group-per-note model is a reasonable future optimization if the
-recipient fan-out ever gets expensive, but the per-user loop keeps the targeting logic in one
-place and needs no join/leave bookkeeping. The **Redis backplane** caveat above applies unchanged:
-`Clients.User` is in-process, so multi-instance still needs it.
+  `NotifyAsync(userId, …)` with the resources that mutation affected (e.g. a note create
+  touches `notes` **and** `lists`, since list counts change). The reminder dispatcher pushes
+  too (`notification` + `notes`).
+- **Targeting:** `Clients.User(userId)` reaches *every* connection that user has open. A
+  custom `IUserIdProvider` (`SubUserIdProvider`) maps a connection to the JWT **`sub`** claim
+  (our tokens don't emit `NameIdentifier`, which SignalR's default provider expects). The
+  originating device also receives its own signal and harmlessly re-validates (TanStack
+  dedupes in-flight loads).
+- **Sharing-aware fan-out:** a shared note's content change must reach the owner's devices
+  **and** every collaborator's. This is done by fanning out over the recipient set, not
+  SignalR groups: the controller asks `NoteAccessService.RecipientIdsAsync(noteId)` (owner +
+  all grantees) and calls `NotifyAsync` per user. **Per-user** changes (pin/archive/trash,
+  list membership, reminders, settings) notify only the acting caller, since no one else's
+  view moved. A `notification` signal targets a single user. A group-per-note model remains a
+  future optimization if the recipient loop ever gets expensive.
+- **Clients:** web — `web/src/realtime/RealtimeSync.tsx` holds one authenticated connection
+  while signed in, maps each resource to its TanStack Query key and invalidates on `Changed`,
+  refreshes the token in `accessTokenFactory`, and re-syncs everything on reconnect
+  (`withAutomaticReconnect` + `onreconnected`). Android — `data/RealtimeClient.kt` (official
+  SignalR Java client) forwards `Changed` to the sync engine / notifications watcher; the Java
+  client has no automatic reconnect, so it retries on a delay and re-syncs on every reconnect.
+- **Scale-out caveat:** `Clients.User` is in-process. A single API instance (the intended
+  deploy) reaches all of a user's devices; running multiple instances behind a load balancer
+  would need a Redis backplane (`AddSignalR().AddStackExchangeRedis(...)`) — and the reminder
+  dispatcher would need cross-instance locking. Neither exists; **single-instance is an
+  explicit assumption**, fine for the self-hosted target.
 
 ## Sharing / collaboration
 
@@ -215,386 +290,422 @@ A note can be shared with other users so they see it in their own grid and (opti
 it. This is the one place the app deliberately relaxes strict per-user data isolation — and
 because it does, the access rules below are mandatory, not optional.
 
-**Status: implemented** (web + API). The model, access rule, and per-user overlay below are
-live; the one intentional deviation from the original plan is that sharing is an **invite/accept
-flow** rather than a direct grant (see **Endpoints**).
+**Status: implemented** on web, API, and Android (the phone's `ShareSheet` mirrors the web's
+`ShareDialog`; share management is online-only on both — nothing is queued offline).
 
 **Model.** A `NoteShare` row grants one user (`granteeId`) access to one note at a `role`:
 - **Viewer** — read-only. Sees the note and its live updates; cannot mutate its content.
-- **Editor** — read + write. Can edit body/checklist items/color like the owner, but
+- **Editor** — read + write. Can edit title/body/checklist/color like the owner, but
   **cannot** delete the note, re-share it, or change other people's roles.
 
 The **owner** is implicit (no `NoteShare` row) and is the only one who can share/un-share,
-change roles, or hard-delete the note. Ownership never transfers. A `NoteShare` exists only
-once the recipient has **accepted** an invite — a pending invite is not yet access.
+change roles, or hard-delete. Ownership never transfers. A `NoteShare` exists only once the
+recipient has **accepted** an invite — a pending invite is not yet access.
 
-**Access resolution (used by every note query/command).** A caller may act on a note iff:
+**Access resolution (used by every note query/command).** A caller may act on a note iff
 `note.ownerId == caller` **OR** a `NoteShare(noteId, granteeId == caller)` exists — and for
 content writes, that share's role is `Editor`. This lives in exactly one place —
 **`NoteAccessService`** (`Notes/NoteAccessService.cs`), which returns a `NoteAccess(IsOwner,
-Role)` (with `CanEdit = IsOwner || Role == Editor`) and the realtime recipient set for a note.
-Every note endpoint resolves access through it; no endpoint hand-rolls an `ownerId == me` check.
+Role)` (with `CanEdit = IsOwner || Role == Editor`) and the realtime recipient set. Every note
+endpoint resolves access through it; no endpoint hand-rolls an `ownerId == me` check. No
+access and "doesn't exist" are both 404; a viewer attempting a content write is 403.
 
-**Per-user view overlay (`NoteUserState`).** Pin/archive/trash are **per user**, not columns on
-the note: a `NoteUserState(noteId, userId, isPinned, isArchived, isTrashed)` row holds one user's
-private view. **The row's existence also means "this note is in my grid"** — the owner gets one
-when the note is created, a grantee gets one when they accept — so the grid query is driven off
-this table (owned and shared notes fall out of the same query) rather than a `UNION`. A
-collaborator pinning or trashing a shared note touches only their own row.
+**Per-user view overlay (`NoteUserState`).** Pin/archive/trash are **per user**, not columns
+on the note: a `NoteUserState(noteId, userId, isPinned, isArchived, isTrashed)` row holds one
+user's private view. **The row's existence also means "this note is in my grid"** — the owner
+gets one on create, a grantee on accept — so the grid query is driven off this table (owned
+and shared notes fall out of the same query) rather than a `UNION`. A collaborator pinning or
+trashing a shared note touches only their own row.
 
-**What is and isn't shared.** The note's **content** is shared: title, body, checklist items,
-image notes, and background — including the referenced `MediaItem` bytes, which a collaborator
-reaches *through the note*, not by owning the media (see the media access rule above). **Not**
-shared: `List`s (private per user via the `NoteList.userId` join — a collaborator files a shared
-note into their own lists without the owner seeing it) and the per-user view flags above.
+**What is and isn't shared.** Shared: the note's **content** — title, body, checklist items,
+color. Not shared (each per-user): pin/archive/trash, list memberships (`NoteList.userId` —
+a collaborator files a shared note into their *own* lists), and **reminders** (`NoteReminder`
+is keyed per user; a viewer can set their own reminder on a shared note).
 
 **Endpoints.** Sharing is an **invite → accept** flow, not a silent grant (a note shouldn't
 just appear in a stranger's grid). Owner-only except where noted:
 - `POST   /api/notes/{id}/shares` — invite a user (by email) at a role. Creates a pending
-  `ShareInviteNotification` for the recipient and pushes a realtime `notification` signal; **no
-  `NoteShare` yet**. Rejects self-shares, duplicates, and non-users (`400`).
-- `GET    /api/notes/{id}/shares` — list collaborators and their roles (owner or any
-  collaborator may read who else has access).
+  `ShareInviteNotification` for the recipient and pushes a realtime `notification` signal;
+  **no `NoteShare` yet**. Rejects self-shares, duplicates, and non-users (`400`).
+- `GET    /api/notes/{id}/shares` — list collaborators and roles (owner or any collaborator).
 - `PATCH  /api/notes/{id}/shares/{granteeId}` — change a collaborator's role.
 - `DELETE /api/notes/{id}/shares/{granteeId}` — revoke a share (also drops the grantee's
   `NoteUserState` and their private list memberships, so it leaves their grid at once). The
   grantee may call this on **their own** share to *leave* a note.
-- **Accept/decline** happens on the notifications resource, not here: `POST
+- **Accept/decline** happens on the notifications resource: `POST
   /api/notifications/{id}/respond` with `{ accept }`. Accept creates the `NoteShare` (at the
-  invited role) **and** the grantee's `NoteUserState`; either answer consumes the invite. See
-  **Notifications**.
+  invited role) **and** the grantee's `NoteUserState`; either answer consumes the invite.
 
-**Invites to non-users.** Sharing by email requires an **existing user** (a `400` otherwise).
-Recording a pending invite keyed by email and resolving it on signup is a later refinement.
+**Invites to non-users.** Sharing by email requires an **existing user** (`400` otherwise).
+Recording a pending invite keyed by email and resolving it on signup is a planned refinement.
 
-**Edge cases to honor.**
-- **Concurrent edits.** Two editors can touch the same note at once. Optimistic updates +
-  SignalR keep them roughly in sync; use `updatedAt`/row-version for last-write-wins and
-  surface conflicts rather than silently clobbering. Field-level merge/CRDT is out of scope
-  for v1.
-- **Revocation is immediate.** Removing a share drops the user from the note's SignalR group
-  and any subsequent API call 403s — no stale access.
-- **Deleting a shared note.** Only the owner purges it; doing so cascades its `NoteShare`
-  rows and the note vanishes from every collaborator's grid.
+**Edge cases honored.**
+- **Concurrent edits:** optimistic updates + SignalR keep editors roughly in sync;
+  last-write-wins on `updatedAt`. Field-level merge/CRDT is out of scope.
+- **Revocation is immediate:** the next API call 403s/404s and the realtime push tells the
+  revoked user's devices to resync (the note vanishes from their grid).
+- **Deleting a shared note:** owner-only; cascades shares, per-user state, list rows, and
+  reminders, and notifies the whole recipient set so it vanishes everywhere at once. (The
+  recipient set is captured *before* the delete.)
 
 ## Notifications
 
-A lightweight per-user inbox (`/api/notifications`). Two kinds today, modelled **table-per-hierarchy**
-(one `Notifications` table, a `type` discriminator, subtype fields as nullable columns) so the
-generated TS client narrows on a `"System" | "ShareInvite"` union:
+A lightweight per-user inbox (`/api/notifications`). Three kinds, modelled
+**table-per-hierarchy** (one `Notifications` table, a `NotificationType` discriminator,
+subtype fields as nullable columns) so the generated TS client narrows on a
+`"System" | "ShareInvite" | "Reminder"` union:
 
 - **System** — a plain text + severity message. Dismiss-only.
 - **ShareInvite** — the actionable half of **Sharing / collaboration**: the owner's `POST
-  …/shares` raises one for the recipient. It carries denormalized snapshots (sharer email, note
+  …/shares` raises one for the recipient. Carries denormalized snapshots (sharer email, note
   title, offered role) so it renders without joins and survives a later rename.
+- **Reminder** — raised by the reminder dispatcher when a `NoteReminder` fires. Carries the
+  note id plus a snapshot title (the note may be renamed or gone by the time it's read).
+  Dismiss-only.
 
-**Endpoints** (all owner-scoped to the caller — you can only ever see/answer/delete your own):
+**Endpoints** (all owner-scoped to the caller):
 - `GET    /api/notifications` — the caller's notifications, newest first.
-- `POST   /api/notifications/{id}/respond` — answer a share invite (`{ accept }`). Accept creates
-  the `NoteShare` + the caller's `NoteUserState`; either answer consumes the invite.
+- `POST   /api/notifications/{id}/respond` — answer a share invite (`{ accept }`).
 - `DELETE /api/notifications/{id}` — dismiss.
 
-Every mutation pushes a realtime `notification` signal to the affected user, so the top-bar bell
-updates live. The web feature lives in `web/src/features/notifications/`.
+Every mutation pushes a realtime `notification` signal to the affected user, so the top-bar
+bell updates live. Web feature: `web/src/features/notifications/`. On Android, a
+`ServerNotificationsWatcher` surfaces inbox entries as **native** notifications.
+
+## Reminders
+
+A user can attach one reminder to any note they can see — one-time or recurring (daily /
+weekly / monthly / yearly). Reminders are **per-user, private state** like pin/archive/trash:
+on a shared note each collaborator (any role — read access suffices) sets their own without
+anyone else seeing it.
+
+**Model.** `NoteReminder` — composite key `(noteId, userId)`, so at most one reminder per
+user per note; row existence means "a reminder is set". Fields: `RemindAtUtc` (for recurring
+reminders, always the *next* occurrence), `Recurrence`, `FiredAtUtc` (set when a one-time
+reminder fires; null = pending; rescheduling resets it).
+
+**Endpoints** (on the notes resource; read access suffices, per-user realtime only):
+- `PUT    /api/notes/{id}/reminder` — set/replace the caller's reminder (`{ remindAtUtc, recurrence }`).
+- `DELETE /api/notes/{id}/reminder` — clear it (idempotent).
+- `GET    /api/notes?reminders=true` — the caller's notes with a reminder set, soonest first.
+  Spans active **and** archived (like Keep) but never trash.
+
+**Server-side firing.** `ReminderDispatcherService` (hosted service) ticks every 30 s: it
+scans for pending due reminders (skipping notes the user has trashed — a still-pending
+reminder fires after restore), raises a `ReminderNotification`, and pushes realtime
+(`notification` for the bell + `notes` for the chip). One-time reminders are marked fired;
+recurring ones advance to the next *future* occurrence — a long outage produces **one**
+catch-up notification, not one per missed slot. Each reminder saves individually so a poison
+row can't roll back the batch. Known accepted limitations (documented in the service):
+recurrence arithmetic is UTC (wall-clock drift across DST; `AddMonths` end-of-month clamping
+compounds), and firing is single-instance (no cross-instance locking).
+
+**Android-side firing.** The server push only helps while a socket is open, so the phone
+mirrors pending reminders from its offline cache into a SharedPreferences snapshot and arms
+**`AlarmManager`** alarms (`notifications/ReminderScheduler.kt`): exact-and-allow-while-idle
+when the user grants the *Alarms & reminders* special access (surfaced in the app's Settings
+screen), else inexact-but-Doze-safe. Reminders thus fire as native notifications with the app
+closed, the screen locked, or no internet. Duplicate suppression is two-layered (a local
+posted-keys set, plus a shared `note-<id>` notification tag that folds the server's
+`ReminderNotification` into the already-shown entry). Snoozes are purely local and never touch
+the server row.
 
 ## Frontend (`web/`)
 
-- **Build/dev:** Vite. In dev, Vite's proxy forwards `/api` to the backend to avoid CORS.
-  In prod, React is served as static files (nginx) and the API runs separately.
-- **Server state:** TanStack Query owns everything fetched from the API — caching,
-  background refetch, optimistic mutations. Do not duplicate this into a global store.
-- **Client/UI state:** plain React state, or Zustand only for genuinely client-side UI state.
-- **HTTP:** the generated typed client (openapi-fetch or a Kiota client).
-- **Realtime:** `@microsoft/signalr` in `web/src/realtime/RealtimeSync.tsx`; on an incoming
-  `Changed` signal, invalidate the matching TanStack Query key(s). See **SignalR realtime**.
-- **Styling:** Tailwind. Masonry via CSS columns or a small masonry lib. See **Look & feel**
-  for the visual direction (Keep-like layout, dark-first, modern).
-- **Layout shell:** a left **sidebar** (Notes, Lists, Archive, Trash + the user's lists for
-  one-click filtering), a top search bar, and the masonry note grid as the main pane.
-- **Routing:** React Router (or TanStack Router for typed routes).
+- **Build/dev:** Vite. In dev, Vite's proxy forwards `/api` (HTTP + WebSocket) to the backend
+  — no CORS. In prod, the SPA is static files served by nginx, which reverse-proxies `/api`.
+- **Server state:** TanStack Query owns everything fetched from the API — caching, background
+  refetch, optimistic mutations. Never duplicated into a global store (no Redux/Zustand;
+  query hooks co-located per feature in `features/<name>/queries.ts`).
+- **Client/UI state:** plain React state/context (`AuthProvider`, `SettingsProvider`).
+- **HTTP:** the generated typed client (`api/client.ts` on openapi-fetch), with a silent
+  token-refresh-and-retry on 401 and error extraction in `lib/apiError.ts`.
+- **Realtime:** `realtime/RealtimeSync.tsx` — see **SignalR realtime**.
+- **Search** is client-side: the top bar's query filters the already-cached grid by title,
+  body, and checklist text. Instant, and no server round-trips while typing.
+- **Notes:** masonry grid via CSS columns (`NotesGrid`), a collapsed "take a note" composer
+  that expands inline (`NoteComposer`), a modal editor (`NoteEditorModal`) with a **Markdown**
+  body (custom renderer + formatting toolbar), checklist editing, color picker, share dialog,
+  and reminder chip/menu.
+- **Routing:** React Router v7 — `AuthPage`, `HomePage`, `SettingsPage`, `ResetPasswordPage`
+  (the target of emailed reset links).
+- **Styling:** Tailwind v4. The design system is **fully token-based** in `web/src/index.css`
+  — semantic chrome tokens plus a per-note palette, themed for dark / dim / light with 8
+  independent accent colors. Theme + accent are persisted server-side (`UserSettings`) and
+  written to `<html>` as `data-theme` / `data-accent` by `SettingsProvider`, with a pre-paint
+  script in `index.html` to avoid a flash. See **Look & feel**.
+- **Settings page** also hosts account management (display name/avatar upload, change
+  password), the operator's test-email button, and shows the server version from `/api/meta`.
 
-## Android client (planned)
+## Android client (`app/`)
 
-A **native Android app** is a planned future client. It is **not** a web view wrapper and not
-part of the Docker stack — it's a separately built, store-distributed app that talks to the
-**same `keepITCore` REST + SignalR API** as the web app. Treat it as another consumer of the
-contract, never a reason to special-case the backend.
+**Status: implemented.** A native Android app — Kotlin, Jetpack Compose (Material 3),
+package `org.spaceelephant.keepitapp`, minSdk 34. Not a WebView wrapper: the point is a real
+native experience, native reminder notifications, and a real home-screen widget. It is a
+first-class consumer of the same REST + SignalR contract — the backend never special-cases it.
 
-- **Native, not hybrid.** Built in **Kotlin** with **Jetpack Compose** (Material 3). No React
-  Native / WebView shell — the point is a real native experience and, critically, a real
-  **home-screen widget**, which a wrapped web app can't provide well.
-- **Same contract, generated client.** The C# DTOs stay the single source of truth. Generate a
-  **Kotlin client from the same OpenAPI document** (e.g. OpenAPI Generator's `kotlin` +
-  Retrofit/Ktor) so the Android models can't silently drift from the API — the mobile mirror of
-  the web's `npm run generate:api` rule. Do **not** hand-maintain Kotlin DTOs.
-- **Auth on mobile.** Same JWT model, but the browser cookie assumptions don't apply. The
-  refresh token can't live in an httpOnly cookie on native, so store it in **Android's
-  encrypted storage** (EncryptedSharedPreferences / DataStore backed by the Keystore), keep the
-  access token in memory, and reuse the existing `/api/auth/refresh` rotation flow. The backend
-  refresh-token handling shouldn't need to care which client holds the token.
-- **Offline-first.** Phones go offline; the app should keep working. Cache notes locally (Room),
-  show them immediately, and queue mutations to replay when connectivity returns — the mobile
-  analogue of the web's optimistic updates, reconciled against the server on reconnect.
-- **Realtime.** Use the official SignalR Kotlin/Java client against `RealTimeHub`
-  (`/api/realtime`), passing the access token via the query string exactly as the web client
-  does, and handle the same `Changed(resources)` signal by refreshing the affected local
-  caches (see **SignalR realtime**). Fall back to refetch-on-resume when a socket isn't held
-  open in the background.
+**Stack & wiring.** Retrofit + OkHttp + kotlinx.serialization for HTTP; the official SignalR
+Java client for realtime; Glance for the widget. Dependency wiring is a **hand-rolled
+`AppContainer`** in `KeepItApplication` (deliberate: a handful of app-scoped singletons
+doesn't justify Hilt). Repositories are app-scoped so their `StateFlow`s survive
+configuration changes; screens reach them via `context.appContainer`.
+
+**Server address.** Unlike the web app (same-origin by construction), the phone asks for the
+server URL on the sign-in screen and remembers it — one app, any self-hosted instance.
+
+**Auth.** Same JWT model, adapted to native: the access token lives in memory only; the
+refresh token is still the server's httpOnly cookie, held by a **persistent OkHttp cookie
+jar** (`PersistentCookieJar`) in app-private SharedPreferences — the app plays the browser's
+role of holding the cookie, and the backend's refresh handling is identical for all clients.
+Refresh is single-flight (the cookie rotates per call) with a 401-retry interceptor. The
+session distinguishes **rejected** (server said no → sign out) from **unreachable** (network
+problem → stay signed in on the cached user so the offline cache is usable); only an actual
+rejection may destroy the session.
+
+**Offline-first sync** (`data/offline/`):
+- **`LocalStore`** — the offline cache and outbox as **two JSON files** under
+  `filesDir/offline/`, written atomically (temp file + rename). Deliberately **not Room**:
+  the whole dataset already lives in memory as `StateFlow<List<NoteDto>>` and is
+  personal-note-scale, so indexed queries buy nothing; the five-method surface can be swapped
+  for a database later without touching callers.
+- **`Outbox` / `PendingOp`** — every mutation (create / update / set-state / set-lists /
+  set-reminder / clear-reminder / delete) applies to the local cache instantly and enqueues a
+  durable op. Creates use a temp id that is remapped across the queue once the server assigns
+  the real one.
+- **`SyncEngine`** — drains the outbox against the REST API, then refetches everything (all
+  three views + lists, in parallel), overlaying any still-queued local edits on the server
+  truth. Kicked on sign-in, connectivity return, every enqueue, SignalR pushes, and
+  pull-to-refresh; runs are single-flight. Failure policy per op: network/5xx stops the run
+  (retry later, queue intact); 401 defers to the session (re-login resumes replay); any other
+  4xx is permanent — the op is dropped **with a user-facing message** (e.g. the note was
+  deleted on another device).
+- Sign-out best-effort flushes the queue while the session is still valid, then wipes the
+  local store, alarms, and posted notifications.
+
+**Realtime, reminders, notifications.** `RealtimeClient` (see **SignalR realtime**) kicks the
+sync engine on `notes`/`lists` and the `ServerNotificationsWatcher` on `notification`.
+Reminders fire locally via `AlarmManager` (see **Reminders**); a `BootReceiver` re-arms them
+after reboot.
+
+**Widget** (`widget/KeepItWidget.kt`, Jetpack Glance) — the headline reason for going native:
+the latest notes at a glance, a "+" that deep-links into the composer, and a header refresh
+that runs a one-shot background sync. It renders purely from the local cache, so it needs no
+network or auth of its own and shows last-known notes even signed out; when the cache
+changes, every widget re-renders.
+
+**Screens** (`ui/`): login/register (with server URL + forgot-password), notes grid
+(staggered, with sync-status strip and pending-changes count), editor (markdown rendering via
+a small custom parser, checklist editing, color, share sheet, reminder dialog),
+notifications inbox, settings (theme/accent, exact-alarm access, about/version).
 
 ### UI & design parity (native, shared design language)
 
-The Android UI should read as **the same product as the web app on a phone** — same colors,
-card style, accent system, and Keep-like interaction model — while behaving natively. The
-chosen approach is **native Compose with a shared *design language*, not shared code and not
-pixel-cloning**:
+The Android UI reads as **the same product on a phone** — same tokens, card style, accent
+system, Keep-like interaction model — while behaving natively. The approach is **native
+Compose with a shared *design language*, not shared code and not pixel-cloning**:
 
-- **Why this works cheaply here:** the web design is already **fully token-based**
-  (`web/src/index.css` — semantic chrome tokens plus a per-note palette, themed for dark / dim
-  / light, with 8 independent accents). Those tokens are just values, so they port to a Compose
-  theme directly. The web has also **already designed the phone layout** (responsive grid,
-  off-canvas drawer, touch-revealed controls), so there's an existing phone form to match.
-- **The tokens are the contract.** Treat `index.css` as the canonical design system and keep
-  raw hex out of components on **both** clients (the web already does this — cards use
-  `var(--note-…)`, not literals). On Android, transcribe the token block into a single Compose
-  token object (a `data class` of `Color`s provided via `CompositionLocal`), **not** ad-hoc
-  Material colors scattered through composables. One source per side, same values.
-- **Map, don't reinvent:**
-  - Chrome tokens (`canvas`, `surface`, `elevated`, `border-*`, `text-*`, `accent`,
-    `accent-strong`) → fields on the Compose token object; switch the whole object for
-    dark / dim / light, exactly as `data-theme` swaps CSS vars.
-  - Per-note palette → a Compose `Map<String, NoteColors>` keyed by the **same** color keys the
-    `Note.color` DTO stores (`"rose"`, `"amber"`, …). The Android app reads the same key off the
-    same DTO and resolves the same swatch — palette stays in lockstep across clients.
-  - Accent is independent of theme (mirror `data-accent`): 8 accent pairs the user can pick.
-  - Typography: bundle **Inter** (the web's font) so weights/metrics match.
-  - Masonry grid → Compose **`LazyVerticalStaggeredGrid`** (a staggered grid of colored cards
-    is a near-1:1 fit); card corner radius from `--radius-card` (`0.875rem` ≈ **14dp**).
-- **A first-pass translation of the dark baseline** (keep this generated-or-copied from the CSS
-  tokens, never re-picked by eye):
-
-  ```kotlin
-  // Dark baseline — values copied from web/src/index.css @theme. Provide via CompositionLocal;
-  // swap the whole object for dim/light, and override `accent`/`accentStrong` per accent.
-  object KeepItDark {
-      val canvas        = Color(0xFF0A0A0B)
-      val surface       = Color(0xFF18181B)
-      val surfaceHover  = Color(0xFF1F1F23)
-      val elevated      = Color(0xFF202024)
-      val borderSubtle  = Color(0xFF27272A)
-      val borderStrong  = Color(0xFF3F3F46)
-      val text          = Color(0xFFECECEE)
-      val textMuted     = Color(0xFFA1A1AA)
-      val textFaint     = Color(0xFF71717A)
-      val accent        = Color(0xFFFBBF24) // default (yellow); per-accent override
-      val accentStrong  = Color(0xFFF59E0B)
-  }
-  ```
-
-- **Don't chase system-chrome parity.** Match the *palette, typography, card design, and accent
-  system* — that's what reads as "the same app." Let the status bar, navigation/back behavior,
-  ripples, and insets follow Android conventions rather than forcing them to mimic the browser.
-- **Explicitly rejected:** a WebView/TWA/Capacitor wrapper (identical pixels but a non-native
-  feel, and the home-screen widget still needs native code regardless), and a pixel-exact native
-  clone (fights Material conventions and users' muscle memory).
-
-### Home-screen widget
-
-The widget is the headline reason for going native:
-
-- **Built with Jetpack Glance** (Compose-style API over App Widgets).
-- **Quick capture** — a "take a note" affordance that deep-links into the app's composer (or, for
-  text, posts directly through the API) so a thought can be saved without fully opening the app.
-- **Glanceable notes** — show pinned / recent notes (and optionally check off checklist items)
-  from the local cache, refreshed in the background via WorkManager and on SignalR pushes.
-- **Auth-aware** — when logged out, the widget shows a sign-in prompt rather than stale content.
-
-This section is **forward-looking**: no Android code exists in the repo yet. When it lands it
-will live in its own top-level module (e.g. `android/`), built and released independently of
-`web/` and `keepITCore`.
+- **The tokens are the contract.** `web/src/index.css` is the canonical design system; the
+  Android theme (`ui/theme/`) transcribes the same values into Compose color objects switched
+  per theme (dark / dim / light) and accent — never re-picked by eye, and no raw hex scattered
+  through composables on either client.
+- **Per-note palette:** a Compose map keyed by the **same** color keys the `Note.color` DTO
+  stores (`"rose"`, `"amber"`, …), so the palette stays in lockstep across clients.
+- **Masonry grid:** Compose `LazyVerticalStaggeredGrid` — a near-1:1 fit for the card grid.
+- **Don't chase system-chrome parity:** status bar, back behavior, ripples, and insets follow
+  Android conventions. Matching palette/typography/cards/accents is what reads as "same app".
+- **Explicitly rejected:** WebView/TWA/Capacitor wrappers (non-native feel, and the widget
+  needs native code regardless) and pixel-exact cloning (fights Material conventions).
 
 ## Look & feel / design
 
-The UI should read as **clearly Google Keep** — same mental model and layout — but **darker
-and more modern**, not a pixel clone.
+The UI reads as **clearly Google Keep** — same mental model and layout — but **darker and
+more modern**, not a pixel clone.
 
-- **Keep-like layout.** Masonry grid of note cards; a collapsed "Take a note…" composer
-  pinned at the top that expands inline; hover/long-press actions on cards (pin, change
-  background, add to list, archive); a left sidebar for navigation (Notes / Lists / Archive /
-  Trash) and per-list filtering; a top search bar. The interaction model is Keep's;
-  familiarity is the point.
-- **Dark-first theme.** The default and primary theme is **dark** — deep neutral background
-  (near-black/charcoal, e.g. `zinc-900/950`), slightly elevated note cards (`zinc-800`) so
-  the masonry grid reads as cards floating above the canvas, and an accessible accent color
-  for actions/active list. Keep's note background **colors** still apply per note and are
-  re-tuned to look right on a dark canvas (muted/desaturated palette, not the bright pastels
-  Keep uses on white). Themes are a **token swap, not a rewrite** (CSS variables written to
-  `<html>` by `SettingsProvider`, with a pre-paint script to avoid a flash): **dark** is the
-  baseline, and **dim** and **light** themes plus **8 independent accent colors** are
-  implemented as token overrides (`data-theme` / `data-accent`).
-- **Modern, restrained styling.** Generous spacing, soft rounded corners, subtle elevation
-  via shadow/border rather than heavy chrome, smooth micro-interactions (card hover lift,
-  optimistic add/remove transitions), and good empty/loading states. Avoid the flat,
-  generic look — aim for a polished, intentional product feel.
-- **Responsive.** Grid column count adapts from a single column on mobile up to several on
-  wide screens; sidebar collapses to an overlay/drawer on small screens.
-- **Accessibility.** Meet WCAG AA contrast on the dark theme, full keyboard navigation for
-  the grid and composer, and respect `prefers-reduced-motion`.
+- **Keep-like layout.** Masonry grid of note cards; a collapsed "Take a note…" composer that
+  expands inline; hover/touch actions on cards (pin, color, lists, archive, share, remind);
+  left sidebar for navigation (Notes / Reminders / Archive / Trash + the user's lists for
+  one-click filtering); top search bar.
+- **Dark-first theme.** Dark is the baseline; **dim** and **light** plus **8 independent
+  accent colors** are token overrides (`data-theme` / `data-accent`), a swap not a rewrite.
+  Note background colors are re-tuned per theme (muted on dark, not Keep's bright pastels).
+- **Modern, restrained styling.** Generous spacing, soft rounded corners, subtle elevation,
+  smooth micro-interactions, good empty/loading states.
+- **Responsive.** Column count adapts from one (phone) up; the sidebar collapses to an
+  off-canvas drawer; touch-revealed controls on small screens.
+- **Accessibility.** WCAG AA contrast on the dark theme, keyboard navigation, and
+  `prefers-reduced-motion` respected.
 
 ## Note functions (product definition)
 
-A note is one of several **types**, and any note can carry a customizable background.
-These are the required functions of a saved note:
+A note is one of several **types**, and any note can carry a background color:
 
-1. **Text note** — free-form text (rich text or markdown) in `body`. The default type.
-2. **Checklist note** — an ordered list of checkbox items, each with its own text and
-   checked/unchecked state. Items can be reordered, checked off, added, and removed.
-3. **Image note** — the note's primary content is one or more images (e.g. a photo,
-   a screenshot, a scanned page) rather than text.
-4. **Customizable background** — every note (regardless of type) can set a background:
-   either a **color** (from a palette) **or** a **background image**. This is distinct
-   from an image *note*: here the image is decoration behind the content.
+1. **Text note** — free-form **Markdown** text in `body` (rendered on card and in the editor;
+   formatting toolbar on web). The default type.
+2. **Checklist note** — an ordered list of checkbox items; reorder, check off, add, remove.
+3. **Image note** — *planned, not implemented*: primary content is one or more images. The
+   media pipeline it needs (below) is the main outstanding backend feature.
+4. **Background** — every note can set a background **color** from the palette. Background
+   *images* arrive with media handling.
 
-## Note model (starting point)
+Plus, orthogonal to type: pin / archive / trash (per user), list membership (per user),
+sharing (owner-granted), and a reminder (per user).
 
-Refine in EF Core; this is the intent, not final schema. A single `Note` table with a
-`type` discriminator keeps querying the masonry grid simple; type-specific data hangs off it.
+## Data model (implemented)
 
-- `Note`: id, ownerId, **type** (`Text` | `Checklist` | `Image`), title, body (text/markdown,
-  used by Text notes), color (palette enum/string, nullable), **backgroundImageId** (FK to a
-  stored media item, nullable), createdAt, updatedAt, and a JSONB metadata column for anything
-  flexible. A note has **either** `color` **or** `backgroundImageId` set, not both. Note that
-  **pin/archive/trash are not on the note** — they're per-user (see `NoteUserState`).
-- `ChecklistItem`: id, noteId, text, isChecked, order. One-to-many from `Note`
-  (populated for `Checklist` notes).
-- `NoteImage`: id, noteId, mediaId (FK), order. One-to-many from `Note`
-  (populated for `Image` notes; ordered for multi-image notes).
-- `MediaItem`: id, ownerId, storageKey, contentType, byteSize, width, height, createdAt.
-  The single record for any uploaded binary — referenced by both `NoteImage` (image notes)
-  and `Note.backgroundImageId` (background images). See **Media / image storage** below.
-- `List`: id, ownerId, name, color (optional, for the sidebar chip), createdAt. A named
-  collection a user creates in the **Lists** section. Many-to-many with `Note` — but the
-  join is **per user** (`NoteList`: noteId, listId, **userId**, addedAt), so a collaborator
-  filing a shared note into one of their lists organizes it for *themselves* only, without
-  affecting the owner or other collaborators. A note can belong to zero, one, or many lists.
-  See **Lists** below.
-- `NoteShare`: id, noteId, granteeId (the user the note is shared with), **role**
-  (`Viewer` | `Editor`), createdAt, createdByUserId. One row per (note, grantee), unique;
-  the owner is implicit and never has a `NoteShare` row. Created when the recipient **accepts**
-  an invite. The single source of truth for "who can see/edit a note besides its owner." See
-  **Sharing / collaboration**.
-- `NoteUserState`: noteId, userId, isPinned, isArchived, isTrashed. Composite key (noteId, userId).
-  One user's **private view** of a note; its existence puts the note in that user's grid. Created
-  for the owner on note create and for a grantee on accept; dropped on revoke, cascaded on note
-  delete. The notes grid query is driven off this table. See **Sharing / collaboration**.
-- `UserNotification`: a per-user message, **TPH** (one `Notifications` table, `type` discriminator).
-  `SystemNotification` is a plain text+severity message; `ShareInviteNotification` additionally
-  carries the offered note (id + snapshot title), the sharer (id + snapshot email), and the offered
-  `role`. See **Notifications**.
-- **Trash is soft-delete and per-user** (`NoteUserState.isTrashed`), mirroring Keep; only the owner
-  can `DELETE` (hard-purge) a note, which removes it for everyone.
+Entities in `keepITCore/Data/` (Guid keys throughout; `ApplicationUser.Id` is the owner id
+everything else is scoped to):
+
+- `ApplicationUser` — Identity user (`IdentityUser<Guid>`) + `DisplayName`,
+  `ProfileImageFileName`, and the refresh-token collection.
+- `RefreshToken` — hashed token, expiry, revocation timestamp, replaced-by chain. See
+  **Auth flow**.
+- `Note` — id, ownerId, **type** (`Text` | `Checklist`), title, body (Markdown), color
+  (palette key, nullable), createdAt/updatedAt. **Pin/archive/trash are not on the note** —
+  they're per-user. Navigations to checklist items, note-lists, user states, shares, reminders.
+- `ChecklistItem` — id, noteId, text, isChecked, order. Replaced wholesale on note update but
+  reconciled by id server-side (stable ids, no delete-and-reinsert churn).
+- `KeepList` (the `List` resource) — id, ownerId, name, color. Always private to its owner.
+- `NoteList` — the per-user join (noteId, listId, **userId**): a collaborator files a shared
+  note into their own lists without the owner seeing it.
+- `NoteShare` — noteId, granteeId, **role** (`Viewer` | `Editor`), created-by/at; one row per
+  (note, grantee); exists only after invite acceptance. See **Sharing / collaboration**.
+- `NoteUserState` — composite key (noteId, userId): isPinned, isArchived, isTrashed. One
+  user's private view; row existence = "in my grid". See **Sharing / collaboration**.
+- `NoteReminder` — composite key (noteId, userId): remindAtUtc, recurrence, firedAtUtc. See
+  **Reminders**.
+- `UserNotification` (abstract, TPH on `NotificationType`) → `SystemNotification`,
+  `ShareInviteNotification` (note id + snapshot title, sharer id + snapshot email, offered
+  role), `ReminderNotification` (note id + snapshot title). See **Notifications**.
+- `UserSettings` — one row per user (lazy-created): theme (`light|dim|dark|system`), accent
+  key. Values validated against server-side allow-lists that mirror the frontend sets.
+
+**Trash is soft-delete and per-user** (`NoteUserState.IsTrashed`), mirroring Keep; only the
+owner can `DELETE` (hard-purge) a note, which cascades and removes it for everyone.
 
 ## Lists
 
-Lists are the app's way of organizing notes into named collections (this replaces the
-generic "labels" idea — there is **one** grouping mechanism and it is Lists). They behave
-like Keep's labels but are presented as user-curated lists with their own section.
+Lists are the app's one grouping mechanism (they replace the generic "labels" idea) —
+user-curated named collections with their own sidebar section.
 
 **Behavior.**
-- A user creates and manages lists in a dedicated **Lists** section (sidebar nav).
-- Any note can belong to **zero, one, or many** lists; adding/removing a note to/from a list
-  is just inserting/deleting a `NoteList` join row.
-- The grid can be **filtered** by list: selecting one list shows only its notes; selecting
-  several filters to notes in **any** of the selected lists (union). A "No list" / unfiled
-  view shows notes the user has put in no list.
-- Lists are **per user and private** (`NoteList.userId`). On a shared note, each
-  collaborator files it into their *own* lists; one user's lists are never visible to
-  another, and the owner's lists don't travel with a shared note. This keeps Lists private
-  even though the note's content is shared.
-- Renaming or deleting a list never deletes notes — deleting a list just removes its
-  `NoteList` join rows (the notes themselves remain, just unfiled from that list).
+- Any note can belong to zero, one, or many of the caller's lists; membership is just
+  `NoteList` join rows.
+- The grid can be **filtered** by list; selecting several filters to notes in **any** of them
+  (union).
+- Lists are **per user and private** (`NoteList.userId`). On a shared note, each collaborator
+  files it into their *own* lists; the owner's lists don't travel with the share.
+- Renaming/deleting a list never deletes notes — deleting drops its join rows only.
 
-**Endpoints** (all scoped to the caller; under `/api/lists`):
+**Endpoints** (all caller-scoped):
 - `GET    /api/lists` — the caller's lists (with note counts for the sidebar).
-- `POST   /api/lists` — create a list (name, optional color).
+- `POST   /api/lists` — create (name, optional color).
 - `PATCH  /api/lists/{id}` — rename / recolor.
-- `DELETE /api/lists/{id}` — delete the list (drops its `NoteList` rows; notes survive).
-- `PUT    /api/notes/{id}/lists` — set the lists a note belongs to **for the caller**
-  (replace the set), or use `POST`/`DELETE /api/notes/{id}/lists/{listId}` to add/remove one.
-- Filtering is a query on the existing notes-list endpoint, e.g.
-  `GET /api/notes?listId=…` (repeatable for a multi-list union, `&listId=…`).
+- `DELETE /api/lists/{id}` — delete (notes survive, unfiled).
+- `PUT    /api/notes/{id}/lists` — replace the set of the caller's lists a note is in.
+- Filtering: `GET /api/notes?listId=…` (repeatable for a union).
 
-**Frontend.** List membership and filter state are server-owned where they're persisted
-(`NoteList`) — TanStack Query keys include the active list filter so switching lists is a
-cache key change, not a refetch hack. The selected-filter UI state itself is client state.
+**Frontend.** TanStack Query keys include the active filter, so switching lists is a cache
+key change, not a refetch hack. The selected-filter UI state itself is client state.
 
-## Media / image storage
+## Profile images & media
 
-Both image notes and background images need somewhere to put binaries. Rules:
+**Implemented today: profile images only.** Avatar upload/serving lives on the settings
+resource, with `Service/ImageService.cs` doing the storage work:
 
-- **Never store image bytes in PostgreSQL.** The DB holds only the `MediaItem` *metadata*
-  (id, owner, storage key, content type, size, dimensions). The bytes live outside the DB.
-- **Backing store behind an abstraction.** Define an `IMediaStorage` service with
-  `Save`, `Open`, and `Delete`. Start with a **local media folder** implementation under the
-  common data folder (defaults to `{App__DataRoot}/media`, i.e. `./App_Data/media`; an explicit
-  `App__MediaRoot` overrides it). It's mounted as a Docker volume so it survives redeploys;
-  keep the interface so it can later swap to S3/MinIO/Azure Blob without touching callers.
-  **Do not commit the media folder** — it's user data, covered by ignoring the `App_Data/` folder
-  (see **Data & database configuration**).
-- **Storage keys, not user filenames.** Generate an opaque key on upload
-  (e.g. `{ownerId}/{guid}{ext}`) and fan files out into subfolders to avoid one giant
-  directory. Store the key in `MediaItem.storageKey`; never trust the client's filename
-  for paths (path-traversal risk).
-- **Upload flow:** client POSTs `multipart/form-data` to a media endpoint → validate
-  content type + size limit → write via `IMediaStorage` → create `MediaItem` → return its id.
-  The id is then attached to a note (as a `NoteImage` or as `backgroundImageId`).
-- **Serving:** stream bytes through an API endpoint (`GET /api/media/{id}`) that checks
-  ownership/authorization, sets the right content type, and allows long-lived caching
-  (immutable content + hashed/opaque keys). Generate thumbnails for grid display so the
-  masonry view doesn't download full-size originals.
-- **Lifecycle:** when a note is hard-deleted (purged from trash) or an image is removed,
-  delete the orphaned `MediaItem` and its underlying file. A periodic orphan sweep is a
-  reasonable safety net.
+- `POST /api/settings/uploadProfileImage` — multipart upload, validated by extension, size
+  (≤2 MB), and **magic bytes** (see **Security & abuse protection**). Stored under
+  `{DataRoot}/users/{userId}/profile_image/{guid}.{ext}`; the previous file is deleted so
+  re-uploads don't accumulate orphans. The filename lands on `ApplicationUser`.
+- `GET /api/settings/getProfileImage/{userId}` — streams the bytes. A caller may fetch their
+  own avatar or that of a user they're **connected to through sharing** (note owner ↔
+  collaborator, fellow collaborators, or a pending invite between them) — what the share UI
+  needs, without making avatars public to any signed-in user. "No image" and "no permission"
+  are the same 404, so ids can't be probed.
+
+**Planned: note media (image notes, background images).** The rules for when it lands:
+- **Never store image bytes in the database** — DB holds metadata only; bytes live on disk
+  under the data folder (behind an `IMediaStorage`-style abstraction so it can later swap to
+  S3/MinIO without touching callers).
+- **Storage keys, not user filenames** (the profile-image pipeline already follows this).
+- **Serve through an access-checked API endpoint** — a collaborator reaches a shared note's
+  media *through the note* (the `NoteAccessService` rule), not by owning the media. Generate
+  thumbnails for the grid.
+- **Lifecycle:** deleting a note purges its media; a periodic orphan sweep as a safety net.
+
+## Versioning & the meta endpoint
+
+`GET /api/meta` (anonymous — the sign-in screens want it before any session exists) returns
+the server version. The version is the release tag, baked into the assembly at Docker build
+time (`/p:Version` + commit sha, clipped to 7 chars); local builds honestly report
+`0.0.0-dev`. The web settings page and the Android about screen both display it. The Android
+app's own `versionName`/`versionCode` are derived from the same tag by CI.
 
 ## Deployment
 
-**The target is to run the entire stack in Docker.** Local dev can run bare (`dotnet run` +
-`npm run dev`), but the intended way to run keepIT — and the deployment model everything is
-built toward — is a single `docker compose up` that brings up every piece as a container.
+**The target is Docker on your own hardware.** Local dev runs bare (`dotnet run` +
+`npm run dev`); everything else is containers. There are **two supported shapes**:
 
-- **Everything runs in Docker.** `docker-compose.yml` defines the full stack as services:
-  - **`api`** — the `keepITCore` container (built from `keepIT/keepITCore/Dockerfile`).
-  - **`db`** — PostgreSQL (with a named volume for its data).
-  - **`web`** — the React frontend, built to static files and served by a small **nginx**
-    container that is also the single entrypoint: it reverse-proxies `/api` to the `api`
-    container so both are one origin (no CORS, same-origin refresh cookie). The frontend is a
-    **separate container**, not hosted inside the API. Swap nginx for any reverse proxy (Caddy,
-    a cloud load balancer, etc.) if you prefer — nothing in the app depends on a specific one.
-  - **`redis`** — added if/when caching or a scale-out SignalR backplane is needed.
+### Single container (the headline "run your own" path)
 
-  For real TLS, terminate HTTPS at the proxy (or a load balancer in front of it) and set
-  `Auth__RefreshCookie__Secure=true`.
-- Compose passes the Postgres connection via env vars (`ConnectionStrings__Postgres` or
-  `POSTGRES_*`), so the API uses Postgres in the stack and silently falls back to SQLite only
-  when run bare for local dev.
-- Mount the common data folder (`App__DataRoot`, default `./App_Data`) as a named volume so
-  media, Data Protection keys, and any other app-written files survive redeploys.
-- Each service reads its config from the environment (the `.env` file / Compose `environment`),
-  so the same images run unchanged in dev, staging, and prod with only env values differing.
+`deploy/Dockerfile` builds one image (`richy1989/keepit` on Docker Hub) bundling:
+1. the built React SPA, served by **nginx** (the public face on `:80`),
+2. the .NET API on loopback `:8080`, reverse-proxied at `/api`,
+3. an entrypoint that runs both and tears the container down if either exits.
 
-## Build order
+React is still *not hosted by ASP.NET* — nginx and the API are separate processes talking
+over HTTP, just co-located. With no Postgres configured the API uses its SQLite fallback, so
+`docker run -v keepit-data:/data -e Jwt__Key=…` is a complete zero-setup deployment; **all**
+writable state lives under `/data`. Setting `POSTGRES_HOST`/`ConnectionStrings__Postgres`
+switches it to an external Postgres. An **Unraid Community Apps template** ships at
+`deploy/keepit.unraid.xml`.
 
-The original build sequence — all of the foundation below is **implemented**:
+### Docker Compose (three containers)
 
-1. ✅ `keepITCore` returning a valid OpenAPI/Swagger document.
-2. ✅ `npm run generate:api` producing the typed client off that document.
-3. ✅ Note (and list) CRUD endpoints + EF Core model + migrations, with startup provider
-   selection (Postgres-from-env, else SQLite under `App__DataRoot`).
-4. ✅ TanStack Query hooks and the optimistic mutation flow.
-5. ✅ SignalR hub + per-user change signals and cache invalidation on the client.
-6. ✅ Auth (Identity + JWT + refresh cookie).
+`docker-compose.yml`: **`db`** (Postgres 17 + named volume), **`api`** (built from
+`keepIT/keepITCore/Dockerfile`, data on a named volume at `/data`), **`web`** (nginx serving
+the SPA and proxying `/api` — the single entrypoint on `:8080`). One origin → no CORS in the
+stack and a same-origin refresh cookie. The API is not published to the host; only nginx is.
+Compose reads five values from `.env` (`JWT_KEY`, `POSTGRES_PASSWORD`,
+`REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION`).
 
-Everything built on steps 1–2: the contract came first so the frontend is type-safe from day
-one. Since then, **sharing / collaboration** (invite→accept, per-user view overlay, editor/viewer
-roles) and its **notifications** inbox have shipped (web + API). **Remaining roadmap** (see README):
-image notes & media upload, the Redis backplane for multi-instance realtime, and the native
-Android client.
+For real TLS, terminate HTTPS at a proxy in front (e.g. Traefik), keep
+`Auth__RefreshCookie__Secure=true`, and bump `App__ForwardedProxyHops` to match the extra hop
+(see **Security & abuse protection**). A `redis` service is sketched in the compose file for
+a future SignalR backplane but not enabled — single API instance is the deployed model.
+
+### Releases (CI)
+
+`.github/workflows/release.yml`: pushing a git tag `vX.Y.Z` builds and pushes the Docker
+image (tagged `X.Y.Z` + `latest`, with the version/sha baked in for `/api/meta`), builds the
+**signed Android APK** (version name/code derived from the tag; keystore from repo secrets,
+mirrored locally by a gitignored `app/keystore.properties`), and publishes a GitHub Release
+with the APK attached. Sideloading the APK is the current distribution channel; the Play
+Store is not (yet) used.
+
+## Dev conveniences
+
+- **Scalar API UI** at `/scalar/v1` (Development only).
+- **Seed script** — `scripts/seed-dev-data.sh` / `.ps1` creates `test@test.com` /
+  `Test1234#1234` with lists and a variety of notes against a locally running API.
+- **`keepITCore.http`** — request collection for manual endpoint poking.
+- **No test projects yet** on the .NET/web side; the Android module has a small JVM unit-test
+  suite around the offline ops (`OfflineOpsTest`).
+
+## Status & roadmap
+
+All of the original build order is long since **implemented** — contract-first (OpenAPI +
+generated TS client), then CRUD + optimistic UI, SignalR invalidation, JWT auth — and since
+then: **sharing/collaboration** (invite→accept, roles, per-user overlay), the
+**notifications inbox**, **reminders** (server dispatcher + native Android alarms),
+**password reset/change + SMTP email**, **security hardening** (rate limiting, lockout,
+refresh-token rotation with reuse detection, registration gating), the **native Android app**
+(offline-first, widget, share sheet), the **single-container image + Unraid template**, and
+the **tag-driven release pipeline**.
+
+**Remaining roadmap** (see README "What's next"):
+- 🖼️ **Image notes & note media** — the media pipeline above; the biggest missing feature.
+- ✉️ **Invite non-users** — pending share invites keyed by email, resolved on signup.
+- 🤖 **Generated Kotlin API client** — replace the hand-mirrored `Dtos.kt` with a client
+  generated from the same OpenAPI document.
+- 🔀 **Scale-out** (only if ever needed): Redis backplane for SignalR + locking for the
+  reminder dispatcher.
