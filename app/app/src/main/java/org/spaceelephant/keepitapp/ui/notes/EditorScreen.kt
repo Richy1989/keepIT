@@ -59,6 +59,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,9 +78,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.spaceelephant.keepitapp.AppContainer
 import org.spaceelephant.keepitapp.ui.markdown.MarkdownAction
 import org.spaceelephant.keepitapp.ui.markdown.MarkdownText
@@ -195,46 +202,84 @@ fun EditorScreen(
             ChecklistItemDto(id = item.id, text = item.text.trim(), isChecked = item.isChecked, order = index)
         }
 
-    fun saveAndClose() {
+    // One serialized save path. Persisting is local + instant (offline outbox), so it's cheap to run
+    // often — on every edit (debounced) and whenever the app is backgrounded, not only on close.
+    // Saving only on close was the bug: a screen lock mid-edit backgrounds us without closing, and if
+    // the process is later reclaimed the in-progress checkbox/text edits (held only in UI state) were
+    // lost. The first save of a new note creates it and captures the result, so subsequent saves
+    // update that note instead of creating duplicates; the mutex keeps overlapping saves from racing.
+    val saveMutex = remember { Mutex() }
+
+    suspend fun persist() = saveMutex.withLock {
         val current = note
-        scope.launch {
-            if (current == null) {
-                val checklist = buildChecklist()
-                val hasContent = title.isNotBlank() || body.text.isNotBlank() || checklist.isNotEmpty()
-                if (hasContent) {
-                    repo.create(
-                        CreateNoteDto(
-                            type = type,
-                            title = title.trim().ifBlank { null },
-                            body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
-                            color = color,
-                            checklistItems = if (type == NoteTypes.CHECKLIST) checklist else null,
-                            listIds = listIds.toList().ifEmpty { null },
-                        ),
-                    )
-                }
-            } else {
-                if (canEdit) {
-                    repo.update(
-                        current.id,
-                        UpdateNoteDto(
-                            type = type,
-                            title = title.trim().ifBlank { null },
-                            body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
-                            color = color,
-                            checklistItems = if (type == NoteTypes.CHECKLIST) buildChecklist() else null,
-                        ),
-                    )
-                }
-                if (listIds != current.listIds.toSet()) {
-                    repo.setLists(current.id, listIds.toList())
-                }
+        if (current == null) {
+            val checklist = buildChecklist()
+            val hasContent = title.isNotBlank() || body.text.isNotBlank() || checklist.isNotEmpty()
+            if (!hasContent) return@withLock
+            note = repo.create(
+                CreateNoteDto(
+                    type = type,
+                    title = title.trim().ifBlank { null },
+                    body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
+                    color = color,
+                    checklistItems = if (type == NoteTypes.CHECKLIST) checklist else null,
+                    listIds = listIds.toList().ifEmpty { null },
+                ),
+            )
+        } else {
+            if (current.canEdit) {
+                repo.update(
+                    current.id,
+                    UpdateNoteDto(
+                        type = type,
+                        title = title.trim().ifBlank { null },
+                        body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
+                        color = color,
+                        checklistItems = if (type == NoteTypes.CHECKLIST) buildChecklist() else null,
+                    ),
+                )
             }
+            if (listIds != current.listIds.toSet()) {
+                repo.setLists(current.id, listIds.toList())
+                note = repo.noteById(current.id) ?: current
+            }
+        }
+    }
+
+    fun saveAndClose() {
+        scope.launch {
+            persist()
             onDone()
         }
     }
 
     BackHandler { saveAndClose() }
+
+    // Autosave: debounce edits so typing and checkbox toggles reach the outbox within a moment,
+    // instead of living only in volatile UI state until the editor closes.
+    val editSignature = editSignatureOf(type, title, body.text, color, listIds, items)
+    var savedSignature by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(loaded) {
+        // Baseline the loaded content so merely opening a note doesn't enqueue a redundant save.
+        if (loaded && savedSignature == null) savedSignature = editSignature
+    }
+    LaunchedEffect(editSignature) {
+        if (!loaded || savedSignature == null || editSignature == savedSignature) return@LaunchedEffect
+        delay(600)
+        persist()
+        savedSignature = editSignature
+    }
+
+    // A screen lock or app switch backgrounds us (ON_STOP) without going through close — flush
+    // immediately so in-progress edits survive even if the process is reclaimed while away.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) scope.launch { persist() }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -627,6 +672,32 @@ fun EditorScreen(
             )
         }
     }
+}
+
+/**
+ * A cheap fingerprint of everything the editor persists, so the autosave effect only fires on a real
+ * content change (not on every recomposition). Includes each checklist item's id, checked state, and
+ * text so toggling a box or editing a row counts as an edit.
+ */
+private fun editSignatureOf(
+    type: String,
+    title: String,
+    body: String,
+    color: String?,
+    listIds: Set<String>,
+    items: List<EditableItem>,
+): String {
+    val parts = buildList {
+        add(type)
+        add(title)
+        add(body)
+        add(color ?: "")
+        add(listIds.sorted().joinToString(","))
+        items.forEach { add("${it.id ?: "*"}=${it.isChecked}:${it.text}") }
+    }
+    // Length-prefix each field so no separator char is needed and no two distinct field
+    // sets can collide into the same fingerprint.
+    return parts.joinToString("") { "${it.length}:$it" }
 }
 
 /** One button in the Markdown formatting row. */
