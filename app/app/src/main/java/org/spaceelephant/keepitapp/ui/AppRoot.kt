@@ -1,5 +1,6 @@
 package org.spaceelephant.keepitapp.ui
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,9 +30,10 @@ import org.spaceelephant.keepitapp.ui.notes.NotesScreen
 import org.spaceelephant.keepitapp.ui.notifications.NotificationsScreen
 import org.spaceelephant.keepitapp.ui.settings.SettingsScreen
 
-/** A navigation target requested from outside the app (the widget, a tray notification). */
+/** A navigation target requested from outside the app (the widget, a tray notification, a share). */
 sealed interface Destination {
-    data object Compose : Destination
+    /** New-note composer, optionally pre-filled from text shared in via ACTION_SEND. */
+    data class Compose(val title: String? = null, val body: String? = null) : Destination
     data object Inbox : Destination
     data class Note(val id: String) : Destination
 }
@@ -94,10 +96,16 @@ fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destinatio
 private fun MainNav(container: AppContainer, pendingDestination: MutableState<Destination?>) {
     val nav = rememberNavController()
 
-    // Widget deep links: consume the pending destination once we're signed in and navigable.
+    // Widget deep links / shared text: consume the pending destination once we're signed in.
     LaunchedEffect(pendingDestination.value) {
         when (val destination = pendingDestination.value) {
-            Destination.Compose -> nav.navigate("editor")
+            is Destination.Compose -> {
+                val params = buildList {
+                    destination.title?.takeIf { it.isNotBlank() }?.let { add("sharedTitle=${Uri.encode(it)}") }
+                    destination.body?.takeIf { it.isNotBlank() }?.let { add("sharedText=${Uri.encode(it)}") }
+                }
+                nav.navigate("editor" + if (params.isEmpty()) "" else "?" + params.joinToString("&"))
+            }
             Destination.Inbox -> nav.navigate("notifications")
             is Destination.Note -> nav.navigate("editor?noteId=${destination.id}")
             null -> Unit
@@ -122,16 +130,30 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
             NotificationsScreen(container = container, onBack = { nav.popBackStack() })
         }
         composable(
-            route = "editor?noteId={noteId}",
-            arguments = listOf(navArgument("noteId") {
-                type = NavType.StringType
-                nullable = true
-                defaultValue = null
-            }),
+            route = "editor?noteId={noteId}&sharedTitle={sharedTitle}&sharedText={sharedText}",
+            arguments = listOf(
+                navArgument("noteId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("sharedTitle") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("sharedText") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
         ) { backStack ->
             EditorScreen(
                 container = container,
                 noteId = backStack.arguments?.getString("noteId"),
+                initialTitle = backStack.arguments?.getString("sharedTitle"),
+                initialBody = backStack.arguments?.getString("sharedText"),
                 onDone = { nav.popBackStack() },
             )
         }

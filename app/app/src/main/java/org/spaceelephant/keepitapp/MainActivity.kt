@@ -37,7 +37,13 @@ class MainActivity : ComponentActivity() {
 
     private fun destinationFrom(intent: Intent?): Destination? = when {
         intent == null -> null
-        intent.getBooleanExtra(EXTRA_COMPOSE, false) -> Destination.Compose
+        // Text shared in from another app (ACTION_SEND, text/plain) opens the composer pre-filled.
+        intent.action == Intent.ACTION_SEND && intent.type == "text/plain" -> {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (text.isNullOrBlank()) null
+            else Destination.Compose(title = intent.getStringExtra(Intent.EXTRA_SUBJECT), body = text)
+        }
+        intent.getBooleanExtra(EXTRA_COMPOSE, false) -> Destination.Compose()
         intent.getBooleanExtra(EXTRA_INBOX, false) -> Destination.Inbox
         else -> intent.getStringExtra(EXTRA_NOTE_ID)?.let { Destination.Note(it) }
     }

@@ -7,9 +7,9 @@
   <MyIP/>
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
-  <Support/>
-  <Project/>
-  <Overview>keepIT — a Google Keep-style notes app. Single self-contained image: nginx serves the React UI and reverse-proxies the .NET API, with a SQLite database. All data (database, encryption keys, uploaded images) is stored under /data — map it to your appdata share to persist it.</Overview>
+  <Support>https://github.com/Richy1989/keepIT/issues</Support>
+  <Project>https://github.com/Richy1989/keepIT</Project>
+  <Overview>A self-hosted notes app with sharing between users, real-time sync, search, and reminders - plus a native Android app with offline support and a home-screen widget</Overview>
   <Category>Productivity:</Category>
   <WebUI>http://[IP]:[PORT:80]/</WebUI>
   <TemplateURL/>
@@ -20,7 +20,7 @@
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Description>keepIT — a Google Keep-style notes app (web UI + REST API). This single-container build runs the React UI behind nginx, the ASP.NET Core API, and a SQLite database in one image. Mount /data to your appdata share so your notes survive container updates. Set a long random Jwt Key before exposing it.</Description>
+  <Description>keepIT — a self-hosted notes app (React web UI + ASP.NET Core REST API) with note sharing between users, real-time sync across devices, search, reminders, and a native Android client. This single-container build runs the React UI behind nginx and the API together in one image, storing notes in a built-in SQLite database (or point it at your own Postgres). Mount /data to your appdata share so your notes, uploaded images, and encryption keys survive container updates. Set a long random JWT Key before exposing it.</Description>
   <Networking>
     <Mode>bridge</Mode>
     <Publish>

@@ -42,6 +42,16 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Share target: text shared from other apps (browser, etc.) lands in the composer,
+                 pre-filled. singleTask routes it through onNewIntent when already running. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <!-- Fires due note reminders as native notifications (AlarmManager target). -->

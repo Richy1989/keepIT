@@ -74,6 +74,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -115,11 +116,18 @@ private class EditableItem(id: String?, text: String, isChecked: Boolean) {
  * (back button or the top-left arrow) rather than with an explicit save; viewers see content
  * read-only but may still file the note into their own lists (list membership is per-user).
  *
- * With a null [noteId] it's the composer — the widget's "+" lands here.
+ * With a null [noteId] it's the composer — the widget's "+" lands here, as does text shared in from
+ * another app (via [initialTitle] / [initialBody], ignored when editing an existing note).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
+fun EditorScreen(
+    container: AppContainer,
+    noteId: String?,
+    onDone: () -> Unit,
+    initialTitle: String? = null,
+    initialBody: String? = null,
+) {
     val repo = container.notesRepo
     val scope = rememberCoroutineScope()
     val lists by repo.lists.collectAsState()
@@ -129,9 +137,13 @@ fun EditorScreen(container: AppContainer, noteId: String?, onDone: () -> Unit) {
     var note by remember { mutableStateOf<NoteDto?>(null) }
 
     var type by remember { mutableStateOf(NoteTypes.TEXT) }
-    var title by remember { mutableStateOf("") }
+    // Shared-in text seeds the composer; ignored for an existing note (its content loads below).
+    var title by remember { mutableStateOf(if (noteId == null) initialTitle.orEmpty() else "") }
     // TextFieldValue (not String) so the Markdown toolbar can rewrite the current selection.
-    var body by remember { mutableStateOf(TextFieldValue("")) }
+    var body by remember {
+        val seed = if (noteId == null) initialBody.orEmpty() else ""
+        mutableStateOf(TextFieldValue(text = seed, selection = TextRange(seed.length)))
+    }
     var color by remember { mutableStateOf<String?>(null) }
     val items = remember { mutableStateListOf<EditableItem>() }
     var listIds by remember { mutableStateOf(setOf<String>()) }
