@@ -64,11 +64,14 @@ async function doRefresh(): Promise<boolean> {
  * concurrent rotations of the same cookie would trip the server's replay detection.
  */
 export function refreshAccessToken(): Promise<boolean> {
-  refreshing ??= (
-    typeof navigator !== 'undefined' && navigator.locks
-      ? navigator.locks.request('keepit:refresh', doRefresh)
-      : doRefresh()
-  ).finally(() => {
+  // The async wrapper also flattens the lock manager's Promise<Promise<boolean>> (older lib.dom
+  // typings don't unwrap the callback's promise).
+  refreshing ??= (async () => {
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      return navigator.locks.request('keepit:refresh', doRefresh);
+    }
+    return doRefresh();
+  })().finally(() => {
     refreshing = null;
   });
   return refreshing;
