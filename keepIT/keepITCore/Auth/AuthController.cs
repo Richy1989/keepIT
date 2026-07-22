@@ -17,9 +17,17 @@ namespace keepITCore.Auth;
 /// </summary>
 [ApiController]
 [Route("api/auth")]
-[EnableRateLimiting(RateLimitPolicies.Auth)]
 public class AuthController : ControllerBase
 {
+    /// <summary>
+    /// How long a rotated refresh token remains acceptable after its replacement was issued.
+    /// A token replayed within this window is almost always our own lost response — a page reload
+    /// aborting an in-flight refresh, or two tabs racing on the shared cookie — not theft, so we
+    /// rotate again instead of revoking the whole family. Outside the window, replay is treated as
+    /// a stolen cookie (see <see cref="Refresh"/>).
+    /// </summary>
+    private static readonly TimeSpan RotationGraceWindow = TimeSpan.FromSeconds(60);
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ITokenService _tokenService;
     private readonly AppDbContext _db;
@@ -65,6 +73,7 @@ public class AuthController : ControllerBase
     /// taken, or 400 on validation errors.</returns>
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<ActionResult<AuthResponseDto>> Register(RegisterRequestDto dto)
     {
         if (!(_config.GetValue<bool?>("App:AllowRegistration") ?? true))
@@ -102,6 +111,7 @@ public class AuthController : ControllerBase
     /// is wrong or the new one fails the complexity rules.</returns>
     [HttpPost("changepassword")]
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<ActionResult<AuthResponseDto>> ChangePassword(ChangePasswordRequestDto dto)
     {
         var userId = User.GetUserId();
@@ -141,6 +151,7 @@ public class AuthController : ControllerBase
     /// <returns>204 No Content, always (or 400 on validation errors).</returns>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> ForgotPassword(ForgotPasswordRequestDto dto)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email);
@@ -182,6 +193,7 @@ public class AuthController : ControllerBase
     /// enumeration), or 400 with details when the new password fails the complexity rules.</returns>
     [HttpPost("reset-password")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<IActionResult> ResetPassword(ResetPasswordRequestDto dto)
     {
         // Unknown email gets the same generic error as a bad token: the link as a whole is invalid.
@@ -225,6 +237,7 @@ public class AuthController : ControllerBase
     /// <returns>200 with the auth payload, or 401 if the credentials are invalid or the account is locked.</returns>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
     public async Task<ActionResult<AuthResponseDto>> Login(LoginRequestDto dto)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email);
@@ -253,6 +266,10 @@ public class AuthController : ControllerBase
     /// signature of a stolen cookie being replayed (the legitimate client holds the newer token).
     /// When that happens every active session for the user is revoked, so both the attacker and the
     /// real user must sign in again — cutting off whoever only holds the copied token.</para>
+    /// <para><b>Rotation grace:</b> a replay within <see cref="RotationGraceWindow"/> of the
+    /// rotation is exempt — that's the browser losing the rotation response (a reload aborting the
+    /// in-flight refresh, or two tabs racing on the shared cookie), not an attacker who sat on a
+    /// stolen cookie. Those callers get a fresh sibling token instead of a family-wide revoke.</para>
     /// </summary>
     /// <returns>200 with a new auth payload, or 401 if the refresh cookie is missing/expired/revoked.</returns>
     [HttpPost("refresh")]
@@ -275,22 +292,38 @@ public class AuthController : ControllerBase
 
         if (!stored.IsActive)
         {
-            // A known-but-revoked token was replayed: assume theft and kill the whole family.
-            if (stored.RevokedAtUtc is not null && !stored.IsExpired)
+            // Rotated moments ago? That's our own lost response, not theft — fall through and
+            // rotate again. (Logout revokes without setting ReplacedByTokenHash, so a logged-out
+            // token never qualifies.)
+            var isRecentRotation = stored.ReplacedByTokenHash is not null
+                && stored.RevokedAtUtc is not null
+                && DateTime.UtcNow - stored.RevokedAtUtc.Value <= RotationGraceWindow
+                && !stored.IsExpired;
+
+            if (!isRecentRotation)
             {
-                var now = DateTime.UtcNow;
-                await _db.RefreshTokens
-                    .Where(rt => rt.UserId == stored.UserId && rt.RevokedAtUtc == null)
-                    .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
+                // A known-but-revoked token was replayed: assume theft and kill the whole family.
+                if (stored.RevokedAtUtc is not null && !stored.IsExpired)
+                {
+                    var now = DateTime.UtcNow;
+                    await _db.RefreshTokens
+                        .Where(rt => rt.UserId == stored.UserId && rt.RevokedAtUtc == null)
+                        .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
+                }
+                ClearRefreshCookie();
+                return Unauthorized(new { error = "Invalid or expired refresh token." });
             }
-            ClearRefreshCookie();
-            return Unauthorized(new { error = "Invalid or expired refresh token." });
         }
 
-        // Rotate: revoke the presented token and issue a new one in its place.
+        // Rotate: revoke the presented token and issue a new one in its place. In the grace case
+        // the token is already revoked and keeps pointing at its first successor; the new sibling
+        // simply coexists (it expires like any other token if it goes unused).
         var (raw, newHash, expiresAt) = _tokenService.CreateRefreshToken();
-        stored.RevokedAtUtc = DateTime.UtcNow;
-        stored.ReplacedByTokenHash = newHash;
+        if (stored.IsActive)
+        {
+            stored.RevokedAtUtc = DateTime.UtcNow;
+            stored.ReplacedByTokenHash = newHash;
+        }
 
         _db.RefreshTokens.Add(new RefreshToken
         {

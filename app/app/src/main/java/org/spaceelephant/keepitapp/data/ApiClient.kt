@@ -186,9 +186,11 @@ class ApiClient(context: Context) {
     /**
      * Calls `POST /api/auth/refresh` on the bare client (cookie-authenticated, rotating the cookie)
      * and stores the fresh access token. Single-flight: concurrent callers serialize on the lock and
-     * the second caller returns immediately if the first already produced a fresh token. Only a 4xx
-     * counts as [RefreshResult.REJECTED] — a 5xx or an unreachable server is [RefreshResult.NETWORK_ERROR]
-     * and leaves the refresh cookie intact so the session survives being offline.
+     * the second caller returns immediately if the first already produced a fresh token. Only a
+     * **401** counts as [RefreshResult.REJECTED] — the server saying the cookie itself is
+     * missing/expired/revoked. Anything else (429, 5xx, unreachable server) is
+     * [RefreshResult.NETWORK_ERROR]: the refresh cookie is still valid, so the session must
+     * survive the blip exactly as it survives being offline.
      */
     fun refreshBlocking(): RefreshResult {
         val base = baseUrl ?: return RefreshResult.REJECTED
@@ -201,7 +203,7 @@ class ApiClient(context: Context) {
             return try {
                 bareClient.newCall(request).execute().use { response ->
                     when {
-                        response.code in 400..499 -> {
+                        response.code == 401 -> {
                             tokenStore.clear()
                             RefreshResult.REJECTED
                         }

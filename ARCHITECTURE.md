@@ -163,13 +163,21 @@ the API issues tokens.
   **httpOnly + Secure + SameSite=Strict** cookie so JS can't read it. Stored server-side
   **hashed** (`RefreshToken` entity: token hash, expiry, revocation, replaced-by chain) so a
   DB leak doesn't leak usable tokens and individual tokens can be revoked. A 401 triggers a
-  silent refresh; if refresh fails, the client signs out.
+  silent refresh; only a **401 from `/refresh` itself** signs the client out — transient
+  failures (429/5xx/network) are retried and never treated as a lost session, because the
+  cookie is still valid.
 - **Rotation + reuse detection.** Every `/refresh` revokes the presented token and issues a
   replacement. Presenting a token that was already rotated/revoked (but not expired) is the
   signature of a stolen cookie being replayed — **all** of the user's active refresh tokens
   are revoked, forcing both the attacker and the real user to sign in again. Expired rows are
   cleaned up opportunistically; revoked-but-unexpired rows are kept because they *are* the
   replay detector.
+- **Rotation grace window (60 s).** A replay *within a minute of the rotation* is exempt from
+  the family-wide revoke: that's the browser losing the rotation response (a reload aborting
+  the in-flight refresh, or two tabs racing on the shared cookie), not an attacker who sat on
+  a stolen cookie. Such a caller gets a fresh sibling token instead. Client-side, tabs also
+  serialize refreshes with a cross-tab Web Lock, so the grace path is the backstop, not the
+  norm. (Logout revokes without a replaced-by link, so a logged-out token never qualifies.)
 
 **Endpoints** (all under `/api/auth`; contract is the C# DTOs as usual)
 - `POST /register` — create account → access token + refresh cookie. Refused with 403 when
@@ -195,7 +203,10 @@ the API issues tokens.
   rule failures are surfaced in detail (the caller has already proven email control).
 - `GET  /me` — the current user (requires a valid access token).
 
-The whole controller is rate-limited (see **Security & abuse protection**).
+The credential endpoints (register, login, change-/forgot-/reset-password) carry the tight
+`auth` rate limit; `/refresh`, `/logout`, and `/me` deliberately sit under only the global
+limit — every page reload refreshes, and throttling that signs real users out (see
+**Security & abuse protection**).
 
 **Authorization rule (applies everywhere)**
 - Every endpoint requires a valid JWT **except** register, login, refresh, logout,
@@ -219,8 +230,11 @@ The app is designed to be self-hosted and possibly internet-exposed, so the edge
 in the API itself (`Infrastructure/Security/`) and in the nginx config:
 
 - **Rate limiting** (per client IP): a global sliding window of **120 req/min** on everything,
-  and a tighter fixed window of **10 req/min** on `/api/auth/*` (password guessing / signup
-  abuse) via the named `auth` policy. Rejected callers get 429 + `Retry-After`.
+  and a tighter fixed window of **10 req/min** on the credential endpoints (register, login,
+  change-/forgot-/reset-password — password guessing / signup abuse) via the named `auth`
+  policy. `/refresh`, `/logout`, and `/me` stay on the global limit only: they run on every
+  page load, and a 429 there would knock legitimate sessions out. Rejected callers get 429 +
+  `Retry-After`.
 - **Forwarded headers:** the API sits behind nginx (and possibly Traefik), so it trusts
   `X-Forwarded-For`/`-Proto` to recover the real client IP — which the rate limiter keys on.
   **`App__ForwardedProxyHops` must equal the number of proxy hops** (1 for the plain stacks,

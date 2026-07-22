@@ -22,27 +22,53 @@ export const UNAUTHORIZED_EVENT = 'keepit:unauthorized';
 
 let refreshing: Promise<boolean> | null = null;
 
-/** Calls /api/auth/refresh once (rotating the cookie) and stores the new access token. */
-function doRefresh(): Promise<boolean> {
-  return fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
-    .then(async (res) => {
-      if (!res.ok) {
-        tokenStore.clear();
-        return false;
-      }
+/**
+ * One attempt against /api/auth/refresh. Distinguishes "the session is gone" (401 — the cookie is
+ * missing/expired/revoked) from a transient failure (429/5xx/network) where the cookie is still
+ * perfectly valid and signing the user out would be wrong.
+ */
+async function refreshOnce(): Promise<'ok' | 'unauthorized' | 'transient'> {
+  try {
+    const res = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (res.ok) {
       const data = (await res.json()) as { accessToken: string; accessTokenExpiresAtUtc: string };
       tokenStore.set(data.accessToken, data.accessTokenExpiresAtUtc);
-      return true;
-    })
-    .catch(() => {
-      tokenStore.clear();
-      return false;
-    });
+      return 'ok';
+    }
+    return res.status === 401 ? 'unauthorized' : 'transient';
+  } catch {
+    return 'transient';
+  }
 }
 
-/** Single-flight wrapper: concurrent callers share one in-flight refresh. */
+/** Refreshes the access token, retrying once on a transient failure before giving up. */
+async function doRefresh(): Promise<boolean> {
+  let result = await refreshOnce();
+  if (result === 'transient') {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    result = await refreshOnce();
+  }
+  if (result === 'ok') return true;
+  if (result === 'unauthorized') {
+    tokenStore.clear();
+    return false;
+  }
+  // Still transient: keep whatever session we have. Only report the session lost when there's no
+  // usable access token left to keep working with.
+  return tokenStore.token !== null && !tokenStore.isExpiringSoon(0);
+}
+
+/**
+ * Single-flight wrapper: concurrent callers in this tab share one in-flight refresh, and a
+ * cross-tab Web Lock serializes refreshes between tabs — they share one refresh cookie, and two
+ * concurrent rotations of the same cookie would trip the server's replay detection.
+ */
 export function refreshAccessToken(): Promise<boolean> {
-  refreshing ??= doRefresh().finally(() => {
+  refreshing ??= (
+    typeof navigator !== 'undefined' && navigator.locks
+      ? navigator.locks.request('keepit:refresh', doRefresh)
+      : doRefresh()
+  ).finally(() => {
     refreshing = null;
   });
   return refreshing;
