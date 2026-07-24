@@ -34,12 +34,19 @@ android {
         // Static version is the source of truth — F-Droid reads these literals from the tagged
         // source (its checkupdates can't run Gradle or read env). Bump both when cutting a release
         // so the tag vX.Y.Z matches. CI still overrides them from the tag via env for GitHub builds.
-        versionCode = 507
-        versionName = "0.5.7"
+        versionCode = 508
+        versionName = "0.5.8"
         System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
         System.getenv("VERSION_NAME")?.let { versionName = it }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Don't embed AGP's "Dependency metadata" signing block: it's an opaque, Play-oriented
+    // dependency blob that F-Droid's APK scanner rejects as an extra signing block.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     signingConfigs {
