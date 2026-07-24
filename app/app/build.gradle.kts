@@ -31,10 +31,13 @@ android {
         applicationId = "org.hyperstarit.keepitapp"
         minSdk = 34
         targetSdk = 36
-        // Version tracks the release tag: CI passes VERSION_NAME/VERSION_CODE derived from vX.Y.Z.
-        // Local/dev builds fall back so plain `assembleDebug` still works.
-        versionName = System.getenv("VERSION_NAME") ?: "0.0.0-dev"
-        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        // Static version is the source of truth — F-Droid reads these literals from the tagged
+        // source (its checkupdates can't run Gradle or read env). Bump both when cutting a release
+        // so the tag vX.Y.Z matches. CI still overrides them from the tag via env for GitHub builds.
+        versionCode = 507
+        versionName = "0.5.7"
+        System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
+        System.getenv("VERSION_NAME")?.let { versionName = it }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
