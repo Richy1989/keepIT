@@ -65,9 +65,14 @@ android {
             // Only sign when creds are available (CI or a local keystore.properties); otherwise the
             // release APK is left unsigned rather than failing the build.
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
-            optimization {
-                enable = false
-            }
+            // R8: tree-shake + minify. Without it the release APK ships every Material icon
+            // (~10k unused classes) and all of Compose/SignalR/Retrofit unshrunk — ~50 MB of dex.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
     compileOptions {
