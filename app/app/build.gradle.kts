@@ -20,7 +20,7 @@ fun cred(key: String, env: String): String? =
 val hasReleaseSigning = cred("storeFile", "KEYSTORE_PATH") != null
 
 android {
-    namespace = "org.spaceelephant.keepitapp"
+    namespace = "org.hyperstarit.keepitapp"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "org.spaceelephant.keepitapp"
+        applicationId = "org.hyperstarit.keepitapp"
         minSdk = 34
         targetSdk = 36
         // Version tracks the release tag: CI passes VERSION_NAME/VERSION_CODE derived from vX.Y.Z.

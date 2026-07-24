@@ -16,7 +16,7 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
 - **Auth:** ASP.NET Core Identity + JWT. Access token in the response body, held in memory; refresh token in an httpOnly cookie; silent refresh on 401.
 - **Realtime:** SignalR `RealTimeHub` at `/api/realtime` (JWT via `?access_token=`, per-user delivery). After a mutation the API pushes `Changed(resources)`; clients invalidate the matching cache keys and refetch.
 - **Web frontend:** React 19 + Vite + TypeScript — `web/`. TanStack Query owns all server state. Tailwind v4, React Router v7.
-- **Android client:** Kotlin + Jetpack Compose (Material 3) — `app/` (package `org.spaceelephant.keepitapp`). Retrofit + OkHttp + kotlinx.serialization for the REST API, the official Microsoft SignalR Java client for realtime, Glance for the home-screen widget, Navigation Compose for nav. **Offline-first** with a local cache + mutation outbox. No Room, no Hilt — see the Android section.
+- **Android client:** Kotlin + Jetpack Compose (Material 3) — `app/` (package `org.hyperstarit.keepitapp`). Retrofit + OkHttp + kotlinx.serialization for the REST API, the official Microsoft SignalR Java client for realtime, Glance for the home-screen widget, Navigation Compose for nav. **Offline-first** with a local cache + mutation outbox. No Room, no Hilt — see the Android section.
 - **API contract:** OpenAPI from C# → clients. **C# DTOs are the single source of truth.** Web regenerates a typed client with `openapi-typescript`; the Android `data/Dtos.kt` is hand-kept in sync with the same DTOs.
 - **Deploy:** Docker Compose — nginx (`web`) serves the SPA and reverse-proxies `/api` to the API; Traefik in front for TLS. Also shipped as a single self-contained image for Unraid (`deploy/keepit.unraid.xml`).
 
@@ -49,7 +49,7 @@ the Android app generally should too. Key design points:
 - **C#:** standard .NET naming; request/response DTOs suffixed `Dto`; EF entities in `keepITCore/Data/`; one controller per resource. Request validation is **DataAnnotations on the DTOs** (no FluentValidation). Every endpoint is scoped via `User.GetUserId()` — a caller reaches only data they own **or** have a share on (see the access hard rule); private resources (lists, settings, notifications) stay strictly owner-scoped.
 - **Enums** that cross the wire carry `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` so the OpenAPI doc (and generated clients) get a string-name union, not a number.
 - **TypeScript:** generated client in `web/src/api/`; query hooks co-located in `features/<name>/queries.ts`; new features under `web/src/features/`.
-- **Kotlin:** package `org.spaceelephant.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
+- **Kotlin:** package `org.hyperstarit.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `app:`, `infra:`, `docs:`, `chore:`.
 
 ## Layout
@@ -73,8 +73,8 @@ keepIT/
 │  ├─ realtime/             # RealtimeSync.tsx — SignalR connection + cache invalidation
 │  ├─ pages/                # AuthPage, HomePage, SettingsPage
 │  └─ lib/                  # utilities (cn, apiError, useDismiss)
-├─ app/                     # Android client (Kotlin + Compose) — package org.spaceelephant.keepitapp
-│  └─ app/src/main/java/org/spaceelephant/keepitapp/
+├─ app/                     # Android client (Kotlin + Compose) — package org.hyperstarit.keepitapp
+│  └─ app/src/main/java/org/hyperstarit/keepitapp/
 │     ├─ data/              # ApiClient, KeepItApi (Retrofit), Dtos, NotesRepository, RealtimeClient, SessionRepository
 │     │  └─ offline/        # LocalStore, Outbox, SyncEngine, ConnectivityMonitor, PendingOp, NoteOps
 │     ├─ notifications/     # AlarmManager reminders, BootReceiver, ServerNotificationsWatcher

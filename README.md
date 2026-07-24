@@ -30,7 +30,7 @@ The features I really wanted:
 
 It has since grown into a blazing-fast app with optimistic editing, lists, search, sharing, and **real-time sync** — so a note edited on one device shows up on your others without a refresh. I'm really happy with how this turned out.
 
-[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/spaceelephant)
+[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/hyperstarit)
 
 > **Status:** work in progress.
 
@@ -233,7 +233,7 @@ Open **http://localhost:5173** and register an account — or seed test data
 ## Support
 
 keepIT is free and self-hosted — no accounts, no subscriptions. If it's useful to you and you'd
-like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/spaceelephant). Much
+like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/hyperstarit). Much
 appreciated, but never expected.
 
 ## License

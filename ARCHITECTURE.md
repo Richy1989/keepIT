@@ -454,7 +454,7 @@ the server row.
 ## Android client (`app/`)
 
 **Status: implemented.** A native Android app — Kotlin, Jetpack Compose (Material 3),
-package `org.spaceelephant.keepitapp`, minSdk 34. Not a WebView wrapper: the point is a real
+package `org.hyperstarit.keepitapp`, minSdk 34. Not a WebView wrapper: the point is a real
 native experience, native reminder notifications, and a real home-screen widget. It is a
 first-class consumer of the same REST + SignalR contract — the backend never special-cases it.
 
