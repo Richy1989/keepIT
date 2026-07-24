@@ -1,0 +1,27 @@
+keepIT is a fast, offline-first notes app that keeps your notes in sync across
+all your devices in real time. It is the native Android client for the
+open-source keepIT platform, which also has a web app and a REST API.
+
+Note: keepIT is a client for a keepIT server. You host your own server (it is
+free and open source) and sign in from the app with your server's address, so
+your data stays entirely under your control.
+
+Features:
+
+* Plain notes and checklists, with an in-line Markdown editor
+* Colors, pins, archive and trash to keep things organized
+* Per-user lists to group notes your own way
+* Reminders that fire natively via AlarmManager, even offline or with the app
+  closed, and survive a reboot
+* Full-text search across your notes
+* Share notes with other users as Viewer or Editor, with the owner keeping
+  control
+* Real-time sync: a change on one device shows up on the others right away
+* Offline-first: everything works without a connection: your edits are cached
+  locally and a mutation outbox replays them automatically when you are back
+  online
+* Home-screen widget to jump straight into composing, a note, or your inbox
+* Share text in from other apps to start a new note pre-filled
+
+keepIT stores no analytics, contains no ads and no tracking. The refresh token
+is kept in app-private storage and never leaves your device.

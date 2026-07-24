@@ -1,0 +1,1 @@
+simple, self-hosted notes app with checklists, reminders and cross-device sync
