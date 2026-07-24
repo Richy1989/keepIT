@@ -1,0 +1,1 @@
+Much smaller download: the release build is now minified (R8), shrinking the app from ~52 MB to ~4 MB. No feature changes.
