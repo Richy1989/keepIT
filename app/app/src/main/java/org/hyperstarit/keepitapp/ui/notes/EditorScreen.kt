@@ -63,6 +63,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -116,6 +117,20 @@ private class EditableItem(id: String?, text: String, isChecked: Boolean) {
         private var nextLocalId = 0L
     }
 }
+
+/**
+ * Display order for the editor's rows: **unchecked first, checked at the bottom**, each group
+ * keeping its stored order. The receiver stays in *home* order — it changes only when rows are
+ * added, removed or reordered, never when a box is ticked — so checking a row sinks it and
+ * unchecking puts it back in exactly the slot it came from. `buildChecklist` persists that home
+ * order and the sort is stable, so it survives a round-trip through the server.
+ *
+ * Each row is paired with its index in the home list, because that (not the display position) is
+ * what every edit addresses. The read-only surfaces apply the same rule to DTOs — see
+ * `List<ChecklistItemDto>.inDisplayOrder()` in `data/Checklist.kt` — as does the web editor.
+ */
+private fun List<EditableItem>.displayRows(): List<IndexedValue<EditableItem>> =
+    withIndex().sortedBy { it.value.isChecked }
 
 /**
  * Full-note editor, the phone twin of the web NoteEditorModal: title, body or checklist, and a
@@ -501,54 +516,60 @@ fun EditorScreen(
             )
 
             if (type == NoteTypes.CHECKLIST) {
-                items.forEachIndexed { index, item ->
-                    // Focus a freshly added row once it's composed (Enter / Add item).
-                    LaunchedEffect(Unit) {
-                        if (item.localId == focusTargetLocalId) {
-                            runCatching { item.focusRequester.requestFocus() }
-                            focusTargetLocalId = null
+                // Rendered in display order; `index` is the row's index in `items` (home order),
+                // which every edit below addresses.
+                items.displayRows().forEach { (index, item) ->
+                    // Keyed by the row's stable local id so a row that moves (ticking sinks it to
+                    // the bottom) carries its composable state — and its focus — along with it.
+                    key(item.localId) {
+                        // Focus a freshly added row once it's composed (Enter / Add item).
+                        LaunchedEffect(Unit) {
+                            if (item.localId == focusTargetLocalId) {
+                                runCatching { item.focusRequester.requestFocus() }
+                                focusTargetLocalId = null
+                            }
                         }
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Checkbox(
-                            checked = item.isChecked,
-                            onCheckedChange = { if (canEdit) item.isChecked = it },
-                            enabled = canEdit,
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = KeepItColors.Accent,
-                                checkmarkColor = Color.Black,
-                                uncheckedColor = KeepItColors.BorderStrong,
-                            ),
-                        )
-                        TextField(
-                            value = item.text,
-                            onValueChange = { item.text = it },
-                            placeholder = { Text("List item", color = KeepItColors.TextFaint) },
-                            readOnly = !canEdit,
-                            singleLine = true,
-                            colors = transparentFieldColors(),
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                fontSize = 14.sp,
-                                color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
-                            ),
-                            // Enter adds a new item right below and moves the cursor there.
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                            keyboardActions = KeyboardActions(onNext = { addItemAfter(index) }),
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(item.focusRequester),
-                        )
-                        if (canEdit) {
-                            IconButton(onClick = { items.removeAt(index) }) {
-                                Icon(
-                                    Icons.Filled.Clear,
-                                    contentDescription = "Remove item",
-                                    tint = KeepItColors.TextFaint,
-                                    modifier = Modifier.size(16.dp),
-                                )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Checkbox(
+                                checked = item.isChecked,
+                                onCheckedChange = { if (canEdit) item.isChecked = it },
+                                enabled = canEdit,
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = KeepItColors.Accent,
+                                    checkmarkColor = Color.Black,
+                                    uncheckedColor = KeepItColors.BorderStrong,
+                                ),
+                            )
+                            TextField(
+                                value = item.text,
+                                onValueChange = { item.text = it },
+                                placeholder = { Text("List item", color = KeepItColors.TextFaint) },
+                                readOnly = !canEdit,
+                                singleLine = true,
+                                colors = transparentFieldColors(),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 14.sp,
+                                    color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
+                                ),
+                                // Enter adds a new item right below and moves the cursor there.
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                keyboardActions = KeyboardActions(onNext = { addItemAfter(index) }),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(item.focusRequester),
+                            )
+                            if (canEdit) {
+                                IconButton(onClick = { items.removeAt(index) }) {
+                                    Icon(
+                                        Icons.Filled.Clear,
+                                        contentDescription = "Remove item",
+                                        tint = KeepItColors.TextFaint,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }

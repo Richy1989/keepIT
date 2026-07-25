@@ -254,9 +254,11 @@ class NotesRepository(
                 preview = if (isChecklist) "" else stripMarkdown(n.body ?: "").replace('\n', ' ').take(100),
                 color = n.color,
                 checklist = if (isChecklist) {
-                    n.checklistItems.sortedBy { it.order }.take(WIDGET_CHECKLIST_LINES).map {
-                        (if (it.isChecked) "☑ " else "☐ ") + it.text
-                    }
+                    // Unchecked first, so the few lines that fit the widget show what's still to do.
+                    n.checklistItems
+                        .inDisplayOrder()
+                        .take(WIDGET_CHECKLIST_LINES)
+                        .map { (if (it.isChecked) "☑ " else "☐ ") + it.text }
                 } else {
                     emptyList()
                 },

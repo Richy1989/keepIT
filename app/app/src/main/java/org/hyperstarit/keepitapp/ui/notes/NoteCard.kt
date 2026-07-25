@@ -38,6 +38,7 @@ import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.ensureUtc
+import org.hyperstarit.keepitapp.data.inDisplayOrder
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownText
 import org.hyperstarit.keepitapp.ui.theme.CardShape
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
@@ -177,7 +178,7 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
 
 @Composable
 private fun ChecklistPreview(note: NoteDto) {
-    val items = note.checklistItems.sortedBy { it.order }
+    val items = note.checklistItems.inDisplayOrder()
     val done = items.count { it.isChecked }
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         items.take(MAX_PREVIEW_ITEMS).forEach { item ->

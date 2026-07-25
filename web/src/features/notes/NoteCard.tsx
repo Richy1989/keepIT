@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
+import { checklistForDisplay } from './checklist';
 import { noteColor } from './palette';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
@@ -51,6 +52,8 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
 
   function toggleItem(target: ChecklistItemDto) {
     if (!note.canEdit) return; // viewers can't change content
+    // Only the checked flag changes — the stored order stays the row's home position, and the
+    // display sort is what sinks it to the bottom (and restores it on untick).
     const items = note.checklistItems.map((i) =>
       i.id === target.id ? { ...i, isChecked: !i.isChecked } : i,
     );
@@ -85,30 +88,32 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
 
       {note.type === 'Checklist' ? (
         <ul className="space-y-1">
-          {note.checklistItems.slice(0, MAX_PREVIEW_ITEMS).map((it) => (
-            <li key={it.id} className="flex items-start gap-2 text-sm">
-              <button
-                type="button"
-                disabled={!note.canEdit}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleItem(it);
-                }}
-                className={cn(
-                  'mt-0.5 grid size-4 shrink-0 place-items-center rounded border transition',
-                  it.isChecked
-                    ? 'border-accent bg-accent text-black'
-                    : 'border-border-strong hover:border-text-muted',
-                  !note.canEdit && 'cursor-default',
-                )}
-              >
-                {it.isChecked && <CheckIcon className="text-[10px]" />}
-              </button>
-              <span className={cn('text-text', it.isChecked && 'text-text-faint line-through')}>
-                {it.text}
-              </span>
-            </li>
-          ))}
+          {checklistForDisplay(note.checklistItems)
+            .slice(0, MAX_PREVIEW_ITEMS)
+            .map((it) => (
+              <li key={it.id} className="flex items-start gap-2 text-sm">
+                <button
+                  type="button"
+                  disabled={!note.canEdit}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleItem(it);
+                  }}
+                  className={cn(
+                    'mt-0.5 grid size-4 shrink-0 place-items-center rounded border transition',
+                    it.isChecked
+                      ? 'border-accent bg-accent text-black'
+                      : 'border-border-strong hover:border-text-muted',
+                    !note.canEdit && 'cursor-default',
+                  )}
+                >
+                  {it.isChecked && <CheckIcon className="text-[10px]" />}
+                </button>
+                <span className={cn('text-text', it.isChecked && 'text-text-faint line-through')}>
+                  {it.text}
+                </span>
+              </li>
+            ))}
           {note.checklistItems.length > MAX_PREVIEW_ITEMS && (
             <li className="pl-6 text-xs text-text-faint">
               + {note.checklistItems.length - MAX_PREVIEW_ITEMS} more

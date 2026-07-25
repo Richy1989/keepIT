@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { cn } from '../../lib/cn';
 import { CheckIcon, GripVerticalIcon, PlusIcon, XIcon } from '../../components/icons';
+import { checklistRows } from './checklist';
 import type { ChecklistItemDto } from '../../api/types';
 
 /**
  * Editable checklist: toggle, edit, add, remove, and **reorder by drag-and-drop**. Controlled via
- * `items` / `onChange`. Rows are dragged by the grip handle (so the text inputs stay usable); on
- * drop the array is reordered and each item's `order` is renumbered to its new position. The new
- * order persists with the rest of the note when the composer/editor saves on close.
+ * `items` / `onChange`.
+ *
+ * `items` is the *home* order; rows are rendered in display order — unchecked first, checked at the
+ * bottom (see `checklistRows`) — so ticking a box drops the row to the bottom and unticking returns
+ * it to the slot it came from. Every edit therefore addresses an item by its **stored** index while
+ * drag-and-drop works in **display** positions; the two are kept apart carefully below.
+ *
+ * Rows are dragged by the grip handle (so the text inputs stay usable); on drop the home order is
+ * permuted and each item's `order` renumbered. Dragging across the checked/unchecked boundary is
+ * refused (see `move`). The order persists with the rest of the note when the composer/editor saves
+ * on close (the server renumbers `Order` from the array index).
  *
  * Keyboard: Enter adds a new row below the current one and focuses it; Backspace on an empty row
  * removes it and moves the caret to the previous row.
@@ -19,12 +28,13 @@ export function ChecklistEditor({
   items: ChecklistItemDto[];
   onChange: (items: ChecklistItemDto[]) => void;
 }) {
-  // Index of the row being dragged, and the row it's currently hovering over (for the drop line).
+  // Display position of the row being dragged, and the row it's hovering over (for the drop line).
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
-  // Refs to each row's text input, plus a pending index to focus after a row is added. Using a ref
-  // (not state) for the pending index keeps the focus side-effect out of React's render/state cycle.
+  // Refs to each row's text input (by display position), plus a pending one to focus after a row is
+  // added. Using a ref (not state) for the pending index keeps the focus side-effect out of React's
+  // render/state cycle.
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const pendingFocus = useRef<number | null>(null);
 
@@ -35,28 +45,49 @@ export function ChecklistEditor({
     pendingFocus.current = null;
   }, [items]);
 
-  const update = (i: number, patch: Partial<ChecklistItemDto>) =>
-    onChange(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
-  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
-  const add = () => {
-    pendingFocus.current = items.length; // current length = the new item's index
-    onChange([...items, { id: null, text: '', isChecked: false, order: items.length }]);
-  };
+  const rows = checklistRows(items);
 
-  /** Inserts a new empty item right after row `i`, renumbers `order`, and focuses it. */
-  function insertAfter(i: number) {
+  const update = (stored: number, patch: Partial<ChecklistItemDto>) =>
+    onChange(items.map((it, idx) => (idx === stored ? { ...it, ...patch } : it)));
+  const remove = (stored: number) => onChange(items.filter((_, idx) => idx !== stored));
+
+  /** Display position of the row stored at `stored`, once `next` is committed. */
+  const displayPositionOf = (next: ChecklistItemDto[], stored: number) =>
+    checklistRows(next).findIndex((r) => r.index === stored);
+
+  function add() {
+    const next = [...items, { id: null, text: '', isChecked: false, order: items.length }];
+    pendingFocus.current = displayPositionOf(next, next.length - 1);
+    onChange(next);
+  }
+
+  /** Inserts a new empty item right after the item stored at `stored`, renumbers `order`, focuses it. */
+  function insertAfter(stored: number) {
     const next = [...items];
-    next.splice(i + 1, 0, { id: null, text: '', isChecked: false, order: 0 });
-    pendingFocus.current = i + 1;
+    next.splice(stored + 1, 0, { id: null, text: '', isChecked: false, order: 0 });
+    // The new row is unchecked, so it isn't necessarily displayed directly below the current row.
+    pendingFocus.current = displayPositionOf(next, stored + 1);
     onChange(next.map((it, idx) => ({ ...it, order: idx })));
   }
 
-  /** Moves an item and renumbers `order` to match the new positions. */
+  /** A drop is only meaningful within one group — see [move]. */
+  const canDropOn = (from: number, to: number) => rows[from]?.item.isChecked === rows[to]?.item.isChecked;
+
+  /**
+   * Moves a row between display positions and renumbers `order` to match.
+   *
+   * The move is applied to the **stored** array, not the displayed one: rewriting home order from
+   * what's on screen would shove every checked row to the end, silently resetting the slots they
+   * return to on untick. Dragging *across* the checked/unchecked boundary is refused — the display
+   * sort would undo it on the next render, so it can only ever look broken.
+   */
   function move(from: number, to: number) {
-    if (from === to) return;
+    if (from === to || !canDropOn(from, to)) return;
+    const a = rows[from].index;
+    const b = rows[to].index;
     const next = [...items];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
+    const [moved] = next.splice(a, 1);
+    next.splice(a < b ? b - 1 : b, 0, moved);
     onChange(next.map((it, idx) => ({ ...it, order: idx })));
   }
 
@@ -69,11 +100,12 @@ export function ChecklistEditor({
 
   return (
     <div className="space-y-1">
-      {items.map((it, i) => (
+      {rows.map(({ item: it, index: stored }, i) => (
         <div
-          key={it.id ?? i}
+          key={it.id ?? `new-${stored}`}
           onDragOver={(e) => {
-            if (dragIndex === null) return;
+            // No drop line for a target we'd refuse — the UI never promises a move it won't make.
+            if (dragIndex === null || !canDropOn(dragIndex, i)) return;
             e.preventDefault();
             setOverIndex(i);
           }}
@@ -101,7 +133,7 @@ export function ChecklistEditor({
           </span>
           <button
             type="button"
-            onClick={() => update(i, { isChecked: !it.isChecked })}
+            onClick={() => update(stored, { isChecked: !it.isChecked })}
             className={cn(
               'grid size-4 shrink-0 place-items-center rounded border transition',
               it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-strong hover:border-text-muted',
@@ -114,16 +146,16 @@ export function ChecklistEditor({
               inputRefs.current[i] = el;
             }}
             value={it.text}
-            onChange={(e) => update(i, { text: e.target.value })}
+            onChange={(e) => update(stored, { text: e.target.value })}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                insertAfter(i);
+                insertAfter(stored);
               } else if (e.key === 'Backspace' && it.text === '' && i > 0) {
                 // Empty row + Backspace removes it and drops the caret into the previous row.
                 e.preventDefault();
                 pendingFocus.current = i - 1;
-                remove(i);
+                remove(stored);
               }
             }}
             placeholder="List item"
@@ -134,7 +166,7 @@ export function ChecklistEditor({
           />
           <button
             type="button"
-            onClick={() => remove(i)}
+            onClick={() => remove(stored)}
             aria-label="Remove item"
             className="text-text-faint opacity-0 transition hover:text-text group-hover:opacity-100 touch:opacity-100"
           >

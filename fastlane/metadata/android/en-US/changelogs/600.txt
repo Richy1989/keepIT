@@ -1,0 +1,1 @@
+Checklists now tidy themselves: ticking an item moves it to the bottom of the list, and unticking puts it back exactly where it was. New items are added above the ticked ones. Applies everywhere a checklist shows — note cards, the editor and the home-screen widget.

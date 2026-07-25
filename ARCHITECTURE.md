@@ -555,7 +555,9 @@ A note is one of several **types**, and any note can carry a background color:
 
 1. **Text note** — free-form **Markdown** text in `body` (rendered on card and in the editor;
    formatting toolbar on web). The default type.
-2. **Checklist note** — an ordered list of checkbox items; reorder, check off, add, remove.
+2. **Checklist note** — an ordered list of checkbox items; reorder, check off, add, remove. Ticked
+   items display at the bottom of the list and return to their original slot when unticked — see
+   `ChecklistItem.order` for the contract that makes that work on every client.
 3. **Image note** — *planned, not implemented*: primary content is one or more images. The
    media pipeline it needs (below) is the main outstanding backend feature.
 4. **Background** — every note can set a background **color** from the palette. Background
@@ -577,7 +579,15 @@ everything else is scoped to):
   (palette key, nullable), createdAt/updatedAt. **Pin/archive/trash are not on the note** —
   they're per-user. Navigations to checklist items, note-lists, user states, shares, reminders.
 - `ChecklistItem` — id, noteId, text, isChecked, order. Replaced wholesale on note update but
-  reconciled by id server-side (stable ids, no delete-and-reinsert churn).
+  reconciled by id server-side (stable ids, no delete-and-reinsert churn). **`order` is the row's
+  *home* position, not its display position** — the server renumbers it from the incoming array
+  index, and clients must only change it when a row is added, removed or dragged, **never when a
+  box is ticked**. Each client then renders unchecked rows first and checked ones at the bottom
+  (a stable partition), which is what makes a ticked row sink, an unticked row return to exactly
+  the slot it came from, and a new row land above the checked block — identically on every device,
+  because it's derived from persisted state rather than remembered client-side. Nothing enforces
+  this contract, so a client that writes display order back into `order` breaks the other clients:
+  the rule lives in `web/src/features/notes/checklist.ts` and `app/…/data/Checklist.kt`.
 - `KeepList` (the `List` resource) — id, ownerId, name, color. Always private to its owner.
 - `NoteList` — the per-user join (noteId, listId, **userId**): a collaborator files a shared
   note into their own lists without the owner seeing it.

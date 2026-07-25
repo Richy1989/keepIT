@@ -3,6 +3,7 @@ import { useSetNoteLists, useUpdateNote } from './queries';
 import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
+import { checklistForDisplay } from './checklist';
 import { Markdown } from './Markdown';
 import { MarkdownToolbar } from './MarkdownToolbar';
 import { ReminderChip } from './ReminderChip';
@@ -288,7 +289,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
 function ReadOnlyChecklist({ items }: { items: ChecklistItemDto[] }) {
   return (
     <ul className="space-y-1">
-      {items.map((it, i) => (
+      {checklistForDisplay(items).map((it, i) => (
         <li key={it.id ?? i} className="flex items-start gap-2 text-sm">
           <span
             className={cn(
