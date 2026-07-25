@@ -183,9 +183,31 @@ The Compose stack sets most of these itself and reads only five values from `.en
 ## The Android app
 
 The app in [`app/`](app) brings your notes to your phone: offline-first, live sync, native
-reminder notifications, and a home-screen widget. It isn't on the Play Store (yet), so you build
-and install it yourself — open `app/` in **Android Studio**, or from the command line (requires
-the Android SDK):
+reminder notifications, and a home-screen widget.
+
+### Get it
+
+<a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/Richy1989/keepIT"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="60"></a>
+&nbsp;&nbsp;
+<a href="https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43792"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid — coming soon" height="60"></a>
+<sup>coming soon</sup>
+
+**[Obtainium](https://github.com/ImranR98/Obtainium)** is the easiest way: tap the badge, or add
+`https://github.com/Richy1989/keepIT` as a GitHub app source. It installs the APK and keeps it
+up to date as new releases land — no store account, straight from this repo.
+
+**F-Droid** is on the way — the [submission](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43792)
+is with the maintainers.
+
+Prefer to do it by hand? Grab `keepit-vX.Y.Z-universal.apk` from the
+[latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it.
+
+> **Heads up:** the GitHub and F-Droid builds are signed with different keys, so you can't move
+> from one to the other by updating — pick a source and stay with it, or uninstall first.
+
+### Build it yourself
+
+Open `app/` in **Android Studio**, or from the command line (requires the Android SDK):
 
 ```bash
 cd app
