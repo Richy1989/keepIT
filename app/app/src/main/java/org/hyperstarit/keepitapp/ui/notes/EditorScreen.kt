@@ -225,6 +225,11 @@ fun EditorScreen(
     // update that note instead of creating duplicates; the mutex keeps overlapping saves from racing.
     val saveMutex = remember { Mutex() }
 
+    // Both representations are always persisted, whatever `type` currently is. The server stores
+    // Body and ChecklistItems independently and `type` only selects which one renders, so keeping
+    // the inactive side makes the Text ↔ Checklist toggle reversible. Nulling it out instead meant
+    // one tap on the toolbar deleted every checklist row (the server replaces the set wholesale) —
+    // and because saving here is autosaved on a debounce, it happened without even closing the note.
     suspend fun persist() = saveMutex.withLock {
         val current = note
         if (current == null) {
@@ -235,9 +240,9 @@ fun EditorScreen(
                 CreateNoteDto(
                     type = type,
                     title = title.trim().ifBlank { null },
-                    body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
+                    body = body.text.trim().ifBlank { null },
                     color = color,
-                    checklistItems = if (type == NoteTypes.CHECKLIST) checklist else null,
+                    checklistItems = checklist.ifEmpty { null },
                     listIds = listIds.toList().ifEmpty { null },
                 ),
             )
@@ -248,9 +253,9 @@ fun EditorScreen(
                     UpdateNoteDto(
                         type = type,
                         title = title.trim().ifBlank { null },
-                        body = if (type == NoteTypes.TEXT) body.text.trim().ifBlank { null } else null,
+                        body = body.text.trim().ifBlank { null },
                         color = color,
-                        checklistItems = if (type == NoteTypes.CHECKLIST) buildChecklist() else null,
+                        checklistItems = buildChecklist(),
                     ),
                 )
             }
