@@ -1249,29 +1249,29 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         AuthResponseDto: {
-            accessToken?: string;
+            accessToken: string;
             /** Format: date-time */
-            accessTokenExpiresAtUtc?: string;
-            user?: components["schemas"]["UserDto"];
+            accessTokenExpiresAtUtc: string;
+            user: components["schemas"]["UserDto"];
         };
         ChangePasswordRequestDto: {
             newPassword: string;
-            currentPassword?: string;
+            currentPassword: string;
         };
         ChecklistItemDto: {
             /** Format: uuid */
             id?: null | string;
-            text?: string;
-            isChecked?: boolean;
+            text: string;
+            isChecked: boolean;
             /** Format: int32 */
-            order?: number;
+            order: number;
         };
         CreateListDto: {
             name: string;
             color?: null | string;
         };
         CreateNoteDto: {
-            type?: components["schemas"]["NoteType"];
+            type: components["schemas"]["NoteType"];
             title?: null | string;
             body?: null | string;
             color?: null | string;
@@ -1280,7 +1280,7 @@ export interface components {
         };
         CreateShareDto: {
             email: string;
-            role?: components["schemas"]["NoteRole"];
+            role: components["schemas"]["NoteRole"];
         };
         ForgotPasswordRequestDto: {
             email: string;
@@ -1289,56 +1289,56 @@ export interface components {
         IFormFile: string;
         ListDto: {
             /** Format: uuid */
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             color?: null | string;
             /** Format: int32 */
-            noteCount?: number;
+            noteCount: number;
             /** Format: date-time */
-            createdAtUtc?: string;
+            createdAtUtc: string;
         };
         LoginRequestDto: {
             email: string;
             password: string;
         };
         MetaDto: {
-            version?: string;
+            version: string;
         };
         NoteDto: {
             /** Format: uuid */
-            id?: string;
-            type?: components["schemas"]["NoteType"];
+            id: string;
+            type: components["schemas"]["NoteType"];
             title?: null | string;
             body?: null | string;
             color?: null | string;
-            isPinned?: boolean;
-            isArchived?: boolean;
-            isTrashed?: boolean;
+            isPinned: boolean;
+            isArchived: boolean;
+            isTrashed: boolean;
             /** Format: date-time */
             remindAtUtc?: null | string;
-            reminderRecurrence?: null | components["schemas"]["ReminderRecurrence"];
-            reminderFired?: boolean;
+            reminderRecurrence: null | components["schemas"]["ReminderRecurrence"];
+            reminderFired: boolean;
             /** Format: date-time */
-            createdAtUtc?: string;
+            createdAtUtc: string;
             /** Format: date-time */
-            updatedAtUtc?: string;
-            isOwner?: boolean;
-            role?: null | components["schemas"]["NoteRole"];
-            canEdit?: boolean;
-            isShared?: boolean;
-            checklistItems?: components["schemas"]["ChecklistItemDto"][];
-            listIds?: string[];
+            updatedAtUtc: string;
+            isOwner: boolean;
+            role: null | components["schemas"]["NoteRole"];
+            canEdit: boolean;
+            isShared: boolean;
+            checklistItems: components["schemas"]["ChecklistItemDto"][];
+            listIds: string[];
         };
         /** @enum {unknown} */
         NoteRole: "Viewer" | "Editor" | null;
         NoteShareDto: {
             /** Format: uuid */
-            granteeId?: string;
-            email?: string;
-            role?: components["schemas"]["NoteRole"];
+            granteeId: string;
+            email: string;
+            role: components["schemas"]["NoteRole"];
             /** Format: date-time */
-            createdAtUtc?: string;
-            pending?: boolean;
+            createdAtUtc: string;
+            pending: boolean;
         };
         NoteStateDto: {
             isPinned?: null | boolean;
@@ -1362,20 +1362,20 @@ export interface components {
             newPassword: string;
         };
         SetNoteListsDto: {
-            listIds?: string[];
+            listIds: string[];
         };
         SetNoteReminderDto: {
             /** Format: date-time */
-            remindAtUtc?: string;
-            recurrence?: components["schemas"]["ReminderRecurrence"];
+            remindAtUtc: string;
+            recurrence: components["schemas"]["ReminderRecurrence"];
         };
         ShareResponseDto: {
-            accept?: boolean;
+            accept: boolean;
         };
         TestEmailResultDto: {
-            smtpConfigured?: boolean;
-            sent?: boolean;
-            sentTo?: string;
+            smtpConfigured: boolean;
+            sent: boolean;
+            sentTo: string;
             error?: null | string;
         };
         UpdateListDto: {
@@ -1383,35 +1383,35 @@ export interface components {
             color?: null | string;
         };
         UpdateNoteDto: {
-            type?: components["schemas"]["NoteType"];
+            type: components["schemas"]["NoteType"];
             title?: null | string;
             body?: null | string;
             color?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
         };
         UpdateShareRoleDto: {
-            role?: components["schemas"]["NoteRole"];
+            role: components["schemas"]["NoteRole"];
         };
         UserDto: {
             /** Format: uuid */
-            id?: string;
-            email?: string;
+            id: string;
+            email: string;
             displayName?: null | string;
         };
         UserNotificationDto: {
             /** Format: uuid */
             id?: null | string;
-            type?: components["schemas"]["NotificationType"];
-            notificationText?: string;
-            severity?: string;
-            isActive?: boolean;
+            type: components["schemas"]["NotificationType"];
+            notificationText: string;
+            severity: string;
+            isActive: boolean;
             /** Format: date-time */
-            createdAtUtc?: string;
+            createdAtUtc: string;
             /** Format: uuid */
             sharedNoteId?: null | string;
             sharedNoteTitle?: null | string;
             sharedByUserEmail?: null | string;
-            role?: null | components["schemas"]["NoteRole"];
+            role: null | components["schemas"]["NoteRole"];
             /** Format: uuid */
             reminderNoteId?: null | string;
             reminderNoteTitle?: null | string;
@@ -1419,8 +1419,8 @@ export interface components {
         UserSettingsDto: {
             /** Format: uuid */
             id?: null | string;
-            globalAccentColor?: string;
-            theme?: string;
+            globalAccentColor: string;
+            theme: string;
         };
     };
     responses: never;

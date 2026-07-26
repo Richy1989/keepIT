@@ -20,6 +20,9 @@ export function ColorPicker({
             type="button"
             title={c.label}
             aria-label={c.label}
+            // Without this the selection is signalled only by a border tint and an aria-hidden
+            // check glyph — a screen reader hears ten identical, stateless buttons.
+            aria-pressed={selected}
             onClick={(e) => {
               e.stopPropagation();
               onPick(c.key);

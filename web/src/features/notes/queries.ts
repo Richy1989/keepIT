@@ -289,6 +289,20 @@ export function useSetNoteLists() {
       if (error || !data) throw new Error('Failed to update lists.');
       return data;
     },
+    // Optimistic like every other note mutation: `belongsToView` keys off `listIds`, so without
+    // this, filing a note shows nothing until the refetch lands, and un-filing it while a list
+    // filter is active leaves the card sitting in a view it no longer belongs to.
+    onMutate: async ({ id, listIds }) => {
+      await qc.cancelQueries({ queryKey: [NOTES_KEY] });
+      const snapshot = snapshotNotes(qc);
+      const current = qc
+        .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
+        .flatMap(([, data]) => data ?? [])
+        .find((n) => n.id === id);
+      if (current) reconcileNote(qc, id, { ...current, listIds });
+      return { snapshot };
+    },
+    onError: (_e, _v, ctx) => ctx && restoreNotes(qc, ctx.snapshot),
     onSettled: () => invalidateAfter(qc),
   });
 }

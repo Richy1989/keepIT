@@ -30,9 +30,11 @@ export function Topbar({
         <span className="hidden text-lg font-semibold tracking-tight sm:block">keepIT</span>
       </div>
 
-      <div className="relative mx-auto w-full max-w-xl">
+      <div role="search" className="relative mx-auto w-full max-w-xl">
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-text-faint" />
         <input
+          type="search"
+          aria-label="Search notes"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search notes"

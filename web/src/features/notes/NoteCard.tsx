@@ -52,18 +52,32 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
 
   function toggleItem(target: ChecklistItemDto) {
     if (!note.canEdit) return; // viewers can't change content
+    // Matched by reference, not by id: rows on an optimistically-created note all carry `id: null`,
+    // and `i.id === target.id` would then tick every one of them at once.
     // Only the checked flag changes — the stored order stays the row's home position, and the
     // display sort is what sinks it to the bottom (and restores it on untick).
     const items = note.checklistItems.map((i) =>
-      i.id === target.id ? { ...i, isChecked: !i.isChecked } : i,
+      i === target ? { ...i, isChecked: !i.isChecked } : i,
     );
     update.mutate({ id: note.id, body: toUpdate(note, { checklistItems: items }) });
   }
 
   return (
+    // Focusable and Enter/Space-activated: the card is the only way into the editor, so leaving it
+    // a bare click target locked keyboard and screen-reader users out of opening a note entirely.
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={note.title || 'Untitled note'}
       onClick={() => onOpen(note)}
-      className="group relative mb-4 block w-full break-inside-avoid rounded-card border p-4 text-left shadow-md shadow-black/20 transition hover:shadow-lg hover:shadow-black/40"
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return; // a nested control owns the key
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen(note);
+        }
+      }}
+      className="focus-ring group relative mb-4 block w-full break-inside-avoid rounded-card border p-4 text-left shadow-md shadow-black/20 transition hover:shadow-lg hover:shadow-black/40"
       style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
     >
       {/* Pin — visible on hover, or always when pinned. */}
@@ -90,10 +104,13 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         <ul className="space-y-1">
           {checklistForDisplay(note.checklistItems)
             .slice(0, MAX_PREVIEW_ITEMS)
-            .map((it) => (
-              <li key={it.id} className="flex items-start gap-2 text-sm">
+            .map((it, i) => (
+              <li key={it.id ?? `row-${i}`} className="flex items-start gap-2 text-sm">
                 <button
                   type="button"
+                  role="checkbox"
+                  aria-checked={!!it.isChecked}
+                  aria-label={it.text || 'List item'}
                   disabled={!note.canEdit}
                   onClick={(e) => {
                     e.stopPropagation();

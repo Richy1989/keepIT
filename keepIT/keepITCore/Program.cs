@@ -105,6 +105,9 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
     // Emit clean number schemas (drop .NET's lenient integer-or-string union) for the TS client.
     options.AddSchemaTransformer<NumericSchemaTransformer>();
+    // Mark non-nullable properties required, so the generated client can actually enforce the
+    // contract instead of typing every field as optional.
+    options.AddSchemaTransformer<RequiredPropertiesSchemaTransformer>();
 });
 
 //Adding a service which helps in creating images

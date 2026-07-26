@@ -28,6 +28,14 @@
   --color-accent: #fbbf24; /* default accent (yellow); overridden per data-accent */
   --color-accent-strong: #f59e0b;
 
+  /* Status colors. Tokens, not raw Tailwind shades: a fixed `text-rose-300`/`text-amber-300` reads
+     at ~1.7:1 on the light theme's white canvas, so error and warning panels — the messages that
+     matter most — were effectively invisible there. Overridden per theme below. */
+  --color-danger: #fda4af;
+  --color-danger-bg: #4c1d24;
+  --color-warning: #fcd34d;
+  --color-warning-bg: #422f06;
+
   --radius-card: 0.875rem;
 }
 
@@ -58,6 +66,12 @@ html[data-theme='light'] {
   --color-text: #18181b;
   --color-text-muted: #52525b;
   --color-text-faint: #9a9aa3;
+
+  /* Dark-on-pale: ~7:1 and ~6:1 against the tinted panels, vs ~1.7:1 for the 300-level shades. */
+  --color-danger: #9f1239;
+  --color-danger-bg: #ffe4e6;
+  --color-warning: #854d0e;
+  --color-warning-bg: #fef9c3;
 
   --note-default-bg: #ffffff;  --note-default-border: #e4e4e7;
   --note-rose-bg: #fad1d7;     --note-rose-border: #f3aab4;

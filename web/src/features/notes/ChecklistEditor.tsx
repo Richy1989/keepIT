@@ -70,8 +70,17 @@ export function ChecklistEditor({
     onChange(next.map((it, idx) => ({ ...it, order: idx })));
   }
 
-  /** A drop is only meaningful within one group — see [move]. */
-  const canDropOn = (from: number, to: number) => rows[from]?.item.isChecked === rows[to]?.item.isChecked;
+  /**
+   * A drop is only meaningful within one group — see [move]. Both positions must exist: two
+   * out-of-range indices would otherwise both read `undefined` and compare equal, green-lighting a
+   * move that then throws.
+   */
+  const canDropOn = (from: number, to: number) =>
+    from >= 0 &&
+    from < rows.length &&
+    to >= 0 &&
+    to < rows.length &&
+    !!rows[from].item.isChecked === !!rows[to].item.isChecked;
 
   /**
    * Moves a row between display positions and renumbers `order` to match.
@@ -80,6 +89,9 @@ export function ChecklistEditor({
    * what's on screen would shove every checked row to the end, silently resetting the slots they
    * return to on untick. Dragging *across* the checked/unchecked boundary is refused — the display
    * sort would undo it on the next render, so it can only ever look broken.
+   *
+   * Removing the source first shifts everything after it left by one, so the target's slot in the
+   * shortened array *is* `b` — no adjustment for the direction of travel.
    */
   function move(from: number, to: number) {
     if (from === to || !canDropOn(from, to)) return;
@@ -87,7 +99,7 @@ export function ChecklistEditor({
     const b = rows[to].index;
     const next = [...items];
     const [moved] = next.splice(a, 1);
-    next.splice(a < b ? b - 1 : b, 0, moved);
+    next.splice(b, 0, moved);
     onChange(next.map((it, idx) => ({ ...it, order: idx })));
   }
 
@@ -133,6 +145,9 @@ export function ChecklistEditor({
           </span>
           <button
             type="button"
+            role="checkbox"
+            aria-checked={!!it.isChecked}
+            aria-label={it.text || 'List item'}
             onClick={() => update(stored, { isChecked: !it.isChecked })}
             className={cn(
               'grid size-4 shrink-0 place-items-center rounded border transition',

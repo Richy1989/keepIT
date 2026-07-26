@@ -41,12 +41,15 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
       .map((i, idx) => ({ ...i, text: i.text.trim(), order: idx }));
     const hasContent = Boolean(title.trim() || body.trim() || cleanItems.length);
     if (hasContent) {
+      // Both representations are saved regardless of `type` — the server keeps Body and
+      // ChecklistItems independently and `type` only picks which renders, so a draft typed as text
+      // and then toggled to a checklist (or vice versa) isn't silently thrown away.
       create.mutate({
         type,
         title: title.trim() || null,
-        body: type === 'Text' ? body.trim() || null : null,
+        body: body.trim() || null,
         color: color === 'default' ? null : color,
-        checklistItems: type === 'Checklist' ? cleanItems : null,
+        checklistItems: cleanItems,
         listIds: defaultListIds,
       });
     }

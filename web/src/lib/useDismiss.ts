@@ -5,6 +5,10 @@ import { useEffect, type RefObject } from 'react';
  * standard dismiss behavior. Uses a document-level `pointerdown` listener rather than an overlay
  * div, so it's immune to z-index/stacking-context surprises and doesn't swallow the click from the
  * element underneath. Only active while `active` is true.
+ *
+ * On an Escape dismiss, focus is returned to whatever opened the popover. Without that the focused
+ * node is unmounted along with the menu, focus falls to `<body>`, and the user's next Tab restarts
+ * from the top of the document.
  */
 export function useDismiss(
   ref: RefObject<HTMLElement | null>,
@@ -14,11 +18,17 @@ export function useDismiss(
   useEffect(() => {
     if (!active) return;
 
+    // Captured while the popover is open — by then the trigger has been clicked or focused.
+    const opener = document.activeElement as HTMLElement | null;
+
     const onPointerDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onDismiss();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onDismiss();
+      if (e.key !== 'Escape') return;
+      // Only reclaim focus if it's still inside the popover; the user may have moved on already.
+      if (opener?.isConnected && ref.current?.contains(document.activeElement)) opener.focus();
+      onDismiss();
     };
 
     document.addEventListener('pointerdown', onPointerDown);

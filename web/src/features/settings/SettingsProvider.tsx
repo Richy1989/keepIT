@@ -48,6 +48,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const theme = server ? asTheme(server.theme) : localTheme;
   const accent = server ? asAccent(server.globalAccentColor) : localAccent;
 
+  // Keep the signed-out fallback level with the server's values while they're loaded (React's
+  // adjust-state-during-render pattern — no extra commit, no cascading effect). Left frozen at its
+  // mount-time value, it would snap the UI back to the pre-sign-in theme the moment sign-out clears
+  // the settings cache, *and* write that stale value over the localStorage cache below —
+  // reintroducing the pre-paint flash the cache exists to prevent.
+  if (server) {
+    if (theme !== localTheme) setLocalTheme(theme);
+    if (accent !== localAccent) setLocalAccent(accent);
+  }
+
   // Apply to the DOM + refresh the localStorage cache whenever the active choice changes.
   useEffect(() => {
     applyToDom(theme, accent);
@@ -64,20 +74,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener('change', onChange);
   }, [theme, accent]);
 
+  // Both setters send the *whole* DTO, so each must build on the server's copy rather than on the
+  // derived value: before the settings query resolves, the other field is still the localStorage
+  // fallback, and persisting that would overwrite the user's real stored choice on every device.
+  // Until the server copy lands, a change stays local (and the query result then wins).
+  const stored = settings.data;
+
   const setTheme = useCallback(
     (next: ThemePref) => {
-      if (authed) persist.mutate({ theme: next, globalAccentColor: accent });
-      else setLocalTheme(next);
+      setLocalTheme(next);
+      if (authed && stored) persist.mutate({ ...stored, theme: next });
     },
-    [authed, accent, persist],
+    [authed, stored, persist],
   );
 
   const setAccent = useCallback(
     (next: string) => {
-      if (authed) persist.mutate({ theme, globalAccentColor: next });
-      else setLocalAccent(next);
+      setLocalAccent(next);
+      if (authed && stored) persist.mutate({ ...stored, globalAccentColor: next });
     },
-    [authed, theme, persist],
+    [authed, stored, persist],
   );
 
   return (

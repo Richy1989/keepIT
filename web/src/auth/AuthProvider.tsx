@@ -2,28 +2,9 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken, UNAUTHORIZED_EVENT } from '../api/client';
 import { tokenStore } from './tokenStore';
+import { apiErrorMessageFor } from '../lib/apiError';
 import type { AuthResponseDto, UserDto } from '../api/types';
 import { AuthContext, type AuthState } from './AuthContext';
-
-/** Pulls a human-readable message out of an API error body (409 `{error}` or a ProblemDetails). */
-function errorMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const e = error as {
-      error?: string;
-      detail?: string;
-      title?: string;
-      errors?: Record<string, string[]>;
-    };
-    // ValidationProblemDetails carries the real messages in `errors` (keyed by field/Identity code).
-    // Surface those instead of the generic "One or more validation errors occurred." title.
-    if (e.errors && typeof e.errors === 'object') {
-      const messages = Object.values(e.errors).flat().filter(Boolean);
-      if (messages.length > 0) return messages.join(' ');
-    }
-    return e.error ?? e.detail ?? e.title ?? fallback;
-  }
-  return fallback;
-}
 
 /**
  * Owns the session: restores it from the httpOnly refresh cookie on load, exposes login/register/
@@ -39,17 +20,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     void (async () => {
-      const ok = await refreshAccessToken();
-      if (!active) return;
-      if (ok) {
+      try {
+        if ((await refreshAccessToken()) !== 'ok') return;
         const { data } = await api.GET('/api/auth/me');
         if (active && data) {
           setUser(data);
           setStatus('authenticated');
-          return;
         }
+      } catch {
+        // The API going away mid-bootstrap (restart, proxy hiccup) makes `me` reject. Fall through
+        // to the sign-in screen rather than leaving the app pinned on the loading spinner forever.
+      } finally {
+        // Only ever resolves the initial 'loading' state — never demotes an established session.
+        if (active) setStatus((s) => (s === 'loading' ? 'unauthenticated' : s));
       }
-      if (active) setStatus('unauthenticated');
     })();
     return () => {
       active = false;
@@ -68,15 +52,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const applyAuth = useCallback((res: AuthResponseDto) => {
-    tokenStore.set(res.accessToken, res.accessTokenExpiresAtUtc);
+    if (!res.accessToken || !tokenStore.set(res.accessToken, res.accessTokenExpiresAtUtc ?? '')) {
+      throw new Error('The server returned an unusable session. Please try again.');
+    }
     setUser(res.user);
     setStatus('authenticated');
   }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const { data, error } = await api.POST('/api/auth/login', { body: { email, password } });
-      if (error || !data) throw new Error(errorMessage(error, 'Invalid email or password.'));
+      const { data, error, response } = await api.POST('/api/auth/login', {
+        body: { email, password },
+      });
+      if (error || !data) {
+        throw new Error(apiErrorMessageFor(response, error, 'Invalid email or password.'));
+      }
       applyAuth(data);
     },
     [applyAuth],
@@ -84,10 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (email: string, password: string, displayName?: string) => {
-      const { data, error } = await api.POST('/api/auth/register', {
+      const { data, error, response } = await api.POST('/api/auth/register', {
         body: { email, password, displayName: displayName || null },
       });
-      if (error || !data) throw new Error(errorMessage(error, 'Could not create the account.'));
+      if (error || !data) {
+        throw new Error(apiErrorMessageFor(response, error, 'Could not create the account.'));
+      }
       applyAuth(data);
     },
     [applyAuth],

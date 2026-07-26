@@ -29,11 +29,10 @@ export function NotificationsBell() {
   const unread = items.filter((n) => n.isActive).length;
 
   function toggle() {
-    setOpen((o) => {
-      // Opening acknowledges everything currently in the list.
-      if (!o && unread > 0) markRead.mutate();
-      return !o;
-    });
+    // The mutation fires outside the updater: state updaters must be pure, and StrictMode
+    // double-invokes them — which sent two mark-read requests per click in development.
+    if (!open && unread > 0) markRead.mutate();
+    setOpen((o) => !o);
   }
 
   return (
@@ -75,11 +74,20 @@ export function NotificationsBell() {
   );
 }
 
-/** A dot whose color reflects the notification severity. */
+/**
+ * A dot whose color reflects the notification severity, plus a screen-reader-only word — colour
+ * alone carries no meaning for anyone who can't see it (or can't distinguish these three hues).
+ */
 function SeverityDot({ severity }: { severity: string }) {
+  const level = severity === 'error' ? 'error' : severity === 'warning' ? 'warning' : 'info';
   const color =
-    severity === 'error' ? 'bg-red-500' : severity === 'warning' ? 'bg-amber-500' : 'bg-sky-500';
-  return <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', color)} aria-hidden />;
+    level === 'error' ? 'bg-red-500' : level === 'warning' ? 'bg-amber-500' : 'bg-sky-500';
+  return (
+    <>
+      <span className={cn('mt-1.5 size-2 shrink-0 rounded-full', color)} aria-hidden />
+      <span className="sr-only">{level}:</span>
+    </>
+  );
 }
 
 /** Renders one notification: a share invite (accept/decline) or a plain dismissible message. */

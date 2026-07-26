@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useProfileImage } from '../features/account/queries';
 import { cn } from '../lib/cn';
@@ -18,13 +18,28 @@ export function Avatar({
   const { user } = useAuth();
   const { data: blob } = useProfileImage(user?.id);
 
-  // Turn the fetched Blob into an object URL, revoking it when it changes / unmounts.
-  const fetchedUrl = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
+  // Turn the fetched Blob into an object URL, revoking it when it changes / unmounts. Created and
+  // revoked in the *same* effect: with the URL minted in a useMemo, StrictMode's mount→cleanup→mount
+  // cycle revoked a URL that nothing then recreated (useMemo doesn't re-run), leaving a dead blob in
+  // the <img> and leaking one URL per double-render.
+  // The setState-in-effect lint rule is waived here on purpose: an object URL is an external
+  // resource whose lifetime must bracket the effect, which is exactly the "synchronize with an
+  // external system" case. Deriving it in a useMemo instead is what caused the StrictMode bug.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  const [fetchedUrl, setFetchedUrl] = useState<string | null>(null);
   useEffect(() => {
+    if (!blob) {
+      setFetchedUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    setFetchedUrl(url);
     return () => {
-      if (fetchedUrl) URL.revokeObjectURL(fetchedUrl);
+      URL.revokeObjectURL(url);
+      setFetchedUrl(null);
     };
-  }, [fetchedUrl]);
+  }, [blob]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const url = previewUrl ?? fetchedUrl;
   const initial = (user?.displayName || user?.email || '?').charAt(0).toUpperCase();

@@ -28,6 +28,11 @@ const RESOURCE_QUERY_KEY: Record<string, string> = {
  * Mutations still go through REST + optimistic updates; this only keeps *other* open devices in
  * sync — and the device that made the change harmlessly re-validates (TanStack dedupes in-flight).
  */
+/** Exponential backoff with jitter, capped at 30s — used for both reconnects and restarts. */
+function backoffMs(attempt: number): number {
+  return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5)) * (0.75 + Math.random() * 0.5);
+}
+
 export function RealtimeSync() {
   const { status } = useAuth();
   const qc = useQueryClient();
@@ -44,7 +49,10 @@ export function RealtimeSync() {
           return tokenStore.token ?? '';
         },
       })
-      .withAutomaticReconnect()
+      // Never stop trying. The default schedule gives up after ~45s, which permanently kills
+      // realtime for this tab — and with `refetchOnWindowFocus: false` there is no fallback, so a
+      // laptop resumed from sleep would show stale notes until the next mutation.
+      .withAutomaticReconnect({ nextRetryDelayInMilliseconds: (ctx) => backoffMs(ctx.previousRetryCount) })
       .configureLogging(LogLevel.Warning)
       .build();
 
@@ -53,21 +61,45 @@ export function RealtimeSync() {
         void qc.invalidateQueries({ queryKey: [key] });
       }
     };
+    /** Any gap in the connection may have dropped pushes — refetch everything to catch up. */
+    const resync = () => invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]);
 
     connection.on('Changed', (resources: string[]) => {
       invalidate(resources.map((r) => RESOURCE_QUERY_KEY[r]).filter(Boolean));
     });
-
-    // A reconnect means we were offline and may have missed pushes — refetch everything to resync.
-    connection.onreconnected(() => invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]));
+    connection.onreconnected(resync);
 
     let stopped = false;
-    connection.start().catch((err) => {
-      if (!stopped) console.error('Realtime connection failed:', err);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    let everConnected = false;
+
+    // The initial start() is retried too: a single failure at mount (API restarting behind nginx,
+    // negotiate briefly rate-limited) used to mean no realtime for the entire session.
+    const start = async () => {
+      if (stopped) return;
+      try {
+        await connection.start();
+        attempt = 0;
+        if (everConnected) resync();
+        everConnected = true;
+      } catch (err) {
+        if (stopped) return;
+        console.warn('Realtime connection failed, retrying:', err);
+        timer = setTimeout(() => void start(), backoffMs(attempt++));
+      }
+    };
+
+    // Fires when the connection drops outright, or when automatic reconnect finally gives up.
+    connection.onclose(() => {
+      if (!stopped) timer = setTimeout(() => void start(), backoffMs(attempt++));
     });
+
+    void start();
 
     return () => {
       stopped = true;
+      clearTimeout(timer);
       void connection.stop();
     };
   }, [status, qc]);

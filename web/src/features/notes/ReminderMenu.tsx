@@ -92,8 +92,12 @@ export function ReminderMenu({ note, onClose }: { note: NoteDto; onClose: () => 
     ];
   }, []);
 
+  // Pinned at open, like `presets` — reading the clock during render is impure, and the "that's in
+  // the past" hint doesn't need to tick while the panel is open.
+  const [openedAt] = useState(() => Date.now());
+
   const selected = date && time ? new Date(`${date}T${time}`) : null;
-  const isPast = selected != null && selected.getTime() < Date.now();
+  const isPast = selected != null && selected.getTime() < openedAt;
 
   function save() {
     if (!selected) return;

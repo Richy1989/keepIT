@@ -71,7 +71,7 @@ export function AuthPage() {
 
           {mode === 'forgot' && resetRequested ? (
             <div className="mt-6 space-y-4">
-              <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+              <p aria-live="polite" className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
                 If an account exists for <span className="font-medium">{email}</span>, a reset link
                 is on its way. The link is valid for 2 hours.
               </p>
@@ -128,12 +128,17 @@ export function AuthPage() {
               )}
 
               {error && (
-                <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{error}</p>
+                // role="alert" so the failure is announced — a plain <p> appearing changes nothing
+                // an assistive tech will read, and focus stays on the submit button.
+                <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
               )}
 
               <button
                 type="submit"
                 disabled={busy}
+                aria-busy={busy}
                 className="focus-ring mt-2 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-accent-strong disabled:opacity-60"
               >
                 {busy

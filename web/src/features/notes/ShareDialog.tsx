@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   useCreateShare,
   useNoteShares,
@@ -7,6 +7,7 @@ import {
 } from './shareQueries';
 import { EyeIcon, PencilIcon, XIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
+import { useFocusTrap } from '../../lib/useFocusTrap';
 import type { NoteDto, NoteRole } from '../../api/types';
 
 /**
@@ -22,6 +23,8 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
 
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<NoteRole>('Viewer');
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -33,17 +36,37 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
     );
   }
 
+  // Own Escape handler: this dialog renders inside the editor's subtree, so without one the editor's
+  // window-level Escape would close *and save* the whole note mid-invite.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-[60] grid place-items-start overflow-y-auto bg-black/60 p-4 pt-[12vh] backdrop-blur-sm"
-      onMouseDown={onClose}
+      // Stop the press bubbling into the editor's backdrop, whose onMouseDown saves and closes it.
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-dialog-title"
         onMouseDown={(e) => e.stopPropagation()}
         className="mx-auto w-full max-w-md rounded-2xl border border-border-subtle bg-elevated p-5 shadow-2xl shadow-black/60"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-text">Share note</h2>
+          <h2 id="share-dialog-title" className="text-base font-semibold text-text">
+            Share note
+          </h2>
           <button
             type="button"
             aria-label="Close"
@@ -74,7 +97,7 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
             {createShare.isPending ? 'Sending…' : 'Send invite'}
           </button>
           {createShare.isError && (
-            <p className="text-xs text-red-400">{(createShare.error as Error).message}</p>
+            <p className="text-xs text-danger">{(createShare.error as Error).message}</p>
           )}
           {createShare.isSuccess && (
             <p className="text-xs text-text-muted">Invite sent — they'll see it in their notifications.</p>
@@ -101,7 +124,7 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
                 {s.pending ? (
                   // No accepted share yet — the role can't be changed until they accept.
                   <span className="text-xs italic text-text-faint">
-                    Pending · {s.role.toLowerCase()}
+                    Pending · {(s.role ?? 'Viewer').toLowerCase()}
                   </span>
                 ) : (
                   <RolePicker

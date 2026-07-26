@@ -1,7 +1,8 @@
-import { useState, type FormEvent, type InputHTMLAttributes } from 'react';
+import { useEffect, useState, type FormEvent, type InputHTMLAttributes } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { apiErrorMessage } from '../lib/apiError';
+import { useAuth } from '../auth/AuthContext';
+import { apiErrorMessageFor } from '../lib/apiError';
 import { TypewriterIcon } from '../components/icons';
 
 /**
@@ -12,8 +13,15 @@ import { TypewriterIcon } from '../components/icons';
  */
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
-  const email = params.get('email') ?? '';
-  const token = params.get('token') ?? '';
+  const { logout } = useAuth();
+  const [email] = useState(() => params.get('email') ?? '');
+  const [token] = useState(() => params.get('token') ?? '');
+
+  // Scrub the single-use token out of the address bar once it's been read: it otherwise sits in
+  // browser history (and the reverse proxy's access log) for anything later shared or screenshotted.
+  useEffect(() => {
+    if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -36,7 +44,11 @@ export function ResetPasswordPage() {
         body: { email, token, newPassword: password },
       });
       if (apiError || !response.ok)
-        throw new Error(apiErrorMessage(apiError, 'Could not reset the password.'));
+        throw new Error(apiErrorMessageFor(response, apiError, 'Could not reset the password.'));
+      // The server revoked every refresh token, but this tab's in-memory access token stays valid
+      // for up to 15 minutes. Drop it too, or the page claims "signed out everywhere" while the
+      // user is still signed in here — and "Go to sign in" bounces straight back into the app.
+      await logout();
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
@@ -59,7 +71,7 @@ export function ResetPasswordPage() {
           <h1 className="text-lg font-medium">Choose a new password</h1>
 
           {!linkValid ? (
-            <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+            <p className="mt-4 rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
               This reset link is incomplete. Open the link from the email again, or request a new
               one from the sign-in page.
             </p>
@@ -102,7 +114,9 @@ export function ResetPasswordPage() {
                 />
 
                 {error && (
-                  <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+                  // role="alert" so the failure is announced — a plain <p> appearing changes
+                  // nothing an assistive tech will read, and focus stays on the submit button.
+                  <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
                     {error}
                   </p>
                 )}
@@ -110,6 +124,7 @@ export function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={busy}
+                  aria-busy={busy}
                   className="focus-ring mt-2 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-accent-strong disabled:opacity-60"
                 >
                   {busy ? 'Please wait…' : 'Set new password'}

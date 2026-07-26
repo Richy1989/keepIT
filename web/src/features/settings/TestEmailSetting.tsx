@@ -21,7 +21,7 @@ export function TestEmailSetting() {
 
       {result &&
         (!result.sent ? (
-          <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+          <p className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
             Delivery failed: {result.error ?? 'unknown error.'} Check the server's{' '}
             <code className="font-mono text-xs">Email__*</code> settings.
           </p>
@@ -30,7 +30,7 @@ export function TestEmailSetting() {
             Test email sent to {result.sentTo} — check your inbox. SMTP is working.
           </p>
         ) : (
-          <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
+          <p className="rounded-lg bg-warning-bg px-3 py-2 text-sm text-warning">
             SMTP isn't configured on this server, so the test message was written to the server
             log instead. Password-reset links land there too; set{' '}
             <code className="font-mono text-xs">Email__SmtpHost</code> (and friends) to deliver
@@ -39,7 +39,7 @@ export function TestEmailSetting() {
         ))}
 
       {send.isError && (
-        <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300">
+        <p className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
           {apiErrorMessage(send.error, 'Could not run the email test.')}
         </p>
       )}

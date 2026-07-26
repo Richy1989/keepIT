@@ -22,6 +22,9 @@ export function useUserSettings(enabled: boolean) {
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
+    // Serialized: two swatches clicked in quick succession would otherwise race, and whichever PUT
+    // *responded* last would win the cache — not the one the user picked last.
+    scope: { id: SETTINGS_KEY },
     mutationFn: async (body: UserSettingsDto) => {
       const { data, error } = await api.PUT('/api/settings', { body });
       if (error || !data) throw new Error('Failed to save settings.');

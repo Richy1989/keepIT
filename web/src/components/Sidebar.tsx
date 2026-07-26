@@ -7,8 +7,18 @@ import {
 } from '../features/lists/queries';
 import type { NotesView } from '../features/notes/queries';
 import { useServerMeta } from '../features/settings/queries';
-import { ArchiveIcon, ClockIcon, ListIcon, NoteIcon, PlusIcon, TrashIcon, XIcon } from './icons';
+import {
+  ArchiveIcon,
+  ClockIcon,
+  ListIcon,
+  NoteIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  XIcon,
+} from './icons';
 import { cn } from '../lib/cn';
+import { useMediaQuery } from '../lib/useMediaQuery';
 
 /** What the grid is currently showing: a view plus an optional single-list filter. */
 export interface Selection {
@@ -37,6 +47,9 @@ export function Sidebar({
   const createList = useCreateList();
   const updateList = useUpdateList();
   const deleteList = useDeleteList();
+
+  // Matches Tailwind's `md` breakpoint, where the drawer becomes a permanent column.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
@@ -67,6 +80,10 @@ export function Sidebar({
         />
       )}
       <nav
+        // Off-canvas but still in the DOM: without `inert` the closed drawer stays tabbable on
+        // small screens, so Tab walks a keyboard user into an invisible menu. `inert` is ignored
+        // from md+ where the sidebar is a permanent column.
+        inert={!open && !isDesktop}
         className={cn(
           'fixed bottom-0 left-0 top-14 z-40 flex w-60 flex-col gap-1 overflow-y-auto border-r border-border-subtle bg-canvas p-3 transition-transform duration-200 ease-in-out',
           'md:static md:top-auto md:z-auto md:shrink-0 md:translate-x-0 md:transition-none',
@@ -105,6 +122,7 @@ export function Sidebar({
           type="button"
           onClick={() => setAdding(true)}
           title="Create list"
+          aria-label="Create list"
           className="focus-ring grid size-6 place-items-center rounded text-text-faint transition hover:bg-surface-hover hover:text-text"
         >
           <PlusIcon className="text-base" />
@@ -137,20 +155,49 @@ export function Sidebar({
                 setEditingId(l.id);
                 setEditDraft(l.name);
               }}
-            />
-            <button
-              type="button"
-              title="Delete list"
-              onClick={() => {
-                if (confirm(`Delete the list “${l.name}”? Your notes are kept.`)) {
-                  deleteList.mutate(l.id);
-                  if (selection.listId === l.id) onSelect({ view: 'active', listId: null });
+              // F2 is the conventional rename key, and the only one available here — double-click
+              // has no keyboard equivalent.
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === 'F2') {
+                  e.preventDefault();
+                  setEditingId(l.id);
+                  setEditDraft(l.name);
                 }
               }}
-              className="focus-ring absolute right-2 top-1/2 hidden -translate-y-1/2 place-items-center rounded p-1 text-text-faint transition hover:text-rose-300 group-hover/list:grid touch:grid"
-            >
-              <XIcon className="text-sm" />
-            </button>
+            />
+            {/*
+              Revealed on hover *or* keyboard focus anywhere in the row. These used to be `hidden`
+              (display:none) until a mouse hovered, which took them out of the tab order entirely —
+              a keyboard user could filter by a list but never rename or delete one.
+            */}
+            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition focus-within:opacity-100 group-hover/list:opacity-100 touch:opacity-100">
+              <button
+                type="button"
+                title="Rename list"
+                aria-label={`Rename list ${l.name}`}
+                onClick={() => {
+                  setEditingId(l.id);
+                  setEditDraft(l.name);
+                }}
+                className="focus-ring grid place-items-center rounded p-1 text-text-faint transition hover:text-text"
+              >
+                <PencilIcon className="text-sm" />
+              </button>
+              <button
+                type="button"
+                title="Delete list"
+                aria-label={`Delete list ${l.name}`}
+                onClick={() => {
+                  if (confirm(`Delete the list “${l.name}”? Your notes are kept.`)) {
+                    deleteList.mutate(l.id);
+                    if (selection.listId === l.id) onSelect({ view: 'active', listId: null });
+                  }
+                }}
+                className="focus-ring grid place-items-center rounded p-1 text-text-faint transition hover:text-danger"
+              >
+                <XIcon className="text-sm" />
+              </button>
+            </div>
           </div>
         ),
       )}
@@ -207,6 +254,7 @@ function NavItem({
   active,
   onClick,
   onDoubleClick,
+  onKeyDown,
 }: {
   icon: ReactNode;
   label: string;
@@ -214,12 +262,14 @@ function NavItem({
   active: boolean;
   onClick: () => void;
   onDoubleClick?: () => void;
+  onKeyDown?: (e: KeyboardEvent) => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onKeyDown={onKeyDown}
       className={cn(
         'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition',
         active
@@ -230,8 +280,10 @@ function NavItem({
       <span className={cn(active ? 'text-accent' : 'text-text-faint')}>{icon}</span>
       <span className="flex-1 truncate text-left">{label}</span>
       {count !== undefined && count > 0 && (
-        // Fade out on hover so the row's delete button (absolute, same spot) doesn't overlap it.
-        <span className="text-xs text-text-faint transition group-hover/list:opacity-0 touch:opacity-0">{count}</span>
+        // Fade out on hover/focus so the row's action buttons (absolute, same spot) don't overlap.
+        <span className="text-xs text-text-faint transition group-focus-within/list:opacity-0 group-hover/list:opacity-0 touch:opacity-0">
+          {count}
+        </span>
       )}
     </button>
   );

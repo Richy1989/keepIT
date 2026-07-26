@@ -16,6 +16,12 @@
     "jsx": "react-jsx",
 
     /* Linting */
+    /* Required, not optional polish: nearly every C# DTO field without [Required] generates as
+       optional, so without strict null checks `undefined` is assignable everywhere and making a
+       field nullable server-side produces zero TypeScript errors. That would quietly break the
+       project's core contract — "regenerate the client, the errors are the complete list of call
+       sites" (CLAUDE.md). Keep this on. */
+    "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,

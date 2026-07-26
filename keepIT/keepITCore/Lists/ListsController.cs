@@ -47,9 +47,11 @@ public class ListsController : ControllerBase
                 Name = l.Name,
                 Color = l.Color,
                 CreatedAtUtc = l.CreatedAtUtc,
-                // Trash is per-user now: exclude notes the caller has trashed in their own view.
+                // Pin/archive/trash are per-user: count only what the caller actually sees when they
+                // click this list — i.e. the active view, which excludes both archived and trashed.
                 NoteCount = l.NoteLists.Count(nl =>
-                    nl.UserId == ownerId && !nl.Note.UserStates.Any(us => us.UserId == ownerId && us.IsTrashed)),
+                    nl.UserId == ownerId
+                    && !nl.Note.UserStates.Any(us => us.UserId == ownerId && (us.IsTrashed || us.IsArchived))),
             })
             .ToListAsync();
 
@@ -101,7 +103,8 @@ public class ListsController : ControllerBase
         await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists);
 
         var count = await _db.NoteLists.CountAsync(nl =>
-            nl.ListId == id && nl.UserId == ownerId && !nl.Note.UserStates.Any(us => us.UserId == ownerId && us.IsTrashed));
+            nl.ListId == id && nl.UserId == ownerId
+            && !nl.Note.UserStates.Any(us => us.UserId == ownerId && (us.IsTrashed || us.IsArchived)));
         return Ok(ToDto(list, count));
     }
 

@@ -39,7 +39,10 @@ export function useProfileImage(userId: string | undefined) {
         params: { path: { userId: userId! } },
         parseAs: 'blob',
       });
-      if (!response.ok) return null; // 404 → no image set
+      // Only a 404 means "no image". Swallowing 4xx/5xx here would cache `null` under
+      // staleTime: Infinity, silently pinning the avatar to the initial for the whole session.
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('Failed to load the profile image.');
       return (data as Blob) ?? null;
     },
   });

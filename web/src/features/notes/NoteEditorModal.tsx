@@ -22,6 +22,7 @@ import {
   ShareIcon,
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
+import { useFocusTrap } from '../../lib/useFocusTrap';
 import type { ChecklistItemDto, NoteDto, NoteType } from '../../api/types';
 
 /** Returns true when two id sets differ (order-independent). */
@@ -67,17 +68,25 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [showShare, setShowShare] = useState(false);
   const [preview, setPreview] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Suspended while the share dialog is up — that child owns the tab ring then.
+  useFocusTrap(panelRef, !showShare);
 
   function save() {
     const cleanItems = items
       .filter((i) => i.text.trim())
       .map((i, idx) => ({ ...i, text: i.text.trim(), order: idx }));
 
+    // Both representations are always persisted, regardless of `type`. The server stores Body and
+    // ChecklistItems independently and `type` only picks which one renders, so keeping the inactive
+    // one means toggling Text ↔ Checklist is reversible instead of silently destroying the other
+    // side (a stray toolbar click used to delete every checklist row, unconfirmed and unrecoverable).
+    const nextBody = body.trim() || null;
     const nextColor = color === 'default' ? null : color;
     const contentChanged =
       type !== note.type ||
       (title.trim() || null) !== (note.title ?? null) ||
-      (type === 'Text' ? body.trim() || null : null) !== (note.body ?? null) ||
+      nextBody !== (note.body ?? null) ||
       nextColor !== (note.color ?? null) ||
       JSON.stringify(cleanItems.map((i) => [i.text, i.isChecked])) !==
         JSON.stringify(note.checklistItems.map((i) => [i.text, i.isChecked]));
@@ -89,9 +98,9 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
         body: {
           type,
           title: title.trim() || null,
-          body: type === 'Text' ? body.trim() || null : null,
+          body: nextBody,
           color: nextColor,
-          checklistItems: type === 'Checklist' ? cleanItems : null,
+          checklistItems: cleanItems,
         },
       });
     }
@@ -102,15 +111,16 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
     onClose();
   }
 
-  // Esc closes (and saves).
+  // Esc closes (and saves) — unless a child dialog owns the key, which dismisses itself instead.
   useEffect(() => {
+    if (showShare) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') save();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, title, body, items, color, listIds]);
+  }, [type, title, body, items, color, listIds, showShare]);
 
   const swatch = noteColor(color);
 
@@ -120,6 +130,10 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
       onMouseDown={save}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title.trim() || 'Note'}
         onMouseDown={(e) => e.stopPropagation()}
         className="mx-auto w-full max-w-2xl rounded-2xl border shadow-2xl shadow-black/60"
         style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}

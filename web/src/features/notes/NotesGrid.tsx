@@ -53,7 +53,7 @@ export function NotesGrid({
   }
 
   if (isError) {
-    return <p className="py-20 text-center text-sm text-rose-300">Couldn’t load your notes.</p>;
+    return <p className="py-20 text-center text-sm text-danger">Couldn’t load your notes.</p>;
   }
 
   if (notes.length === 0) {

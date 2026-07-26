@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Avatar } from '../../components/Avatar';
 import { CameraIcon } from '../../components/icons';
 import { apiErrorMessage } from '../../lib/apiError';
@@ -14,13 +14,24 @@ export function UserIconSetting() {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Local preview of the pending file (revoked when it changes / unmounts).
-  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  // Local preview of the pending file. Created and revoked in the same effect so StrictMode's
+  // mount→cleanup→mount cycle can't revoke a URL that nothing recreates (a useMemo doesn't re-run).
+  // See Avatar.tsx — the setState-in-effect rule is waived for object-URL lifetimes on purpose.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      URL.revokeObjectURL(url);
+      setPreview(null);
     };
-  }, [preview]);
+  }, [file]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function onPick(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -92,7 +103,7 @@ export function UserIconSetting() {
             {upload.isPending ? 'Uploading…' : 'Save'}
           </button>
         </div>
-        {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
+        {error && <p className="mt-2 text-xs text-danger">{error}</p>}
         <p className="mt-2 max-w-xs text-xs text-text-faint">JPG, PNG, WEBP, or GIF — up to 2 MB.</p>
       </div>
     </div>

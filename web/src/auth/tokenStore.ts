@@ -15,10 +15,17 @@ export const tokenStore = {
     return accessToken;
   },
 
-  /** Stores a freshly issued access token and its expiry (ISO-8601 UTC). */
-  set(token: string, expiresAtUtc: string): void {
+  /**
+   * Stores a freshly issued access token and its expiry (ISO-8601 UTC). Returns false and stores
+   * nothing if the expiry is unparseable — an accepted NaN would make `isExpiringSoon` return false
+   * forever, silently disabling proactive refresh for the rest of the session.
+   */
+  set(token: string, expiresAtUtc: string): boolean {
+    const parsed = new Date(expiresAtUtc).getTime();
+    if (!token || Number.isNaN(parsed)) return false;
     accessToken = token;
-    expiresAtMs = new Date(expiresAtUtc).getTime();
+    expiresAtMs = parsed;
+    return true;
   },
 
   /** Drops the in-memory token (sign-out, or a failed refresh). */
