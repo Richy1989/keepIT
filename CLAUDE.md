@@ -42,7 +42,7 @@ the Android app generally should too. Key design points:
 - **Reminders** are native: `AlarmManager` (`notifications/ReminderScheduler`, `ReminderAlarmReceiver`) so they fire offline / app-closed, re-armed after reboot by `BootReceiver`. `ServerNotificationsWatcher` surfaces the server inbox as tray notifications.
 - **Single-activity** (`MainActivity`, `launchMode=singleTask`) → Compose nav in `ui/AppRoot.kt`. External entry points arrive as intents and are turned into a `Destination` in `MainActivity.destinationFrom()`: the **widget** deep-links (compose / open note / inbox via extras), and **shared-in text** (`ACTION_SEND`, `text/plain`) opens the composer pre-filled. To add an external entry point: add a `Destination`, map the intent in `destinationFrom()`, and route it in `AppRoot`'s `MainNav`.
 - UI is organized under `ui/` by area (`auth/ notes/ notifications/ settings/ markdown/ theme/`); the note editor is `ui/notes/EditorScreen.kt` (null `noteId` = composer). `ui/notes/ShareSheet.kt` is the **share-a-note-with-another-user** feature (owner/Editor grants), not the OS share sheet.
-- **Build/verify:** `cd app && ./gradlew.bat :app:compileDebugKotlin` (Windows). No unit tests yet.
+- **Build/verify:** `cd app && ./gradlew.bat :app:compileDebugKotlin` (Windows). JVM unit tests for the offline logic live in `app/app/src/test/`: `./gradlew.bat :app:testDebugUnitTest`.
 
 ## Conventions
 
@@ -89,7 +89,7 @@ keepIT/
 ## Environment
 
 - Windows host; **PowerShell** is the primary shell. Repo line endings are **LF** (`.gitattributes`).
-- No test projects yet (backend, web, or Android).
+- No test projects for backend or web yet. The **Android app has JVM unit tests** under `app/app/src/test/` (offline op-application, outbox coalescing, checklist ordering) — run `cd app && ./gradlew.bat :app:testDebugUnitTest`.
 - **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration. The **SQLite dev DB uses `EnsureCreated`, not migrations** — it won't alter an existing file, so delete `App_Data/keepit.db` to rebuild the schema locally. `App_Data/` is user data (gitignored) — never commit it.
 
 ## Common commands

@@ -1,4 +1,5 @@
 using keepITCore.Data;
+using keepITCore.Notifications;
 using keepITCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -92,7 +93,7 @@ public sealed class ReminderDispatcherService : BackgroundService
                     Id = Guid.NewGuid(),
                     OwnerId = reminder.UserId,
                     Type = NotificationType.Reminder,
-                    NotificationText = ComposeReminderText(reminder.Note.Title),
+                    NotificationText = NotificationText.Reminder(reminder.Note.Title),
                     Severity = "information",
                     IsActive = true,
                     CreatedAtUtc = now,
@@ -147,19 +148,4 @@ public sealed class ReminderDispatcherService : BackgroundService
         ReminderRecurrence.Yearly => from.AddYears(1),
         _ => throw new ArgumentOutOfRangeException(nameof(recurrence), recurrence, null),
     };
-
-    /// <summary>A display-safe note title for reminder text.</summary>
-    private static string TitleOrUntitled(string? title) =>
-        string.IsNullOrWhiteSpace(title) ? "Untitled note" : title;
-
-    /// <summary>
-    /// Builds the notification text, guaranteed to fit the 200-char NotificationText column: the
-    /// title (the unbounded part) is clipped first, the whole string as a belt-and-braces.
-    /// </summary>
-    private static string ComposeReminderText(string? title) =>
-        Clip($"Reminder: \"{Clip(TitleOrUntitled(title), 60)}\"", 200);
-
-    /// <summary>Truncates to <paramref name="max"/> chars, appending an ellipsis when clipped.</summary>
-    private static string Clip(string value, int max) =>
-        value.Length <= max ? value : value[..(max - 1)] + "…";
 }

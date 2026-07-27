@@ -45,14 +45,16 @@ function sortNotesFor(view: NotesView): (a: NoteDto, b: NoteDto) => number {
 
 /** Whether a note belongs in a cache identified by (view, listIds). Drives optimistic placement. */
 function belongsToView(n: NoteDto, view: NotesView, listIds: string[]): boolean {
+  // The list filter applies to *every* view — matching the server's `GetNotes` and the Android
+  // client's `visibleNotes`, not just the active view. (The current UI only pairs a list with the
+  // active view, but keeping this uniform avoids a divergence if that ever changes.)
+  if (listIds.length && !listIds.some((id) => n.listIds.includes(id))) return false;
   // Reminders spans active and archived (like Keep), never trash.
   if (view === 'reminders') return n.remindAtUtc != null && !n.isTrashed;
   if (view === 'trashed') return n.isTrashed;
   if (n.isTrashed) return false;
   if (view === 'archived') return n.isArchived;
-  if (n.isArchived) return false; // active view
-  if (listIds.length && !listIds.some((id) => n.listIds.includes(id))) return false;
-  return true;
+  return !n.isArchived; // active view
 }
 
 /**
@@ -70,6 +72,14 @@ function reconcileNote(qc: QueryClient, noteId: string, patched: NoteDto | null)
     }
     qc.setQueryData(key, next);
   }
+}
+
+/** Finds a note by id across every notes cache (the source for an optimistic patch's base). */
+function findCachedNote(qc: QueryClient, id: string): NoteDto | undefined {
+  return qc
+    .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
+    .flatMap(([, data]) => data ?? [])
+    .find((n) => n.id === id);
 }
 
 /** Snapshots all notes caches for rollback. */
@@ -182,10 +192,7 @@ export function useUpdateNote() {
     onMutate: async ({ id, body }) => {
       await qc.cancelQueries({ queryKey: [NOTES_KEY] });
       const snapshot = snapshotNotes(qc);
-      const current = qc
-        .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
-        .flatMap(([, data]) => data ?? [])
-        .find((n) => n.id === id);
+      const current = findCachedNote(qc, id);
       if (current) {
         reconcileNote(qc, id, {
           ...current,
@@ -220,10 +227,7 @@ export function useSetNoteState() {
       await qc.cancelQueries({ queryKey: [NOTES_KEY] });
       const snapshot = snapshotNotes(qc);
       // Find the current note in any cache to build the optimistic next version.
-      const current = qc
-        .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
-        .flatMap(([, data]) => data ?? [])
-        .find((n) => n.id === id);
+      const current = findCachedNote(qc, id);
       if (current) {
         reconcileNote(qc, id, {
           ...current,
@@ -258,10 +262,7 @@ export function useSetNoteReminder() {
     onMutate: async ({ id, reminder }) => {
       await qc.cancelQueries({ queryKey: [NOTES_KEY] });
       const snapshot = snapshotNotes(qc);
-      const current = qc
-        .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
-        .flatMap(([, data]) => data ?? [])
-        .find((n) => n.id === id);
+      const current = findCachedNote(qc, id);
       if (current) {
         reconcileNote(qc, id, {
           ...current,
@@ -295,10 +296,7 @@ export function useSetNoteLists() {
     onMutate: async ({ id, listIds }) => {
       await qc.cancelQueries({ queryKey: [NOTES_KEY] });
       const snapshot = snapshotNotes(qc);
-      const current = qc
-        .getQueriesData<NoteDto[]>({ queryKey: [NOTES_KEY] })
-        .flatMap(([, data]) => data ?? [])
-        .find((n) => n.id === id);
+      const current = findCachedNote(qc, id);
       if (current) reconcileNote(qc, id, { ...current, listIds });
       return { snapshot };
     },

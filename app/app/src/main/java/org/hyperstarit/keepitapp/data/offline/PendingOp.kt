@@ -9,8 +9,9 @@ import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import java.util.UUID
 
 /**
- * One queued offline mutation, mirroring the five [org.hyperstarit.keepitapp.data.NotesRepository]
- * mutations 1:1. Ops are persisted in the outbox file and replayed FIFO against the same REST
+ * One queued offline mutation, mirroring the seven [org.hyperstarit.keepitapp.data.NotesRepository]
+ * mutations 1:1 (create, update, set-state, set-lists, set-reminder, clear-reminder, delete). Ops
+ * are persisted in the outbox file and replayed FIFO against the same REST
  * endpoints once the server is reachable — payloads are absolute (full DTOs, not diffs), so replay
  * is idempotent and last-write-wins falls out of the backend's unconditional PUT.
  *

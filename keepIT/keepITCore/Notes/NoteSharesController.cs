@@ -1,6 +1,7 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Notes.Dtos;
+using keepITCore.Notifications;
 using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -131,11 +132,8 @@ public class NoteSharesController : ControllerBase
             SharedByUserId = callerId.Value,
             SharedByUserEmail = sharerEmail,
             Role = dto.Role,
-            // NotificationText is a 200-char column; email (≤256) + title (≤1000) can blow past it,
-            // which Postgres rejects at save time (SQLite dev doesn't enforce lengths, so it only
-            // breaks in prod). The web UI renders invites from the snapshot fields anyway — this text
-            // is just a fallback — so compose it truncated to always fit.
-            NotificationText = ComposeInviteText(sharerEmail, note.Title),
+            // Composed truncated to always fit the 200-char column (see NotificationText).
+            NotificationText = NotificationText.ShareInvite(sharerEmail, note.Title),
             Severity = "information",
             IsActive = true,
             CreatedAtUtc = DateTime.UtcNow,
@@ -222,24 +220,4 @@ public class NoteSharesController : ControllerBase
         await _notifier.NotifyAsync(granteeId, RealtimeResources.Notes, RealtimeResources.Lists);
         return NoContent();
     }
-
-    /// <summary>A display-safe note title for invite text.</summary>
-    private static string TitleOrUntitled(string? title) =>
-        string.IsNullOrWhiteSpace(title) ? "Untitled note" : title;
-
-    /// <summary>
-    /// Builds the invite's fallback text, guaranteed to fit the 200-char NotificationText column:
-    /// the title is clipped first (it's the unbounded part), and the whole string clipped as a
-    /// belt-and-braces for extreme emails.
-    /// </summary>
-    private static string ComposeInviteText(string? sharerEmail, string? title)
-    {
-        var clippedTitle = Clip(TitleOrUntitled(title), 60);
-        var text = $"{sharerEmail} wants to share \"{clippedTitle}\" with you.";
-        return Clip(text, 200);
-    }
-
-    /// <summary>Truncates to <paramref name="max"/> chars, appending an ellipsis when clipped.</summary>
-    private static string Clip(string value, int max) =>
-        value.Length <= max ? value : value[..(max - 1)] + "…";
 }
