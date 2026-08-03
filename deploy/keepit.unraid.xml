@@ -21,6 +21,8 @@
   <DonateText/>
   <DonateLink/>
   <Description>keepIT — a self-hosted notes app (React web UI + ASP.NET Core REST API) with note sharing between users, real-time sync across devices, search, reminders, and a native Android client. This single-container build runs the React UI behind nginx and the API together in one image, storing notes in a built-in SQLite database (or point it at your own Postgres). Mount /data to your appdata share so your notes, uploaded images, and encryption keys survive container updates. Set a long random JWT Key before exposing it.</Description>
+  <Screenshot>https://raw.githubusercontent.com/Richy1989/keepIT/refs/heads/main/images/screenshot_1.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/Richy1989/keepIT/refs/heads/main/images/screenshot_phone.png</Screenshot>
   <Networking>
     <Mode>bridge</Mode>
     <Publish>
