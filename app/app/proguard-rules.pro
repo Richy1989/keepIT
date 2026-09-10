@@ -33,3 +33,13 @@
 
 # SignalR logs via slf4j; the optional StaticLoggerBinder is provided at runtime (or absent).
 -dontwarn org.slf4j.**
+
+# --- Room-generated database implementations ---------------------------------------------------
+# WorkManager (pulled in transitively by androidx.glance:glance-appwidget) is a Room database. Room
+# generates a WorkDatabase_Impl whose constructor is only ever invoked reflectively via
+# Room.databaseBuilder, so R8 sees it as unreachable and strips it. WorkManager registers itself as
+# an androidx.startup initializer under InitializationProvider, which runs at process creation —
+# before any activity — so the missing constructor crashes the app on cold start, unrecoverably
+# (RuntimeException: Failed to create an instance of androidx.work.impl.WorkDatabase). We don't use
+# Room directly; this keeps the generated constructors for every RoomDatabase subclass regardless.
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
