@@ -1,0 +1,84 @@
+name: CI
+
+# Build and test every deployable on the way in, so a break is caught here rather than at
+# `git tag v*` (release.yml) — which is the only workflow that used to compile anything.
+# One job per deployable: they're independent by design (HTTP + WebSocket only), so they run in
+# parallel and a red check names the culprit without reading the log.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to the same branch/PR makes the in-flight run obsolete — don't pay for it twice.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API (.NET 10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore keepIT/keepITCore/keepITCore.csproj
+      - name: Build
+        # --no-restore so a restore failure above is reported as its own step.
+        run: dotnet build keepIT/keepITCore/keepITCore.csproj --configuration Release --no-restore
+
+  web:
+    name: Web (React + TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck + build
+        # `npm run build` is `tsc -b && vite build`: the typecheck is the real gate here, since the
+        # generated API client means a changed C# DTO surfaces as TypeScript errors at every call
+        # site. Building too proves the bundle still comes out.
+        run: npm run build
+
+  android:
+    name: Android (Kotlin + Compose)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: Compile + unit tests
+        # The JVM tests cover the offline logic (op application, outbox coalescing, checklist
+        # ordering) — the part of the app with no server to fall back on.
+        run: |
+          chmod +x ./gradlew   # git tracks the exec bit, but keep this as a Windows-edit safety net
+          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --no-daemon
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: android-test-results
+          path: app/app/build/reports/tests/testDebugUnitTest/
+          retention-days: 7
