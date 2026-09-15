@@ -25,6 +25,12 @@ subscription, and nobody else holding your notes.
 
 **[Get it running](#quick-start)** with one Docker command.
 
+<div align="center">
+
+[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/hyperstarit)
+
+</div>
+
 ## What you can do with it
 
 - 📝 **Notes your way** — text notes with rich formatting (bold, headings, lists, links, code),
