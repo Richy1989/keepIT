@@ -19,56 +19,32 @@
   <img src="images/screenshot_phone.png" alt="keepIT Android app — notes on a phone" height="490">
 </div>
 
-Honestly? I just wanted a simple notes app, and couldn't find one with the three things I
-actually cared about — so I built it myself. With a little AI help 😉, modern problems require modern solutions.
+Notes, checklists, lists, reminders and sharing — in a fast web app and a native Android client,
+syncing live across your devices. Everything runs on your own server: no cloud account, no
+subscription, and nobody else holding your notes.
 
-The features I really wanted:
-
-- a simple notes app with a modern web UI
-- note sharing between different users
-- a native Android app, including a home-screen widget
-
-It has since grown into a blazing-fast app with optimistic editing, lists, search, sharing, and **real-time sync** — so a note edited on one device shows up on your others without a refresh. I'm really happy with how this turned out.
-
-[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/hyperstarit)
-
-> **Status:** work in progress.
-
-## Contents
-
-- [What you can do with it](#what-you-can-do-with-it)
-- [Run your own keepIT](#run-your-own-keepit)
-- [The Android app](#the-android-app)
-- [What's next](#whats-next)
-- [For developers](#for-developers)
-- [Support](#support)
-- [License](#license)
+**[Get it running](#quick-start)** with one Docker command.
 
 ## What you can do with it
 
-- 📝 **Write notes your way** — quick text notes with rich formatting (bold, headings, lists,
-  links, code), or checklists you tick off as you go.
-- 🗂️ **Stay organized** — group notes into lists, pin the important ones to the top, archive
-  what's done, and find anything instantly with search. Deleted notes wait in the trash until
-  you're sure.
-- 🎨 **Make it yours** — give any note a background color, and pick your own accent color for
-  the whole app.
-- ⏰ **Reminders** — remind yourself about any note, once or on a schedule (daily, weekly,
-  monthly, yearly). On your phone they arrive as real notifications — even with the app closed,
-  the screen locked, or no internet.
+- 📝 **Notes your way** — text notes with rich formatting (bold, headings, lists, links, code),
+  or checklists you tick off as you go.
+- 🗂️ **Stay organized** — group notes into lists, pin the important ones, archive what's done,
+  and find anything instantly with search. Deleted notes wait in the trash until you're sure.
+- ⏰ **Reminders** — once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
+  arrive as real notifications, even with the app closed, the screen locked, or no internet.
 - 👥 **Share notes** — invite someone by email to view or edit a note with you. You each keep
-  your own pins, lists, and reminders; edits show up for everyone, live.
-- 🔄 **Always in sync** — change a note on one device and watch it update on your others,
-  no refresh needed.
+  your own pins, lists and reminders; edits show up for everyone, live.
+- 🔄 **Always in sync** — change a note on one device and watch it update on the others. No
+  refresh, no sync button.
 - 📱 **Android app included** — the same notes on your phone, with a home-screen widget for
   recent notes and one-tap capture. It works fully offline: read and edit anywhere, and your
   changes sync as soon as you're back online.
-- 🔒 **Your notes stay yours** — keepIT is self-hosted. Everything lives on **your** server,
-  no third-party cloud, no account with anyone but yourself.
+- 🎨 **Make it yours** — a background color per note, and an accent color for the whole app.
+- 🔒 **Your notes stay yours** — everything lives on **your** server. No third-party cloud, no
+  account with anyone but yourself.
 
-*Coming up: photos and images in notes — see [What's next](#whats-next).*
-
-## Run your own keepIT
+## Quick start
 
 keepIT runs on your own machine or home server with **Docker**. One command, no database to set
 up:
@@ -222,19 +198,31 @@ in the app's Settings screen.
 
 ## What's next
 
+keepIT is a work in progress and actively developed. Up next:
+
 - 🖼️ **Photos & images in notes** — attach images, and use one as a note's background.
 - ✉️ **Invite anyone** — share a note with someone who hasn't signed up yet.
 
 ## For developers
 
-Interested in how it works or want to hack on it? **[`ARCHITECTURE.md`](ARCHITECTURE.md)** holds
-the full design and reasoning. The short version: an ASP.NET Core (.NET 10) REST API + SignalR
-for realtime, a React 19/TypeScript web app, and a Kotlin/Jetpack Compose Android app — all
-speaking the same API, with the C# DTOs as the single source of truth for the contract (the
-typed TS client is generated from OpenAPI: `cd web && npm run generate:api`).
+Curious how it works, or want to hack on it? **[`ARCHITECTURE.md`](ARCHITECTURE.md)** holds the
+full design and the reasoning behind it. The short version: an ASP.NET Core (.NET 10) REST API
+plus SignalR for realtime, a React 19/TypeScript web app, and a Kotlin/Jetpack Compose Android
+app — all speaking the same API, with the C# DTOs as the single source of truth for the contract
+(the typed TypeScript client is generated from OpenAPI: `cd web && npm run generate:api`).
 
-Run it locally with the **.NET 10 SDK** and **Node.js 22+** (no database setup needed — a SQLite
-dev database is created automatically):
+You'll need the **.NET 10 SDK** and **Node.js 22+**. No database setup — a SQLite dev database
+is created for you. One command builds and runs both halves, seeding test data on first run:
+
+```bash
+bash deploy/run-dev.sh        # Windows: ./deploy/run-dev.ps1
+```
+
+That serves the web app on **http://localhost:5173** and the API on **http://localhost:5025**
+(API explorer at `/scalar/v1`), signed in as `test@test.com` / `Test1234#1234`. Ctrl+C stops both.
+
+<details>
+<summary><strong>Prefer to start the two halves yourself?</strong></summary>
 
 ```bash
 # 1) Backend — http://localhost:5025 (Scalar API UI at /scalar/v1)
@@ -248,8 +236,26 @@ Open **http://localhost:5173** and register an account — or seed test data
 (`test@test.com` / `Test1234#1234`, plus lists and a variety of notes):
 
 ```bash
-./scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.ps1
+bash scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.ps1
 ```
+
+</details>
+
+## Why I built this
+
+Honestly? I just wanted a simple notes app, and couldn't find one with the three things I
+actually cared about — so I built it myself. With a little AI help 😉, modern problems require
+modern solutions.
+
+The features I really wanted:
+
+- a simple notes app with a modern web UI
+- note sharing between different users
+- a native Android app, including a home-screen widget
+
+It has since grown into a blazing-fast app with optimistic editing, lists, search, sharing, and
+**real-time sync** — so a note edited on one device shows up on your others without a refresh.
+I'm really happy with how this turned out.
 
 ## Support
 
