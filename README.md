@@ -183,7 +183,7 @@ The Compose stack sets most of these itself and reads only five values from `.en
 ## The Android app
 
 The app in [`app/`](app) brings your notes to your phone: offline-first, live sync, native
-reminder notifications, and a home-screen widget.
+reminder notifications, note sharing, and a home-screen widget.
 
 ### Get it
 
@@ -223,7 +223,6 @@ in the app's Settings screen.
 ## What's next
 
 - 🖼️ **Photos & images in notes** — attach images, and use one as a note's background.
-- 📤 **Sharing from the phone** — invite people to a note directly in the Android app.
 - ✉️ **Invite anyone** — share a note with someone who hasn't signed up yet.
 
 ## For developers
