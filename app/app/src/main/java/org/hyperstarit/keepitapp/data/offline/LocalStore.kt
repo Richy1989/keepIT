@@ -18,7 +18,6 @@ data class CacheSnapshot(
     val userId: String = "",
     val notes: List<NoteDto> = emptyList(),
     val lists: List<ListDto> = emptyList(),
-    val lastSyncUtc: String = "",
 )
 
 /**

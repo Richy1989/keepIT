@@ -79,7 +79,6 @@ class NotesRepository(
 
     /** Which user the on-disk cache belongs to; a different sign-in wipes it. */
     private var cacheUserId: String = ""
-    private var lastSyncUtc: String = ""
 
     /** temp id → server id for notes created offline, so an open editor survives the remap. */
     private val idAliases = ConcurrentHashMap<String, String>()
@@ -105,7 +104,6 @@ class NotesRepository(
         outbox.load()
         val snapshot = store.loadCache() ?: return
         cacheUserId = snapshot.userId
-        lastSyncUtc = snapshot.lastSyncUtc
         cache.value = snapshot.notes
         cachedLists.value = snapshot.lists
     }
@@ -130,7 +128,6 @@ class NotesRepository(
         cache.value = emptyList()
         cachedLists.value = emptyList()
         cacheUserId = ""
-        lastSyncUtc = ""
         idAliases.clear()
         outbox.clear()
         store.clear()
@@ -226,7 +223,6 @@ class NotesRepository(
         // Overlay anything still queued so local edits don't flicker away mid-replay.
         cache.value = applyPending(notes, stillPending)
         cachedLists.value = lists
-        lastSyncUtc = nowUtc()
         persistCache()
     }
 
@@ -239,7 +235,7 @@ class NotesRepository(
     // ---- persistence + widget ----
 
     private suspend fun persistCache() {
-        store.saveCache(CacheSnapshot(cacheUserId, cache.value, cachedLists.value, lastSyncUtc))
+        store.saveCache(CacheSnapshot(cacheUserId, cache.value, cachedLists.value))
         updateWidget(visibleNotes(cache.value, NotesFilter()))
     }
 
