@@ -292,6 +292,8 @@ REST the single source of data.
   (`withAutomaticReconnect` + `onreconnected`). Android — `data/RealtimeClient.kt` (official
   SignalR Java client) forwards `Changed` to the sync engine / notifications watcher; the Java
   client has no automatic reconnect, so it retries on a delay and re-syncs on every reconnect.
+  It acts on `notes`/`lists`/`notification` only — **`settings` is deliberately dropped**, since
+  the app has no server-synced appearance to apply (see **Android client** → theming).
 - **Scale-out caveat:** `Clients.User` is in-process. A single API instance (the intended
   deploy) reaches all of a user's devices; running multiple instances behind a load balancer
   would need a Redis backplane (`AddSignalR().AddStackExchangeRedis(...)`) — and the reminder
@@ -510,7 +512,8 @@ changes, every widget re-renders.
 **Screens** (`ui/`): login/register (with server URL + forgot-password), notes grid
 (staggered, with sync-status strip and pending-changes count), editor (markdown rendering via
 a small custom parser, checklist editing, color, share sheet, reminder dialog),
-notifications inbox, settings (theme/accent, exact-alarm access, about/version).
+notifications inbox, settings (notification + exact-alarm permissions, change password,
+about/version — deliberately no theme/accent, see below).
 
 ### UI & design parity (native, shared design language)
 
@@ -519,9 +522,24 @@ system, Keep-like interaction model — while behaving natively. The approach is
 Compose with a shared *design language*, not shared code and not pixel-cloning**:
 
 - **The tokens are the contract.** `web/src/index.css` is the canonical design system; the
-  Android theme (`ui/theme/`) transcribes the same values into Compose color objects switched
-  per theme (dark / dim / light) and accent — never re-picked by eye, and no raw hex scattered
-  through composables on either client.
+  Android theme (`ui/theme/`) transcribes the same values into Compose color objects — never
+  re-picked by eye, and no raw hex scattered through composables on either client. `Color.kt`
+  currently carries the web's **dim** theme (`html[data-theme=dim]`): a softer dark that suits
+  phone OLED better than the pitch-black baseline.
+- **Appearance is local and fixed on Android — a gap, not a bug.** The web persists a per-user
+  **theme + accent** server-side (`UserSettingsController`, `/api/settings`) and restyles a
+  user's other open devices live off the `settings` realtime signal. Android does none of it:
+  `Theme.kt` builds one `darkColorScheme` over the dim tokens with a single fixed accent, the
+  settings screen offers no picker, `Dtos.kt`/`KeepItApi.kt` carry no `UserSettingsDto`, and the
+  `settings` push is ignored (`KeepItApplication.kt`). Syncing the value alone would change
+  nothing on screen — **there is no theme to switch into yet**, which is why the client doesn't
+  pretend to listen. Closing it is a themed-UI job before it is a sync job, in this order:
+  (1) make the tokens runtime-swappable — `KeepItColors` is an `object` read directly at **166
+  call sites across 12 files** (35 of them `Accent`), so this means a `CompositionLocal` and a
+  mechanical sweep; (2) add the dark/light schemes as a token swap, as the web does;
+  (3) add the DTO + route + repository, a picker in `SettingsScreen`, and handle `settings` in
+  the realtime handler. Until then the dim scheme **is** the Android look, and a user's web
+  appearance choice intentionally does not follow them to the phone.
 - **Per-note palette:** a Compose map keyed by the **same** color keys the `Note.color` DTO
   stores (`"rose"`, `"amber"`, …), so the palette stays in lockstep across clients.
 - **Masonry grid:** Compose `LazyVerticalStaggeredGrid` — a near-1:1 fit for the card grid.
