@@ -153,6 +153,11 @@ fun NotesScreen(
                     onClick = { applyFilter(NotesFilter(NotesView.ACTIVE)) },
                 )
                 NavigationDrawerItem(
+                    label = { Text("Reminders") },
+                    selected = filter.view == NotesView.REMINDERS,
+                    onClick = { applyFilter(NotesFilter(NotesView.REMINDERS)) },
+                )
+                NavigationDrawerItem(
                     label = { Text("Archive") },
                     selected = filter.view == NotesView.ARCHIVED,
                     onClick = { applyFilter(NotesFilter(NotesView.ARCHIVED)) },
@@ -530,6 +535,7 @@ private fun SectionLabel(text: String) {
 private fun titleFor(filter: NotesFilter, listCount: Int): String = when {
     filter.view == NotesView.ARCHIVED -> "Archive"
     filter.view == NotesView.TRASHED -> "Trash"
+    filter.view == NotesView.REMINDERS -> "Reminders"
     filter.listIds.isNotEmpty() -> "Filtered"
     else -> "keepIT"
 }
@@ -538,6 +544,7 @@ private fun emptyCopy(view: NotesView): String = when (view) {
     NotesView.ACTIVE -> "Notes you add appear here."
     NotesView.ARCHIVED -> "No archived notes."
     NotesView.TRASHED -> "Trash is empty."
+    NotesView.REMINDERS -> "No notes with reminders."
 }
 
 /** Client-side search over title, body, and checklist items — same rule as the web grid. */

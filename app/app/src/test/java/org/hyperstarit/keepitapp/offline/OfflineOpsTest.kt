@@ -34,9 +34,10 @@ class OfflineOpsTest {
         trashed: Boolean = false,
         updatedAtUtc: String = "2026-07-08T10:00:00Z",
         listIds: List<String> = emptyList(),
+        remindAtUtc: String? = null,
     ) = NoteDto(
         id = id, title = title, isPinned = pinned, isArchived = archived, isTrashed = trashed,
-        updatedAtUtc = updatedAtUtc, listIds = listIds,
+        updatedAtUtc = updatedAtUtc, listIds = listIds, remindAtUtc = remindAtUtc,
     )
 
     // ---- applyOp ----
@@ -240,6 +241,22 @@ class OfflineOpsTest {
         assertEquals(
             setOf("trashed", "both"),
             visibleNotes(all, NotesFilter(NotesView.TRASHED)).map { it.id }.toSet(),
+        )
+    }
+
+    @Test
+    fun `the reminders view spans active and archived, never trash, soonest due first`() {
+        val all = listOf(
+            note("later", remindAtUtc = "2026-07-20T08:00:00Z"),
+            note("archived-soon", archived = true, remindAtUtc = "2026-07-10T08:00:00Z"),
+            note("trashed", trashed = true, remindAtUtc = "2026-07-01T08:00:00Z"),
+            note("none"),
+            // Pins must not float to the top here — the view sorts purely by due time.
+            note("pinned-last", pinned = true, remindAtUtc = "2026-07-30T08:00:00Z"),
+        )
+        assertEquals(
+            listOf("archived-soon", "later", "pinned-last"),
+            visibleNotes(all, NotesFilter(NotesView.REMINDERS)).map { it.id },
         )
     }
 

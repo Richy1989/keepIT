@@ -75,7 +75,7 @@ private fun tempNote(op: PendingOp.Create): NoteDto = NoteDto(
 
 /**
  * The grid slice for a filter, mirroring the server's `GetNotes` semantics now that filtering is
- * local: view from the per-user flags, list filter as a union, pinned first then last-updated.
+ * local: view from the per-user flags, list filter as a union, then [sortFor] the view.
  */
 fun visibleNotes(notes: List<NoteDto>, filter: NotesFilter): List<NoteDto> = notes
     .filter { n ->
@@ -83,10 +83,22 @@ fun visibleNotes(notes: List<NoteDto>, filter: NotesFilter): List<NoteDto> = not
             NotesView.TRASHED -> n.isTrashed
             NotesView.ARCHIVED -> n.isArchived && !n.isTrashed
             NotesView.ACTIVE -> !n.isArchived && !n.isTrashed
+            // Reminders span active *and* archived (like Keep, the web, and the server's
+            // `?reminders=true`), but never trash — a trashed note must not nag.
+            NotesView.REMINDERS -> n.remindAtUtc != null && !n.isTrashed
         }
     }
     .filter { n -> filter.listIds.isEmpty() || n.listIds.any { it in filter.listIds } }
-    .sortedWith(compareByDescending<NoteDto> { it.isPinned }.thenByDescending { epochMs(it.updatedAtUtc) })
+    .sortedWith(sortFor(filter.view))
+
+/**
+ * The comparator for a view, matching the server's `GetNotes` and the web's `sortNotesFor`: the
+ * reminders view is soonest-due first and ignores pins; every other view is pinned first, then
+ * most recently updated.
+ */
+private fun sortFor(view: NotesView): Comparator<NoteDto> =
+    if (view == NotesView.REMINDERS) compareBy { epochMs(it.remindAtUtc ?: "") }
+    else compareByDescending<NoteDto> { it.isPinned }.thenByDescending { epochMs(it.updatedAtUtc) }
 
 /** Per-list active note counts for the drawer, replacing the server-computed `ListDto.noteCount`. */
 fun activeListCounts(notes: List<NoteDto>): Map<String, Int> = notes

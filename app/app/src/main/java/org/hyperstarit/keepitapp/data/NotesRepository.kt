@@ -28,7 +28,7 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 /** Which slice of notes the grid shows — mirrors the web's `NotesView`. */
-enum class NotesView { ACTIVE, ARCHIVED, TRASHED }
+enum class NotesView { ACTIVE, ARCHIVED, TRASHED, REMINDERS }
 
 /** The grid's current filter: a view plus an optional set of list ids (union). */
 data class NotesFilter(
