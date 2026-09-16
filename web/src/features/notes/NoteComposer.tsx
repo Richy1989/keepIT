@@ -3,9 +3,21 @@ import { useCreateNote } from './queries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
 import { ColorPicker } from '../../components/ColorPicker';
-import { CheckSquareIcon, PaletteIcon } from '../../components/icons';
+import { CheckSquareIcon, ImageIcon, PaletteIcon, XIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
+import { isAcceptedImage } from './media/useMediaUpload';
+import {
+  useUploadNoteMedia,
+  ACCEPTED_IMAGE_TYPES,
+  MAX_IMAGES_PER_NOTE,
+} from './media/queries';
 import type { ChecklistItemDto, NoteType } from '../../api/types';
+
+/** A file chosen before the note exists, with its local preview URL. */
+interface QueuedFile {
+  file: File;
+  url: string;
+}
 
 /**
  * The pinned "Take a note…" composer. Collapsed it's a single bar; clicking expands it inline into
@@ -25,6 +37,25 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
   const [items, setItems] = useState<ChecklistItemDto[]>([]);
   const [color, setColor] = useState('default');
 
+  const uploadMedia = useUploadNoteMedia();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [queued, setQueued] = useState<QueuedFile[]>([]);
+  const [attachError, setAttachError] = useState<string | null>(null);
+
+  /** Queues files for upload once the note exists, with a local preview in the meantime. */
+  function addFiles(files: File[]) {
+    const room = MAX_IMAGES_PER_NOTE - queued.length;
+    const accepted = files.filter(isAcceptedImage).slice(0, Math.max(room, 0));
+    if (accepted.length < files.length) {
+      setAttachError(
+        files.some((f) => !isAcceptedImage(f))
+          ? 'Only JPEG, PNG, WebP and GIF images can be attached.'
+          : `A note can hold at most ${MAX_IMAGES_PER_NOTE} images.`,
+      );
+    }
+    setQueued((q) => [...q, ...accepted.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+  }
+
   function reset() {
     setOpen(false);
     setShowColors(false);
@@ -33,27 +64,53 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
     setBody('');
     setItems([]);
     setColor('default');
+    setQueued((q) => {
+      q.forEach((f) => URL.revokeObjectURL(f.url));
+      return [];
+    });
   }
 
   function save() {
     const cleanItems = items
       .filter((i) => i.text.trim())
       .map((i, idx) => ({ ...i, text: i.text.trim(), order: idx }));
-    const hasContent = Boolean(title.trim() || body.trim() || cleanItems.length);
-    if (hasContent) {
-      // Both representations are saved regardless of `type` — the server keeps Body and
-      // ChecklistItems independently and `type` only picks which renders, so a draft typed as text
-      // and then toggled to a checklist (or vice versa) isn't silently thrown away.
-      create.mutate({
-        type,
-        title: title.trim() || null,
-        body: body.trim() || null,
-        color: color === 'default' ? null : color,
-        checklistItems: cleanItems,
-        listIds: defaultListIds,
-      });
+    // Images alone are enough to make a note worth saving, even with no text at all.
+    const hasContent = Boolean(title.trim() || body.trim() || cleanItems.length || queued.length);
+    if (!hasContent) {
+      reset();
+      return;
     }
+
+    // Both representations are saved regardless of `type` — the server keeps Body and
+    // ChecklistItems independently and `type` only picks which renders, so a draft typed as text
+    // and then toggled to a checklist (or vice versa) isn't silently thrown away.
+    const created = create.mutateAsync({
+      type,
+      title: title.trim() || null,
+      body: body.trim() || null,
+      color: color === 'default' ? null : color,
+      checklistItems: cleanItems,
+      listIds: defaultListIds,
+    });
+
+    // Capture the queue before reset clears it; the composer collapses immediately either way, so
+    // the note never appears to hang while its images upload.
+    const files = queued.map((q) => q.file);
     reset();
+
+    if (files.length) {
+      void (async () => {
+        try {
+          const note = await created;
+          for (const file of files) {
+            await uploadMedia.mutateAsync({ noteId: note.id, file });
+          }
+        } catch {
+          // The note itself is already saved — a failed attachment must not discard the text.
+          setAttachError('The note was saved, but some images could not be attached.');
+        }
+      })();
+    }
   }
 
   // Click-outside cancels: the draft is discarded and the composer collapses. Saving is explicit —
@@ -69,9 +126,25 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
 
   const swatch = noteColor(color);
 
+  const errorBanner = attachError ? (
+    <div className="mb-2 flex items-start justify-between gap-2 rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200">
+      <span>{attachError}</span>
+      <button
+        type="button"
+        onClick={() => setAttachError(null)}
+        aria-label="Dismiss"
+        className="focus-ring shrink-0 rounded p-0.5 hover:bg-white/10"
+      >
+        <XIcon className="text-xs" />
+      </button>
+    </div>
+  ) : null;
+
   if (!open) {
     return (
-      <div className="mx-auto mb-8 flex max-w-xl items-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-1 shadow-lg shadow-black/30">
+      <div className="mx-auto mb-8 max-w-xl">
+        {errorBanner}
+        <div className="flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-1 shadow-lg shadow-black/30">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -91,6 +164,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
         >
           <CheckSquareIcon className="text-lg" />
         </button>
+        </div>
       </div>
     );
   }
@@ -98,10 +172,47 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
   return (
     <div
       ref={ref}
+      // Same three entry points as the editor; files wait in the queue until the note has an id.
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        const files = Array.from(e.dataTransfer.files).filter(isAcceptedImage);
+        if (!files.length) return;
+        e.preventDefault();
+        addFiles(files);
+      }}
+      onPaste={(e) => {
+        const files = Array.from(e.clipboardData.files).filter(isAcceptedImage);
+        if (!files.length) return; // let normal text paste through
+        e.preventDefault();
+        addFiles(files);
+      }}
       className="mx-auto mb-8 max-w-xl rounded-xl border shadow-xl shadow-black/40"
       style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
     >
       <div className="p-4">
+        {errorBanner}
+
+        {queued.length > 0 && (
+          <div className="mb-3 grid grid-cols-4 gap-2">
+            {queued.map((q) => (
+              <div key={q.url} className="group/q relative aspect-square overflow-hidden rounded-lg">
+                <img src={q.url} alt="" className="size-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    URL.revokeObjectURL(q.url);
+                    setQueued((list) => list.filter((x) => x.url !== q.url));
+                  }}
+                  aria-label="Remove image"
+                  className="focus-ring absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/70 text-white opacity-0 transition-opacity hover:bg-black/85 group-hover/q:opacity-100 focus-visible:opacity-100 touch:opacity-100"
+                >
+                  <XIcon className="text-xs" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <input
           autoFocus
           value={title}
@@ -154,6 +265,28 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
           >
             <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent')} />
           </ComposerTool>
+          <ComposerTool
+            label={
+              queued.length >= MAX_IMAGES_PER_NOTE
+                ? `Limit is ${MAX_IMAGES_PER_NOTE} images`
+                : 'Add image'
+            }
+            onClick={() => fileInput.current?.click()}
+            disabled={queued.length >= MAX_IMAGES_PER_NOTE}
+          >
+            <ImageIcon className="text-lg" />
+          </ComposerTool>
+          <input
+            ref={fileInput}
+            type="file"
+            accept={ACCEPTED_IMAGE_TYPES}
+            multiple
+            hidden
+            onChange={(e) => {
+              addFiles(Array.from(e.target.files ?? []));
+              e.target.value = ''; // so picking the same file twice still fires
+            }}
+          />
         </div>
         <button
           type="button"
@@ -171,10 +304,12 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
 function ComposerTool({
   label,
   onClick,
+  disabled,
   children,
 }: {
   label: string;
   onClick: () => void;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -183,7 +318,8 @@ function ComposerTool({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text"
+      disabled={disabled}
+      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {children}
     </button>
