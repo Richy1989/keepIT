@@ -71,3 +71,6 @@ docker-compose.override.yml
 # ---- Local-only docs ----
 # Release runbook kept out of the public repo (has infra/signing specifics).
 RELEASING.md
+
+# Superpowers brainstorming companion (local mockups)
+.superpowers/
