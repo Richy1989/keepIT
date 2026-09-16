@@ -44,15 +44,27 @@
 # Room directly; this keeps the generated constructors for every RoomDatabase subclass regardless.
 -keep class * extends androidx.room.RoomDatabase { <init>(); }
 
-# --- WorkManager workers: Glance renders the widget inside one ----------------------------------
+# --- WorkManager input mergers: this is what wedges the Glance widget in release ----------------
 # `GlanceAppWidget.provideGlance` does not run on the broadcast thread — Glance schedules it as an
-# androidx.work.CoroutineWorker (androidx.glance.session.SessionWorker). WorkManager instantiates a
-# worker reflectively from a class name it persisted in its own database, so R8 stripping that
-# constructor doesn't crash anything: the worker simply never runs, the composition is never
-# produced, and the widget sits on its initialLayout (glance_default_loading_layout) forever — a
-# white box with a spinner. The name must survive too, not just the constructor: the persisted name
-# is read back by a *later* build, so an obfuscated name that shifts between releases breaks work
-# that was already queued.
+# androidx.work.CoroutineWorker (androidx.glance.session.SessionWorker). Before running *any*
+# worker, WorkerWrapper builds that request's InputMerger from a persisted class name via
+# `Class.forName(name).newInstance()`. work-runtime's consumer rules keep the InputMerger *classes*
+# (`-keep class * extends androidx.work.InputMerger`) but carry no member rule, so R8 strips their
+# no-arg constructors as unreachable and the reflective newInstance() throws:
+#     InstantiationException: androidx.work.OverwritingInputMerger has no zero argument constructor
+#     WM-WorkerWrapper: Could not create Input Merger androidx.work.OverwritingInputMerger
+# WorkerWrapper then fails the job *before* the worker runs, so nothing crashes and nothing shows up
+# in our own logs: the composition is simply never produced, no RemoteViews ever reach the host, and
+# the widget sits on its initialLayout (glance_default_loading_layout) forever — a box with a
+# spinner. OverwritingInputMerger is the default merger for every OneTimeWorkRequest, so a stripped
+# constructor takes out every worker in the process, Glance's session included.
+-keep class * extends androidx.work.InputMerger { <init>(); }
+
+# --- WorkManager workers: Glance renders the widget inside one ----------------------------------
+# work-runtime already keeps the ListenableWorker constructors, so this rule is about the *name*,
+# not the constructor: WorkManager instantiates a worker reflectively from a class name it persisted
+# in its own database, and a queued job is read back by a *later* build — an obfuscated name that
+# shifts between releases orphans work that was already enqueued.
 -keep class * extends androidx.work.ListenableWorker {
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
