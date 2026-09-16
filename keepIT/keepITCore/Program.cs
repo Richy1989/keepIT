@@ -133,14 +133,22 @@ builder.Services.AddHostedService<keepITCore.Notes.MediaOrphanSweepService>();
 
 var app = builder.Build();
 
-// ---- Database init: Postgres uses migrations; SQLite dev DB is created from the model ----
+// ---- Database init: Postgres uses migrations; SQLite is created from the model ----
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     if (db.Database.IsNpgsql())
+    {
         db.Database.Migrate();
+    }
     else
+    {
+        // EnsureCreated builds the schema for a *new* file and does nothing at all to an existing
+        // one, so an instance created before a schema change never gains the new tables and the
+        // first query touching one fails with "no such table". Reconcile picks up that slack.
         db.Database.EnsureCreated();
+        SqliteSchemaReconciler.Reconcile(db, app.Logger);
+    }
 }
 
 app.Logger.LogInformation(
