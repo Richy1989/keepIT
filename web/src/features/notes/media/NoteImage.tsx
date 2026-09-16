@@ -16,6 +16,7 @@ export function NoteImage({
   size,
   className,
   maxAspect = 1.4,
+  square = false,
 }: {
   noteId: string;
   media: NoteMediaDto;
@@ -23,6 +24,8 @@ export function NoteImage({
   className?: string;
   /** Tallest allowed height as a multiple of width. 0 disables the cap. */
   maxAspect?: number;
+  /** Force a square box, for gallery strips where a ragged row of mixed ratios reads badly. */
+  square?: boolean;
 }) {
   const { data: blob, isError } = useNoteMediaBlob(noteId, media.id, size);
   const url = useObjectUrl(blob);
@@ -34,7 +37,7 @@ export function NoteImage({
   return (
     <div
       className={cn('relative w-full overflow-hidden bg-elevated', className)}
-      style={{ aspectRatio: `${width} / ${cappedHeight}` }}
+      style={{ aspectRatio: square ? '1 / 1' : `${width} / ${cappedHeight}` }}
     >
       {url && <img src={url} alt="" className="size-full object-cover" loading="lazy" />}
       {isError && (

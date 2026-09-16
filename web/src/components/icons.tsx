@@ -205,6 +205,14 @@ export const CameraIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const ImageIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="9" cy="9" r="2" />
+    <path d="m21 15-4.586-4.586a2 2 0 0 0-2.828 0L3 21" />
+  </Icon>
+);
+
 export const BellIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M10.268 21a2 2 0 0 0 3.464 0" />
