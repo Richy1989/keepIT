@@ -35,6 +35,8 @@ subscription, and nobody else holding your notes.
 
 - 📝 **Notes your way** — text notes with rich formatting (bold, headings, lists, links, code),
   or checklists you tick off as you go.
+- 🖼️ **Photos in your notes** — attach images to any note, up to ten each. Location data is
+  stripped from every upload, so sharing a photo doesn't share where you took it.
 - 🗂️ **Stay organized** — group notes into lists, pin the important ones, archive what's done,
   and find anything instantly with search. Deleted notes wait in the trash until you're sure.
 - ⏰ **Reminders** — once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
@@ -206,7 +208,7 @@ in the app's Settings screen.
 
 keepIT is a work in progress and actively developed. Up next:
 
-- 🖼️ **Photos & images in notes** — attach images, and use one as a note's background.
+- 🖼️ **Background images** — use a photo as a note's background (attaching images already works).
 - ✉️ **Invite anyone** — share a note with someone who hasn't signed up yet.
 
 ## For developers

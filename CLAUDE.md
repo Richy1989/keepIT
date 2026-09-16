@@ -2,7 +2,8 @@
 
 A notes app: a React web frontend and a native Android client over a shared ASP.NET Core REST API,
 with real-time sync across a user's devices. Notes can be **shared between users** (owner + Viewer/Editor
-grants), and support checklists, colors, pins/archive/trash, per-user lists, reminders, and search.
+grants), and support checklists, **image attachments**, colors, pins/archive/trash, per-user lists,
+reminders, and search.
 **Read `ARCHITECTURE.md` before any structural work** — it holds the design and the reasoning; this
 file is only the always-on rules.
 
@@ -89,7 +90,8 @@ keepIT/
 ├─ keepIT/keepITCore/       # ASP.NET Core Web API (.NET 10)
 │  ├─ Auth/                 # Identity + JWT + refresh cookie
 │  ├─ Data/                 # EF Core entities, AppDbContext, migrations
-│  ├─ Notes/                # NotesController + NoteSharesController + NoteAccessService + DTOs
+│  ├─ Notes/                # NotesController + NoteSharesController + NoteMediaController + NoteAccessService + DTOs
+│  ├─ Service/              # ImageService, IMediaStorage/DiskMediaStorage, NoteMediaProcessor
 │  ├─ Lists/ Settings/      # one controller + DTOs per resource
 │  ├─ Notifications/        # UserNotificationController + DTOs (per-user inbox, TPH)
 │  ├─ SignalR/              # RealTimeHub, IRealtimeNotifier, SubUserIdProvider
