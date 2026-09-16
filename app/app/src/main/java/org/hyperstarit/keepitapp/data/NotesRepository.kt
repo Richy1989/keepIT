@@ -3,12 +3,18 @@ package org.hyperstarit.keepitapp.data
 import android.content.Context
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -63,7 +69,7 @@ class NotesRepository(
     private val appContext: Context,
     private val store: LocalStore,
     private val outbox: Outbox,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
 ) : SyncEngine.CacheUpdater {
 
     private val widgetPrefs = appContext.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
@@ -239,8 +245,36 @@ class NotesRepository(
         updateWidget(visibleNotes(cache.value, NotesFilter()))
     }
 
+    /**
+     * Re-render requests, coalesced. Glance holds a session lock for the better part of a minute
+     * after rendering and silently drops update requests that arrive while it's held, so a burst of
+     * `updateAll` calls can leave a widget stuck on its loading layout. Bursts are the normal case
+     * here, not the exception: replaying the outbox and `onFetched` after a full refetch both walk
+     * the cache and persist repeatedly. [collectLatest] cancels the previous wait, so N requests in
+     * quick succession collapse into one render [WIDGET_RENDER_DEBOUNCE_MS] after the last.
+     *
+     * The snapshot itself is still written synchronously on every change — it's only SharedPrefs,
+     * and the widget reads it on its next render, so delaying the render never shows stale data.
+     */
+    private val widgetRenderRequests = MutableStateFlow(0)
+
+    init {
+        scope.launch {
+            // drop(1): the StateFlow's initial value is not a request, just its starting state.
+            widgetRenderRequests.drop(1).collectLatest {
+                delay(WIDGET_RENDER_DEBOUNCE_MS)
+                // NonCancellable: the debounce guards the *wait*, not the render. Letting a newer
+                // request cancel an in-flight updateAll would tear down a half-set-up Glance
+                // session, which is the very thing that wedges a widget on its loading layout.
+                withContext(NonCancellable) {
+                    runCatching { KeepItWidget().updateAll(appContext) }
+                }
+            }
+        }
+    }
+
     /** Writes the top notes to the widget's local cache and asks Glance to re-render. */
-    private suspend fun updateWidget(notes: List<NoteDto>) {
+    private fun updateWidget(notes: List<NoteDto>) {
         val top = notes.take(WIDGET_NOTE_COUNT).map { n ->
             val isChecklist = n.type == NoteTypes.CHECKLIST
             WidgetNote(
@@ -261,13 +295,14 @@ class NotesRepository(
             )
         }
         widgetPrefs.edit().putString(WIDGET_KEY, Json.encodeToString(top)).apply()
-        runCatching { KeepItWidget().updateAll(appContext) }
+        widgetRenderRequests.update { it + 1 }
     }
 
     companion object {
         private const val WIDGET_KEY = "notes_json"
         private const val WIDGET_NOTE_COUNT = 6
         private const val WIDGET_CHECKLIST_LINES = 4
+        private const val WIDGET_RENDER_DEBOUNCE_MS = 500L
         private val WidgetJson = Json { ignoreUnknownKeys = true }
 
         private fun nowUtc(): String = Instant.now().toString()
