@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
 import { checklistForDisplay } from './checklist';
+import { NoteImage } from './media/NoteImage';
 import { noteColor } from './palette';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
@@ -77,7 +78,8 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           onOpen(note);
         }
       }}
-      className="focus-ring group relative mb-4 block w-full break-inside-avoid rounded-card border p-4 text-left shadow-md shadow-black/20 transition hover:shadow-lg hover:shadow-black/40"
+      // overflow-hidden so a full-bleed hero image follows the card's rounded corners.
+      className="focus-ring group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-card border p-4 text-left shadow-md shadow-black/20 transition hover:shadow-lg hover:shadow-black/40"
       style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
     >
       {/* Pin — visible on hover, or always when pinned. */}
@@ -89,14 +91,38 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         }}
         title={note.isPinned ? 'Unpin' : 'Pin'}
         className={cn(
-          'focus-ring absolute right-2 top-2 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text',
+          'focus-ring absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text',
           note.isPinned ? 'opacity-100 text-text' : 'opacity-0 group-hover:opacity-100 touch:opacity-100',
+          // Over a photo the muted pin all but disappears, so it gets its own backdrop.
+          note.media.length > 0 && 'bg-black/50 text-white hover:bg-black/70 hover:text-white',
         )}
       >
         <PinIcon className="text-base" />
       </button>
 
-      {note.title && (
+      {/* Full-bleed hero: negative margins cancel the card's p-4 so the image reaches the edges.
+          Only the title sits on the photo — body and checklist rows stay below on the note's own
+          colour, where contrast is a known quantity rather than whatever the user photographed. */}
+      {note.media.length > 0 && (
+        <div className="relative -mx-4 -mt-4 mb-3">
+          <NoteImage noteId={note.id} media={note.media[0]} size="thumb" />
+          {note.media.length > 1 && (
+            // Top-left, because the pin owns the top-right corner.
+            <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+              +{note.media.length - 1}
+            </span>
+          )}
+          {note.title && (
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-2 pt-8">
+              <h3 className="line-clamp-2 pr-8 font-medium leading-snug text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.65)]">
+                {note.title}
+              </h3>
+            </div>
+          )}
+        </div>
+      )}
+
+      {note.title && note.media.length === 0 && (
         <h3 className="mb-1.5 pr-8 font-medium leading-snug text-text">{note.title}</h3>
       )}
 
