@@ -38,9 +38,10 @@ namespace keepITCore.Service
 
         /// <summary>
         /// True when the stream starts with a JPEG, PNG, GIF, or WebP signature — the formats the
-        /// profile-image endpoint accepts.
+        /// profile-image endpoint accepts. Shared with <see cref="NoteMediaProcessor"/> so note
+        /// attachments are validated against the same signature table.
         /// </summary>
-        private static async Task<bool> LooksLikeImageAsync(Stream stream, CancellationToken ct)
+        internal static async Task<bool> LooksLikeImageAsync(Stream stream, CancellationToken ct)
         {
             var header = new byte[12];
             var read = await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct);

@@ -116,6 +116,8 @@ builder.Services.AddScoped<ImageService>();
 // Note image attachments: bytes on disk behind a port, so S3/MinIO can replace it without
 // touching a caller. Stateless, so a singleton.
 builder.Services.AddSingleton<IMediaStorage, DiskMediaStorage>();
+// Validates uploads, strips EXIF (phone photos carry GPS) and builds the grid thumbnail.
+builder.Services.AddScoped<NoteMediaProcessor>();
 
 //Add the SignalR Service
 builder.Services.AddSignalR();
