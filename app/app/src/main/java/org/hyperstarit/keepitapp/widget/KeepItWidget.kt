@@ -42,6 +42,7 @@ import org.hyperstarit.keepitapp.R
 import org.hyperstarit.keepitapp.appContainer
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.WidgetNote
+import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 
 class KeepItWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = KeepItWidget()
@@ -75,10 +76,12 @@ class RefreshAction : ActionCallback {
     }
 }
 
-// keepIT dim tokens (web index.css `data-theme='dim'`, same as KeepItColors) — Glance can't
-// reference the compose theme.
+// keepIT dim tokens (web index.css `data-theme='dim'`, same as KeepItColors) — the widget's own
+// chrome. Per-note backgrounds are *not* here: they come from the shared NotePalette via
+// `noteSwatch`, which is plain data (a List<NoteSwatch> of compose Colors) rather than a
+// MaterialTheme lookup, so a Glance composition can read it even though it can't reference the
+// app's theme.
 private val Canvas = Color(0xFF18181B)
-private val Surface = Color(0xFF232327)
 private val BorderTextFaint = Color(0xFF87878F)
 private val TextColor = Color(0xFFECECEE)
 private val TextMuted = Color(0xFFB4B4BD)
@@ -167,11 +170,16 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
 
 @androidx.compose.runtime.Composable
 private fun NoteRow(context: Context, note: WidgetNote) {
+    // Same swatch the in-app NoteCard fills with, so a note reads as "the yellow one" on the home
+    // screen too. Only the background: Glance has no border modifier, so the card's 1dp
+    // swatch.border is dropped rather than faked with a nested Box. An unset/unknown key falls
+    // back to NotePalette[0] — the plain surface this row used to hardcode.
+    val swatch = noteSwatch(note.color)
     Column {
         Column(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(ColorProvider(Surface))
+                .background(ColorProvider(swatch.bg))
                 .cornerRadius(10.dp)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .clickable(actionStartActivity(noteIntent(context, note.id))),
