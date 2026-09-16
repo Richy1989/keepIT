@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paths FileProvider may hand out to other apps. Only the cache dir, and only so the camera can
+  write a capture back to us: the picked/shot image is copied into app-private staging immediately
+  afterwards, so nothing here is long-lived.
+-->
+<paths>
+    <cache-path name="captures" path="." />
+</paths>

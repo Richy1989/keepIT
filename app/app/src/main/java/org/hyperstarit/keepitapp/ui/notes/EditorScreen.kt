@@ -1,5 +1,15 @@
 package org.hyperstarit.keepitapp.ui.notes
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
+import java.util.UUID
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -175,6 +185,16 @@ fun EditorScreen(
     // The row whose text field should grab focus next (a just-added checklist item).
     var focusTargetLocalId by remember { mutableStateOf<Long?>(null) }
 
+    // ---- images ----
+    val context = LocalContext.current
+    // Live view of this note, so an attachment that lands (or replays from the outbox) shows up
+    // without reopening the editor.
+    val allNotes by repo.allNotes.collectAsState()
+    // Images picked but not yet attached, so a photo-only note still counts as having content and
+    // gets created rather than discarded as empty.
+    var attachIntent by remember { mutableStateOf(0) }
+    var viewerIndex by remember { mutableStateOf<Int?>(null) }
+
     LaunchedEffect(noteId) {
         if (noteId == null) return@LaunchedEffect
         val n = repo.noteById(noteId) ?: repo.fetchNote(noteId)
@@ -234,7 +254,9 @@ fun EditorScreen(
         val current = note
         if (current == null) {
             val checklist = buildChecklist()
-            val hasContent = title.isNotBlank() || body.text.isNotBlank() || checklist.isNotEmpty()
+            // A note that will hold nothing but photos still has content worth saving.
+            val hasContent =
+                title.isNotBlank() || body.text.isNotBlank() || checklist.isNotEmpty() || attachIntent > 0
             if (!hasContent) return@withLock
             note = repo.create(
                 CreateNoteDto(
@@ -271,6 +293,46 @@ fun EditorScreen(
             persist()
             onDone()
         }
+    }
+
+    /**
+     * Attaches picked images, creating the note first when this is the composer — an attachment
+     * needs a note id, and the id only exists once the note is saved.
+     */
+    fun attachImages(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        scope.launch {
+            attachIntent += uris.size
+            persist()
+            val id = note?.id
+            if (id == null) {
+                attachIntent = 0
+                return@launch
+            }
+            uris.forEach { repo.attachMedia(context, id, it) }
+            attachIntent = 0
+        }
+    }
+
+    // The system photo picker needs no runtime permission at all.
+    val pickImages = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = MAX_IMAGES_PER_NOTE),
+    ) { uris -> attachImages(uris) }
+
+    // Camera capture writes into our own cache dir and is handed out via FileProvider. We
+    // deliberately do NOT declare the CAMERA permission: ACTION_IMAGE_CAPTURE doesn't need it, and
+    // declaring it would force a permission prompt for nothing.
+    var captureUri by remember { mutableStateOf<Uri?>(null) }
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) captureUri?.let { attachImages(listOf(it)) }
+        captureUri = null
+    }
+
+    fun launchCamera() {
+        val file = File(context.cacheDir, "capture-${UUID.randomUUID()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        captureUri = uri
+        takePhoto.launch(uri)
     }
 
     BackHandler { saveAndClose() }
@@ -424,6 +486,37 @@ fun EditorScreen(
                                     tint = if (showColors) KeepItColors.Accent else KeepItColors.TextMuted,
                                 )
                             }
+                            // Attach from the gallery, or shoot one — the mobile-native half of the
+                            // feature, and the reason offline attach exists at all.
+                            val atLimit =
+                                (allNotes.find { it.id == note?.id }?.media?.size ?: 0) >= MAX_IMAGES_PER_NOTE
+                            IconButton(
+                                onClick = {
+                                    pickImages.launch(
+                                        PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                        ),
+                                    )
+                                },
+                                enabled = !atLimit,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Image,
+                                    contentDescription = if (atLimit) {
+                                        "Image limit reached"
+                                    } else {
+                                        "Add image"
+                                    },
+                                    tint = KeepItColors.TextMuted,
+                                )
+                            }
+                            IconButton(onClick = ::launchCamera, enabled = !atLimit) {
+                                Icon(
+                                    Icons.Filled.PhotoCamera,
+                                    contentDescription = "Take photo",
+                                    tint = KeepItColors.TextMuted,
+                                )
+                            }
                             // Text ⇄ checklist toggle (web parity: CheckSquare in the footer).
                             IconButton(onClick = {
                                 if (type == NoteTypes.TEXT) switchToChecklist() else type = NoteTypes.TEXT
@@ -502,6 +595,32 @@ fun EditorScreen(
                         note = n,
                         onClick = { showReminder = true },
                         modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                }
+            }
+
+            note?.let { n ->
+                val live = allNotes.find { it.id == n.id } ?: n
+                val pending by repo.pendingMediaFor(n.id).collectAsState(initial = emptyList())
+
+                MediaRow(
+                    cache = repo.mediaCache,
+                    noteId = live.id,
+                    media = live.media,
+                    pending = pending,
+                    canEdit = canEdit,
+                    onRemove = { mediaId -> scope.launch { repo.removeMedia(live.id, mediaId) } },
+                    onOpen = { index -> viewerIndex = index },
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+
+                viewerIndex?.let { index ->
+                    MediaViewer(
+                        cache = repo.mediaCache,
+                        noteId = live.id,
+                        media = live.media,
+                        startIndex = index,
+                        onClose = { viewerIndex = null },
                     )
                 }
             }
