@@ -133,6 +133,10 @@ dependencies {
     // Home-screen widget (Glance).
     implementation(libs.androidx.glance.appwidget)
 
+    // Note images. Coil only decodes and caches in memory — MediaCache already did the
+    // authenticated fetch and hands it a File, so there is no custom fetcher to keep alive.
+    implementation(libs.coil.compose)
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

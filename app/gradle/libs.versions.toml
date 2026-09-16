@@ -24,6 +24,10 @@ signalr = "10.0.0"
 work = "2.7.1"
 # Final release of the icons artifact (decoupled from material3 / the BOM); static vectors, safe to pin.
 materialIconsCore = "1.7.8"
+# Note images only. MediaCache does the authenticated download and hands Coil a plain File, so no
+# custom fetcher or interceptor is needed — Coil just decodes, downsamples and memory-caches.
+# Apache-2.0, so it raises nothing for the F-Droid submission.
+coil = "3.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +48,7 @@ androidx-material-icons-core = { group = "androidx.compose.material", name = "ma
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsCore" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-kotlinx-serialization = { group = "com.squareup.retrofit2", name = "converter-kotlinx-serialization", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }

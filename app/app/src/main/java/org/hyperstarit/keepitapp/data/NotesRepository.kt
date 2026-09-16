@@ -24,6 +24,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.hyperstarit.keepitapp.data.offline.CacheSnapshot
 import org.hyperstarit.keepitapp.data.offline.LocalStore
+import org.hyperstarit.keepitapp.data.offline.MediaCache
 import org.hyperstarit.keepitapp.data.offline.MediaStaging
 import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.offline.PendingOp
@@ -99,6 +100,14 @@ class NotesRepository(
     /** Wired by the app container after construction (repo and engine reference each other). */
     var syncEngine: SyncEngine? = null
 
+    /**
+     * Downloaded note images. Keyed by the media id, which is immutable, so nothing here ever needs
+     * invalidating — only capping.
+     */
+    val mediaCache = MediaCache(java.io.File(appContext.filesDir, "offline/media")) { noteId, mediaId, size ->
+        client.api.downloadNoteMedia(noteId, mediaId, size)
+    }
+
     val notes: StateFlow<List<NoteDto>> =
         combine(cache, filter) { all, f -> visibleNotes(all, f) }
             .stateIn(scope, SharingStarted.Eagerly, emptyList())
@@ -131,6 +140,7 @@ class NotesRepository(
             cachedLists.value = emptyList()
             idAliases.clear()
             outbox.clear()
+            mediaCache.clear()
         }
         cacheUserId = userId
         persistCache()
@@ -144,6 +154,9 @@ class NotesRepository(
         idAliases.clear()
         outbox.clear()
         store.clear()
+        // Downloaded images are as personal as the notes they hang off — the next account to sign
+        // in on this device must not find them sitting in the cache.
+        mediaCache.clear()
     }
 
     /** Full sync: replay queued changes, then refetch everything. No-op offline (cache stands). */
@@ -276,6 +289,27 @@ class NotesRepository(
         cache.value = applyPending(notes, stillPending)
         cachedLists.value = lists
         persistCache()
+        prefetchThumbnails(cache.value)
+    }
+
+    /**
+     * Warms the thumbnail cache for the notes in the grid, then trims it.
+     *
+     * Without this the grid works offline for everything *except* images, which is exactly the
+     * moment a photo note is least useful. Best-effort and bounded: a failure here must never
+     * surface as a sync error, and only thumbnails are warmed — full-size images are fetched on
+     * demand when a note is opened.
+     */
+    private suspend fun prefetchThumbnails(notes: List<NoteDto>) {
+        notes.asSequence()
+            .filter { !it.isTrashed }
+            .flatMap { note -> note.media.asSequence().map { note.id to it.id } }
+            .take(MAX_PREFETCH)
+            .forEach { (noteId, mediaId) ->
+                runCatching { mediaCache.file(noteId, mediaId, "thumb") }
+            }
+
+        mediaCache.evict(MAX_MEDIA_CACHE_BYTES)
     }
 
     override suspend fun onIdRemapped(tempId: String, realId: String) {
@@ -375,6 +409,12 @@ class NotesRepository(
                 WidgetJson.decodeFromString<List<WidgetNote>>(raw)
             }.getOrDefault(emptyList())
         }
+
+        /** Upper bound on thumbnails warmed after a sync — bounded work, not the whole library. */
+        private const val MAX_PREFETCH = 200
+
+        /** Cache ceiling for downloaded images; oldest are evicted past this. */
+        private const val MAX_MEDIA_CACHE_BYTES = 256L * 1024 * 1024
 
         /** Read side for the Glance widget (sync, no network, works while signed out). */
         fun readWidgetNotes(context: Context): List<WidgetNote> = decodeWidgetSnapshot(
