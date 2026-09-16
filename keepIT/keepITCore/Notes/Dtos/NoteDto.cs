@@ -48,6 +48,9 @@ public class NoteDto
     /// <summary>Checklist rows, ordered. Empty for non-checklist notes.</summary>
     public List<ChecklistItemDto> ChecklistItems { get; set; } = new();
 
+    /// <summary>Image attachments, ordered. Empty when the note has none.</summary>
+    public List<NoteMediaDto> Media { get; set; } = new();
+
     /// <summary>Ids of the caller's lists this note belongs to.</summary>
     public List<Guid> ListIds { get; set; } = new();
 }

@@ -79,6 +79,7 @@ public class NotesController : ControllerBase
             .Include(us => us.Note).ThenInclude(n => n.NoteLists.Where(nl => nl.UserId == callerId))
             .Include(us => us.Note).ThenInclude(n => n.NoteShares)
             .Include(us => us.Note).ThenInclude(n => n.Reminders.Where(r => r.UserId == callerId))
+            .Include(us => us.Note).ThenInclude(n => n.Media)
             .OrderByDescending(us => us.IsPinned)
             .ThenByDescending(us => us.Note.UpdatedAtUtc)
             .ToListAsync();
@@ -388,6 +389,7 @@ public class NotesController : ControllerBase
             .Include(n => n.NoteLists.Where(nl => nl.UserId == callerId))
             .Include(n => n.NoteShares)
             .Include(n => n.Reminders.Where(r => r.UserId == callerId))
+            .Include(n => n.Media)
             .FirstOrDefaultAsync();
 
         if (note is null) return null;
@@ -459,6 +461,18 @@ public class NotesController : ControllerBase
             ChecklistItems = n.ChecklistItems
                 .OrderBy(c => c.Order)
                 .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, IsChecked = c.IsChecked, Order = c.Order })
+                .ToList(),
+            Media = n.Media
+                .OrderBy(m => m.Order)
+                .Select(m => new NoteMediaDto
+                {
+                    Id = m.Id,
+                    Width = m.Width,
+                    Height = m.Height,
+                    ByteSize = m.ByteSize,
+                    Order = m.Order,
+                    CreatedAtUtc = m.CreatedAtUtc,
+                })
                 .ToList(),
             ListIds = n.NoteLists.Where(nl => nl.UserId == callerId).Select(nl => nl.ListId).ToList(),
         };
