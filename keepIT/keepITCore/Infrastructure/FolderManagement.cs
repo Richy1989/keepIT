@@ -30,5 +30,19 @@
             Directory.CreateDirectory(path);
             return path;
         }
+
+        /// <summary>
+        /// The folder holding one note's image attachments, creating it if needed. Keyed by owner so
+        /// a user's data stays in one subtree under the data root.
+        /// </summary>
+        /// <param name="userID">The note owner's id.</param>
+        /// <param name="noteID">The note's id.</param>
+        /// <returns>The absolute folder path.</returns>
+        public static string GetNoteMediaFolder(string userID, string noteID)
+        {
+            var path = Path.Combine(GetUserFolder(userID), "notes", noteID);
+            Directory.CreateDirectory(path);
+            return path;
+        }
     }
 }

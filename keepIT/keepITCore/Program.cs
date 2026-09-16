@@ -113,6 +113,10 @@ builder.Services.AddOpenApi(options =>
 //Adding a service which helps in creating images
 builder.Services.AddScoped<ImageService>();
 
+// Note image attachments: bytes on disk behind a port, so S3/MinIO can replace it without
+// touching a caller. Stateless, so a singleton.
+builder.Services.AddSingleton<IMediaStorage, DiskMediaStorage>();
+
 //Add the SignalR Service
 builder.Services.AddSignalR();
 // Route Clients.User(...) by the JWT "sub" claim (our tokens don't emit NameIdentifier).
