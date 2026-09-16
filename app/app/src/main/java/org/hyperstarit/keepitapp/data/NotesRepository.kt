@@ -1,16 +1,19 @@
 package org.hyperstarit.keepitapp.data
 
 import android.content.Context
+import android.net.Uri
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -21,16 +24,19 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.hyperstarit.keepitapp.data.offline.CacheSnapshot
 import org.hyperstarit.keepitapp.data.offline.LocalStore
+import org.hyperstarit.keepitapp.data.offline.MediaStaging
 import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.data.offline.activeListCounts
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
+import org.hyperstarit.keepitapp.data.offline.pendingMedia
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import org.hyperstarit.keepitapp.widget.KeepItWidget
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /** Which slice of notes the grid shows — mirrors the web's `NotesView`. */
@@ -70,6 +76,7 @@ class NotesRepository(
     private val store: LocalStore,
     private val outbox: Outbox,
     private val scope: CoroutineScope,
+    private val staging: MediaStaging,
 ) : SyncEngine.CacheUpdater {
 
     private val widgetPrefs = appContext.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
@@ -186,6 +193,42 @@ class NotesRepository(
     suspend fun delete(id: String) =
         mutate(PendingOp.Delete(resolve(id), enqueuedAtUtc = nowUtc()))
 
+    // ---- note media ----
+
+    /**
+     * Attaches an image to a note. The bytes are staged locally *first*, so the attachment survives
+     * the picker's revocable grant, a reboot, and an arbitrarily long offline stretch.
+     *
+     * @return false when the picked content could not be read at all.
+     */
+    suspend fun attachMedia(context: Context, noteId: String, uri: Uri): Boolean {
+        val tempMediaId = UUID.randomUUID().toString()
+        val staged = staging.stage(context, uri, tempMediaId) ?: return false
+        mutate(
+            PendingOp.AttachMedia(
+                noteId = resolve(noteId),
+                stagedPath = staged.absolutePath,
+                tempMediaId = tempMediaId,
+                enqueuedAtUtc = nowUtc(),
+            ),
+        )
+        return true
+    }
+
+    /** Removes an image from a note. */
+    suspend fun removeMedia(noteId: String, mediaId: String) =
+        mutate(PendingOp.DeleteMedia(resolve(noteId), mediaId, enqueuedAtUtc = nowUtc()))
+
+    /**
+     * The attachments still queued for a note, so the editor can show a picked image immediately.
+     *
+     * Projected from the outbox rather than stored on [NoteDto], which must stay an exact mirror of
+     * the server DTO — a client-only "pending" field there is precisely the drift the hand-sync
+     * rule forbids.
+     */
+    fun pendingMediaFor(noteId: String): Flow<List<PendingOp.AttachMedia>> =
+        outbox.pendingOps.map { ops -> pendingMedia(ops, resolve(noteId)) }
+
     // ---- lists CRUD: online-only (like the web), applied to the cache on success ----
 
     /** Creates a list. Online-only — offline callers get a failed [Result] to surface. */
@@ -215,7 +258,10 @@ class NotesRepository(
     private suspend fun mutate(op: PendingOp) {
         // Intent lands on disk before the cache: after a crash the worst case is a re-sent op
         // (replay is idempotent), never a change that looks saved but was lost.
-        outbox.enqueue(op)
+        val dropped = outbox.enqueue(op)
+        // Coalescing can discard a queued attachment (deleting the note annihilates its ops); the
+        // staged bytes are ours, so they go with it rather than sitting in staging forever.
+        dropped.filterIsInstance<PendingOp.AttachMedia>().forEach { staging.delete(it.stagedPath) }
         cache.update { applyOp(it, op) }
         persistCache()
         syncEngine?.kick()

@@ -14,6 +14,7 @@ import org.hyperstarit.keepitapp.data.RealtimeClient
 import org.hyperstarit.keepitapp.data.SessionRepository
 import org.hyperstarit.keepitapp.data.offline.ConnectivityMonitor
 import org.hyperstarit.keepitapp.data.offline.LocalStore
+import org.hyperstarit.keepitapp.data.offline.MediaStaging
 import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.notifications.AppNotifications
@@ -47,9 +48,11 @@ class AppContainer(context: Context) {
 
     private val localStore = LocalStore(context.applicationContext)
     private val outbox = Outbox(localStore)
+    private val mediaStaging = MediaStaging(context.applicationContext)
     val connectivity = ConnectivityMonitor(context.applicationContext)
-    val notesRepo = NotesRepository(apiClient, context.applicationContext, localStore, outbox, appScope)
-    val syncEngine = SyncEngine(apiClient, outbox, connectivity, appScope, notesRepo)
+    val notesRepo =
+        NotesRepository(apiClient, context.applicationContext, localStore, outbox, appScope, mediaStaging)
+    val syncEngine = SyncEngine(apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging)
 
     /** How many offline changes are still waiting to reach the server (notes screen strip). */
     val pendingChanges: StateFlow<Int> = outbox.pendingCount

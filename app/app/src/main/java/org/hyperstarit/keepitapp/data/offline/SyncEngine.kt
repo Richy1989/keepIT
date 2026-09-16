@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
@@ -36,6 +39,7 @@ class SyncEngine(
     private val connectivity: ConnectivityMonitor,
     private val scope: CoroutineScope,
     private val updater: CacheUpdater,
+    private val staging: MediaStaging,
 ) {
     /** How synced data lands in the repository's cache — implemented by NotesRepository. */
     interface CacheUpdater {
@@ -91,6 +95,26 @@ class SyncEngine(
                     is PendingOp.SetReminder -> client.api.setReminder(op.noteId, op.dto)
                     is PendingOp.ClearReminder -> client.api.clearReminder(op.noteId)
                     is PendingOp.Delete -> client.api.deleteNote(op.noteId)
+
+                    is PendingOp.AttachMedia -> {
+                        val file = java.io.File(op.stagedPath)
+                        if (!file.exists()) {
+                            // Nothing left to send — drop it rather than retry forever.
+                            outbox.removeFirst(op.opId)
+                            continue
+                        }
+                        client.api.uploadNoteMedia(
+                            op.noteId,
+                            MultipartBody.Part.createFormData(
+                                "file",
+                                "image.jpg",
+                                file.asRequestBody("image/*".toMediaType()),
+                            ),
+                        )
+                        staging.delete(op.stagedPath)
+                    }
+
+                    is PendingOp.DeleteMedia -> client.api.deleteNoteMedia(op.noteId, op.mediaId)
                 }
                 outbox.removeFirst(op.opId)
                 connectivity.markOnline()
@@ -102,6 +126,9 @@ class SyncEngine(
                     }
 
                     t is HttpException && t.code() in 400..499 && t.code() != 429 -> {
+                        // The op is going away for good, so its staged bytes go with it —
+                        // otherwise every rejected image leaks a file into staging forever.
+                        if (op is PendingOp.AttachMedia) staging.delete(op.stagedPath)
                         outbox.removeFirst(op.opId)
                         syncErrors.tryEmit(permanentFailureMessage(op, t.code()))
                     }
@@ -147,10 +174,17 @@ class SyncEngine(
             is PendingOp.SetReminder -> "a reminder"
             is PendingOp.ClearReminder -> "a reminder change"
             is PendingOp.Delete -> "a deletion"
+            is PendingOp.AttachMedia -> "an image"
+            is PendingOp.DeleteMedia -> "removing an image"
         }
         val why = when (code) {
             404 -> "the note no longer exists"
             403 -> "you no longer have access"
+            // The media endpoint's own limits — worth naming, since "the server refused it"
+            // tells someone nothing about a photo that was simply too big.
+            409 -> "the note already has the maximum number of images"
+            413 -> "the image is too large (max 10 MB)"
+            400 -> "the file isn't a supported image"
             else -> "the server refused it"
         }
         return "Couldn't sync $what — $why."

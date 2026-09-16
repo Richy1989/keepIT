@@ -20,15 +20,30 @@ class Outbox(private val store: LocalStore) {
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount
 
+    private val _pendingOps = MutableStateFlow<List<PendingOp>>(emptyList())
+
+    /**
+     * The queue as a flow, for UI that renders queued work — the editor shows a picked image from
+     * its staged file while the upload is still waiting to go out.
+     */
+    val pendingOps: StateFlow<List<PendingOp>> = _pendingOps
+
     /** Restores the queue from disk — call once at startup before any enqueue or replay. */
     suspend fun load() = mutex.withLock {
         ops = store.loadOutbox().toMutableList()
         _pendingCount.value = ops.size
+        _pendingOps.value = ops.toList()
     }
 
-    suspend fun enqueue(op: PendingOp) = mutex.withLock {
+    /**
+     * Merges an op into the queue and returns the ops coalescing discarded, so a caller can release
+     * resources they owned — a dropped [PendingOp.AttachMedia] still has a staged file on disk.
+     */
+    suspend fun enqueue(op: PendingOp): List<PendingOp> = mutex.withLock {
+        val before = ops.toList()
         ops = coalesce(ops, op).toMutableList()
         persist()
+        before.filter { old -> ops.none { it.opId == old.opId } }
     }
 
     suspend fun peek(): PendingOp? = mutex.withLock { ops.firstOrNull() }
@@ -51,6 +66,10 @@ class Outbox(private val store: LocalStore) {
                 is PendingOp.SetReminder -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.ClearReminder -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.Delete -> if (op.noteId == tempId) op.copy(noteId = realId) else op
+                // The case that matters most: a photo attached to a note that was itself created
+                // offline would otherwise upload against an id the server has never seen.
+                is PendingOp.AttachMedia -> if (op.noteId == tempId) op.copy(noteId = realId) else op
+                is PendingOp.DeleteMedia -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.Create -> op
             }
         }.toMutableList()
@@ -67,6 +86,7 @@ class Outbox(private val store: LocalStore) {
     private suspend fun persist() {
         store.saveOutbox(ops)
         _pendingCount.value = ops.size
+        _pendingOps.value = ops.toList()
     }
 }
 
@@ -81,6 +101,8 @@ class Outbox(private val store: LocalStore) {
  *   had a reminder to clear); a Set stays queued behind the Create and is remapped with it.
  * - **Delete** of a queued Create annihilates every op for that note — nothing is ever sent.
  *   Deleting an existing note drops its queued edits (the server purge makes them moot).
+ * - **AttachMedia / DeleteMedia** never coalesce with anything: two photos are two uploads, and an
+ *   Update touches a different resource entirely. A note-level Delete still removes them.
  *
  * Pure so the rules are unit-testable; the [Outbox] applies the result under its lock.
  */
@@ -147,5 +169,10 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
             val remaining = ops.filterNot { it.targetId == id }
             if (pendingCreate != null) remaining else remaining + incoming
         }
+
+        // Media ops never coalesce, from either side: two photos are two independent uploads, and
+        // an Update must not swallow an attachment (they touch different resources). A note-level
+        // Delete still annihilates them — that branch filters by targetId, above.
+        is PendingOp.AttachMedia, is PendingOp.DeleteMedia -> ops + incoming
     }
 }
