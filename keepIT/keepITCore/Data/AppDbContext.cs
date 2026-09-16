@@ -43,6 +43,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>Per-user note reminders (fired by the reminder dispatcher).</summary>
     public DbSet<NoteReminder> NoteReminders => Set<NoteReminder>();
 
+    /// <summary>Image attachments on notes (metadata only — bytes live on disk).</summary>
+    public DbSet<NoteMedia> NoteMedia => Set<NoteMedia>();
+
     /// <summary>Per-user user settings.</summary>
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
 
@@ -91,12 +94,26 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithOne(c => c.Note)
                 .HasForeignKey(c => c.NoteId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasMany(n => n.Media)
+                .WithOne(m => m.Note)
+                .HasForeignKey(m => m.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<ChecklistItem>(e =>
         {
             e.HasKey(c => c.Id);
             e.Property(c => c.Text).HasMaxLength(2000);
+        });
+
+        builder.Entity<NoteMedia>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => m.NoteId);
+            // Explicit lengths: without them Postgres gives these unbounded `text`.
+            e.Property(m => m.FileName).HasMaxLength(128).IsRequired();
+            e.Property(m => m.ThumbFileName).HasMaxLength(128).IsRequired();
         });
 
         builder.Entity<KeepList>(e =>
