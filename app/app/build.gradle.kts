@@ -172,6 +172,8 @@ val reflectivelyConstructed = mapOf(
         "Room-generated and only ever built by Room.databaseBuilder - WorkManager's startup initializer crashes the app on cold start without it",
     "org.hyperstarit.keepitapp.widget.RefreshAction" to
         "our Glance ActionCallback, resolved by Class.forName from the PendingIntent when the user taps refresh",
+    "androidx.core.content.FileProvider" to
+        "named in AndroidManifest and instantiated by the framework from that string - losing its constructor breaks camera capture in release builds only, with no build-time or logged failure",
 )
 
 val verifyReleaseKeepRules = tasks.register("verifyReleaseKeepRules") {
