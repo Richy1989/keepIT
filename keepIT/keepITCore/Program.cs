@@ -128,6 +128,8 @@ builder.Services.AddSingleton<IUserIdProvider, SubUserIdProvider>();
 builder.Services.AddSingleton<IRealtimeNotifier, RealtimeNotifier>();
 // Fires due note reminders (creates the notification + realtime push).
 builder.Services.AddHostedService<keepITCore.Notes.ReminderDispatcherService>();
+// Daily safety net: removes media folders whose note is gone (bytes are written before the row).
+builder.Services.AddHostedService<keepITCore.Notes.MediaOrphanSweepService>();
 
 var app = builder.Build();
 
