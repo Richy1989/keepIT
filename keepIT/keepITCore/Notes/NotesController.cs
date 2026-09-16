@@ -1,6 +1,7 @@
 using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Notes.Dtos;
+using keepITCore.Service;
 using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,16 +27,20 @@ public class NotesController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IRealtimeNotifier _notifier;
     private readonly NoteAccessService _access;
+    private readonly IMediaStorage _media;
 
     /// <summary>Injects the database context, the realtime notifier, and the access resolver.</summary>
     /// <param name="db">The EF Core context.</param>
     /// <param name="notifier">Pushes change signals to affected users' devices.</param>
     /// <param name="access">Resolves "own OR shared" access and the realtime recipient set.</param>
-    public NotesController(AppDbContext db, IRealtimeNotifier notifier, NoteAccessService access)
+    /// <param name="media">Storage port, used to purge a deleted note's images.</param>
+    public NotesController(
+        AppDbContext db, IRealtimeNotifier notifier, NoteAccessService access, IMediaStorage media)
     {
         _db = db;
         _notifier = notifier;
         _access = access;
+        _media = media;
     }
 
     /// <summary>
@@ -361,6 +366,10 @@ public class NotesController : ControllerBase
 
         _db.Notes.Remove(note);
         await _db.SaveChangesAsync();
+
+        // Cascade removed the media rows (and with them the file names), so the whole folder goes.
+        _media.DeleteNote(note.OwnerId, note.Id);
+
         await Task.WhenAll(recipients.Select(uid =>
             _notifier.NotifyAsync(uid, RealtimeResources.Notes, RealtimeResources.Lists)));
         return NoContent();
