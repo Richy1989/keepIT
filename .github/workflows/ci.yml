@@ -70,15 +70,81 @@ jobs:
           java-version: '21'
           cache: gradle
       - name: Compile + unit tests
+        # testMinifiedUnitTest, not testDebugUnitTest: `testBuildType = "minified"` scopes the test
+        # components to that variant, so it is the only unit-test task AGP generates. Same JVM
+        # tests, same sources - R8 is not involved in a unit test.
         # The JVM tests cover the offline logic (op application, outbox coalescing, checklist
-        # ordering) — the part of the app with no server to fall back on.
+        # ordering) and the widget's data contract (snapshot projection, prefs codec, colour
+        # palette) — the parts with no server to fall back on.
         run: |
           chmod +x ./gradlew   # git tracks the exec bit, but keep this as a Windows-edit safety net
-          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --no-daemon
-      - name: Upload test report
+          ./gradlew :app:compileDebugKotlin :app:testMinifiedUnitTest --no-daemon
+      - name: Build release + verify R8 keep rules
+        # Until this existed, `release` was only ever built by a `v*` tag — so the minified config
+        # reached users without a single PR having compiled it. Twice that shipped a widget that
+        # never rendered. assembleRelease is finalizedBy verifyReleaseKeepRules, which reads R8's
+        # own usage report and fails if anything we build reflectively lost its constructor.
+        # No signing secrets needed: release is left unsigned when no keystore is configured.
+        run: ./gradlew :app:assembleRelease --no-daemon
+      - name: Upload test + R8 reports
         if: failure()
         uses: actions/upload-artifact@v5
         with:
           name: android-test-results
-          path: app/app/build/reports/tests/testDebugUnitTest/
+          path: |
+            app/app/build/reports/tests/testMinifiedUnitTest/
+            app/app/build/outputs/mapping/release/usage.txt
+          retention-days: 7
+
+  android-instrumented:
+    name: Android smoke tests (emulator, minified build)
+    runs-on: ubuntu-latest
+    # The one check that proves the shipped build actually runs. Everything else compiles code or
+    # reads reports; this installs a fully R8'd APK on a device and starts it. It's the slowest job
+    # here (~10 min) and runs in parallel with the fast ones, so it never gates them.
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      # Hardware acceleration: without KVM the emulator falls back to software rendering and takes
+      # long enough to blow the job timeout.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke tests on API 34
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34          # matches minSdk — the oldest device the app claims to support
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          disable-animations: true
+          # `defaults.run.working-directory` above only applies to `run:` steps, not to an
+          # action's inputs - without this the script runs at the repo root, where gradlew isn't.
+          working-directory: app
+          # `connectedMinifiedAndroidTest` runs against the `minified` variant: release's R8 config,
+          # debug-signed so it installs without secrets. Running these against a debug build would
+          # pass while proving nothing — see VariantSanityTest.
+          script: |
+            chmod +x ./gradlew
+            ./gradlew :app:connectedMinifiedAndroidTest --no-daemon
+
+      - name: Upload instrumentation report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: android-instrumented-results
+          path: app/app/build/reports/androidTests/connected/
           retention-days: 7

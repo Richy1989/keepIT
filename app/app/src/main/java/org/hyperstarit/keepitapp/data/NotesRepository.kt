@@ -275,26 +275,7 @@ class NotesRepository(
 
     /** Writes the top notes to the widget's local cache and asks Glance to re-render. */
     private fun updateWidget(notes: List<NoteDto>) {
-        val top = notes.take(WIDGET_NOTE_COUNT).map { n ->
-            val isChecklist = n.type == NoteTypes.CHECKLIST
-            WidgetNote(
-                id = n.id,
-                title = n.title?.takeIf { it.isNotBlank() } ?: "",
-                // The Glance widget renders plain strings, so Markdown syntax is stripped here.
-                preview = if (isChecklist) "" else stripMarkdown(n.body ?: "").replace('\n', ' ').take(100),
-                color = n.color,
-                checklist = if (isChecklist) {
-                    // Unchecked first, so the few lines that fit the widget show what's still to do.
-                    n.checklistItems
-                        .inDisplayOrder()
-                        .take(WIDGET_CHECKLIST_LINES)
-                        .map { (if (it.isChecked) "☑ " else "☐ ") + it.text }
-                } else {
-                    emptyList()
-                },
-            )
-        }
-        widgetPrefs.edit().putString(WIDGET_KEY, Json.encodeToString(top)).apply()
+        widgetPrefs.edit().putString(WIDGET_KEY, encodeWidgetSnapshot(widgetNotesFrom(notes))).apply()
         widgetRenderRequests.update { it + 1 }
     }
 
@@ -307,13 +288,52 @@ class NotesRepository(
 
         private fun nowUtc(): String = Instant.now().toString()
 
-        /** Read side for the Glance widget (sync, no network, works while signed out). */
-        fun readWidgetNotes(context: Context): List<WidgetNote> {
-            val raw = context.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
-                .getString(WIDGET_KEY, null) ?: return emptyList()
+        /**
+         * Projects the note cache into the widget's snapshot. Pure and free of Android types on
+         * purpose: this is the write half of the two-process contract [readWidgetNotes] reads, and
+         * the only part of the widget's data path worth pinning in a JVM test.
+         */
+        internal fun widgetNotesFrom(notes: List<NoteDto>): List<WidgetNote> =
+            notes.take(WIDGET_NOTE_COUNT).map { n ->
+                val isChecklist = n.type == NoteTypes.CHECKLIST
+                WidgetNote(
+                    id = n.id,
+                    title = n.title?.takeIf { it.isNotBlank() } ?: "",
+                    // The Glance widget renders plain strings, so Markdown syntax is stripped here.
+                    preview = if (isChecklist) "" else stripMarkdown(n.body ?: "").replace('\n', ' ').take(100),
+                    color = n.color,
+                    checklist = if (isChecklist) {
+                        // Unchecked first, so the few lines that fit the widget show what's still to do.
+                        n.checklistItems
+                            .inDisplayOrder()
+                            .take(WIDGET_CHECKLIST_LINES)
+                            .map { (if (it.isChecked) "☑ " else "☐ ") + it.text }
+                    } else {
+                        emptyList()
+                    },
+                )
+            }
+
+        /** Serializes a snapshot into the SharedPrefs blob the widget process reads. */
+        internal fun encodeWidgetSnapshot(notes: List<WidgetNote>): String = Json.encodeToString(notes)
+
+        /**
+         * Parses a snapshot blob. Total by design: the blob outlives app updates, so one written
+         * by an older (or newer) build has to degrade to "no notes" rather than throw inside the
+         * widget's composition — [WidgetJson] ignores unknown keys, and anything else falls
+         * through to an empty list.
+         */
+        internal fun decodeWidgetSnapshot(raw: String?): List<WidgetNote> {
+            if (raw == null) return emptyList()
             return runCatching {
                 WidgetJson.decodeFromString<List<WidgetNote>>(raw)
             }.getOrDefault(emptyList())
         }
+
+        /** Read side for the Glance widget (sync, no network, works while signed out). */
+        fun readWidgetNotes(context: Context): List<WidgetNote> = decodeWidgetSnapshot(
+            context.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
+                .getString(WIDGET_KEY, null)
+        )
     }
 }
