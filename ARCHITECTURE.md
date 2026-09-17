@@ -123,8 +123,28 @@ setup, while Compose/prod just set the env vars.
 - **Postgres runs migrations at startup** (`Database.Migrate()` in `Program.cs`) — the
   migrations in `Data/Migrations` are **Postgres-authoritative** (the design-time factory
   `AppDbContextFactory` targets Npgsql).
-- **SQLite uses `EnsureCreated()`** — a throwaway dev DB created from the current model. It
-  won't alter an existing file after entity changes; delete `App_Data/keepit.db` to rebuild.
+- **SQLite uses `EnsureCreated()` + a reconciler.** `EnsureCreated()` builds the whole schema
+  from the current model for a file that doesn't exist yet, and does *nothing at all* to one
+  that does — so before the reconciler, an instance created under an older model simply never
+  gained the new tables and columns, and the first query touching one died with
+  `SQLite Error 1: 'no such table: …'` on a database whose notes were all still there.
+  `Infrastructure/SqliteSchemaReconciler.cs` closes that gap so an existing file keeps working
+  across upgrades. It asks EF for the create script *for the current model in SQLite's own
+  dialect*, and then, in order:
+  1. runs the `CREATE TABLE` statements for tables the file is missing,
+  2. appends missing columns with `ALTER TABLE … ADD COLUMN` — the model's own default where it
+     declares one, otherwise the store type's zero value, because SQLite refuses to add a
+     `NOT NULL` column with nothing to give the rows already in the table,
+  3. runs the `CREATE INDEX` statements for indexes the file is missing (last, so an index can
+     cover a column step 2 just added).
+
+  Existing tables and all rows are left untouched, and a run on a current file is a no-op. The
+  handful of shapes SQLite can't append in place (a computed column; a `NOT NULL` column whose
+  type has no zero value) are logged as warnings rather than crashing the app.
+
+  Migrations can't be retrofitted here instead: they're Postgres-authoritative (Npgsql column
+  types), and an `EnsureCreated` database has no `__EFMigrationsHistory`, so `Migrate()` would
+  try to replay every migration over populated tables.
 
 ### One common data folder
 
