@@ -87,7 +87,9 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
                         cache = repo.mediaCache,
                         noteId = note.id,
                         mediaId = hero.id,
-                        size = MediaSizes.THUMB,
+                        size = MediaSizes.PREVIEW,
+                        // What the background prefetch keeps on disk for offline use.
+                        fallbackSize = MediaSizes.THUMB,
                         modifier = Modifier
                             .fillMaxWidth()
                             // Reserve the real ratio, but never let one tall photo eat the card.

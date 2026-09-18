@@ -41,7 +41,15 @@ import java.io.File
 
 /** Rendition names the media endpoint understands. */
 object MediaSizes {
+    /** 400 px: the editor's small tiles. */
     const val THUMB = "thumb"
+
+    /**
+     * At most 1280 px: a note card's hero, which is close to screen width in the single-column
+     * list — where the thumbnail was stretched about 3× and looked soft. A server that predates it
+     * answers with the original, so asking for it is always safe.
+     */
+    const val PREVIEW = "preview"
     const val FULL = "full"
 }
 
@@ -56,6 +64,9 @@ const val MAX_IMAGES_PER_NOTE = 10
  *
  * The cache performs the authenticated fetch, so nothing here needs a token, a custom Coil fetcher
  * or an interceptor — Coil only decodes, downsamples and memory-caches a plain [File].
+ *
+ * [fallbackSize] is tried when [size] can't be had — offline, with only the prefetched thumbnails on
+ * disk — so a card shows a softer image rather than an empty block.
  */
 @Composable
 fun NoteMediaImage(
@@ -65,11 +76,13 @@ fun NoteMediaImage(
     size: String,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
+    fallbackSize: String? = null,
 ) {
     var file by remember(noteId, mediaId, size) { mutableStateOf<File?>(null) }
 
-    LaunchedEffect(noteId, mediaId, size) {
+    LaunchedEffect(noteId, mediaId, size, fallbackSize) {
         file = cache.file(noteId, mediaId, size)
+            ?: fallbackSize?.let { cache.file(noteId, mediaId, it) }
     }
 
     val current = file
