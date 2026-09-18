@@ -213,6 +213,13 @@ fun EditorScreen(
         loaded = true
     }
 
+    // This note as the cache has it right now, looked up through the id alias rather than by
+    // `note.id`: a note born in this editor keeps its temp id in `note` for the whole session, while
+    // its first sync moves the cached copy over to the server's id. Matching the ids directly lost it
+    // there and fell back to the snapshot taken at creation — which has no images — so a photo
+    // attached to a new note vanished the moment it finished uploading.
+    val live = note?.let { n -> allNotes.find { it.id == repo.resolve(n.id) } ?: n }
+
     val canEdit = note?.canEdit ?: true
     val swatch = noteSwatch(color)
 
@@ -488,8 +495,7 @@ fun EditorScreen(
                             }
                             // Attach from the gallery, or shoot one — the mobile-native half of the
                             // feature, and the reason offline attach exists at all.
-                            val atLimit =
-                                (allNotes.find { it.id == note?.id }?.media?.size ?: 0) >= MAX_IMAGES_PER_NOTE
+                            val atLimit = (live?.media?.size ?: 0) >= MAX_IMAGES_PER_NOTE
                             IconButton(
                                 onClick = {
                                     pickImages.launch(
@@ -599,17 +605,19 @@ fun EditorScreen(
                 }
             }
 
-            note?.let { n ->
-                val live = allNotes.find { it.id == n.id } ?: n
-                val pending by repo.pendingMediaFor(n.id).collectAsState(initial = emptyList())
+            live?.let { n ->
+                // Remembered per id: the editor recomposes on every keystroke, and a fresh flow each
+                // time would re-subscribe to the outbox just as often.
+                val pending by remember(n.id) { repo.pendingMediaFor(n.id) }
+                    .collectAsState(initial = emptyList())
 
                 MediaRow(
                     cache = repo.mediaCache,
-                    noteId = live.id,
-                    media = live.media,
+                    noteId = n.id,
+                    media = n.media,
                     pending = pending,
                     canEdit = canEdit,
-                    onRemove = { mediaId -> scope.launch { repo.removeMedia(live.id, mediaId) } },
+                    onRemove = { mediaId -> scope.launch { repo.removeMedia(n.id, mediaId) } },
                     onOpen = { index -> viewerIndex = index },
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
@@ -617,8 +625,8 @@ fun EditorScreen(
                 viewerIndex?.let { index ->
                     MediaViewer(
                         cache = repo.mediaCache,
-                        noteId = live.id,
-                        media = live.media,
+                        noteId = n.id,
+                        media = n.media,
                         startIndex = index,
                         onClose = { viewerIndex = null },
                     )

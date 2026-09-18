@@ -1,6 +1,7 @@
 package org.hyperstarit.keepitapp.data.offline
 
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
 import org.hyperstarit.keepitapp.data.ensureUtc
@@ -66,6 +67,20 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
 /** The still-queued attachments for one note, in the order they were picked. */
 fun pendingMedia(ops: List<PendingOp>, noteId: String): List<PendingOp.AttachMedia> =
     ops.filterIsInstance<PendingOp.AttachMedia>().filter { it.noteId == noteId }
+
+/**
+ * Adds a just-uploaded image to its cached note, straight from the upload's response.
+ *
+ * Without this the image had nowhere to render between the upload and the next full fetch: its
+ * queued attachment leaves the outbox as the upload succeeds, while the cached note doesn't list it
+ * until the fetch lands — so an open editor's image row blanked, and the text beneath it jumped, for
+ * a whole round trip. Idempotent, because that fetch then reports the very same media id.
+ */
+fun withUploadedMedia(notes: List<NoteDto>, noteId: String, media: NoteMediaDto): List<NoteDto> =
+    notes.map { n ->
+        if (n.id != noteId || n.media.any { it.id == media.id }) n
+        else n.copy(media = (n.media + media).sortedBy { it.order })
+    }
 
 /**
  * Overlays every still-queued op onto a fresh server fetch, so notes created/edited offline don't

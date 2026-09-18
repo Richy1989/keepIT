@@ -7,6 +7,7 @@ import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.coalesce
 import org.hyperstarit.keepitapp.data.offline.pendingMedia
+import org.hyperstarit.keepitapp.data.offline.withUploadedMedia
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -94,5 +95,37 @@ class MediaOpsTest {
         }
 
         assertTrue(remapped.all { it.targetId == "real-1" })
+    }
+
+    @Test
+    fun `an uploaded image joins its note straight away`() {
+        // Between the upload and the next fetch this is the only place the image exists, so an
+        // open editor keeps showing it instead of blanking the row until the refetch lands.
+        val notes = listOf(NoteDto(id = "n1"), NoteDto(id = "n2"))
+
+        val result = withUploadedMedia(notes, "n1", NoteMediaDto(id = "m1"))
+
+        assertEquals(listOf("m1"), result.first { it.id == "n1" }.media.map { it.id })
+        assertTrue(result.first { it.id == "n2" }.media.isEmpty())
+    }
+
+    @Test
+    fun `an uploaded image lands in its server order`() {
+        val note = NoteDto(id = "n1", media = listOf(NoteMediaDto(id = "m0", order = 0), NoteMediaDto(id = "m2", order = 2)))
+
+        val result = withUploadedMedia(listOf(note), "n1", NoteMediaDto(id = "m1", order = 1))
+
+        assertEquals(listOf("m0", "m1", "m2"), result.single().media.map { it.id })
+    }
+
+    @Test
+    fun `an image the note already lists is not added twice`() {
+        // The refetch that follows an upload reports the same id; applying the upload again after
+        // it must not duplicate the thumbnail.
+        val note = NoteDto(id = "n1", media = listOf(NoteMediaDto(id = "m1")))
+
+        val result = withUploadedMedia(listOf(note), "n1", NoteMediaDto(id = "m1"))
+
+        assertEquals(listOf("m1"), result.single().media.map { it.id })
     }
 }

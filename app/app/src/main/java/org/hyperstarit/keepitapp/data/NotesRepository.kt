@@ -37,6 +37,7 @@ import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
 import org.hyperstarit.keepitapp.data.offline.pendingMedia
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
+import org.hyperstarit.keepitapp.data.offline.withUploadedMedia
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import org.hyperstarit.keepitapp.widget.KeepItWidget
 import java.time.Instant
@@ -298,7 +299,12 @@ class NotesRepository(
         syncEngine?.kick()
     }
 
-    private fun resolve(id: String): String = idAliases[id] ?: id
+    /**
+     * The id a note goes by now: the server's once a note created offline has synced, else [id].
+     * Anything that holds on to a note across a sync — the open editor — must look it up through
+     * this, or it loses the note the moment its temp id is swapped out.
+     */
+    fun resolve(id: String): String = idAliases[id] ?: id
 
     // ---- SyncEngine.CacheUpdater ----
 
@@ -349,6 +355,11 @@ class NotesRepository(
     override suspend fun onIdRemapped(tempId: String, realId: String) {
         idAliases[tempId] = realId
         cache.update { all -> all.map { if (it.id == tempId) it.copy(id = realId) else it } }
+        persistCache()
+    }
+
+    override suspend fun onMediaUploaded(noteId: String, media: NoteMediaDto) {
+        cache.update { withUploadedMedia(it, noteId, media) }
         persistCache()
     }
 

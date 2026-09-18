@@ -15,6 +15,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.SetNoteListsDto
 import retrofit2.HttpException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -45,6 +46,7 @@ class SyncEngine(
     interface CacheUpdater {
         suspend fun onFetched(notes: List<NoteDto>, lists: List<ListDto>, stillPending: List<PendingOp>)
         suspend fun onIdRemapped(tempId: String, realId: String)
+        suspend fun onMediaUploaded(noteId: String, media: NoteMediaDto)
     }
 
     var onUnauthorized: (() -> Unit)? = null
@@ -103,7 +105,7 @@ class SyncEngine(
                             outbox.removeFirst(op.opId)
                             continue
                         }
-                        client.api.uploadNoteMedia(
+                        val media = client.api.uploadNoteMedia(
                             op.noteId,
                             MultipartBody.Part.createFormData(
                                 "file",
@@ -112,6 +114,10 @@ class SyncEngine(
                             ),
                         )
                         staging.delete(op.stagedPath)
+                        // Into the cache before the op leaves the outbox, so the image hands over
+                        // from its pending preview to the real thing instead of vanishing until the
+                        // refetch below.
+                        updater.onMediaUploaded(op.noteId, media)
                     }
 
                     is PendingOp.DeleteMedia -> client.api.deleteNoteMedia(op.noteId, op.mediaId)
