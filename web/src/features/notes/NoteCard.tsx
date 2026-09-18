@@ -105,7 +105,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           colour, where contrast is a known quantity rather than whatever the user photographed. */}
       {note.media.length > 0 && (
         <div className="relative -mx-4 -mt-4 mb-3">
-          <NoteImage noteId={note.id} media={note.media[0]} size="thumb" />
+          <NoteImage noteId={note.id} media={note.media[0]} size="preview" />
           {note.media.length > 1 && (
             // Top-left, because the pin owns the top-right corner.
             <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">

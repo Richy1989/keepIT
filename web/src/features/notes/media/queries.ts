@@ -5,8 +5,11 @@ import type { NoteMediaDto } from '../../../api/types';
 
 export const MEDIA_KEY = 'note-media';
 
-/** Which rendition to fetch: the grid thumbnail or the stored original. */
-export type MediaSize = 'thumb' | 'full';
+/**
+ * Which rendition to fetch: the 400 px thumbnail for small tiles, the card-sized preview (at most
+ * 1280 px) for a note card's hero, or the stored original.
+ */
+export type MediaSize = 'thumb' | 'preview' | 'full';
 
 /**
  * The server's own cap (App:Media:MaxImageBytes). Checked client-side before sending because the
