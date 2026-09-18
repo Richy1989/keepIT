@@ -63,6 +63,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -195,6 +197,14 @@ fun EditorScreen(
     var attachIntent by remember { mutableStateOf(0) }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
 
+    // Why an image didn't make it: unreadable here, or turned down by the server on upload (too
+    // large, HEIC). The notes grid reports sync failures too, but it isn't composed while the editor
+    // is open, so a refused image used to show as uploading and then just vanish, reason unsaid.
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        container.syncEngine.syncErrors.collect { snackbarHostState.showSnackbar(it) }
+    }
+
     LaunchedEffect(noteId) {
         if (noteId == null) return@LaunchedEffect
         val n = repo.noteById(noteId) ?: repo.fetchNote(noteId)
@@ -316,8 +326,13 @@ fun EditorScreen(
                 attachIntent = 0
                 return@launch
             }
-            uris.forEach { repo.attachMedia(context, id, it) }
+            val unreadable = uris.count { !repo.attachMedia(context, id, it) }
             attachIntent = 0
+            if (unreadable > 0) {
+                snackbarHostState.showSnackbar(
+                    if (unreadable == 1) "Couldn't read that image." else "Couldn't read $unreadable images.",
+                )
+            }
         }
     }
 
@@ -374,6 +389,7 @@ fun EditorScreen(
 
     Scaffold(
         containerColor = swatch.bg,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
