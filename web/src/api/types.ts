@@ -16,6 +16,7 @@ export type SetNoteReminderDto = S['SetNoteReminderDto'];
 export type ReminderRecurrence = S['ReminderRecurrence'];
 export type SetNoteListsDto = S['SetNoteListsDto'];
 export type ChecklistItemDto = S['ChecklistItemDto'];
+export type NoteMediaDto = S['NoteMediaDto'];
 export type NoteType = S['NoteType'];
 
 export type NoteShareDto = S['NoteShareDto'];

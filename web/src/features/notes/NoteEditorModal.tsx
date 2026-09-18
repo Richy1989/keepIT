@@ -9,6 +9,10 @@ import { MarkdownToolbar } from './MarkdownToolbar';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
 import { ShareDialog } from './ShareDialog';
+import { MediaStrip } from './media/MediaStrip';
+import { MediaLightbox } from './media/MediaLightbox';
+import { useMediaUpload, isAcceptedImage } from './media/useMediaUpload';
+import { useDeleteNoteMedia, ACCEPTED_IMAGE_TYPES, MAX_IMAGES_PER_NOTE } from './media/queries';
 import { ColorPicker } from '../../components/ColorPicker';
 import { useLists } from '../lists/queries';
 import { useAuth } from '../../auth/AuthContext';
@@ -17,9 +21,11 @@ import {
   CheckSquareIcon,
   ClockIcon,
   EyeIcon,
+  ImageIcon,
   PaletteIcon,
   PencilIcon,
   ShareIcon,
+  XIcon,
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import { useFocusTrap } from '../../lib/useFocusTrap';
@@ -50,6 +56,12 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
 
   const canEdit = note.canEdit;
 
+  const { pending, errors, addFiles, dismissError } = useMediaUpload(note.id);
+  const deleteMedia = useDeleteNoteMedia();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const atImageLimit = note.media.length + pending.length >= MAX_IMAGES_PER_NOTE;
+
   /** Collaborator-only: remove the caller's own share, dropping the note from their grid. */
   function leaveNote() {
     if (note.isOwner || !user) return;
@@ -70,7 +82,9 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // Suspended while the share dialog is up — that child owns the tab ring then.
-  useFocusTrap(panelRef, !showShare);
+  // Released for the share dialog and the image viewer alike: both render outside the panel, so a
+  // trap scoped to the panel would keep pulling focus back out of them.
+  useFocusTrap(panelRef, !showShare && lightbox === null);
 
   function save() {
     const cleanItems = items
@@ -135,6 +149,29 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
         aria-modal="true"
         aria-label={title.trim() || 'Note'}
         onMouseDown={(e) => e.stopPropagation()}
+        // Dropping an image anywhere on the panel attaches it; pasting a screenshot does the same,
+        // which is the gesture people actually reach for on desktop.
+        onDragOver={canEdit ? (e) => e.preventDefault() : undefined}
+        onDrop={
+          canEdit
+            ? (e) => {
+                const files = Array.from(e.dataTransfer.files).filter(isAcceptedImage);
+                if (!files.length) return;
+                e.preventDefault();
+                void addFiles(files);
+              }
+            : undefined
+        }
+        onPaste={
+          canEdit
+            ? (e) => {
+                const files = Array.from(e.clipboardData.files).filter(isAcceptedImage);
+                if (!files.length) return; // let normal text paste through
+                e.preventDefault();
+                void addFiles(files);
+              }
+            : undefined
+        }
         className="mx-auto w-full max-w-2xl rounded-2xl border shadow-2xl shadow-black/60"
         style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
       >
@@ -145,6 +182,32 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               Shared with you{note.canEdit ? ' — you can edit' : ' — view only'}
             </div>
           )}
+          <MediaStrip
+            noteId={note.id}
+            media={note.media}
+            pending={pending}
+            canEdit={canEdit}
+            onRemove={(mediaId) => deleteMedia.mutate({ noteId: note.id, mediaId })}
+            onOpen={setLightbox}
+          />
+
+          {errors.map((message, i) => (
+            <div
+              key={`${message}-${i}`}
+              className="mb-2 flex items-start justify-between gap-2 rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200"
+            >
+              <span>{message}</span>
+              <button
+                type="button"
+                onClick={() => dismissError(i)}
+                aria-label="Dismiss"
+                className="focus-ring shrink-0 rounded p-0.5 hover:bg-white/10"
+              >
+                <XIcon className="text-xs" />
+              </button>
+            </div>
+          ))}
+
           <input
             autoFocus
             value={title}
@@ -259,6 +322,24 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                 >
                   <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent')} />
                 </EditorTool>
+                <EditorTool
+                  label={atImageLimit ? `Limit is ${MAX_IMAGES_PER_NOTE} images` : 'Add image'}
+                  onClick={() => fileInput.current?.click()}
+                  disabled={atImageLimit}
+                >
+                  <ImageIcon className="text-lg" />
+                </EditorTool>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_TYPES}
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    void addFiles(Array.from(e.target.files ?? []));
+                    e.target.value = ''; // so picking the same file twice still fires
+                  }}
+                />
               </>
             )}
             {/* Reminders are per-user, so viewers get this too — no canEdit gate. */}
@@ -295,6 +376,16 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
       {showShare && note.isOwner && (
         <ShareDialog note={note} onClose={() => setShowShare(false)} />
       )}
+
+      {lightbox !== null && note.media.length > 0 && (
+        <MediaLightbox
+          noteId={note.id}
+          media={note.media}
+          index={Math.min(lightbox, note.media.length - 1)}
+          onClose={() => setLightbox(null)}
+          onIndexChange={setLightbox}
+        />
+      )}
     </div>
   );
 }
@@ -326,10 +417,12 @@ function ReadOnlyChecklist({ items }: { items: ChecklistItemDto[] }) {
 function EditorTool({
   label,
   onClick,
+  disabled,
   children,
 }: {
   label: string;
   onClick: () => void;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -338,7 +431,8 @@ function EditorTool({
       title={label}
       aria-label={label}
       onClick={onClick}
-      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text"
+      disabled={disabled}
+      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {children}
     </button>

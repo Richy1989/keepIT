@@ -1,14 +1,18 @@
 package org.hyperstarit.keepitapp.ui.notes
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
@@ -27,6 +31,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,100 +74,161 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onOpen),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            if (!note.title.isNullOrBlank()) {
-                Text(
-                    text = note.title,
-                    color = KeepItColors.Text,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.size(6.dp))
-            }
+        Column {
+            // Full-bleed hero (layout C1): the photo owns the top of the card and carries the
+            // title on a scrim, but body and checklist rows stay below on the note's own colour,
+            // where contrast is a known quantity rather than whatever the user photographed.
+            val hero = note.media.firstOrNull()
+            if (hero != null) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    val ratio =
+                        if (hero.width > 0 && hero.height > 0) hero.width.toFloat() / hero.height else 1f
+                    NoteMediaImage(
+                        cache = repo.mediaCache,
+                        noteId = note.id,
+                        mediaId = hero.id,
+                        size = MediaSizes.THUMB,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // Reserve the real ratio, but never let one tall photo eat the card.
+                            .aspectRatio(ratio.coerceAtLeast(0.72f)),
+                    )
 
-            if (note.type == NoteTypes.CHECKLIST) {
-                ChecklistPreview(note)
-            } else if (!note.body.isNullOrBlank()) {
-                MarkdownText(
-                    source = note.body,
-                    color = KeepItColors.Text.copy(alpha = 0.9f),
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    maxLines = 8,
-                )
-            }
-
-            if (note.title.isNullOrBlank() && note.body.isNullOrBlank() && note.checklistItems.isEmpty()) {
-                Text(text = "Empty note", color = KeepItColors.TextFaint, fontSize = 13.sp)
-            }
-
-            Spacer(modifier = Modifier.size(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (note.isTrashed) {
-                    IconButton(
-                        onClick = { scope.launch { repo.setState(note.id, NoteStateDto(isTrashed = false)) } },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Refresh,
-                            contentDescription = "Restore",
-                            tint = KeepItColors.TextMuted,
-                            modifier = Modifier.size(18.dp),
+                    if (note.media.size > 1) {
+                        Text(
+                            text = "+${note.media.size - 1}",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
                         )
                     }
-                    // Purging is the owner's call; a collaborator's trash only hides their own view.
-                    if (note.isOwner) {
+
+                    if (!note.title.isNullOrBlank()) {
+                        Text(
+                            text = note.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)),
+                                    ),
+                                )
+                                .padding(start = 14.dp, end = 14.dp, top = 28.dp, bottom = 8.dp),
+                        )
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.padding(14.dp)) {
+                // The title already rendered on the scrim when there's a hero.
+                if (!note.title.isNullOrBlank() && hero == null) {
+                    Text(
+                        text = note.title,
+                        color = KeepItColors.Text,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(modifier = Modifier.size(6.dp))
+                }
+
+                if (note.type == NoteTypes.CHECKLIST) {
+                    ChecklistPreview(note)
+                } else if (!note.body.isNullOrBlank()) {
+                    MarkdownText(
+                        source = note.body,
+                        color = KeepItColors.Text.copy(alpha = 0.9f),
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        maxLines = 8,
+                    )
+                }
+
+                // A note that is nothing but photos is not empty.
+                if (note.title.isNullOrBlank() && note.body.isNullOrBlank() &&
+                    note.checklistItems.isEmpty() && note.media.isEmpty()
+                ) {
+                    Text(text = "Empty note", color = KeepItColors.TextFaint, fontSize = 13.sp)
+                }
+
+                Spacer(modifier = Modifier.size(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (note.isTrashed) {
                         IconButton(
-                            onClick = { scope.launch { repo.delete(note.id) } },
+                            onClick = { scope.launch { repo.setState(note.id, NoteStateDto(isTrashed = false)) } },
                             modifier = Modifier.size(32.dp),
                         ) {
                             Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = "Delete forever",
+                                Icons.Filled.Refresh,
+                                contentDescription = "Restore",
                                 tint = KeepItColors.TextMuted,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
+                        // Purging is the owner's call; a collaborator's trash only hides their own view.
+                        if (note.isOwner) {
+                            IconButton(
+                                onClick = { scope.launch { repo.delete(note.id) } },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete forever",
+                                    tint = KeepItColors.TextMuted,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    } else {
+                        IconButton(
+                            onClick = { scope.launch { repo.setState(note.id, NoteStateDto(isPinned = !note.isPinned)) } },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (note.isPinned) Icons.Filled.Star else Icons.Outlined.Star,
+                                contentDescription = if (note.isPinned) "Unpin" else "Pin",
+                                tint = if (note.isPinned) KeepItColors.Accent else KeepItColors.TextFaint,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
-                } else {
-                    IconButton(
-                        onClick = { scope.launch { repo.setState(note.id, NoteStateDto(isPinned = !note.isPinned)) } },
-                        modifier = Modifier.size(32.dp),
-                    ) {
-                        Icon(
-                            imageVector = if (note.isPinned) Icons.Filled.Star else Icons.Outlined.Star,
-                            contentDescription = if (note.isPinned) "Unpin" else "Pin",
-                            tint = if (note.isPinned) KeepItColors.Accent else KeepItColors.TextFaint,
-                            modifier = Modifier.size(18.dp),
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Reminders are per-user, so viewers get this too — hidden only in the trash.
+                    if (!note.isTrashed) {
+                        ReminderChip(
+                            note = note,
+                            onClick = { showReminder = true },
+                            modifier = Modifier.padding(end = 6.dp),
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.weight(1f))
+                    ShareBadge(note)
 
-                // Reminders are per-user, so viewers get this too — hidden only in the trash.
-                if (!note.isTrashed) {
-                    ReminderChip(
-                        note = note,
-                        onClick = { showReminder = true },
-                        modifier = Modifier.padding(end = 6.dp),
+                    Text(
+                        text = formatDate(note.createdAtUtc),
+                        color = KeepItColors.TextFaint,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(start = 6.dp),
                     )
                 }
-
-                ShareBadge(note)
-
-                Text(
-                    text = formatDate(note.createdAtUtc),
-                    color = KeepItColors.TextFaint,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(start = 6.dp),
-                )
             }
         }
     }

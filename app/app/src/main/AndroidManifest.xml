@@ -83,6 +83,21 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/keepit_widget_info" />
         </receiver>
+
+        <!--
+          Lets the camera app write a capture into our cache dir. The framework instantiates this
+          class BY NAME from this entry, which is exactly the shape R8 strips constructors from -
+          see `reflectivelyConstructed` in app/build.gradle.kts, which guards it.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

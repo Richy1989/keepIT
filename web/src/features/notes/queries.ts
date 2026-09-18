@@ -162,6 +162,9 @@ export function useCreateNote() {
         role: null,
         canEdit: true,
         isShared: false,
+        // Images are attached after the note exists (they need its id), so a brand-new note
+        // always starts with none — the composer uploads its queued files once the POST returns.
+        media: [],
         checklistItems: input.checklistItems ?? [],
         listIds: input.listIds ?? [],
       };

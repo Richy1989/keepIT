@@ -84,6 +84,23 @@ data class ChecklistItemDto(
     val order: Int = 0,
 )
 
+/**
+ * One image attached to a note — mirrors `NoteMediaDto` in the C# API (the source of truth).
+ *
+ * Carries no URL: the path is built from the note and media ids and fetched as an authenticated
+ * request (see [org.hyperstarit.keepitapp.data.offline.MediaCache]). [width]/[height] are here so a
+ * card can reserve the right box before the bytes arrive, instead of reflowing as images land.
+ */
+@Serializable
+data class NoteMediaDto(
+    val id: String,
+    val width: Int = 0,
+    val height: Int = 0,
+    val byteSize: Long = 0,
+    val order: Int = 0,
+    val createdAtUtc: String = "",
+)
+
 @Serializable
 data class NoteDto(
     val id: String,
@@ -107,6 +124,8 @@ data class NoteDto(
     val canEdit: Boolean = true,
     val isShared: Boolean = false,
     val checklistItems: List<ChecklistItemDto> = emptyList(),
+    /** Image attachments, ordered. Empty when the note has none. */
+    val media: List<NoteMediaDto> = emptyList(),
     val listIds: List<String> = emptyList(),
 )
 

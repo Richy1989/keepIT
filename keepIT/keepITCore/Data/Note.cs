@@ -47,4 +47,7 @@ public class Note
 
     /// <summary>Per-user reminders on this note (see <see cref="NoteReminder"/>).</summary>
     public ICollection<NoteReminder> Reminders { get; set; } = new List<NoteReminder>();
+
+    /// <summary>Image attachments, ordered (see <see cref="NoteMedia"/>).</summary>
+    public ICollection<NoteMedia> Media { get; set; } = new List<NoteMedia>();
 }

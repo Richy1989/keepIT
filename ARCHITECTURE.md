@@ -123,8 +123,28 @@ setup, while Compose/prod just set the env vars.
 - **Postgres runs migrations at startup** (`Database.Migrate()` in `Program.cs`) — the
   migrations in `Data/Migrations` are **Postgres-authoritative** (the design-time factory
   `AppDbContextFactory` targets Npgsql).
-- **SQLite uses `EnsureCreated()`** — a throwaway dev DB created from the current model. It
-  won't alter an existing file after entity changes; delete `App_Data/keepit.db` to rebuild.
+- **SQLite uses `EnsureCreated()` + a reconciler.** `EnsureCreated()` builds the whole schema
+  from the current model for a file that doesn't exist yet, and does *nothing at all* to one
+  that does — so before the reconciler, an instance created under an older model simply never
+  gained the new tables and columns, and the first query touching one died with
+  `SQLite Error 1: 'no such table: …'` on a database whose notes were all still there.
+  `Infrastructure/SqliteSchemaReconciler.cs` closes that gap so an existing file keeps working
+  across upgrades. It asks EF for the create script *for the current model in SQLite's own
+  dialect*, and then, in order:
+  1. runs the `CREATE TABLE` statements for tables the file is missing,
+  2. appends missing columns with `ALTER TABLE … ADD COLUMN` — the model's own default where it
+     declares one, otherwise the store type's zero value, because SQLite refuses to add a
+     `NOT NULL` column with nothing to give the rows already in the table,
+  3. runs the `CREATE INDEX` statements for indexes the file is missing (last, so an index can
+     cover a column step 2 just added).
+
+  Existing tables and all rows are left untouched, and a run on a current file is a no-op. The
+  handful of shapes SQLite can't append in place (a computed column; a `NOT NULL` column whose
+  type has no zero value) are logged as warnings rather than crashing the app.
+
+  Migrations can't be retrofitted here instead: they're Postgres-authoritative (Npgsql column
+  types), and an `EnsureCreated` database has no `__EFMigrationsHistory`, so `Migrate()` would
+  try to replay every migration over populated tables.
 
 ### One common data folder
 
@@ -509,6 +529,21 @@ that runs a one-shot background sync. It renders purely from the local cache, so
 network or auth of its own and shows last-known notes even signed out; when the cache
 changes, every widget re-renders.
 
+Both ways of refreshing it run with **no UI in the process**, which shapes them:
+
+- `RefreshAction` (the header button) and `WidgetSyncWorker` (periodic, 30 min, scheduled by
+  `KeepItWidgetReceiver` while at least one widget is placed) do the same three things:
+  `loadFromDisk`, then sync, then `renderWidgetNow`. The disk load is there because `AppRoot`
+  is what normally restores the cache and outbox, and it never ran; the explicit render is
+  there because the repository's own re-render is debounced onto an app-scoped coroutine, and
+  once the callback returns Android may kill the process before it fires. Rendering explicitly
+  also means a *failed* sync still redraws from cache rather than looking like a dead button.
+- `updatePeriodMillis="0"` in the descriptor, because none of the above is the system's job —
+  the system update would only re-render the same cached snapshot, not fetch anything.
+- `WidgetSyncWorker` is instantiated by WorkManager from a persisted class name, so it belongs
+  to the reflectively-constructed set both `verifyReleaseKeepRules` and `ReleaseBuildSmokeTest`
+  guard. See the testing section.
+
 **Screens** (`ui/`): login/register (with server URL + forgot-password), notes grid
 (staggered, with sync-status strip and pending-changes count), editor (markdown rendering via
 a small custom parser, checklist editing, color, share sheet, reminder dialog),
@@ -576,13 +611,15 @@ A note is one of several **types**, and any note can carry a background color:
 2. **Checklist note** — an ordered list of checkbox items; reorder, check off, add, remove. Ticked
    items display at the bottom of the list and return to their original slot when unticked — see
    `ChecklistItem.order` for the contract that makes that work on every client.
-3. **Image note** — *planned, not implemented*: primary content is one or more images. The
-   media pipeline it needs (below) is the main outstanding backend feature.
-4. **Background** — every note can set a background **color** from the palette. Background
-   *images* arrive with media handling.
+3. **Background** — every note can set a background **color** from the palette. Background
+   *images* are still not implemented.
 
-Plus, orthogonal to type: pin / archive / trash (per user), list membership (per user),
-sharing (owner-granted), and a reminder (per user).
+Plus, orthogonal to type: **image attachments** (any note, ordered, append-only — see "Profile
+images & media"), pin / archive / trash (per user), list membership (per user), sharing
+(owner-granted), and a reminder (per user).
+
+Note there is no separate "image note" type: attachments hang off text and checklist notes alike,
+so a note whose content is just photos is an image note without the model needing to say so.
 
 ## Data model (implemented)
 
@@ -664,15 +701,47 @@ resource, with `Service/ImageService.cs` doing the storage work:
   needs, without making avatars public to any signed-in user. "No image" and "no permission"
   are the same 404, so ids can't be probed.
 
-**Planned: note media (image notes, background images).** The rules for when it lands:
-- **Never store image bytes in the database** — DB holds metadata only; bytes live on disk
-  under the data folder (behind an `IMediaStorage`-style abstraction so it can later swap to
-  S3/MinIO without touching callers).
-- **Storage keys, not user filenames** (the profile-image pipeline already follows this).
-- **Serve through an access-checked API endpoint** — a collaborator reaches a shared note's
-  media *through the note* (the `NoteAccessService` rule), not by owning the media. Generate
-  thumbnails for the grid.
-- **Lifecycle:** deleting a note purges its media; a periodic orphan sweep as a safety net.
+**Implemented: note media (image attachments).** Images attach to **any** note — text or
+checklist — as an ordered, append-only collection (`NoteMedia`, cascade-deleted with the note).
+There is deliberately no `NoteType.Image`: an "image note" is simply a note whose content happens
+to be images, which is how Keep behaves and what spares every client a type discriminator. The four
+original rules all hold:
+- **No image bytes in the database** — `NoteMedia` holds metadata and the storage key; bytes live
+  under `{DataRoot}/users/{ownerId}/notes/{noteId}/` behind `IMediaStorage`
+  (`Service/DiskMediaStorage.cs`), so S3/MinIO can replace it without touching a caller.
+- **Storage keys, not user filenames** — `{mediaId}.{ext}` and `{mediaId}_thumb.{ext}`, generated
+  server-side.
+- **Access-checked serving** — `NoteMediaController` resolves every request through
+  `NoteAccessService` on the *parent note*: any access reads bytes, Editor access attaches and
+  removes, and a non-collaborator gets the same 404 as a nonexistent note. A 400×400 thumbnail is
+  generated on upload for the grid.
+- **Lifecycle** — hard-deleting a note purges its folder; `MediaOrphanSweepService` runs daily as
+  the safety net for bytes written before a row that never landed.
+
+Endpoints (all under the note): `POST /api/notes/{id}/media` (multipart, one file per request),
+`GET /api/notes/{id}/media/{mediaId}?size=thumb|full`, `DELETE /api/notes/{id}/media/{mediaId}`.
+`NoteDto.media` carries `id`, `width`/`height` (so a card reserves its box before the thumbnail
+arrives, instead of reflowing the grid), `byteSize`, `order` and `createdAtUtc` — no URLs; clients
+build the path and fetch the bytes as an authenticated request.
+
+**Processing (ImageSharp).** Originals are re-encoded, not stored verbatim: long edge capped at
+2560, EXIF orientation applied and then *all* metadata stripped. That last part is the point —
+phone photos carry GPS, and a shared note would otherwise hand a collaborator the coordinates of
+the photographer's home. The trade-off is that pixel-exact originals are not preserved. Animated
+GIFs pass through untouched and thumbnail from their first frame. HEIC gets its own ISO-BMFF brand
+check so it can be refused *by name*, since iPhone-on-Safari users hit it constantly.
+
+ImageSharp is pinned to the **3.1** line on purpose: 4.x requires a Six Labors licence key at build
+time, while 3.1 stays under the Split License covering open-source use.
+
+**Limits:** 10 MB per image and 10 images per note, both configurable under `App:Media`. There is
+no per-user quota — registration is gated, and `ByteSize` is stored so a quota is later a `SUM`
+rather than a migration. Over-sized uploads are answered by a resource filter that runs *before*
+model binding, because the framework's own guard surfaces as a generic 400 and clients map 413
+specifically to "image too large".
+
+**Still deferred:** background images, a distinct image note type, reordering attachments, and
+images in the Android widget.
 
 ## Versioning & the meta endpoint
 
@@ -745,7 +814,7 @@ refresh-token rotation with reuse detection, registration gating), the **native 
 the **tag-driven release pipeline**.
 
 **Remaining roadmap** (see README "What's next"):
-- 🖼️ **Image notes & note media** — the media pipeline above; the biggest missing feature.
+- 🖼️ **Background images** — the remaining half of note media; attachments themselves are done.
 - ✉️ **Invite non-users** — pending share invites keyed by email, resolved on signup.
 - 🤖 **Generated Kotlin API client** — replace the hand-mirrored `Dtos.kt` with a client
   generated from the same OpenAPI document.

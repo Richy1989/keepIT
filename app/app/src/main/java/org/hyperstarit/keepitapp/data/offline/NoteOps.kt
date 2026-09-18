@@ -51,7 +51,21 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
     }
 
     is PendingOp.Delete -> notes.filter { it.id != op.noteId }
+
+    // Attaching can't be represented on a NoteDto: there is no server id, width or height yet, and
+    // inventing a client-only field on the DTO is exactly the drift the hand-sync rule forbids.
+    // Pending attachments are projected separately by [pendingMedia] and rendered from their staged
+    // file instead.
+    is PendingOp.AttachMedia -> notes
+
+    is PendingOp.DeleteMedia -> notes.map { n ->
+        if (n.id != op.noteId) n else n.copy(media = n.media.filterNot { it.id == op.mediaId })
+    }
 }
+
+/** The still-queued attachments for one note, in the order they were picked. */
+fun pendingMedia(ops: List<PendingOp>, noteId: String): List<PendingOp.AttachMedia> =
+    ops.filterIsInstance<PendingOp.AttachMedia>().filter { it.noteId == noteId }
 
 /**
  * Overlays every still-queued op onto a fresh server fetch, so notes created/edited offline don't

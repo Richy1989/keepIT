@@ -32,6 +32,11 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.16.4" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <!-- Pinned to the 3.1 line deliberately: 4.x requires a Six Labors licence key at build time
+         (it fails the build target and downgrades to a warning), while 3.1 stays under the Split
+         License that covers open-source/personal use. 3.1.12 is the last of that line, so it has
+         its security patches. Moving to 4.x is a licensing decision, not a version bump. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="SourceGear.sqlite3" Version="3.50.4.5" />
     <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.3" />
   </ItemGroup>

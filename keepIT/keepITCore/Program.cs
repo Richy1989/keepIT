@@ -21,6 +21,7 @@ builder.AddSerilogLogging();
 // ---- Options ----
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<RefreshCookieOptions>(builder.Configuration.GetSection(RefreshCookieOptions.SectionName));
+builder.Services.Configure<MediaOptions>(builder.Configuration.GetSection(MediaOptions.SectionName));
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? 
     throw new InvalidOperationException("JWT: jwt options could not cteated. Config mighe be missing.");
@@ -113,6 +114,12 @@ builder.Services.AddOpenApi(options =>
 //Adding a service which helps in creating images
 builder.Services.AddScoped<ImageService>();
 
+// Note image attachments: bytes on disk behind a port, so S3/MinIO can replace it without
+// touching a caller. Stateless, so a singleton.
+builder.Services.AddSingleton<IMediaStorage, DiskMediaStorage>();
+// Validates uploads, strips EXIF (phone photos carry GPS) and builds the grid thumbnail.
+builder.Services.AddScoped<NoteMediaProcessor>();
+
 //Add the SignalR Service
 builder.Services.AddSignalR();
 // Route Clients.User(...) by the JWT "sub" claim (our tokens don't emit NameIdentifier).
@@ -121,17 +128,27 @@ builder.Services.AddSingleton<IUserIdProvider, SubUserIdProvider>();
 builder.Services.AddSingleton<IRealtimeNotifier, RealtimeNotifier>();
 // Fires due note reminders (creates the notification + realtime push).
 builder.Services.AddHostedService<keepITCore.Notes.ReminderDispatcherService>();
+// Daily safety net: removes media folders whose note is gone (bytes are written before the row).
+builder.Services.AddHostedService<keepITCore.Notes.MediaOrphanSweepService>();
 
 var app = builder.Build();
 
-// ---- Database init: Postgres uses migrations; SQLite dev DB is created from the model ----
+// ---- Database init: Postgres uses migrations; SQLite is created from the model ----
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     if (db.Database.IsNpgsql())
+    {
         db.Database.Migrate();
+    }
     else
+    {
+        // EnsureCreated builds the schema for a *new* file and does nothing at all to an existing
+        // one, so an instance created before a schema change never gains the new tables and the
+        // first query touching one fails with "no such table". Reconcile picks up that slack.
         db.Database.EnsureCreated();
+        SqliteSchemaReconciler.Reconcile(db, app.Logger);
+    }
 }
 
 app.Logger.LogInformation(

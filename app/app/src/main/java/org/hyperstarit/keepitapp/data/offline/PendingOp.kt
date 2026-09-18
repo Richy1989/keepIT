@@ -34,6 +34,8 @@ sealed class PendingOp {
             is SetReminder -> noteId
             is ClearReminder -> noteId
             is Delete -> noteId
+            is AttachMedia -> noteId
+            is DeleteMedia -> noteId
         }
 
     @Serializable
@@ -93,6 +95,34 @@ sealed class PendingOp {
     @SerialName("delete")
     data class Delete(
         val noteId: String,
+        override val opId: String = newOpId(),
+        override val enqueuedAtUtc: String = "",
+    ) : PendingOp()
+
+    /**
+     * Attaches an image to a note. Unlike every other op this one references a *file*:
+     * [stagedPath] points at an app-private copy made when the user picked the image.
+     *
+     * A `content://` grant is revocable and dies on reboot, while this op routinely outlives both —
+     * so the bytes must be ours before the op is queued. The staged file is deleted once the upload
+     * lands or fails for good (see [SyncEngine]).
+     */
+    @Serializable
+    @SerialName("attachMedia")
+    data class AttachMedia(
+        val noteId: String,
+        val stagedPath: String,
+        val tempMediaId: String,
+        override val opId: String = newOpId(),
+        override val enqueuedAtUtc: String = "",
+    ) : PendingOp()
+
+    /** Removes an image from a note. */
+    @Serializable
+    @SerialName("deleteMedia")
+    data class DeleteMedia(
+        val noteId: String,
+        val mediaId: String,
         override val opId: String = newOpId(),
         override val enqueuedAtUtc: String = "",
     ) : PendingOp()

@@ -2,7 +2,8 @@
 
 A notes app: a React web frontend and a native Android client over a shared ASP.NET Core REST API,
 with real-time sync across a user's devices. Notes can be **shared between users** (owner + Viewer/Editor
-grants), and support checklists, colors, pins/archive/trash, per-user lists, reminders, and search.
+grants), and support checklists, **image attachments**, colors, pins/archive/trash, per-user lists,
+reminders, and search.
 **Read `ARCHITECTURE.md` before any structural work** — it holds the design and the reasoning; this
 file is only the always-on rules.
 
@@ -89,7 +90,8 @@ keepIT/
 ├─ keepIT/keepITCore/       # ASP.NET Core Web API (.NET 10)
 │  ├─ Auth/                 # Identity + JWT + refresh cookie
 │  ├─ Data/                 # EF Core entities, AppDbContext, migrations
-│  ├─ Notes/                # NotesController + NoteSharesController + NoteAccessService + DTOs
+│  ├─ Notes/                # NotesController + NoteSharesController + NoteMediaController + NoteAccessService + DTOs
+│  ├─ Service/              # ImageService, IMediaStorage/DiskMediaStorage, NoteMediaProcessor
 │  ├─ Lists/ Settings/      # one controller + DTOs per resource
 │  ├─ Notifications/        # UserNotificationController + DTOs (per-user inbox, TPH)
 │  ├─ SignalR/              # RealTimeHub, IRealtimeNotifier, SubUserIdProvider
@@ -120,7 +122,7 @@ keepIT/
 
 - Windows host; **PowerShell** is the primary shell. Repo line endings are **LF** (`.gitattributes`).
 - No test projects for backend or web yet. The **Android app is tested in three layers** — see the Testing section below.
-- **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration. The **SQLite dev DB uses `EnsureCreated`, not migrations** — it won't alter an existing file, so delete `App_Data/keepit.db` to rebuild the schema locally. `App_Data/` is user data (gitignored) — never commit it.
+- **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration. The **SQLite DB uses `EnsureCreated`, not migrations** — which does nothing to an existing file, so `Infrastructure/SqliteSchemaReconciler.cs` adds the tables, columns and indexes an older file is missing at startup (see ARCHITECTURE.md). Entity changes therefore land on an existing `App_Data/keepit.db` without deleting it. `App_Data/` is user data (gitignored) — never commit it.
 
 ## Common commands
 

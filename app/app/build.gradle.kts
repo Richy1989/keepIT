@@ -133,6 +133,15 @@ dependencies {
     // Home-screen widget (Glance).
     implementation(libs.androidx.glance.appwidget)
 
+    // WorkManager: Glance already runs the widget composition in a worker, and WidgetSyncWorker
+    // keeps the widget current while the app is closed. The -ktx artifact is the one carrying
+    // CoroutineWorker.
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Note images. Coil only decodes and caches in memory — MediaCache already did the
+    // authenticated fetch and hands it a File, so there is no custom fetcher to keep alive.
+    implementation(libs.coil.compose)
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -168,6 +177,10 @@ val reflectivelyConstructed = mapOf(
         "Room-generated and only ever built by Room.databaseBuilder - WorkManager's startup initializer crashes the app on cold start without it",
     "org.hyperstarit.keepitapp.widget.RefreshAction" to
         "our Glance ActionCallback, resolved by Class.forName from the PendingIntent when the user taps refresh",
+    "org.hyperstarit.keepitapp.widget.WidgetSyncWorker" to
+        "our periodic widget refresh - WorkManager reads the class name back out of its own database, so stripping this stops the widget updating in the background with nothing logged",
+    "androidx.core.content.FileProvider" to
+        "named in AndroidManifest and instantiated by the framework from that string - losing its constructor breaks camera capture in release builds only, with no build-time or logged failure",
 )
 
 val verifyReleaseKeepRules = tasks.register("verifyReleaseKeepRules") {

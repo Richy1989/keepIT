@@ -9,9 +9,12 @@ App_Data/
 *.db-shm
 *.db-wal
 
-# User-uploaded media (image notes + background images). Never commit user data.
-media/
-**/media/
+# User-uploaded media (note images) lives inside the data folder above —
+# App_Data/users/<userId>/notes/<noteId>/ — so it is already ignored by those rules.
+# This guard is anchored to the repo root on purpose: a global `**/media/` also swallowed
+# *source* directories named media/ (e.g. web/src/features/notes/media/), which silently
+# dropped an entire feature folder from commits.
+/media/
 
 # ---- .NET / ASP.NET Core ----
 bin/
@@ -71,3 +74,6 @@ docker-compose.override.yml
 # ---- Local-only docs ----
 # Release runbook kept out of the public repo (has infra/signing specifics).
 RELEASING.md
+
+# Superpowers brainstorming companion (local mockups)
+.superpowers/

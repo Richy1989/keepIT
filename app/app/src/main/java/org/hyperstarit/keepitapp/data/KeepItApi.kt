@@ -1,13 +1,18 @@
 package org.hyperstarit.keepitapp.data
 
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 /**
  * The keepIT REST endpoints used by the app (v1 scope: auth + notes + lists). Auth-free routes and
@@ -81,6 +86,36 @@ interface KeepItApi {
     /** Clears the caller's reminder (idempotent — 200 even if none was set). */
     @DELETE("api/notes/{id}/reminder")
     suspend fun clearReminder(@Path("id") id: String): NoteDto
+
+    // ---- note media ----
+
+    /** Attaches one image to a note. One file per request, so each carries its own failure. */
+    @Multipart
+    @POST("api/notes/{noteId}/media")
+    suspend fun uploadNoteMedia(
+        @Path("noteId") noteId: String,
+        @Part file: MultipartBody.Part,
+    ): NoteMediaDto
+
+    /**
+     * Streams one image; [size] is "thumb" or "full". Returned as a raw body so
+     * [org.hyperstarit.keepitapp.data.offline.MediaCache] can write it straight to disk rather than
+     * hold it in memory.
+     */
+    @Streaming
+    @GET("api/notes/{noteId}/media/{mediaId}")
+    suspend fun downloadNoteMedia(
+        @Path("noteId") noteId: String,
+        @Path("mediaId") mediaId: String,
+        @Query("size") size: String,
+    ): ResponseBody
+
+    /** Removes one image from a note. */
+    @DELETE("api/notes/{noteId}/media/{mediaId}")
+    suspend fun deleteNoteMedia(
+        @Path("noteId") noteId: String,
+        @Path("mediaId") mediaId: String,
+    )
 
     // ---- note shares ----
 

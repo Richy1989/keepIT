@@ -341,6 +341,47 @@ namespace keepITCore.Data.Migrations
                     b.ToTable("NoteLists");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteMedia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ThumbFileName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NoteId");
+
+                    b.ToTable("NoteMedia");
+                });
+
             modelBuilder.Entity("keepITCore.Data.NoteReminder", b =>
                 {
                     b.Property<Guid>("NoteId")
@@ -682,6 +723,17 @@ namespace keepITCore.Data.Migrations
                     b.Navigation("Note");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteMedia", b =>
+                {
+                    b.HasOne("keepITCore.Data.Note", "Note")
+                        .WithMany("Media")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Note");
+                });
+
             modelBuilder.Entity("keepITCore.Data.NoteReminder", b =>
                 {
                     b.HasOne("keepITCore.Data.Note", "Note")
@@ -781,6 +833,8 @@ namespace keepITCore.Data.Migrations
             modelBuilder.Entity("keepITCore.Data.Note", b =>
                 {
                     b.Navigation("ChecklistItems");
+
+                    b.Navigation("Media");
 
                     b.Navigation("NoteLists");
 

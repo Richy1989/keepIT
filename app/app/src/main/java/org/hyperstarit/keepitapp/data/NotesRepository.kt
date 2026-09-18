@@ -1,19 +1,25 @@
 package org.hyperstarit.keepitapp.data
 
 import android.content.Context
+import android.net.Uri
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -21,16 +27,20 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.hyperstarit.keepitapp.data.offline.CacheSnapshot
 import org.hyperstarit.keepitapp.data.offline.LocalStore
+import org.hyperstarit.keepitapp.data.offline.MediaCache
+import org.hyperstarit.keepitapp.data.offline.MediaStaging
 import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.data.offline.activeListCounts
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
+import org.hyperstarit.keepitapp.data.offline.pendingMedia
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import org.hyperstarit.keepitapp.widget.KeepItWidget
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /** Which slice of notes the grid shows — mirrors the web's `NotesView`. */
@@ -70,6 +80,7 @@ class NotesRepository(
     private val store: LocalStore,
     private val outbox: Outbox,
     private val scope: CoroutineScope,
+    private val staging: MediaStaging,
 ) : SyncEngine.CacheUpdater {
 
     private val widgetPrefs = appContext.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
@@ -92,6 +103,14 @@ class NotesRepository(
     /** Wired by the app container after construction (repo and engine reference each other). */
     var syncEngine: SyncEngine? = null
 
+    /**
+     * Downloaded note images. Keyed by the media id, which is immutable, so nothing here ever needs
+     * invalidating — only capping.
+     */
+    val mediaCache = MediaCache(java.io.File(appContext.filesDir, "offline/media")) { noteId, mediaId, size ->
+        client.api.downloadNoteMedia(noteId, mediaId, size)
+    }
+
     val notes: StateFlow<List<NoteDto>> =
         combine(cache, filter) { all, f -> visibleNotes(all, f) }
             .stateIn(scope, SharingStarted.Eagerly, emptyList())
@@ -105,13 +124,28 @@ class NotesRepository(
 
     val loading = MutableStateFlow(false)
 
-    /** Restores cache + outbox from disk. Call once at startup, before the session resolves. */
+    private val diskLoad = Mutex()
+    private var loadedFromDisk = false
+
+    /**
+     * Restores cache + outbox from disk, before the session resolves.
+     *
+     * Idempotent, and deliberately so: `AppRoot` calls it when the UI composes, but a widget tap
+     * can start this process without any UI at all, and the widget's refresh has to be able to load
+     * the cache itself rather than sync against an empty outbox. The mutex makes the two callers
+     * safe to race — the second one waits and then finds the work already done.
+     */
     suspend fun loadFromDisk() {
-        outbox.load()
-        val snapshot = store.loadCache() ?: return
-        cacheUserId = snapshot.userId
-        cache.value = snapshot.notes
-        cachedLists.value = snapshot.lists
+        diskLoad.withLock {
+            if (loadedFromDisk) return@withLock
+            outbox.load()
+            store.loadCache()?.let { snapshot ->
+                cacheUserId = snapshot.userId
+                cache.value = snapshot.notes
+                cachedLists.value = snapshot.lists
+            }
+            loadedFromDisk = true
+        }
     }
 
     /**
@@ -124,6 +158,7 @@ class NotesRepository(
             cachedLists.value = emptyList()
             idAliases.clear()
             outbox.clear()
+            mediaCache.clear()
         }
         cacheUserId = userId
         persistCache()
@@ -137,6 +172,9 @@ class NotesRepository(
         idAliases.clear()
         outbox.clear()
         store.clear()
+        // Downloaded images are as personal as the notes they hang off — the next account to sign
+        // in on this device must not find them sitting in the cache.
+        mediaCache.clear()
     }
 
     /** Full sync: replay queued changes, then refetch everything. No-op offline (cache stands). */
@@ -186,6 +224,42 @@ class NotesRepository(
     suspend fun delete(id: String) =
         mutate(PendingOp.Delete(resolve(id), enqueuedAtUtc = nowUtc()))
 
+    // ---- note media ----
+
+    /**
+     * Attaches an image to a note. The bytes are staged locally *first*, so the attachment survives
+     * the picker's revocable grant, a reboot, and an arbitrarily long offline stretch.
+     *
+     * @return false when the picked content could not be read at all.
+     */
+    suspend fun attachMedia(context: Context, noteId: String, uri: Uri): Boolean {
+        val tempMediaId = UUID.randomUUID().toString()
+        val staged = staging.stage(context, uri, tempMediaId) ?: return false
+        mutate(
+            PendingOp.AttachMedia(
+                noteId = resolve(noteId),
+                stagedPath = staged.absolutePath,
+                tempMediaId = tempMediaId,
+                enqueuedAtUtc = nowUtc(),
+            ),
+        )
+        return true
+    }
+
+    /** Removes an image from a note. */
+    suspend fun removeMedia(noteId: String, mediaId: String) =
+        mutate(PendingOp.DeleteMedia(resolve(noteId), mediaId, enqueuedAtUtc = nowUtc()))
+
+    /**
+     * The attachments still queued for a note, so the editor can show a picked image immediately.
+     *
+     * Projected from the outbox rather than stored on [NoteDto], which must stay an exact mirror of
+     * the server DTO — a client-only "pending" field there is precisely the drift the hand-sync
+     * rule forbids.
+     */
+    fun pendingMediaFor(noteId: String): Flow<List<PendingOp.AttachMedia>> =
+        outbox.pendingOps.map { ops -> pendingMedia(ops, resolve(noteId)) }
+
     // ---- lists CRUD: online-only (like the web), applied to the cache on success ----
 
     /** Creates a list. Online-only — offline callers get a failed [Result] to surface. */
@@ -215,7 +289,10 @@ class NotesRepository(
     private suspend fun mutate(op: PendingOp) {
         // Intent lands on disk before the cache: after a crash the worst case is a re-sent op
         // (replay is idempotent), never a change that looks saved but was lost.
-        outbox.enqueue(op)
+        val dropped = outbox.enqueue(op)
+        // Coalescing can discard a queued attachment (deleting the note annihilates its ops); the
+        // staged bytes are ours, so they go with it rather than sitting in staging forever.
+        dropped.filterIsInstance<PendingOp.AttachMedia>().forEach { staging.delete(it.stagedPath) }
         cache.update { applyOp(it, op) }
         persistCache()
         syncEngine?.kick()
@@ -230,6 +307,43 @@ class NotesRepository(
         cache.value = applyPending(notes, stillPending)
         cachedLists.value = lists
         persistCache()
+        prefetch()
+    }
+
+    private var prefetchJob: Job? = null
+
+    /**
+     * Starts a thumbnail warm-up alongside the sync instead of inside it.
+     *
+     * Awaiting it here used to make every `sync()` last as long as [MAX_PREFETCH] downloads, which
+     * the widget's refresh feels most: its [SyncEngine.sync] runs inside a broadcast's async window,
+     * and that window is measured in seconds. Notes are on screen the moment [persistCache] has run,
+     * so the images can keep arriving afterwards. Cancel-and-replace because two overlapping passes
+     * would also mean two evictions.
+     */
+    private fun prefetch() {
+        prefetchJob?.cancel()
+        prefetchJob = scope.launch { prefetchThumbnails(cache.value) }
+    }
+
+    /**
+     * Warms the thumbnail cache for the notes in the grid, then trims it.
+     *
+     * Without this the grid works offline for everything *except* images, which is exactly the
+     * moment a photo note is least useful. Best-effort and bounded: a failure here must never
+     * surface as a sync error, and only thumbnails are warmed — full-size images are fetched on
+     * demand when a note is opened.
+     */
+    private suspend fun prefetchThumbnails(notes: List<NoteDto>) {
+        notes.asSequence()
+            .filter { !it.isTrashed }
+            .flatMap { note -> note.media.asSequence().map { note.id to it.id } }
+            .take(MAX_PREFETCH)
+            .forEach { (noteId, mediaId) ->
+                runCatching { mediaCache.file(noteId, mediaId, "thumb") }
+            }
+
+        mediaCache.evict(MAX_MEDIA_CACHE_BYTES)
     }
 
     override suspend fun onIdRemapped(tempId: String, realId: String) {
@@ -242,7 +356,7 @@ class NotesRepository(
 
     private suspend fun persistCache() {
         store.saveCache(CacheSnapshot(cacheUserId, cache.value, cachedLists.value))
-        updateWidget(visibleNotes(cache.value, NotesFilter()))
+        updateWidget()
     }
 
     /**
@@ -274,9 +388,33 @@ class NotesRepository(
     }
 
     /** Writes the top notes to the widget's local cache and asks Glance to re-render. */
-    private fun updateWidget(notes: List<NoteDto>) {
-        widgetPrefs.edit().putString(WIDGET_KEY, encodeWidgetSnapshot(widgetNotesFrom(notes))).apply()
+    private fun updateWidget() {
+        writeWidgetSnapshot()
         widgetRenderRequests.update { it + 1 }
+    }
+
+    private fun writeWidgetSnapshot() {
+        val notes = visibleNotes(cache.value, NotesFilter())
+        widgetPrefs.edit().putString(WIDGET_KEY, encodeWidgetSnapshot(widgetNotesFrom(notes))).apply()
+    }
+
+    /**
+     * Writes the widget snapshot and renders it **now**, skipping the burst debounce.
+     *
+     * The debounced path above is built for the app: many cache writes, one render once they settle.
+     * A widget tap is the opposite — a single deliberate request whose result has to be on screen
+     * before the process is allowed to die, and after the refresh callback returns this process is a
+     * cached one that Android may kill long before a delayed render would have run.
+     */
+    suspend fun renderWidgetNow() {
+        // Only rewrite the snapshot when there is a cache behind it. A process that started purely
+        // to serve this tap and found nothing on disk must re-render what the widget already had,
+        // not blank it. An account that genuinely has no notes still empties it the normal way,
+        // through the [onFetched] -> [persistCache] path.
+        if (cache.value.isNotEmpty()) writeWidgetSnapshot()
+        withContext(NonCancellable) {
+            runCatching { KeepItWidget().updateAll(appContext) }
+        }
     }
 
     companion object {
@@ -329,6 +467,12 @@ class NotesRepository(
                 WidgetJson.decodeFromString<List<WidgetNote>>(raw)
             }.getOrDefault(emptyList())
         }
+
+        /** Upper bound on thumbnails warmed after a sync — bounded work, not the whole library. */
+        private const val MAX_PREFETCH = 200
+
+        /** Cache ceiling for downloaded images; oldest are evicted past this. */
+        private const val MAX_MEDIA_CACHE_BYTES = 256L * 1024 * 1024
 
         /** Read side for the Glance widget (sync, no network, works while signed out). */
         fun readWidgetNotes(context: Context): List<WidgetNote> = decodeWidgetSnapshot(
