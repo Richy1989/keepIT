@@ -9,6 +9,7 @@ your data stays entirely under your control.
 Features:
 
 * Plain notes and checklists, with an in-line Markdown editor
+* Image attachments from the camera or your gallery, even while offline
 * Colors, pins, archive and trash to keep things organized
 * Per-user lists to group notes your own way
 * Reminders that fire natively via AlarmManager, even offline or with the app
@@ -20,7 +21,8 @@ Features:
 * Offline-first: everything works without a connection: your edits are cached
   locally and a mutation outbox replays them automatically when you are back
   online
-* Home-screen widget to jump straight into composing, a note, or your inbox
+* Home-screen widget to jump straight into composing, a note, or your inbox;
+  it keeps itself up to date in the background
 * Share text in from other apps to start a new note pre-filled
 
 keepIT stores no analytics, contains no ads and no tracking. The refresh token

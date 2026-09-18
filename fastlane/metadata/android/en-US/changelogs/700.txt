@@ -1,0 +1,5 @@
+Image attachments: add photos to a note from the camera or your gallery, and see them on note cards and in the editor. Works offline too; images upload once you are back online. Needs keepIT server 0.7.0 or newer.
+
+The home-screen widget now stays up to date while the app is closed, and its refresh button works without opening the app.
+
+New Reminders view in the notes list.
