@@ -150,7 +150,7 @@ public class NoteMediaController : ControllerBase
     /// <summary>Streams one image. Any read access to the note is enough.</summary>
     /// <param name="noteId">The note.</param>
     /// <param name="mediaId">The media item.</param>
-    /// <param name="size">"thumb" for the grid thumbnail; anything else serves the original.</param>
+    /// <param name="size">"thumb" for small tiles, "preview" for note cards (at most 1280 px); anything else serves the original.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>200 with the bytes, or 404 when it is missing or the caller has no access.</returns>
     [HttpGet("{mediaId:guid}")]
@@ -168,9 +168,23 @@ public class NoteMediaController : ControllerBase
 
         var ownerId = await _db.Notes.Where(n => n.Id == noteId).Select(n => n.OwnerId).FirstAsync(ct);
         var wantThumb = string.Equals(size, "thumb", StringComparison.OrdinalIgnoreCase);
-        var fileName = wantThumb ? media.ThumbFileName : media.FileName;
+        var wantPreview = string.Equals(size, "preview", StringComparison.OrdinalIgnoreCase);
 
-        var stream = _storage.OpenRead(ownerId, noteId, fileName);
+        string fileName;
+        Stream? stream;
+        if (wantPreview && HasOwnPreview(media))
+        {
+            fileName = PreviewFileName(media);
+            stream = _storage.OpenRead(ownerId, noteId, fileName)
+                ?? await CreatePreviewAsync(ownerId, noteId, media, fileName, ct);
+        }
+        else
+        {
+            // A preview request for an image that needs none falls through to the original.
+            fileName = wantThumb ? media.ThumbFileName : media.FileName;
+            stream = _storage.OpenRead(ownerId, noteId, fileName);
+        }
+
         if (stream is null) return NotFound();
 
         // A media id's bytes never change, so this cache directive is honest.
@@ -207,12 +221,55 @@ public class NoteMediaController : ControllerBase
 
         _storage.Delete(ownerId, noteId, fileName);
         _storage.Delete(ownerId, noteId, thumbName);
+        // Only exists once someone has viewed the image in a card; Delete tolerates a missing file.
+        _storage.Delete(ownerId, noteId, PreviewFileName(media));
 
         await NotifyRecipientsAsync(noteId);
         return NoContent();
     }
 
     // ---- helpers ----
+
+    /// <summary>
+    /// The preview's file name. Derived from the media id instead of stored on the row, so every
+    /// image ever uploaded has one waiting to be generated — no migration, no backfill.
+    /// </summary>
+    private static string PreviewFileName(NoteMedia media) => $"{media.Id:N}_preview.jpg";
+
+    /// <summary>
+    /// Whether the image gets a preview of its own. An original already within the preview size is
+    /// its own preview, and a GIF is served as stored so an animation keeps its frames.
+    /// </summary>
+    private static bool HasOwnPreview(NoteMedia media) =>
+        !media.FileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)
+        && Math.Max(media.Width, media.Height) > NoteMediaProcessor.PreviewEdge;
+
+    /// <summary>
+    /// Makes a preview from the stored original on first request and keeps it, so each image pays
+    /// for it once. Generated on demand rather than at upload so images uploaded before previews
+    /// existed get one too.
+    /// </summary>
+    /// <returns>The preview, or null when the original itself is missing.</returns>
+    private async Task<Stream?> CreatePreviewAsync(
+        Guid ownerId, Guid noteId, NoteMedia media, string previewName, CancellationToken ct)
+    {
+        await using var original = _storage.OpenRead(ownerId, noteId, media.FileName);
+        if (original is null) return null;
+
+        var preview = await _processor.CreatePreviewAsync(original, ct);
+        try
+        {
+            await _storage.SaveAsync(ownerId, noteId, previewName, preview, ct);
+        }
+        catch (IOException)
+        {
+            // A concurrent request for the same preview got there first (Windows won't replace a
+            // file another reader holds open). Its bytes are identical, and these are still good.
+        }
+
+        preview.Position = 0;
+        return preview;
+    }
 
     /// <summary>Tells the owner and every collaborator that this note's content changed.</summary>
     /// <param name="noteId">The note whose recipients to reach.</param>

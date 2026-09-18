@@ -14,9 +14,28 @@ public class DiskMediaStorage : IMediaStorage
         var dir = FolderManagement.GetNoteMediaFolder(ownerId.ToString(), noteId.ToString());
         var path = Path.Combine(dir, fileName);
 
-        await using var file = File.Create(path);
-        await content.CopyToAsync(file, ct);
-        return file.Length;
+        // Written aside and moved into place, so a reader can never open a half-written file. That
+        // matters since previews are generated on first request: a second client asking for the
+        // same one mid-write would otherwise get truncated bytes — and cache them for good.
+        var tmp = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            long length;
+            await using (var file = File.Create(tmp))
+            {
+                await content.CopyToAsync(file, ct);
+                length = file.Length;
+            }
+
+            File.Move(tmp, path, overwrite: true);
+            return length;
+        }
+        catch
+        {
+            try { File.Delete(tmp); }
+            catch (IOException) { /* best-effort; the note's folder goes with the note */ }
+            throw;
+        }
     }
 
     /// <inheritdoc />

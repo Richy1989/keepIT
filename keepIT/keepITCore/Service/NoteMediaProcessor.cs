@@ -48,6 +48,36 @@ public class NoteMediaProcessor
     private const int ThumbnailEdge = 400;
     private const int JpegQuality = 88;
 
+    /// <summary>Longest edge of the card-sized rendition built by <see cref="CreatePreviewAsync"/>.</summary>
+    public const int PreviewEdge = 1280;
+
+    /// <summary>
+    /// Builds the card-sized rendition of a stored original. The thumbnail suits the editor's small
+    /// tiles, but a note card shows its photo at close to screen width — some 1,000–1,400 px on a
+    /// phone — where 400 px is visibly soft and the 2,560 px original is several times the bytes
+    /// the card needs. Stored originals are already oriented and stripped, so this only resizes.
+    /// </summary>
+    /// <param name="original">A stored original.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The JPEG preview, positioned at its start.</returns>
+    public async Task<MemoryStream> CreatePreviewAsync(Stream original, CancellationToken ct)
+    {
+        using var image = await Image.LoadAsync(original, ct);
+
+        // Never upscale: ResizeMode.Max grows an image smaller than the box.
+        if (image.Width > PreviewEdge || image.Height > PreviewEdge)
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Max,
+                Size = new Size(PreviewEdge, PreviewEdge),
+            }));
+
+        var preview = new MemoryStream();
+        await image.SaveAsJpegAsync(preview, new JpegEncoder { Quality = JpegQuality }, ct);
+        preview.Position = 0;
+        return preview;
+    }
+
     /// <summary>Validates and processes an upload.</summary>
     /// <param name="upload">The uploaded content; must be seekable or already buffered.</param>
     /// <param name="ct">Cancellation token.</param>
