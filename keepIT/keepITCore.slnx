@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="keepITCore/keepITCore.csproj" />
+  <Project Path="keepITCore.Tests/keepITCore.Tests.csproj" />
 </Solution>
