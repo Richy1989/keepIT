@@ -97,6 +97,7 @@ keepIT/
 │  ├─ SignalR/              # RealTimeHub, IRealtimeNotifier, SubUserIdProvider
 │  ├─ Infrastructure/       # OpenAPI, logging, DB provider selection, security/rate limiting
 │  └─ Program.cs
+├─ keepIT/keepITCore.Tests/ # xUnit API tests (WebApplicationFactory); TestHost/ holds the factory + helpers
 ├─ web/src/                 # React app (Vite + TypeScript)
 │  ├─ api/                  # generated schema.d.ts, typed client, shared types
 │  ├─ auth/                 # AuthProvider, AuthContext, in-memory token store
@@ -121,7 +122,8 @@ keepIT/
 ## Environment
 
 - Windows host; **PowerShell** is the primary shell. Repo line endings are **LF** (`.gitattributes`).
-- No test projects for backend or web yet. The **Android app is tested in three layers** — see the Testing section below.
+- **API tests** live in `keepIT/keepITCore.Tests/` (xUnit): the real API in-process via `WebApplicationFactory`, each host on a throwaway SQLite data root. They cover the SQLite schema reconciler (an older database comes up to date without losing data) and note media end to end. Parallelization is off on purpose — `FolderManagement.RootPath` is process-wide static, so two hosts at once would write each other's media. When you change an entity or a media rule, extend these.
+- **Deployment smoke test:** `deploy/smoke-test.sh <base-url>` signs up, uploads a ~3 MB photo and reads it back **through whatever proxy is in front** — CI runs it against the freshly built single-container image, which is the only check that sees nginx. No web tests yet. The **Android app is tested in three layers** — see the Testing section below.
 - **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration. The **SQLite DB uses `EnsureCreated`, not migrations** — which does nothing to an existing file, so `Infrastructure/SqliteSchemaReconciler.cs` adds the tables, columns and indexes an older file is missing at startup (see ARCHITECTURE.md). Entity changes therefore land on an existing `App_Data/keepit.db` without deleting it. `App_Data/` is user data (gitignored) — never commit it.
 
 ## Common commands
@@ -130,6 +132,8 @@ keepIT/
 dotnet run --project keepIT/keepITCore             # API on http://localhost:5025 (Scalar UI at /scalar/v1 in Development)
 dotnet ef migrations add <Name> --project keepIT/keepITCore
 dotnet ef database update --project keepIT/keepITCore
+dotnet test keepIT/keepITCore.slnx                 # API tests (in-process, throwaway SQLite data roots)
+bash deploy/smoke-test.sh http://localhost:8080    # end to end through the proxy (SMOKE_SKIP_SPA=1 for a bare API)
 cd web && npm run dev                              # Vite on :5173, proxies /api to :5025
 cd web && npm run generate:api                     # regenerate typed client (backend must be running on :5025)
 cd app && ./gradlew.bat :app:compileDebugKotlin    # compile-check the Android app (Windows)

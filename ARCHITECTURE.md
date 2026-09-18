@@ -799,8 +799,14 @@ Store is not (yet) used.
 - **Seed script** — `scripts/seed-dev-data.sh` / `.ps1` creates `test@test.com` /
   `Test1234#1234` with lists and a variety of notes against a locally running API.
 - **`keepITCore.http`** — request collection for manual endpoint poking.
-- **No test projects yet** on the .NET/web side; the Android module has a small JVM unit-test
-  suite around the offline ops (`OfflineOpsTest`).
+- **API tests** (`keepIT/keepITCore.Tests/`, xUnit, run in CI) host the real API in-process on a
+  throwaway SQLite data root per host: the schema reconciler bringing an older database up to date
+  without data loss, and note media end to end (renditions, the lazily built preview, upload
+  limits). They run one host at a time because the data root is a process-wide static.
+- **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
+  photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
+  default body limit once hid.
+- No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
 
 ## Status & roadmap
 
