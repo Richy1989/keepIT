@@ -529,6 +529,21 @@ that runs a one-shot background sync. It renders purely from the local cache, so
 network or auth of its own and shows last-known notes even signed out; when the cache
 changes, every widget re-renders.
 
+Both ways of refreshing it run with **no UI in the process**, which shapes them:
+
+- `RefreshAction` (the header button) and `WidgetSyncWorker` (periodic, 30 min, scheduled by
+  `KeepItWidgetReceiver` while at least one widget is placed) do the same three things:
+  `loadFromDisk`, then sync, then `renderWidgetNow`. The disk load is there because `AppRoot`
+  is what normally restores the cache and outbox, and it never ran; the explicit render is
+  there because the repository's own re-render is debounced onto an app-scoped coroutine, and
+  once the callback returns Android may kill the process before it fires. Rendering explicitly
+  also means a *failed* sync still redraws from cache rather than looking like a dead button.
+- `updatePeriodMillis="0"` in the descriptor, because none of the above is the system's job —
+  the system update would only re-render the same cached snapshot, not fetch anything.
+- `WidgetSyncWorker` is instantiated by WorkManager from a persisted class name, so it belongs
+  to the reflectively-constructed set both `verifyReleaseKeepRules` and `ReleaseBuildSmokeTest`
+  guard. See the testing section.
+
 **Screens** (`ui/`): login/register (with server URL + forgot-password), notes grid
 (staggered, with sync-status strip and pending-changes count), editor (markdown rendering via
 a small custom parser, checklist editing, color, share sheet, reminder dialog),

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
@@ -121,13 +124,28 @@ class NotesRepository(
 
     val loading = MutableStateFlow(false)
 
-    /** Restores cache + outbox from disk. Call once at startup, before the session resolves. */
+    private val diskLoad = Mutex()
+    private var loadedFromDisk = false
+
+    /**
+     * Restores cache + outbox from disk, before the session resolves.
+     *
+     * Idempotent, and deliberately so: `AppRoot` calls it when the UI composes, but a widget tap
+     * can start this process without any UI at all, and the widget's refresh has to be able to load
+     * the cache itself rather than sync against an empty outbox. The mutex makes the two callers
+     * safe to race — the second one waits and then finds the work already done.
+     */
     suspend fun loadFromDisk() {
-        outbox.load()
-        val snapshot = store.loadCache() ?: return
-        cacheUserId = snapshot.userId
-        cache.value = snapshot.notes
-        cachedLists.value = snapshot.lists
+        diskLoad.withLock {
+            if (loadedFromDisk) return@withLock
+            outbox.load()
+            store.loadCache()?.let { snapshot ->
+                cacheUserId = snapshot.userId
+                cache.value = snapshot.notes
+                cachedLists.value = snapshot.lists
+            }
+            loadedFromDisk = true
+        }
     }
 
     /**
@@ -289,7 +307,23 @@ class NotesRepository(
         cache.value = applyPending(notes, stillPending)
         cachedLists.value = lists
         persistCache()
-        prefetchThumbnails(cache.value)
+        prefetch()
+    }
+
+    private var prefetchJob: Job? = null
+
+    /**
+     * Starts a thumbnail warm-up alongside the sync instead of inside it.
+     *
+     * Awaiting it here used to make every `sync()` last as long as [MAX_PREFETCH] downloads, which
+     * the widget's refresh feels most: its [SyncEngine.sync] runs inside a broadcast's async window,
+     * and that window is measured in seconds. Notes are on screen the moment [persistCache] has run,
+     * so the images can keep arriving afterwards. Cancel-and-replace because two overlapping passes
+     * would also mean two evictions.
+     */
+    private fun prefetch() {
+        prefetchJob?.cancel()
+        prefetchJob = scope.launch { prefetchThumbnails(cache.value) }
     }
 
     /**
@@ -322,7 +356,7 @@ class NotesRepository(
 
     private suspend fun persistCache() {
         store.saveCache(CacheSnapshot(cacheUserId, cache.value, cachedLists.value))
-        updateWidget(visibleNotes(cache.value, NotesFilter()))
+        updateWidget()
     }
 
     /**
@@ -354,9 +388,33 @@ class NotesRepository(
     }
 
     /** Writes the top notes to the widget's local cache and asks Glance to re-render. */
-    private fun updateWidget(notes: List<NoteDto>) {
-        widgetPrefs.edit().putString(WIDGET_KEY, encodeWidgetSnapshot(widgetNotesFrom(notes))).apply()
+    private fun updateWidget() {
+        writeWidgetSnapshot()
         widgetRenderRequests.update { it + 1 }
+    }
+
+    private fun writeWidgetSnapshot() {
+        val notes = visibleNotes(cache.value, NotesFilter())
+        widgetPrefs.edit().putString(WIDGET_KEY, encodeWidgetSnapshot(widgetNotesFrom(notes))).apply()
+    }
+
+    /**
+     * Writes the widget snapshot and renders it **now**, skipping the burst debounce.
+     *
+     * The debounced path above is built for the app: many cache writes, one render once they settle.
+     * A widget tap is the opposite — a single deliberate request whose result has to be on screen
+     * before the process is allowed to die, and after the refresh callback returns this process is a
+     * cached one that Android may kill long before a delayed render would have run.
+     */
+    suspend fun renderWidgetNow() {
+        // Only rewrite the snapshot when there is a cache behind it. A process that started purely
+        // to serve this tap and found nothing on disk must re-render what the widget already had,
+        // not blank it. An account that genuinely has no notes still empties it the normal way,
+        // through the [onFetched] -> [persistCache] path.
+        if (cache.value.isNotEmpty()) writeWidgetSnapshot()
+        withContext(NonCancellable) {
+            runCatching { KeepItWidget().updateAll(appContext) }
+        }
     }
 
     companion object {

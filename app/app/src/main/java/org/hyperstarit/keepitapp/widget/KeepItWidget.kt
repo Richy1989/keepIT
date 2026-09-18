@@ -1,5 +1,6 @@
 package org.hyperstarit.keepitapp.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.graphics.Color
@@ -46,6 +47,36 @@ import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 
 class KeepItWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = KeepItWidget()
+
+    /**
+     * Fires when the first widget is placed — the moment the background refresh starts earning its
+     * wakeups.
+     */
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        WidgetSyncWorker.schedule(context)
+    }
+
+    /**
+     * Also re-asserts the schedule here, not just in [onEnabled]. `onEnabled` only runs for the
+     * *first* widget ever placed, so an install that already had one before this existed would
+     * never schedule anything; the system sends APPWIDGET_UPDATE after a package update, which
+     * brings those along. `KEEP` makes the repeat harmless.
+     */
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        WidgetSyncWorker.schedule(context)
+    }
+
+    /** The last widget was removed; stop waking up for something nobody is looking at. */
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        WidgetSyncWorker.cancel(context)
+    }
 }
 
 /**
@@ -64,15 +95,28 @@ class KeepItWidget : GlanceAppWidget() {
 }
 
 /**
- * The header refresh button. Runs a one-shot sync in the background (no activity launch): the sync
- * lands in [NotesRepository]'s cache, which re-renders every widget via `updateAll`. Works even
- * while the app is closed — [org.hyperstarit.keepitapp.data.ApiClient] restores the access token
- * from the persisted refresh cookie; if the session has truly expired the sync is a no-op and the
- * widget keeps its last-known notes.
+ * The header refresh button. Runs a one-shot sync in the background (no activity launch). Works
+ * even while the app is closed — [org.hyperstarit.keepitapp.data.ApiClient] restores the access
+ * token from the persisted refresh cookie; if the session has truly expired the sync is a no-op and
+ * the widget keeps its last-known notes.
+ *
+ * The two steps around the sync are what make the tap actually do something, and both exist because
+ * a widget tap usually runs with **no UI in the process**:
+ *  - `loadFromDisk` because `AppRoot` is what normally restores the cache and outbox, so without it
+ *    a cold process would sync against an empty outbox and have nothing to draw if the sync failed;
+ *  - `renderWidgetNow` because the repository's own re-render is debounced onto an app-scoped
+ *    coroutine, and once this callback returns Android may kill the process long before that runs.
+ *    Rendering here also means a *failed* sync still redraws from cache, rather than the tap looking
+ *    like it did nothing at all.
  */
 class RefreshAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        context.appContainer.syncEngine.sync()
+        val container = context.appContainer
+        container.notesRepo.loadFromDisk()
+        // A sync failure (offline, expired session) is an expected outcome here, not an error: the
+        // widget just re-renders what it already had.
+        runCatching { container.syncEngine.sync() }
+        container.notesRepo.renderWidgetNow()
     }
 }
 

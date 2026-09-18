@@ -5,6 +5,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.work.WorkerParameters
 import org.hyperstarit.keepitapp.MainActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -82,6 +83,30 @@ class ReleaseBuildSmokeTest {
         }
 
         assertTrue("RefreshAction is unreachable by name: ${attempt.exceptionOrNull()}", attempt.isSuccess)
+    }
+
+    /**
+     * The periodic worker that keeps the widget current while the app is closed. WorkManager stores
+     * the class *name* in its own database and instantiates it from there, so a stripped constructor
+     * would stop the background refresh with nothing logged — the same shape as the input-merger bug
+     * above, just further from the eye.
+     *
+     * The constructor is only looked up, not invoked: building real [WorkerParameters] needs
+     * WorkManager's internals, and it is the lookup that R8 breaks.
+     */
+    @Test
+    fun the_widgets_background_sync_worker_keeps_its_constructor() {
+        val attempt = runCatching {
+            Class.forName("org.hyperstarit.keepitapp.widget.WidgetSyncWorker")
+                .getDeclaredConstructor(Context::class.java, WorkerParameters::class.java)
+        }
+
+        assertTrue(
+            "WidgetSyncWorker lost its (Context, WorkerParameters) constructor, so WorkManager " +
+                "cannot build it and the widget stops refreshing in the background. " +
+                "Cause: ${attempt.exceptionOrNull()}",
+            attempt.isSuccess,
+        )
     }
 }
 
