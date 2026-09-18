@@ -252,6 +252,19 @@ class NotesRepository(
         mutate(PendingOp.DeleteMedia(resolve(noteId), mediaId, enqueuedAtUtc = nowUtc()))
 
     /**
+     * Saves an image, at full size, to the device's gallery. Usually instant: the viewer has already
+     * pulled the full rendition into [mediaCache] to show it.
+     */
+    suspend fun saveMediaToGallery(noteId: String, mediaId: String): SaveImageResult {
+        val file = mediaCache.file(resolve(noteId), mediaId, "full") ?: return SaveImageResult.UNAVAILABLE
+        return if (GallerySaver.save(appContext, file, "keepIT_${mediaId.take(8)}")) {
+            SaveImageResult.SAVED
+        } else {
+            SaveImageResult.FAILED
+        }
+    }
+
+    /**
      * The attachments still queued for a note, so the editor can show a picked image immediately.
      *
      * Projected from the outbox rather than stored on [NoteDto], which must stay an exact mirror of

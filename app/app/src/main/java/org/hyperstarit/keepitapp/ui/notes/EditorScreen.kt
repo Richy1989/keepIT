@@ -645,6 +645,7 @@ fun EditorScreen(
                         media = n.media,
                         startIndex = index,
                         onClose = { viewerIndex = null },
+                        onSave = { mediaId -> repo.saveMediaToGallery(n.id, mediaId) },
                     )
                 }
             }
