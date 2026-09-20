@@ -14,9 +14,9 @@
 </div>
 
 <div align="center">
-  <img src="images/web-01-notes-photos.png" alt="keepIT web app — masonry grid of notes, checklists and photos in the dark UI" height="490">
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="images/android-10-notes.png" alt="keepIT Android app — notes and checklists on a phone" height="490">
+  <img src="images/web-01-notes-photos.png" alt="keepIT web app — masonry grid of notes, checklists and photos in the dark UI" width="72%">
+  &nbsp;
+  <img src="images/android-12-search.png" alt="keepIT Android app — a note with photos on a phone" width="20%">
 </div>
 
 Notes, checklists, lists, reminders and sharing — in a fast web app and a native Android client,
