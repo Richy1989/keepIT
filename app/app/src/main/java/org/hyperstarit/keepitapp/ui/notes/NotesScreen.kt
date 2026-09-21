@@ -139,7 +139,9 @@ fun NotesScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = KeepItColors.Surface) {
+            // Given the drawer state, the sheet handles Back itself: an open drawer closes (following
+            // a predictive back gesture) instead of Back falling through and finishing the activity.
+            ModalDrawerSheet(drawerState = drawerState, drawerContainerColor = KeepItColors.Surface) {
                 Text(
                     text = "keepIT",
                     color = KeepItColors.Accent,
