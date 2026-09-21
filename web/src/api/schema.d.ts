@@ -68,6 +68,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/email-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["EmailStatusDto"];
+                        "application/json": components["schemas"]["EmailStatusDto"];
+                        "text/json": components["schemas"]["EmailStatusDto"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/test-email": {
         parameters: {
             query?: never;
@@ -1384,6 +1421,12 @@ export interface components {
         CreateShareDto: {
             email: string;
             role: components["schemas"]["NoteRole"];
+        };
+        EmailStatusDto: {
+            smtpConfigured: boolean;
+            publicBaseUrl?: null | string;
+            resetEmailsDisabled: boolean;
+            unencryptedAllowed: boolean;
         };
         ForgotPasswordRequestDto: {
             email: string;

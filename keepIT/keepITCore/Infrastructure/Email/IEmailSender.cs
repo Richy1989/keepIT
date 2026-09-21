@@ -9,6 +9,14 @@ namespace keepITCore.Infrastructure.Email;
 /// </summary>
 public interface IEmailSender
 {
+    /// <summary>
+    /// True when a message actually reaches the recipient's inbox (SMTP); false when it only lands
+    /// in the server log, which the operator reads. Decides where a link in the message may come
+    /// from: one headed for a user's inbox must be built from <c>App:PublicBaseUrl</c>, never from
+    /// the request (see <see cref="keepITCore.Infrastructure.PublicBaseUrl"/>).
+    /// </summary>
+    bool DeliversToRecipient { get; }
+
     /// <summary>Sends a plain-text email.</summary>
     /// <param name="toEmail">Recipient address.</param>
     /// <param name="subject">Subject line.</param>

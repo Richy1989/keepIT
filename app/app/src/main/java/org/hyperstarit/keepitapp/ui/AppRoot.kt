@@ -47,11 +47,9 @@ sealed interface Destination {
 fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destination?>) {
     val sessionState by container.session.state.collectAsState()
 
-    // Local cache + outbox come off disk first, so an offline restore lands on real content.
-    LaunchedEffect(Unit) {
-        container.notesRepo.loadFromDisk()
-        container.session.restore()
-    }
+    // Local cache + outbox come off disk first, so an offline restore lands on real content. The
+    // work itself is app-scoped — this composition may not outlive it (see AppContainer.bootstrap).
+    LaunchedEffect(Unit) { container.bootstrap() }
 
     LaunchedEffect(sessionState) {
         when (val s = sessionState) {

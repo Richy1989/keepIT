@@ -1,10 +1,11 @@
 package org.hyperstarit.keepitapp.data
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import java.io.IOException
 
 /** The app's sign-in state. `Loading` only during the initial cookie-restore on launch. */
 sealed interface SessionState {
@@ -47,7 +48,15 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      */
     var onLeavingStandalone: (suspend () -> Unit)? = null
 
-    /** Bootstrap: a persisted refresh cookie silently restores the session (survives restarts). */
+    /**
+     * Bootstrap: a persisted refresh cookie silently restores the session (survives restarts).
+     *
+     * Runs from the composition, so an activity recreation — a rotation, the system switching to
+     * dark mode, the app being backgrounded — can cancel it mid-call. That cancellation is left to
+     * propagate ([orNullUnlessCancelled]) instead of being read as a failed call: the session stays
+     * as it was and the next composition restores it, rather than a disposed bootstrap dropping a
+     * signed-in user on the sign-in screen.
+     */
     suspend fun restore() {
         if (mode.isStandalone) {
             _state.value = SessionState.Standalone
@@ -59,26 +68,16 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
             return
         }
         client.configure(base)
-        when (withContext(Dispatchers.IO) { client.refreshBlocking() }) {
-            RefreshResult.SUCCESS ->
-                runCatching { client.api.me() }
-                    .onSuccess { user ->
-                        client.saveLastUser(user)
-                        _state.value = SessionState.SignedIn(user)
-                    }
-                    .onFailure { t ->
-                        // The refresh worked, so only a network blip can justify falling back.
-                        val cached = if (t is IOException) client.loadLastUser() else null
-                        _state.value = cached?.let { SessionState.SignedIn(it) } ?: SessionState.SignedOut
-                    }
 
-            RefreshResult.REJECTED -> _state.value = SessionState.SignedOut
-
-            RefreshResult.NETWORK_ERROR -> {
-                val cached = client.loadLastUser()
-                _state.value = cached?.let { SessionState.SignedIn(it) } ?: SessionState.SignedOut
-            }
+        val refresh = withContext(Dispatchers.IO) { client.refreshBlocking() }
+        val user = if (refresh == RefreshResult.SUCCESS) {
+            orNullUnlessCancelled { client.api.me() }?.also { client.saveLastUser(it) }
+        } else {
+            null
         }
+        // The last-known user is only worth reading when there's no fresh one to prefer.
+        val cached = if (user == null) client.loadLastUser() else null
+        _state.value = restoredState(refresh, user, cached)
     }
 
     suspend fun login(serverUrl: String, email: String, password: String): Result<Unit> =
@@ -96,7 +95,7 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * password.
      */
     suspend fun requestPasswordReset(serverUrl: String, email: String): Result<Unit> =
-        runCatching {
+        resultUnlessCancelled {
             client.configure(serverUrl)
             client.api.forgotPassword(ForgotPasswordRequestDto(email))
         }
@@ -106,7 +105,7 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * session and returns fresh tokens for this one — store them so this device stays signed in.
      */
     suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> =
-        runCatching {
+        resultUnlessCancelled {
             val response = client.api.changePassword(ChangePasswordRequestDto(currentPassword, newPassword))
             client.tokenStore.set(response.accessToken, response.accessTokenExpiresAtUtc)
             client.saveLastUser(response.user)
@@ -118,10 +117,28 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         _state.value = SessionState.Standalone
     }
 
-    private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> =
-        runCatching {
+    /**
+     * The shared tail of [login] and [register]: hand the credentials over, then make the answer
+     * this device's session.
+     *
+     * The sign-in screen launches this from the composition, so an activity recreation can cancel
+     * it. Until the server answers that is harmless and the cancellation simply propagates — a
+     * sign-in that never happened, not a failed one. Past that point the session is real, so
+     * applying it runs [NonCancellable]: a cancellation between [onLeavingStandalone] and the mode
+     * flip would otherwise leave the device standalone while holding an account it had already
+     * readied its notes for.
+     */
+    private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> {
+        val response = try {
             client.configure(serverUrl)
-            val response = call()
+            call()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            return Result.failure(t)
+        }
+
+        withContext(NonCancellable) {
             client.tokenStore.set(response.accessToken, response.accessTokenExpiresAtUtc)
             client.saveLastUser(response.user)
             // Connecting a server from standalone mode: the local notes go to this account.
@@ -131,6 +148,8 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
             }
             _state.value = SessionState.SignedIn(response.user)
         }
+        return Result.success(Unit)
+    }
 
     /**
      * Signs out: best-effort flush of pending offline changes, revoke the refresh token
@@ -139,15 +158,22 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * From standalone mode this *erases the device's notes* — there is no server holding a copy —
      * and returns to the sign-in screen. The mode is left only after the wipe, so the flush inside
      * [onLogout] stays a no-op instead of replaying the standalone queue at some old server URL.
+     *
+     * [NonCancellable] because this is launched from the settings screen: once a sign-out has begun
+     * it has to run to the end, rather than an activity recreation leaving the token revoked
+     * server-side with the local store still full, or the reverse. The `runCatching`s inside are
+     * about a *failing* flush or revoke, which must not stop the wipe either.
      */
     suspend fun logout() {
-        val wasStandalone = mode.isStandalone
-        runCatching { onLogout?.invoke() }
-        if (!wasStandalone) runCatching { client.api.logout() }
-        client.clearSession()
-        client.clearLastUser()
-        if (wasStandalone) mode.setStandalone(false)
-        _state.value = SessionState.SignedOut
+        withContext(NonCancellable) {
+            val wasStandalone = mode.isStandalone
+            runCatching { onLogout?.invoke() }
+            if (!wasStandalone) runCatching { client.api.logout() }
+            client.clearSession()
+            client.clearLastUser()
+            if (wasStandalone) mode.setStandalone(false)
+            _state.value = SessionState.SignedOut
+        }
     }
 
     /**
@@ -160,3 +186,48 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         _state.value = SessionState.SignedOut
     }
 }
+
+/**
+ * Runs [block], reporting an ordinary failure as "no answer" (`null`) — but never a cancellation,
+ * which is rethrown.
+ *
+ * `runCatching` is the obvious shorthand here and is the bug this replaces: it catches
+ * [CancellationException] like any other failure, so a bootstrap cancelled by an activity
+ * recreation came back looking like a failed `me` call and signed a perfectly valid session out.
+ */
+internal suspend fun <T> orNullUnlessCancelled(block: suspend () -> T): T? =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+/**
+ * [runCatching] for suspend work: an ordinary failure becomes a failed [Result], a cancellation is
+ * rethrown. The same trap as in [orNullUnlessCancelled] — a screen torn down mid-call would
+ * otherwise hand the caller "Job was cancelled" to show as if the server had refused.
+ */
+internal suspend fun <T> resultUnlessCancelled(block: suspend () -> T): Result<T> =
+    try {
+        Result.success(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        Result.failure(t)
+    }
+
+/**
+ * The session a bootstrap lands in. A refresh the server *answered* has proved the session, so a
+ * blip fetching the profile afterwards falls back to the last-known user — the same fallback an
+ * unreachable server gets. Only a rejected cookie ends the session: it is the one answer that means
+ * the refresh token itself is gone.
+ */
+internal fun restoredState(refresh: RefreshResult, user: UserDto?, cached: UserDto?): SessionState =
+    when (refresh) {
+        RefreshResult.SUCCESS, RefreshResult.NETWORK_ERROR ->
+            (user ?: cached)?.let { SessionState.SignedIn(it) } ?: SessionState.SignedOut
+
+        RefreshResult.REJECTED -> SessionState.SignedOut
+    }

@@ -1,5 +1,6 @@
 using keepITCore.Auth.Dtos;
 using keepITCore.Data;
+using keepITCore.Infrastructure;
 using keepITCore.Infrastructure.Email;
 using keepITCore.Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -146,6 +147,8 @@ public class AuthController : ControllerBase
     /// non-enumeration stance as login's generic 401). When the account exists, a single-use,
     /// time-limited reset token is generated and the link is delivered via <see cref="IEmailSender"/>
     /// — SMTP when configured, otherwise the server log (self-hosted operators own the logs).
+    /// <para>An emailed link is built only from <c>App:PublicBaseUrl</c>; with SMTP configured and
+    /// no public URL set, no email is sent at all (see <see cref="ResetLinkBaseUrl"/>).</para>
     /// </summary>
     /// <param name="dto">The account email to send the reset link to.</param>
     /// <returns>204 No Content, always (or 400 on validation errors).</returns>
@@ -157,8 +160,22 @@ public class AuthController : ControllerBase
         var user = await _userManager.FindByEmailAsync(dto.Email);
         if (user is not null)
         {
+            var baseUrl = ResetLinkBaseUrl();
+            if (baseUrl is null)
+            {
+                // Fail closed: no email beats a link to wherever the requester pointed. Still 204,
+                // so the missing config doesn't become a way to tell registered emails apart.
+                _logger.LogError(
+                    "A password reset was requested but no email was sent: SMTP is configured and " +
+                    "{Key} is not, and reset links are never built from the incoming request. Set " +
+                    "App__PublicBaseUrl to the address you open keepIT at, e.g. https://notes.example.com, " +
+                    "then restart.",
+                    PublicBaseUrl.ConfigKey);
+                return NoContent();
+            }
+
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var link = $"{PublicBaseUrl()}/reset-password" +
+            var link = $"{baseUrl}/reset-password" +
                        $"?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
 
             try
@@ -387,16 +404,22 @@ public class AuthController : ControllerBase
     // ---- helpers ----
 
     /// <summary>
-    /// The frontend's public base URL, used to build the password-reset link. Resolution order:
-    /// explicit <c>App:PublicBaseUrl</c> config → the request's <c>Origin</c> header (dev: Vite on
-    /// :5173 posts cross-origin to :5025) → the request's own scheme+host (prod: nginx serves SPA
-    /// and API from one origin, so the API's host <em>is</em> the frontend host).
+    /// The base URL for a password-reset link, or null when there is no trustworthy one.
+    /// <para>A link that is emailed comes only from <c>App:PublicBaseUrl</c>. Forgot-password is
+    /// anonymous and the request's <c>Origin</c> and <c>Host</c> are the requester's to choose, so a
+    /// link built from them would let anyone send a victim a genuine reset email pointing at their
+    /// own site, and collect the token when it is clicked (password-reset poisoning).</para>
+    /// <para>Without SMTP the "email" is only written to the server log, where the operator is the
+    /// one reading it, so the request's own address is fine there: the <c>Origin</c> first (dev:
+    /// Vite on :5173 posts to the API on :5025), else its scheme and host.</para>
     /// </summary>
-    private string PublicBaseUrl()
+    private string? ResetLinkBaseUrl()
     {
-        var configured = _config["App:PublicBaseUrl"];
-        if (!string.IsNullOrWhiteSpace(configured))
-            return configured.TrimEnd('/');
+        // Validated at startup: a malformed value never gets this far.
+        var configured = PublicBaseUrl.Read(_config);
+        if (configured is not null) return configured;
+
+        if (_emailSender.DeliversToRecipient) return null;
 
         var origin = Request.Headers.Origin.ToString();
         if (!string.IsNullOrWhiteSpace(origin) && origin != "null")

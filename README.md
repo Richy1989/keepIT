@@ -83,7 +83,10 @@ A few things worth knowing:
   `-e App__AllowRegistration=false` (recommended if your server is reachable from the internet).
 - **Forgot password** works without any mail server: the reset link is written to the server
   log (`docker logs keepit`), where you, the operator, can grab it. To have it emailed to
-  users instead, configure SMTP with the `Email__*` settings below.
+  users instead, configure SMTP with the `Email__*` settings below **and** set
+  `App__PublicBaseUrl` to your instance's address. Reset emails are not sent without it; if
+  it's missing, the server log says so at startup and the web app's Settings page shows a
+  warning.
 - Running **Unraid**? A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
@@ -152,13 +155,14 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `App__AllowRegistration` | no | `true` | Whether new accounts may be created. On an internet-exposed instance: register your own accounts first, then set `false` to close public sign-up. |
 | `App__DataRoot` | no | `./App_Data` | Directory for the database, security keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the app: `1` for the plain setups above, `2` if you put another proxy (e.g. Traefik) in front. |
-| `App__PublicBaseUrl` | no | *(auto-detected)* | Public address of your instance (e.g. `https://notes.example.com`), used to build password-reset links. Usually auto-detected from the request; set it if reset links point to the wrong host. |
-| `Email__SmtpHost` | no | *(none)* | SMTP server for outgoing email (password-reset links). Leave empty to run without email; reset links then land in the server log. |
+| `App__PublicBaseUrl` | with SMTP | *(none)* | The address users open keepIT at (e.g. `https://notes.example.com`). Emailed password-reset links point here, and while it's unset no reset email is sent, since a link built from the incoming request could point anywhere. Optional without SMTP: the link written to the server log then uses the address you opened keepIT at. |
+| `Email__SmtpHost` | no | *(none)* | SMTP server for outgoing email (password-reset links). Needs `App__PublicBaseUrl` too. Leave empty to run without email; reset links then land in the server log. |
 | `Email__From` | with SMTP | *(none)* | From address, e.g. `keepIT <no-reply@example.com>`. Required once `Email__SmtpHost` is set. |
 | `Email__SmtpUsername` | no | *(none)* | SMTP login username. Leave empty (along with the password) for an unauthenticated relay. |
 | `Email__SmtpPassword` | no | *(none)* | SMTP login password, paired with `Email__SmtpUsername`. |
 | `Email__SmtpPort` | no | `587` | SMTP port: `587` for STARTTLS submission, `465` for implicit TLS (set `Email__UseStartTls=false` too). |
-| `Email__UseStartTls` | no | `true` | `true` = STARTTLS (port 587); `false` = implicit TLS (port 465). |
+| `Email__UseStartTls` | no | `true` | `true` = STARTTLS (port 587); `false` = implicit TLS (port 465). With STARTTLS the server must offer it, or nothing is sent: the test email in Settings then says so. |
+| `Email__AllowUnencrypted` | no | `false` | Lets STARTTLS mail go out in plain text when the server doesn't offer encryption. Only for a relay on a network you trust (e.g. a local Postfix on port 25); anywhere else it exposes reset links and the SMTP password. Settings shows a warning while it's on. |
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Sign-in cookie is HTTPS-only. Keep `true` behind TLS; set `false` only when serving plain HTTP on a non-localhost address (e.g. a LAN IP without TLS). |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |

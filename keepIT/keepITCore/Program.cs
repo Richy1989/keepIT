@@ -32,6 +32,12 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
         "Jwt:Key must be a random secret of at least 32 characters. Set Jwt__Key via the environment.");
 }
 
+// Emailed links (password reset) are built only from App:PublicBaseUrl, never from the request. A
+// malformed value is refused here, like a bad Jwt:Key, rather than on the first reset request.
+var publicBaseUrl = PublicBaseUrl.Read(builder.Configuration);
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>() ?? new EmailOptions();
+var emailDelivered = emailOptions.IsConfigured;
+
 // ---- Common data folder + database provider selection ----
 var dataRoot = FolderManagement.EnsureDataRoot(builder.Configuration, builder.Environment);
 var postgresConnection = DatabaseSetup.ResolvePostgresConnectionString(builder.Configuration);
@@ -156,6 +162,28 @@ app.Logger.LogInformation(
         ? "Database provider: PostgreSQL"
         : "Database provider: SQLite (dev) — data folder: {DataRoot}",
     dataRoot);
+
+// Not fatal, so an upgraded instance keeps serving notes; but until it is set, password-reset
+// emails are withheld rather than built from request headers (see AuthController.ForgotPassword).
+if (emailDelivered && publicBaseUrl is null)
+{
+    app.Logger.LogWarning(
+        "Password-reset emails are switched off: SMTP is configured (Email__SmtpHost) but " +
+        "App__PublicBaseUrl is not set. keepIT builds reset links only from that address, never from " +
+        "the incoming request, so a forged request can't aim a genuine reset email at another site. " +
+        "Set App__PublicBaseUrl to the address you open keepIT at, e.g. https://notes.example.com " +
+        "(Unraid: the \"Public Base URL\" field; Docker: -e App__PublicBaseUrl=...), then restart. " +
+        "The Settings page shows this too, under Email.");
+}
+
+// An explicit opt-out of encryption stays loud: it is only safe for a relay on a trusted network.
+if (emailDelivered && emailOptions.UseStartTls && emailOptions.AllowUnencrypted)
+{
+    app.Logger.LogWarning(
+        "SMTP may send without encryption (Email__AllowUnencrypted=true): if the server doesn't " +
+        "offer STARTTLS, password-reset links and the SMTP password travel in plain text. Use this " +
+        "only for a trusted relay on your own network.");
+}
 
 if (app.Environment.IsDevelopment())
 {
