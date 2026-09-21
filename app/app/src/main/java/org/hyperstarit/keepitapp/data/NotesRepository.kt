@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,13 +32,16 @@ import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.data.offline.activeListCounts
+import org.hyperstarit.keepitapp.data.offline.applyListOp
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
-import org.hyperstarit.keepitapp.data.offline.pendingMedia
+import org.hyperstarit.keepitapp.data.offline.applyPendingLists
+import org.hyperstarit.keepitapp.data.offline.settleDueReminders
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
 import org.hyperstarit.keepitapp.data.offline.withUploadedMedia
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import org.hyperstarit.keepitapp.widget.KeepItWidget
+import java.io.File
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -74,6 +76,11 @@ data class WidgetNote(
  * lands in the persisted outbox, then the sync engine replays it whenever the server is reachable.
  * Filtering (view / lists / ordering) is local, so browsing works fully offline. The home-screen
  * widget's snapshot is rewritten on every cache change.
+ *
+ * Standalone mode ([AppMode]) runs on exactly this machinery with the replay switched off: the
+ * cache is then the only copy of the notes, and the outbox the record that uploads them if a server
+ * is ever connected ([prepareStandaloneUpload], [onSignedIn]). The store is marked as the standalone
+ * device's own, so it can't be mistaken for — or merged with — a server account's cache.
  */
 class NotesRepository(
     private val client: ApiClient,
@@ -100,6 +107,9 @@ class NotesRepository(
 
     /** temp id → server id for notes created offline, so an open editor survives the remap. */
     private val idAliases = ConcurrentHashMap<String, String>()
+
+    /** temp id → server id for lists created offline — a dialog or editor may still hold the old one. */
+    private val listAliases = ConcurrentHashMap<String, String>()
 
     /** Wired by the app container after construction (repo and engine reference each other). */
     var syncEngine: SyncEngine? = null
@@ -151,31 +161,79 @@ class NotesRepository(
 
     /**
      * Ties the local store to the signed-in user: a different account wipes the previous user's
-     * cache and queued changes (they must never replay as someone else).
+     * cache and queued changes (they must never replay as someone else). A standalone store is
+     * adopted instead — its notes are uploaded into the account that was just connected.
+     *
+     * Only here does a standalone store change owner. Re-marking it any earlier (while the mode flag
+     * still says standalone) would leave a window where a crash restarts the app standalone over a
+     * store that looks like an account's, and [onStandalone] would wipe it.
      */
     suspend fun onSignedIn(userId: String) {
-        if (cacheUserId.isNotEmpty() && cacheUserId != userId) {
-            cache.value = emptyList()
-            cachedLists.value = emptyList()
-            idAliases.clear()
-            outbox.clear()
-            mediaCache.clear()
+        when {
+            // Normally readied already, before the mode flipped; repeating it is harmless.
+            cacheUserId == STANDALONE_OWNER -> prepareStandaloneUpload()
+            cacheUserId.isNotEmpty() && cacheUserId != userId -> forgetLocalData()
         }
         cacheUserId = userId
         persistCache()
     }
 
+    /**
+     * Ties the local store to standalone mode. A cache still here from a server account — one whose
+     * session expired rather than being signed out — belongs to that account and lives on its
+     * server; it is dropped rather than folded into standalone notes that may one day be uploaded
+     * into a different account.
+     */
+    suspend fun onStandalone() {
+        if (cacheUserId == STANDALONE_OWNER) return
+        if (cacheUserId.isNotEmpty()) forgetLocalData()
+        cacheUserId = STANDALONE_OWNER
+        persistCache()
+    }
+
+    /**
+     * Readies a standalone device's notes for upload into the account a server was just connected
+     * with. Nothing moves here: the outbox already holds every note, list, reminder and image in the
+     * order they were made, and the sync engine uploads them once the mode flips. This only prunes
+     * what must not replay (see [org.hyperstarit.keepitapp.data.offline.readiedForUpload]).
+     */
+    suspend fun prepareStandaloneUpload() {
+        outbox.prepareForUpload(System.currentTimeMillis())
+    }
+
     /** Drops all local data (sign-out). The widget keeps its last snapshot, as before. */
     suspend fun clearLocal() {
+        forgetLocalData()
+        cacheUserId = ""
+        store.clear()
+    }
+
+    /**
+     * Empties the widget's snapshot and redraws it. Sign-out deliberately leaves the snapshot — the
+     * notes still exist on the server, and the widget shows the last-known ones. Erasing a
+     * standalone device must not: those notes exist nowhere any more, and the home screen would
+     * keep showing what the user just deleted.
+     */
+    suspend fun clearWidget() {
+        widgetPrefs.edit().remove(WIDGET_KEY).apply()
+        withContext(NonCancellable) {
+            runCatching { KeepItWidget().updateAll(appContext) }
+        }
+    }
+
+    /** Forgets every note, list and queued change on the device, and every image file behind them. */
+    private suspend fun forgetLocalData() {
         cache.value = emptyList()
         cachedLists.value = emptyList()
-        cacheUserId = ""
         idAliases.clear()
+        listAliases.clear()
         outbox.clear()
-        store.clear()
         // Downloaded images are as personal as the notes they hang off — the next account to sign
         // in on this device must not find them sitting in the cache.
         mediaCache.clear()
+        // Nor the staged ones, whose ops were just cleared. In standalone mode these are the only
+        // copies of the images, so erasing the device has to take them too.
+        staging.pruneExcept(emptySet())
     }
 
     /** Full sync: replay queued changes, then refetch everything. No-op offline (cache stands). */
@@ -202,7 +260,11 @@ class NotesRepository(
 
     /** Creates the note locally under a temp id; the sync replaces it with the server's. */
     suspend fun create(dto: CreateNoteDto): NoteDto {
-        val op = PendingOp.Create(tempId = PendingOp.newTempId(), dto = dto, enqueuedAtUtc = nowUtc())
+        val op = PendingOp.Create(
+            tempId = PendingOp.newTempId(),
+            dto = dto.copy(listIds = dto.listIds?.map(::resolveList)),
+            enqueuedAtUtc = nowUtc(),
+        )
         mutate(op)
         return cache.value.first { it.id == op.tempId }
     }
@@ -214,7 +276,7 @@ class NotesRepository(
         mutate(PendingOp.SetState(resolve(id), state, enqueuedAtUtc = nowUtc()))
 
     suspend fun setLists(id: String, listIds: List<String>) =
-        mutate(PendingOp.SetLists(resolve(id), listIds, enqueuedAtUtc = nowUtc()))
+        mutate(PendingOp.SetLists(resolve(id), listIds.map(::resolveList), enqueuedAtUtc = nowUtc()))
 
     suspend fun setReminder(id: String, dto: SetNoteReminderDto) =
         mutate(PendingOp.SetReminder(resolve(id), dto, enqueuedAtUtc = nowUtc()))
@@ -265,39 +327,70 @@ class NotesRepository(
     }
 
     /**
-     * The attachments still queued for a note, so the editor can show a picked image immediately.
+     * Every note's queued attachments, keyed by note id, in the order they were picked — so the
+     * editor and the grid show a photo from the moment it is picked: until its upload lands, or, in
+     * standalone mode, for good.
      *
      * Projected from the outbox rather than stored on [NoteDto], which must stay an exact mirror of
      * the server DTO — a client-only "pending" field there is precisely the drift the hand-sync
      * rule forbids.
      */
-    fun pendingMediaFor(noteId: String): Flow<List<PendingOp.AttachMedia>> =
-        outbox.pendingOps.map { ops -> pendingMedia(ops, resolve(noteId)) }
+    val pendingMediaByNote: StateFlow<Map<String, List<PendingOp.AttachMedia>>> =
+        outbox.pendingOps
+            .map { ops -> ops.filterIsInstance<PendingOp.AttachMedia>().groupBy { it.noteId } }
+            .stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
-    // ---- lists CRUD: online-only (like the web), applied to the cache on success ----
-
-    /** Creates a list. Online-only — offline callers get a failed [Result] to surface. */
-    suspend fun createList(name: String): Result<Unit> = runCatching {
-        val created = client.api.createList(CreateListDto(name.trim()))
-        cachedLists.update { (it + created).sortedBy { l -> l.name.lowercase() } }
-        persistCache()
+    /**
+     * Withdraws an attachment that hasn't been uploaded — in standalone mode, where nothing is ever
+     * uploaded, this is how an image is deleted. Its staged bytes go with it.
+     */
+    suspend fun removePendingMedia(op: PendingOp.AttachMedia) {
+        if (outbox.remove(op.opId) != null) staging.delete(op.stagedPath)
     }
 
-    /** Renames a list. Online-only. */
-    suspend fun renameList(id: String, name: String): Result<Unit> = runCatching {
-        val updated = client.api.updateList(id, UpdateListDto(name = name.trim()))
-        cachedLists.update { all -> all.map { if (it.id == id) updated else it }.sortedBy { l -> l.name.lowercase() } }
-        persistCache()
+    /** Saves a not-yet-uploaded image — a standalone device's own — to the gallery, from its staged file. */
+    suspend fun savePendingMediaToGallery(op: PendingOp.AttachMedia): SaveImageResult {
+        val file = File(op.stagedPath)
+        if (!file.exists()) return SaveImageResult.UNAVAILABLE
+        return if (GallerySaver.save(appContext, file, "keepIT_${op.tempMediaId.take(8)}")) {
+            SaveImageResult.SAVED
+        } else {
+            SaveImageResult.FAILED
+        }
     }
 
-    /** Deletes a list (notes survive, memberships go). Online-only. */
-    suspend fun deleteList(id: String): Result<Unit> = runCatching {
-        client.api.deleteList(id)
-        cachedLists.update { all -> all.filter { it.id != id } }
-        // Notes filed in the list still carry its id locally; drop it and clear the filter if active.
-        cache.update { all -> all.map { n -> if (id in n.listIds) n.copy(listIds = n.listIds - id) else n } }
-        filter.update { f -> if (id in f.listIds) f.copy(listIds = f.listIds - id) else f }
-        persistCache()
+    // ---- lists: offline-first like notes — applied locally at once, queued for the server ----
+
+    /** Creates a list under a temp id; notes can be filed into it before the server has seen it. */
+    suspend fun createList(name: String) = mutate(
+        PendingOp.CreateList(
+            tempId = PendingOp.newTempId(),
+            dto = CreateListDto(name.trim()),
+            enqueuedAtUtc = nowUtc(),
+        ),
+    )
+
+    /** Renames a list. */
+    suspend fun renameList(id: String, name: String) =
+        mutate(PendingOp.UpdateList(resolveList(id), UpdateListDto(name = name.trim()), enqueuedAtUtc = nowUtc()))
+
+    /** Deletes a list (notes survive, memberships go), clearing it from the filter if active. */
+    suspend fun deleteList(id: String) {
+        val real = resolveList(id)
+        mutate(PendingOp.DeleteList(real, enqueuedAtUtc = nowUtc()))
+        filter.update { f -> if (real in f.listIds) f.copy(listIds = f.listIds - real) else f }
+    }
+
+    /**
+     * Standalone mode only: moves due reminders on in the cache, as the server's dispatcher would
+     * (see [settleDueReminders]). Must run *after* the reminder scheduler has seen the cache — the
+     * scheduler posts an occurrence, and this may then advance past it, never the other way round.
+     */
+    suspend fun settleReminders() {
+        val now = System.currentTimeMillis()
+        var changed = false
+        cache.update { notes -> settleDueReminders(notes, now).also { changed = it != notes } }
+        if (changed) persistCache()
     }
 
     private suspend fun mutate(op: PendingOp) {
@@ -308,6 +401,7 @@ class NotesRepository(
         // staged bytes are ours, so they go with it rather than sitting in staging forever.
         dropped.filterIsInstance<PendingOp.AttachMedia>().forEach { staging.delete(it.stagedPath) }
         cache.update { applyOp(it, op) }
+        cachedLists.update { applyListOp(it, op) }
         persistCache()
         syncEngine?.kick()
     }
@@ -319,12 +413,15 @@ class NotesRepository(
      */
     fun resolve(id: String): String = idAliases[id] ?: id
 
+    /** [resolve] for lists: a list created offline goes by the server's id once it has synced. */
+    private fun resolveList(id: String): String = listAliases[id] ?: id
+
     // ---- SyncEngine.CacheUpdater ----
 
     override suspend fun onFetched(notes: List<NoteDto>, lists: List<ListDto>, stillPending: List<PendingOp>) {
         // Overlay anything still queued so local edits don't flicker away mid-replay.
         cache.value = applyPending(notes, stillPending)
-        cachedLists.value = lists
+        cachedLists.value = applyPendingLists(lists, stillPending)
         persistCache()
         prefetch()
     }
@@ -373,6 +470,24 @@ class NotesRepository(
 
     override suspend fun onMediaUploaded(noteId: String, media: NoteMediaDto) {
         cache.update { withUploadedMedia(it, noteId, media) }
+        persistCache()
+    }
+
+    override suspend fun onListIdRemapped(tempId: String, realId: String) {
+        listAliases[tempId] = realId
+        fun List<String>.remapped() = map { if (it == tempId) realId else it }
+        cachedLists.update { all -> all.map { if (it.id == tempId) it.copy(id = realId) else it } }
+        cache.update { all -> all.map { n -> if (tempId in n.listIds) n.copy(listIds = n.listIds.remapped()) else n } }
+        filter.update { f -> if (tempId in f.listIds) f.copy(listIds = f.listIds - tempId + realId) else f }
+        persistCache()
+    }
+
+    override suspend fun onListDropped(tempId: String) {
+        // Exactly what deleting it would have done locally.
+        val gone = PendingOp.DeleteList(tempId)
+        cachedLists.update { applyListOp(it, gone) }
+        cache.update { applyOp(it, gone) }
+        filter.update { f -> if (tempId in f.listIds) f.copy(listIds = f.listIds - tempId) else f }
         persistCache()
     }
 
@@ -442,6 +557,13 @@ class NotesRepository(
     }
 
     companion object {
+        /**
+         * The owner recorded on a standalone device's store, in place of a user id. Never a valid
+         * account id (those are GUIDs), so a sign-in can always tell standalone notes — to be
+         * adopted — from another account's — to be wiped.
+         */
+        private const val STANDALONE_OWNER = "standalone"
+
         private const val WIDGET_KEY = "notes_json"
         private const val WIDGET_NOTE_COUNT = 6
         private const val WIDGET_CHECKLIST_LINES = 4

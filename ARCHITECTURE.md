@@ -21,7 +21,8 @@ One backend, three clients:
 - **`web/`** — React (Vite, TypeScript). The web UI and all its client logic.
 - **`app/`** — native Android app (Kotlin, Jetpack Compose). Offline-first, with native
   reminder notifications and a home-screen widget. Not part of the Docker stack — it ships
-  as an APK (attached to GitHub Releases) and talks to the same HTTP + SignalR API.
+  as an APK (attached to GitHub Releases) and talks to the same HTTP + SignalR API, or runs
+  **standalone** with no server at all (see **Android client → Standalone mode**).
 
 Web and API are built, versioned, and deployed separately over HTTP + WebSocket. We
 deliberately do **not** host React inside ASP.NET Core (the old SPA template approach) —
@@ -505,9 +506,13 @@ rejection may destroy the session.
   personal-note-scale, so indexed queries buy nothing; the five-method surface can be swapped
   for a database later without touching callers.
 - **`Outbox` / `PendingOp`** — every mutation (create / update / set-state / set-lists /
-  set-reminder / clear-reminder / delete) applies to the local cache instantly and enqueues a
-  durable op. Creates use a temp id that is remapped across the queue once the server assigns
-  the real one.
+  set-reminder / clear-reminder / delete / attach-media / delete-media, and the list ops
+  create-list / update-list / delete-list) applies to the local cache instantly and enqueues a
+  durable op. Creates — of notes and of lists — use a temp id that is remapped across the queue
+  once the server assigns the real one. Replay is FIFO, so no queued op may name a temp list id
+  whose create sits behind it (the server would refuse the whole request, not just the list):
+  `coalesce` only folds a membership into a note's create when every list it names was created
+  first, and deleting a list created offline strips it from every queued membership.
 - **`SyncEngine`** — drains the outbox against the REST API, then refetches everything (all
   three views + lists, in parallel), overlaying any still-queued local edits on the server
   truth. Kicked on sign-in, connectivity return, every enqueue, SignalR pushes, and
@@ -516,7 +521,44 @@ rejection may destroy the session.
   4xx is permanent — the op is dropped **with a user-facing message** (e.g. the note was
   deleted on another device).
 - Sign-out best-effort flushes the queue while the session is still valid, then wipes the
-  local store, alarms, and posted notifications.
+  local store (staged images included), alarms, and posted notifications.
+- An upload the server refuses for good (too large, HEIC, the note gone) is saved to the
+  gallery before its staged file is deleted — for a photo taken offline, or anything from
+  standalone mode, the staged file is the only copy there is.
+
+**Standalone mode** (`data/AppMode.kt`). The app also runs with **no server and no account** —
+**Use without a server** on the sign-in screen. It is not a second storage path: it is the
+offline-first design with the network taken away. Notes, lists, reminders and images live in
+the same cache and outbox; `SyncEngine.sync()` and `kick()` are no-ops while the persisted
+`AppMode` flag is set, so the outbox never drains. The check lives in the engine rather than at
+the call sites because processes with no UI (widget refresh, `WidgetSyncWorker`) sync too, and
+must see the mode before any session is restored.
+- **Session.** `SessionState.Standalone` opens the main nav directly; realtime never starts. The
+  store is marked as the standalone device's own (a non-GUID owner), so a sign-in can tell it
+  apart from another account's cache. Entering standalone over an expired session's cache wipes
+  that cache — after a confirmation when changes are still unsynced.
+- **What's off.** Sharing, the notification inbox, change password, the server version,
+  refresh and the sync strip are hidden. **Sign out** is replaced by **Erase notes** in Settings
+  (confirmed — there is no server copy). Unlike a sign-out, which leaves the widget showing the
+  last-known notes, an erase empties the widget's snapshot too.
+- **Images.** A queued attachment *is* the image: the editor shows it plainly (no upload
+  spinner), opens it in the viewer, saves it to the gallery, and removes it by withdrawing its
+  op (`Outbox.remove`). Cards fall back to the first queued attachment as their hero — which
+  also shows a photo attached offline in server mode before it uploads.
+- **Reminders.** Alarms fire from the cache exactly as before, but with no server nothing marks
+  a one-time reminder fired or advances a recurring one. `settleDueReminders` does that in the
+  cache — only *after* `ReminderScheduler.syncFrom` has seen it, so an occurrence is always
+  posted before it is advanced past; the same UTC arithmetic as the server (`advanceOccurrence`).
+- **Connecting a server later** (Settings → Connect to a server, the sign-in form again). Once
+  the credentials are accepted the queue is readied (`readiedForUpload`: one-time reminders
+  already in the past are dropped and recurring ones moved to their next occurrence, or the
+  server's dispatcher would fire them again), the mode flips, and the ordinary sync replays the
+  whole queue into the account — merged with whatever it already holds. The store changes owner
+  only on the sign-in itself, so a crash mid-switch can never restart standalone over a store
+  that looks like an account's.
+- **Limits.** Data is only as safe as the phone — no backup until a server is connected. Images
+  are stored as picked, so ones the server would refuse (over 10 MB, HEIC) fail on that first
+  upload; they land in the gallery rather than being lost (see above).
 
 **Realtime, reminders, notifications.** `RealtimeClient` (see **SignalR realtime**) kicks the
 sync engine on `notes`/`lists` and the `ServerNotificationsWatcher` on `notification`.
@@ -544,7 +586,7 @@ Both ways of refreshing it run with **no UI in the process**, which shapes them:
   to the reflectively-constructed set both `verifyReleaseKeepRules` and `ReleaseBuildSmokeTest`
   guard. See the testing section.
 
-**Screens** (`ui/`): login/register (with server URL + forgot-password), notes grid
+**Screens** (`ui/`): login/register (with server URL + forgot-password, or standalone), notes grid
 (staggered, with sync-status strip and pending-changes count), editor (markdown rendering via
 a small custom parser, checklist editing, color, share sheet, reminder dialog),
 notifications inbox, settings (notification + exact-alarm permissions, change password,
@@ -686,6 +728,10 @@ user-curated named collections with their own sidebar section.
 **Frontend.** TanStack Query keys include the active filter, so switching lists is a cache
 key change, not a refetch hack. The selected-filter UI state itself is client state.
 
+**Android.** List create / rename / delete are queued ops like every note mutation, so they
+work offline (and in standalone mode) and replay later; a list created offline can be filed
+into straight away under its temp id. Counts are computed locally from the cache.
+
 ## Profile images & media
 
 **Implemented today: profile images only.** Avatar upload/serving lives on the settings
@@ -816,8 +862,8 @@ then: **sharing/collaboration** (invite→accept, roles, per-user overlay), the
 **notifications inbox**, **reminders** (server dispatcher + native Android alarms),
 **password reset/change + SMTP email**, **security hardening** (rate limiting, lockout,
 refresh-token rotation with reuse detection, registration gating), the **native Android app**
-(offline-first, widget, share sheet), the **single-container image + Unraid template**, and
-the **tag-driven release pipeline**.
+(offline-first, widget, share sheet, and a **standalone mode** that needs no server), the
+**single-container image + Unraid template**, and the **tag-driven release pipeline**.
 
 **Remaining roadmap** (see README "What's next"):
 - 🖼️ **Background images** — the remaining half of note media; attachments themselves are done.

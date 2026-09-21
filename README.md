@@ -47,7 +47,8 @@ subscription, and nobody else holding your notes.
   refresh, no sync button.
 - 📱 **Android app included** — the same notes on your phone, with a home-screen widget for
   recent notes and one-tap capture. It works fully offline: read and edit anywhere, and your
-  changes sync as soon as you're back online.
+  changes sync as soon as you're back online. No server yet? Use it standalone, and move your
+  notes into an account whenever you set one up.
 - 🎨 **Make it yours** — a background color per note, and an accent color for the whole app.
 - 🔒 **Your notes stay yours** — everything lives on **your** server. No third-party cloud, no
   account with anyone but yourself.
@@ -168,6 +169,17 @@ The Compose stack sets most of these itself and reads only five values from `.en
 
 The app in [`app/`](app) brings your notes to your phone: offline-first, live sync, native
 reminder notifications, note sharing, and a home-screen widget.
+
+### No server? Use it standalone
+
+Tap **Use without a server** on the sign-in screen and the app works entirely on your phone —
+notes, checklists, lists, images, reminders and the widget, with nothing to install anywhere
+else. Sharing and syncing with other devices need a server, so they're switched off.
+
+When you do set up a server, open **Settings → Connect to a server** and sign in: everything on
+the phone is uploaded into that account (alongside anything already in it) and syncs from then
+on. Standalone notes live only on the phone until then — there's no backup, and **Settings →
+Erase notes** deletes them for good.
 
 ### Get it
 

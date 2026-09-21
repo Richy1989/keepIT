@@ -61,6 +61,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# ---- Android (app/) ----
+# Built packages, wherever a copy lands (Studio's signed-build output, a copy in the repo root).
+# Release APKs ship as GitHub Release assets, never as commits. The rest of the Android rules
+# live in app/.gitignore.
+*.apk
+*.aab
+*.apks
+
 # ---- OS ----
 Thumbs.db
 ehthumbs.db

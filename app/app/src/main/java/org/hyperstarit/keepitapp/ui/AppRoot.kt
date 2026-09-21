@@ -40,7 +40,8 @@ sealed interface Destination {
 
 /**
  * Top of the compose tree: restores the session from the refresh cookie, keeps the realtime
- * connection in lockstep with the sign-in state, and switches between login and the main nav.
+ * connection in lockstep with the sign-in state, and switches between login and the main nav —
+ * which standalone mode reaches directly, with no server behind it.
  */
 @Composable
 fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destination?>) {
@@ -60,16 +61,25 @@ fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destinatio
                 container.syncEngine.kick()
             }
             is SessionState.SignedOut -> container.realtime.stop()
+            // No server to hear from; the local store just needs to know it is the device's own.
+            SessionState.Standalone -> {
+                container.realtime.stop()
+                container.notesRepo.onStandalone()
+            }
             SessionState.Loading -> Unit
         }
     }
 
-    // Returning to the foreground is a natural moment to push queued changes / pull fresh ones.
+    // Returning to the foreground is a natural moment to push queued changes / pull fresh ones —
+    // or, standalone, to catch up on reminders that came due while the app was away.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, sessionState) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && sessionState is SessionState.SignedIn) {
-                container.syncEngine.kick()
+            if (event != Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
+            when (sessionState) {
+                is SessionState.SignedIn -> container.syncEngine.kick()
+                SessionState.Standalone -> container.onStandaloneResume()
+                else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -86,9 +96,17 @@ fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destinatio
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
 
-        SessionState.SignedOut -> LoginScreen(session = container.session)
+        SessionState.SignedOut -> {
+            // Nonzero only when a session expired with changes still queued (sign-out clears them).
+            val unsynced by container.pendingChanges.collectAsState()
+            LoginScreen(session = container.session, unsyncedChanges = unsynced)
+        }
 
         is SessionState.SignedIn -> MainNav(container, pendingDestination)
+
+        // A separate branch from SignedIn on purpose: connecting a server swaps one for the other,
+        // and the fresh nav graph lands the user back on their (now uploading) notes.
+        SessionState.Standalone -> MainNav(container, pendingDestination)
     }
 }
 
@@ -124,7 +142,15 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
             )
         }
         composable("settings") {
-            SettingsScreen(container = container, onBack = { nav.popBackStack() })
+            SettingsScreen(
+                container = container,
+                onBack = { nav.popBackStack() },
+                onConnectServer = { nav.navigate("connect") },
+            )
+        }
+        // Standalone → server: the sign-in form, handing this device's notes to the account.
+        composable("connect") {
+            LoginScreen(session = container.session, onCancelConnect = { nav.popBackStack() })
         }
         composable("notifications") {
             NotificationsScreen(container = container, onBack = { nav.popBackStack() })

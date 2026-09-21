@@ -100,11 +100,38 @@ fun NoteMediaImage(
 }
 
 /**
+ * An image that exists only on this device — a queued attachment's staged file — shown at its own
+ * proportions. A stored image's box is reserved from the width and height the server reports; a
+ * staged one has none, so it starts square and settles once Coil has decoded the file. That reading
+ * has EXIF orientation applied, which a header read of the raw bytes would get wrong for most
+ * phone photos.
+ *
+ * [minAspectRatio] caps the height the same way the stored hero is capped, so one tall photo can't
+ * eat the card.
+ */
+@Composable
+fun StagedMediaImage(path: String, modifier: Modifier = Modifier, minAspectRatio: Float = 0.72f) {
+    var ratio by remember(path) { mutableStateOf(1f) }
+    AsyncImage(
+        model = File(path),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        onSuccess = { state ->
+            val image = state.result.image
+            if (image.width > 0 && image.height > 0) ratio = image.width.toFloat() / image.height
+        },
+        modifier = modifier.aspectRatio(ratio.coerceAtLeast(minAspectRatio)),
+    )
+}
+
+/**
  * The editor's image row: stored images plus anything still queued.
  *
  * A pending attachment renders straight from its staged file, so a photo picked with no signal
  * appears instantly and keeps showing across restarts — the staged copy is ours, not a borrowed
- * `content://` grant.
+ * `content://` grant. It shows as uploading (faded, with a spinner) — unless [keptOnDevice]: in
+ * standalone mode nothing uploads, and a queued attachment simply *is* the image, so it looks,
+ * opens and deletes like any other. [onOpen] then indexes stored images first, then queued ones.
  */
 @Composable
 fun MediaRow(
@@ -116,6 +143,8 @@ fun MediaRow(
     onRemove: (String) -> Unit,
     onOpen: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    keptOnDevice: Boolean = false,
+    onRemovePending: (PendingOp.AttachMedia) -> Unit = {},
 ) {
     if (media.isEmpty() && pending.isEmpty()) return
 
@@ -156,7 +185,7 @@ fun MediaRow(
             }
         }
 
-        items(pending, key = { it.tempMediaId }) { op ->
+        itemsIndexed(pending, key = { _, op -> op.tempMediaId }) { index, op ->
             Box(
                 Modifier
                     .size(96.dp)
@@ -170,14 +199,37 @@ fun MediaRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .alpha(0.5f),
+                        .then(
+                            if (keptOnDevice) Modifier.clickable { onOpen(media.size + index) }
+                            else Modifier.alpha(0.5f),
+                        ),
                 )
-                CircularProgressIndicator(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(20.dp),
-                    strokeWidth = 2.dp,
-                )
+                if (keptOnDevice) {
+                    if (canEdit) {
+                        IconButton(
+                            onClick = { onRemovePending(op) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(28.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove image",
+                                tint = Color.White,
+                                modifier = Modifier
+                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                    .padding(4.dp),
+                            )
+                        }
+                    }
+                } else {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
             }
         }
     }

@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -40,10 +42,24 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 /**
  * Sign-in / sign-up, the phone twin of the web's AuthPage: a centered card on the dark canvas with
  * the keepIT wordmark. Adds a server-URL field (self-hosted deployments differ per user; the
- * emulator talks to the host machine via http://10.0.2.2:5025) persisted for next launch.
+ * emulator talks to the host machine via http://10.0.2.2:5025) persisted for next launch, and the
+ * way into standalone mode for someone with no server at all.
+ *
+ * The same form connects a server to a standalone device later. [onCancelConnect] is non-null
+ * then: the screen says where the notes are going and offers a way back instead of standalone.
+ *
+ * [unsyncedChanges] counts changes still queued for a server whose session expired. Standalone
+ * starts from an empty device, so choosing it asks first — those changes exist nowhere else, and
+ * signing back in is how to keep them.
  */
 @Composable
-fun LoginScreen(session: SessionRepository) {
+fun LoginScreen(
+    session: SessionRepository,
+    onCancelConnect: (() -> Unit)? = null,
+    unsyncedChanges: Int = 0,
+) {
+    val connecting = onCancelConnect != null
+    var confirmDiscard by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     var serverUrl by rememberSaveable { mutableStateOf(session.serverUrl ?: "") }
@@ -115,10 +131,19 @@ fun LoginScreen(session: SessionRepository) {
                     text = when {
                         forgotMode -> "Reset your password"
                         registerMode -> "Create your account"
+                        connecting -> "Connect to a server"
                         else -> "Welcome back"
                     },
                     color = KeepItColors.TextMuted,
                 )
+                if (connecting && !forgotMode) {
+                    Text(
+                        text = "The notes, lists, reminders and images on this device are uploaded " +
+                            "to the account you sign in to, alongside anything already in it.",
+                        color = KeepItColors.TextFaint,
+                        fontSize = 13.sp,
+                    )
+                }
 
                 if (forgotMode && resetRequested) {
                     Text(
@@ -218,8 +243,55 @@ fun LoginScreen(session: SessionRepository) {
                             Text(text = "Forgot password?", color = KeepItColors.TextMuted)
                         }
                     }
+                    if (onCancelConnect != null) {
+                        TextButton(onClick = onCancelConnect, enabled = !busy) {
+                            Text(text = "Cancel — keep using this device only", color = KeepItColors.TextMuted)
+                        }
+                    } else {
+                        // No server at all: notes stay on this device, and can move to one later.
+                        TextButton(
+                            onClick = {
+                                if (unsyncedChanges > 0) confirmDiscard = true else session.startStandalone()
+                            },
+                            enabled = !busy,
+                        ) {
+                            Text(text = "Use without a server", color = KeepItColors.TextMuted)
+                        }
+                    }
                 }
             }
         }
+    }
+
+    if (confirmDiscard) {
+        val changes = if (unsyncedChanges == 1) "1 change hasn't" else "$unsyncedChanges changes haven't"
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            containerColor = KeepItColors.Surface,
+            title = { Text("Discard unsynced changes?") },
+            text = {
+                Text(
+                    text = "$changes reached your server yet. Standalone mode starts with an empty " +
+                        "device and discards them — sign in again to keep them.",
+                    color = KeepItColors.TextMuted,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmDiscard = false
+                        session.startStandalone()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Discard")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) {
+                    Text("Cancel", color = KeepItColors.TextMuted)
+                }
+            },
+        )
     }
 }

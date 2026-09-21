@@ -11,6 +11,9 @@ sealed interface SessionState {
     data object Loading : SessionState
     data object SignedOut : SessionState
     data class SignedIn(val user: UserDto) : SessionState
+
+    /** No server and no account: everything stays on this device (see [AppMode]). */
+    data object Standalone : SessionState
 }
 
 /**
@@ -21,8 +24,12 @@ sealed interface SessionState {
  * Offline-aware: when the server is *unreachable* (as opposed to rejecting the cookie), [restore]
  * signs in on the last-known user so the offline cache is usable; the first successful network
  * call then acquires a real token through the normal refresh path.
+ *
+ * Also owns the way in and out of **standalone** mode ([AppMode]): [startStandalone] enters it with
+ * no server at all; a later [login] or [register] leaves it by connecting one, readying the local
+ * notes for upload first ([onLeavingStandalone]); [logout] from standalone erases the device.
  */
-class SessionRepository(private val client: ApiClient) {
+class SessionRepository(private val client: ApiClient, private val mode: AppMode) {
 
     private val _state = MutableStateFlow<SessionState>(SessionState.Loading)
     val state: StateFlow<SessionState> = _state
@@ -33,8 +40,19 @@ class SessionRepository(private val client: ApiClient) {
     /** Wired by the app container: flushes pending offline changes + clears the local store. */
     var onLogout: (suspend () -> Unit)? = null
 
+    /**
+     * Wired by the app container: readies the standalone notes for upload into the account being
+     * connected. Runs once an account has accepted the credentials but *before* the mode flips, so
+     * the sync engine never sees the queue in its standalone form.
+     */
+    var onLeavingStandalone: (suspend () -> Unit)? = null
+
     /** Bootstrap: a persisted refresh cookie silently restores the session (survives restarts). */
     suspend fun restore() {
+        if (mode.isStandalone) {
+            _state.value = SessionState.Standalone
+            return
+        }
         val base = client.baseUrl
         if (base == null) {
             _state.value = SessionState.SignedOut
@@ -94,24 +112,41 @@ class SessionRepository(private val client: ApiClient) {
             client.saveLastUser(response.user)
         }
 
+    /** Enters standalone mode: no server, no account — the notes screen opens straight away. */
+    fun startStandalone() {
+        mode.setStandalone(true)
+        _state.value = SessionState.Standalone
+    }
+
     private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> =
         runCatching {
             client.configure(serverUrl)
             val response = call()
             client.tokenStore.set(response.accessToken, response.accessTokenExpiresAtUtc)
             client.saveLastUser(response.user)
+            // Connecting a server from standalone mode: the local notes go to this account.
+            if (mode.isStandalone) {
+                onLeavingStandalone?.invoke()
+                mode.setStandalone(false)
+            }
             _state.value = SessionState.SignedIn(response.user)
         }
 
     /**
      * Signs out: best-effort flush of pending offline changes, revoke the refresh token
      * server-side, then clear every local trace (token, cookie, cached user, offline store).
+     *
+     * From standalone mode this *erases the device's notes* — there is no server holding a copy —
+     * and returns to the sign-in screen. The mode is left only after the wipe, so the flush inside
+     * [onLogout] stays a no-op instead of replaying the standalone queue at some old server URL.
      */
     suspend fun logout() {
+        val wasStandalone = mode.isStandalone
         runCatching { onLogout?.invoke() }
-        runCatching { client.api.logout() }
+        if (!wasStandalone) runCatching { client.api.logout() }
         client.clearSession()
         client.clearLastUser()
+        if (wasStandalone) mode.setStandalone(false)
         _state.value = SessionState.SignedOut
     }
 

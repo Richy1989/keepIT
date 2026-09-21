@@ -14,6 +14,16 @@
 .cxx
 local.properties
 
+# Kotlin 2.x compiler session data and error reports, written next to the project.
+.kotlin/
+
+# Gradle's daemon toolchain criteria, which Android Studio regenerates. Kept out on purpose: its
+# JDK download map gets the source rejected by F-Droid's scanner (see commit 942b733).
+/gradle/gradle-daemon-jvm.properties
+
+# Android Studio profiler heap dumps.
+*.hprof
+
 # Release signing — never commit the keystore or its passwords (see keystore.properties.example).
 keystore.properties
 *.jks

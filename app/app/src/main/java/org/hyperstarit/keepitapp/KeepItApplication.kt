@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.data.ApiClient
+import org.hyperstarit.keepitapp.data.AppMode
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.RealtimeClient
 import org.hyperstarit.keepitapp.data.SessionRepository
@@ -43,8 +44,11 @@ val Context.appContainer: AppContainer
 class AppContainer(context: Context) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** Server-backed or standalone; read by every path that would otherwise reach for the network. */
+    val appMode = AppMode(context.applicationContext)
+
     val apiClient = ApiClient(context)
-    val session = SessionRepository(apiClient)
+    val session = SessionRepository(apiClient, appMode)
 
     private val localStore = LocalStore(context.applicationContext)
     private val outbox = Outbox(localStore)
@@ -52,7 +56,10 @@ class AppContainer(context: Context) {
     val connectivity = ConnectivityMonitor(context.applicationContext)
     val notesRepo =
         NotesRepository(apiClient, context.applicationContext, localStore, outbox, appScope, mediaStaging)
-    val syncEngine = SyncEngine(apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging)
+    val syncEngine = SyncEngine(
+        apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging,
+        isStandalone = { appMode.isStandalone },
+    )
 
     /** How many offline changes are still waiting to reach the server (notes screen strip). */
     val pendingChanges: StateFlow<Int> = outbox.pendingCount
@@ -82,18 +89,40 @@ class AppContainer(context: Context) {
         }
         session.onLogout = {
             // Best-effort flush of queued changes while the session is still valid, then wipe.
+            // (A no-op in standalone mode, where signing out erases the device instead.)
             syncEngine.sync()
+            // Still set here: the session only leaves standalone mode after this callback.
+            val erasing = appMode.isStandalone
             notesRepo.clearLocal()
+            if (erasing) notesRepo.clearWidget()
             reminderScheduler.clear()
             notificationsWatcher.clear()
         }
+        session.onLeavingStandalone = { notesRepo.prepareStandaloneUpload() }
 
         // Keep the alarm snapshot in lockstep with the cache. drop(1) skips the StateFlow's initial
         // empty emission so an app start never wipes scheduled alarms before the disk cache loads.
         appScope.launch {
-            notesRepo.allNotes.drop(1).collect { reminderScheduler.syncFrom(it) }
+            notesRepo.allNotes.drop(1).collect { notes ->
+                reminderScheduler.syncFrom(notes)
+                // Standalone: no server marks reminders fired or advances them, so the device does
+                // — after syncFrom, which has to post a due occurrence before it is moved past.
+                if (appMode.isStandalone) notesRepo.settleReminders()
+            }
         }
         // Cold start (e.g. after a force-stop) may owe due reminders even before any cache change.
         appScope.launch { reminderScheduler.deliverDue() }
+    }
+
+    /**
+     * Standalone mode's stand-in for the refetch a server-backed app does on returning to the
+     * foreground: reminders may have come due while it was away, and nothing else will move them
+     * on. Delivery first, for the same reason as in the cache collector above.
+     */
+    fun onStandaloneResume() {
+        appScope.launch {
+            reminderScheduler.deliverDue()
+            notesRepo.settleReminders()
+        }
     }
 }

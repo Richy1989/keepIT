@@ -1,11 +1,15 @@
 package org.hyperstarit.keepitapp.data.offline
 
+import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
+import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.ensureUtc
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 
 /**
  * Pure functions over the merged note cache — the single source of truth for how a [PendingOp]
@@ -62,7 +66,51 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
     is PendingOp.DeleteMedia -> notes.map { n ->
         if (n.id != op.noteId) n else n.copy(media = n.media.filterNot { it.id == op.mediaId })
     }
+
+    // A deleted list takes its memberships with it; the notes themselves stay, as on the server.
+    is PendingOp.DeleteList -> notes.map { n ->
+        if (op.listId !in n.listIds) n else n.copy(listIds = n.listIds - op.listId)
+    }
+
+    // The lists themselves live beside the notes, not on them — see [applyListOp].
+    is PendingOp.CreateList, is PendingOp.UpdateList -> notes
 }
+
+/**
+ * Applies one queued op to the cached lists — the list-side twin of [applyOp]. Only list ops change
+ * anything here. The result keeps the drawer's alphabetical order, so a list created offline lands
+ * where the next fetch will put it.
+ */
+fun applyListOp(lists: List<ListDto>, op: PendingOp): List<ListDto> = when (op) {
+    is PendingOp.CreateList -> sortedLists(
+        lists + ListDto(
+            id = op.tempId,
+            name = op.dto.name,
+            color = op.dto.color,
+            createdAtUtc = op.enqueuedAtUtc,
+        ),
+    )
+
+    // Null fields are left unchanged, mirroring the server's PATCH.
+    is PendingOp.UpdateList -> sortedLists(
+        lists.map { l ->
+            if (l.id != op.listId) l else l.copy(name = op.dto.name ?: l.name, color = op.dto.color ?: l.color)
+        },
+    )
+
+    is PendingOp.DeleteList -> lists.filter { it.id != op.listId }
+
+    is PendingOp.Create, is PendingOp.Update, is PendingOp.SetState, is PendingOp.SetLists,
+    is PendingOp.SetReminder, is PendingOp.ClearReminder, is PendingOp.Delete,
+    is PendingOp.AttachMedia, is PendingOp.DeleteMedia -> lists
+}
+
+/** Overlays every still-queued list op onto a fresh server fetch — [applyPending] for lists. */
+fun applyPendingLists(lists: List<ListDto>, ops: List<PendingOp>): List<ListDto> =
+    ops.fold(lists, ::applyListOp)
+
+/** The drawer's order: alphabetical, ignoring case. */
+private fun sortedLists(lists: List<ListDto>): List<ListDto> = lists.sortedBy { it.name.lowercase() }
 
 /** The still-queued attachments for one note, in the order they were picked. */
 fun pendingMedia(ops: List<PendingOp>, noteId: String): List<PendingOp.AttachMedia> =
@@ -136,5 +184,56 @@ fun activeListCounts(notes: List<NoteDto>): Map<String, Int> = notes
     .groupingBy { it }
     .eachCount()
 
-private fun epochMs(iso: String): Long =
-    runCatching { Instant.parse(ensureUtc(iso)).toEpochMilli() }.getOrDefault(0L)
+/**
+ * Moves reminders that have come due on, as the server's `ReminderDispatcherService` does — for
+ * standalone mode, where there is no server to do it. A one-time reminder is marked fired; a
+ * recurring one advances to its first occurrence after [nowMs], skipping any it missed (one
+ * catch-up, like the server). A trashed note's reminder is left alone, also like the server: it is
+ * still pending, and fires once the note is restored.
+ *
+ * Posting the notification is not this function's job — that belongs to
+ * [org.hyperstarit.keepitapp.notifications.ReminderScheduler], which must see an occurrence before
+ * it is advanced past. This only keeps the cache truthful: without it a fired one-time reminder
+ * would stay pending forever, and a recurring one would keep showing the time it was first set for.
+ */
+fun settleDueReminders(notes: List<NoteDto>, nowMs: Long): List<NoteDto> = notes.map { n ->
+    val at = n.remindAtUtc ?: return@map n
+    if (n.reminderFired || n.isTrashed) return@map n
+    val atMs = epochMsOrNull(at) ?: return@map n
+    if (atMs > nowMs) return@map n
+
+    val recurrence = n.reminderRecurrence ?: ReminderRecurrences.NONE
+    if (recurrence == ReminderRecurrences.NONE) {
+        n.copy(reminderFired = true)
+    } else {
+        n.copy(remindAtUtc = Instant.ofEpochMilli(nextOccurrenceAfter(atMs, recurrence, nowMs)).toString())
+    }
+}
+
+/**
+ * The next occurrence after [fromMs] — the same UTC arithmetic as the server's `Advance`, so an
+ * occurrence computed on the device and one computed by the server agree.
+ */
+fun advanceOccurrence(fromMs: Long, recurrence: String): Long {
+    val from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromMs), ZoneOffset.UTC)
+    val next = when (recurrence) {
+        ReminderRecurrences.DAILY -> from.plusDays(1)
+        ReminderRecurrences.WEEKLY -> from.plusWeeks(1)
+        ReminderRecurrences.MONTHLY -> from.plusMonths(1)
+        ReminderRecurrences.YEARLY -> from.plusYears(1)
+        else -> from.plusDays(1) // unknown cadence: fail safe, never loop forever
+    }
+    return next.toInstant().toEpochMilli()
+}
+
+/** The first occurrence of a recurring reminder strictly after [nowMs], starting from [fromMs]. */
+internal fun nextOccurrenceAfter(fromMs: Long, recurrence: String, nowMs: Long): Long {
+    var next = fromMs
+    while (next <= nowMs) next = advanceOccurrence(next, recurrence)
+    return next
+}
+
+private fun epochMs(iso: String): Long = epochMsOrNull(iso) ?: 0L
+
+internal fun epochMsOrNull(iso: String): Long? =
+    runCatching { Instant.parse(ensureUtc(iso)).toEpochMilli() }.getOrNull()
