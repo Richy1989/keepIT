@@ -58,7 +58,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       # ---- Signed Android APK ----
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
