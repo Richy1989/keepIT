@@ -10,7 +10,7 @@ activityCompose = "1.13.0"
 kotlin = "2.4.20"
 composeBom = "2026.09.00"
 retrofit = "2.11.0"
-okhttp = "4.12.0"
+okhttp = "5.5.0"
 kotlinxSerializationJson = "1.11.0"
 navigationCompose = "2.10.1"
 # 1.1.1 predates Android 15: Glance only moved to compileSdk 35 in 1.2.0-alpha01, and we target 36.
