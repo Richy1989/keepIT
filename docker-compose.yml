@@ -59,7 +59,7 @@ services:
       # reverse proxy in front (e.g. Traefik). Browsers also treat http://localhost as secure, so
       # the localhost dev flow works. Set REFRESH_COOKIE_SECURE=false in .env only if you access
       # this stack over plain HTTP on a non-localhost address (e.g. a LAN IP), or the browser drops
-      # the cookie and silent refresh fails.
+      # the cookie and silent refresh fails. Requests over HTTPS get a Secure cookie either way.
       Auth__RefreshCookie__Secure: ${REFRESH_COOKIE_SECURE:-true}
       # Number of trusted reverse-proxy hops in front of the API; the API uses it to recover the
       # real client IP from X-Forwarded-For (which the per-IP rate limiter keys on). This file as

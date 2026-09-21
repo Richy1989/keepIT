@@ -4,8 +4,10 @@
 # (rather than limping along with half the app dead).
 set -euo pipefail
 
-# Plain http on a LAN is the normal way this image is reached, so the refresh cookie is not marked
-# Secure unless the operator opts in (Auth__RefreshCookie__Secure=true when serving over https).
+# Plain http on a LAN is the normal way this image is reached, so the refresh cookie isn't forced
+# Secure. It still is on every request that arrives over HTTPS, e.g. through a TLS reverse proxy,
+# so putting the instance behind one needs no change here; Auth__RefreshCookie__Secure=true forces
+# it on plain http too.
 # The default lives here rather than as an ENV in the Dockerfile because BuildKit's
 # SecretsUsedInArgOrEnv lint flags every "Auth__*" name regardless of how un-secret the value is.
 : "${Auth__RefreshCookie__Secure:=false}"

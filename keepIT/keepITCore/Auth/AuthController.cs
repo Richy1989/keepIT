@@ -476,14 +476,23 @@ public class AuthController : ControllerBase
             DisplayName = user.DisplayName,
         };
 
-    /// <summary>Writes the refresh token to the httpOnly cookie (Secure/SameSite/Path from options).</summary>
+    /// <summary>
+    /// Whether the refresh cookie is marked Secure: always for a request that came over HTTPS
+    /// (directly, or per the TLS proxy's <c>X-Forwarded-Proto</c>), and for plain http too when
+    /// <see cref="RefreshCookieOptions.Secure"/> is set. An instance used over http on a LAN keeps
+    /// working, and the same instance behind a TLS proxy protects its cookie without anyone
+    /// remembering to change the setting; no browser needs a non-Secure cookie over HTTPS.
+    /// </summary>
+    private bool CookieIsSecure => _cookieOptions.Secure || Request.IsHttps;
+
+    /// <summary>Writes the refresh token to the httpOnly cookie (SameSite/Path from options).</summary>
     /// <param name="rawToken">The opaque refresh token value to store in the cookie.</param>
     /// <param name="expiresAtUtc">The cookie's expiry, matching the refresh token's lifetime.</param>
     private void SetRefreshCookie(string rawToken, DateTime expiresAtUtc) =>
         Response.Cookies.Append(_cookieOptions.Name, rawToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = _cookieOptions.Secure,
+            Secure = CookieIsSecure,
             SameSite = SameSiteMode.Strict,
             Path = _cookieOptions.Path,
             Expires = expiresAtUtc,
@@ -494,7 +503,7 @@ public class AuthController : ControllerBase
         Response.Cookies.Delete(_cookieOptions.Name, new CookieOptions
         {
             HttpOnly = true,
-            Secure = _cookieOptions.Secure,
+            Secure = CookieIsSecure,
             SameSite = SameSiteMode.Strict,
             Path = _cookieOptions.Path,
         });

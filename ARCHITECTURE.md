@@ -269,8 +269,13 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   2 behind Traefik → nginx): too low and all clients share the proxy's rate-limit bucket, too
   high and a client can spoof its IP with a forged header.
 - **No HTTPS redirect in the API** — TLS terminates at the proxy; a redirect inside the API
-  would loop behind it. `Auth__RefreshCookie__Secure` controls the cookie's Secure flag
-  (`true` behind TLS; `false` only for plain-HTTP LAN use).
+  would loop behind it. The refresh cookie is **Secure on every HTTPS request**
+  (`Request.IsHttps`, which honours the TLS proxy's `X-Forwarded-Proto`; both nginx configs
+  pass it through instead of overwriting it with their own `http`). `Auth__RefreshCookie__Secure`
+  only decides whether plain HTTP gets the flag too: `true` refuses plain-HTTP sessions, `false`
+  (the single container's default) allows them on a LAN. So an instance later put behind a TLS
+  proxy protects its cookie without anyone changing the setting, which existing installs with
+  an explicit `false` would not have done.
 - **Request size limits:** note endpoints cap payloads at 2 MB (`[RequestSizeLimit]`) —
   rejecting abuse before model binding instead of at Kestrel's ~28 MB default.
 - **Upload validation:** profile images are checked by extension, size (≤2 MB), **and content
