@@ -2,6 +2,7 @@ package org.hyperstarit.keepitapp.data
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -94,7 +95,7 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * password.
      */
     suspend fun requestPasswordReset(serverUrl: String, email: String): Result<Unit> =
-        runCatching {
+        resultUnlessCancelled {
             client.configure(serverUrl)
             client.api.forgotPassword(ForgotPasswordRequestDto(email))
         }
@@ -104,7 +105,7 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * session and returns fresh tokens for this one — store them so this device stays signed in.
      */
     suspend fun changePassword(currentPassword: String, newPassword: String): Result<Unit> =
-        runCatching {
+        resultUnlessCancelled {
             val response = client.api.changePassword(ChangePasswordRequestDto(currentPassword, newPassword))
             client.tokenStore.set(response.accessToken, response.accessTokenExpiresAtUtc)
             client.saveLastUser(response.user)
@@ -116,10 +117,28 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         _state.value = SessionState.Standalone
     }
 
-    private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> =
-        runCatching {
+    /**
+     * The shared tail of [login] and [register]: hand the credentials over, then make the answer
+     * this device's session.
+     *
+     * The sign-in screen launches this from the composition, so an activity recreation can cancel
+     * it. Until the server answers that is harmless and the cancellation simply propagates — a
+     * sign-in that never happened, not a failed one. Past that point the session is real, so
+     * applying it runs [NonCancellable]: a cancellation between [onLeavingStandalone] and the mode
+     * flip would otherwise leave the device standalone while holding an account it had already
+     * readied its notes for.
+     */
+    private suspend fun authenticate(serverUrl: String, call: suspend () -> AuthResponseDto): Result<Unit> {
+        val response = try {
             client.configure(serverUrl)
-            val response = call()
+            call()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            return Result.failure(t)
+        }
+
+        withContext(NonCancellable) {
             client.tokenStore.set(response.accessToken, response.accessTokenExpiresAtUtc)
             client.saveLastUser(response.user)
             // Connecting a server from standalone mode: the local notes go to this account.
@@ -129,6 +148,8 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
             }
             _state.value = SessionState.SignedIn(response.user)
         }
+        return Result.success(Unit)
+    }
 
     /**
      * Signs out: best-effort flush of pending offline changes, revoke the refresh token
@@ -137,15 +158,22 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * From standalone mode this *erases the device's notes* — there is no server holding a copy —
      * and returns to the sign-in screen. The mode is left only after the wipe, so the flush inside
      * [onLogout] stays a no-op instead of replaying the standalone queue at some old server URL.
+     *
+     * [NonCancellable] because this is launched from the settings screen: once a sign-out has begun
+     * it has to run to the end, rather than an activity recreation leaving the token revoked
+     * server-side with the local store still full, or the reverse. The `runCatching`s inside are
+     * about a *failing* flush or revoke, which must not stop the wipe either.
      */
     suspend fun logout() {
-        val wasStandalone = mode.isStandalone
-        runCatching { onLogout?.invoke() }
-        if (!wasStandalone) runCatching { client.api.logout() }
-        client.clearSession()
-        client.clearLastUser()
-        if (wasStandalone) mode.setStandalone(false)
-        _state.value = SessionState.SignedOut
+        withContext(NonCancellable) {
+            val wasStandalone = mode.isStandalone
+            runCatching { onLogout?.invoke() }
+            if (!wasStandalone) runCatching { client.api.logout() }
+            client.clearSession()
+            client.clearLastUser()
+            if (wasStandalone) mode.setStandalone(false)
+            _state.value = SessionState.SignedOut
+        }
     }
 
     /**
@@ -174,6 +202,20 @@ internal suspend fun <T> orNullUnlessCancelled(block: suspend () -> T): T? =
         throw e
     } catch (_: Exception) {
         null
+    }
+
+/**
+ * [runCatching] for suspend work: an ordinary failure becomes a failed [Result], a cancellation is
+ * rethrown. The same trap as in [orNullUnlessCancelled] — a screen torn down mid-call would
+ * otherwise hand the caller "Job was cancelled" to show as if the server had refused.
+ */
+internal suspend fun <T> resultUnlessCancelled(block: suspend () -> T): Result<T> =
+    try {
+        Result.success(block())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (t: Throwable) {
+        Result.failure(t)
     }
 
 /**

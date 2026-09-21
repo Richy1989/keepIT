@@ -57,6 +57,30 @@ class SessionRestoreTest {
         assertEquals(fresh, orNullUnlessCancelled { fresh })
     }
 
+    @Test
+    fun `a cancelled sign-in is never handed back as a refusal`() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        var outcome: Result<Unit>? = null
+
+        val job = launch(Dispatchers.Default) {
+            outcome = resultUnlessCancelled {
+                entered.complete(Unit)
+                awaitCancellation()
+            }
+        }
+        entered.await()
+        job.cancelAndJoin()
+
+        assertNull("a torn-down sign-in screen has no answer to report", outcome)
+    }
+
+    @Test
+    fun `an ordinary failure is reported as a failed result`() = runBlocking {
+        val refused = IOException("offline")
+        assertEquals(refused, resultUnlessCancelled { throw refused }.exceptionOrNull())
+        assertEquals(fresh, resultUnlessCancelled { fresh }.getOrNull())
+    }
+
     // ---- what the bootstrap's outcome means for the session ----
 
     @Test
