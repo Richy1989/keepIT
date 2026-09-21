@@ -18,7 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -29,11 +31,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,12 +65,16 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItColors
  * native notifications, so POST_NOTIFICATIONS and SCHEDULE_EXACT_ALARM decide how well that works —
  * both read live from the system and re-read on resume, so the rows always tell the truth) and the
  * **account section** (change password, mirroring the web Settings page).
+ *
+ * In standalone mode there is no account: that section becomes the device's own — connect a server
+ * ([onConnectServer]) to upload the notes, or erase them.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
+fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onConnectServer: () -> Unit) {
     val context = LocalContext.current
     val alarmManager = remember { context.getSystemService(AlarmManager::class.java) }
+    val standalone by container.appMode.standalone.collectAsState()
 
     // Bumped on every resume: permission state changes in system settings, not in this process.
     var refresh by remember { mutableIntStateOf(0) }
@@ -180,20 +188,108 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit) {
 
             HorizontalDivider(color = KeepItColors.BorderSubtle)
 
-            SectionLabel("ACCOUNT")
-            ChangePasswordSection(container)
+            if (standalone) {
+                SectionLabel("THIS DEVICE")
+                StandaloneSection(container, onConnectServer)
+            } else {
+                SectionLabel("ACCOUNT")
+                ChangePasswordSection(container)
+            }
 
             HorizontalDivider(color = KeepItColors.BorderSubtle)
 
             SectionLabel("ABOUT")
-            AboutSection(container)
+            AboutSection(container, showServer = !standalone)
         }
     }
 }
 
-/** App + server versions, so a self-hoster can spot an outdated APK or container at a glance. */
+/**
+ * Standalone mode's stand-in for the account section: where the notes live, the way to a server,
+ * and the way out. Erasing goes through the sign-out path — in standalone mode that is what it
+ * means — behind a confirmation, since there is no server copy to come back to.
+ */
 @Composable
-private fun AboutSection(container: AppContainer) {
+private fun StandaloneSection(container: AppContainer, onConnectServer: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val notes by container.notesRepo.allNotes.collectAsState()
+    var confirmErase by remember { mutableStateOf(false) }
+    var erasing by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.padding(vertical = 14.dp)) {
+        Text("Standalone mode", color = KeepItColors.Text, fontSize = 15.sp)
+        Text(
+            text = "Your notes are stored only on this phone, with no server and no backup. " +
+                "Connect a server to upload them into an account and sync them with your other devices.",
+            color = KeepItColors.TextFaint,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+        )
+        Button(onClick = onConnectServer) {
+            Text("Connect to a server")
+        }
+
+        Text(
+            "Erase this device",
+            color = KeepItColors.Text,
+            fontSize = 15.sp,
+            modifier = Modifier.padding(top = 20.dp),
+        )
+        Text(
+            text = "Deletes every note, list and image on this phone and returns to the sign-in screen.",
+            color = KeepItColors.TextFaint,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+        )
+        OutlinedButton(onClick = { confirmErase = true }, enabled = !erasing) {
+            Text("Erase notes", color = MaterialTheme.colorScheme.error)
+        }
+    }
+
+    if (confirmErase) {
+        val what = when (val count = notes.size) {
+            0 -> "Everything in keepIT"
+            1 -> "Your note, with its lists, reminders and images,"
+            else -> "All $count notes, with their lists, reminders and images,"
+        }
+        AlertDialog(
+            onDismissRequest = { confirmErase = false },
+            containerColor = KeepItColors.Surface,
+            title = { Text("Erase this device?") },
+            text = {
+                Text(
+                    text = "$what will be deleted from this phone. " +
+                        "There is no server copy, so this can't be undone.",
+                    color = KeepItColors.TextMuted,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmErase = false
+                        erasing = true
+                        scope.launch { container.session.logout() }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Erase")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmErase = false }) {
+                    Text("Cancel", color = KeepItColors.TextMuted)
+                }
+            },
+        )
+    }
+}
+
+/**
+ * App + server versions, so a self-hoster can spot an outdated APK or container at a glance. The
+ * server row goes when there is no server ([showServer] false, standalone mode).
+ */
+@Composable
+private fun AboutSection(container: AppContainer, showServer: Boolean) {
     val context = LocalContext.current
     val appVersion = remember {
         runCatching {
@@ -201,13 +297,13 @@ private fun AboutSection(container: AppContainer) {
         }.getOrNull() ?: "unknown"
     }
     var serverVersion by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        serverVersion = runCatching { container.apiClient.api.meta().version }.getOrNull()
+    LaunchedEffect(showServer) {
+        if (showServer) serverVersion = runCatching { container.apiClient.api.meta().version }.getOrNull()
     }
 
     Column(modifier = Modifier.padding(vertical = 14.dp)) {
         VersionRow("App version", appVersion)
-        VersionRow("Server version", serverVersion ?: "unavailable (offline?)")
+        if (showServer) VersionRow("Server version", serverVersion ?: "unavailable (offline?)")
     }
 }
 

@@ -3,6 +3,7 @@ package org.hyperstarit.keepitapp.ui.notes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -80,6 +81,9 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItColors
  * counts), a topbar with search, and a single-column note list split into Pinned/Others in the
  * active view. Realtime keeps it live; pull-to-refresh (and the topbar refresh action) is a
  * manual resync.
+ *
+ * In standalone mode there is nothing to sync with or sign out of: refresh, sign-out, the sync
+ * strip and the server inbox all go, and the drawer says where the notes live.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +104,8 @@ fun NotesScreen(
     val isOnline by container.connectivity.isOnline.collectAsState()
     val pending by container.pendingChanges.collectAsState()
     val syncStatus by container.syncEngine.status.collectAsState()
+    val standalone by container.appMode.standalone.collectAsState()
+    val pendingMedia by repo.pendingMediaByNote.collectAsState()
 
     var search by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -139,8 +145,21 @@ fun NotesScreen(
                     color = KeepItColors.Accent,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 22.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp),
+                    modifier = Modifier.padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = 20.dp,
+                        bottom = if (standalone) 2.dp else 20.dp,
+                    ),
                 )
+                if (standalone) {
+                    Text(
+                        text = "Standalone — notes stay on this device",
+                        color = KeepItColors.TextFaint,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
+                    )
+                }
                 NavigationDrawerItem(
                     label = { Text("Notes") },
                     selected = filter.view == NotesView.ACTIVE && filter.listIds.isEmpty(),
@@ -236,14 +255,18 @@ fun NotesScreen(
                     modifier = Modifier.padding(vertical = 8.dp),
                     color = KeepItColors.BorderSubtle,
                 )
-                NavigationDrawerItem(
-                    label = { Text("Notifications") },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        onOpenNotifications()
-                    },
-                )
+                // The inbox is the server's (share invites, server-fired reminders); standalone
+                // reminders post straight to the system tray instead.
+                if (!standalone) {
+                    NavigationDrawerItem(
+                        label = { Text("Notifications") },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            onOpenNotifications()
+                        },
+                    )
+                }
                 NavigationDrawerItem(
                     label = { Text("Settings") },
                     selected = false,
@@ -281,15 +304,19 @@ fun NotesScreen(
                             IconButton(onClick = { searchOpen = !searchOpen; if (!searchOpen) search = "" }) {
                                 Icon(Icons.Filled.Search, contentDescription = "Search", tint = KeepItColors.TextMuted)
                             }
-                            IconButton(onClick = { scope.launch { repo.refreshAll() } }) {
-                                Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = KeepItColors.TextMuted)
-                            }
-                            IconButton(onClick = { scope.launch { container.session.logout() } }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ExitToApp,
-                                    contentDescription = "Sign out",
-                                    tint = KeepItColors.TextMuted,
-                                )
+                            // Standalone has nothing to refresh from, and "signing out" would erase
+                            // the device — that lives behind a confirmation in Settings instead.
+                            if (!standalone) {
+                                IconButton(onClick = { scope.launch { repo.refreshAll() } }) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = KeepItColors.TextMuted)
+                                }
+                                IconButton(onClick = { scope.launch { container.session.logout() } }) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ExitToApp,
+                                        contentDescription = "Sign out",
+                                        tint = KeepItColors.TextMuted,
+                                    )
+                                }
                             }
                         },
                     )
@@ -311,7 +338,10 @@ fun NotesScreen(
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
-                    SyncStatusStrip(isOnline = isOnline, pending = pending, syncStatus = syncStatus)
+                    // Standalone changes are never "waiting to sync" — they are simply saved.
+                    if (!standalone) {
+                        SyncStatusStrip(isOnline = isOnline, pending = pending, syncStatus = syncStatus)
+                    }
                 }
             },
             floatingActionButton = {
@@ -324,28 +354,7 @@ fun NotesScreen(
                 }
             },
         ) { padding ->
-            val pullState = rememberPullToRefreshState()
-            var refreshing by remember { mutableStateOf(false) }
-            PullToRefreshBox(
-                isRefreshing = refreshing,
-                onRefresh = {
-                    scope.launch {
-                        refreshing = true
-                        repo.refreshAll()
-                        refreshing = false
-                    }
-                },
-                state = pullState,
-                indicator = {
-                    PullToRefreshDefaults.Indicator(
-                        state = pullState,
-                        isRefreshing = refreshing,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                        color = KeepItColors.Accent,
-                    )
-                },
-                modifier = Modifier.padding(padding).fillMaxSize(),
-            ) {
+            val content: @Composable BoxScope.() -> Unit = {
                 when {
                     (loading || syncStatus == SyncStatus.SYNCING) && notes.isEmpty() -> CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
@@ -360,7 +369,8 @@ fun NotesScreen(
                         Text(
                             text = when {
                                 q.isNotEmpty() -> "No notes match your search."
-                                !isOnline && notes.isEmpty() -> "You're offline — your notes appear once you've connected."
+                                !standalone && !isOnline && notes.isEmpty() ->
+                                    "You're offline — your notes appear once you've connected."
                                 else -> emptyCopy(filter.view)
                             },
                             color = KeepItColors.TextMuted,
@@ -378,15 +388,54 @@ fun NotesScreen(
                         if (pinned.isNotEmpty()) {
                             item { SectionLabel("PINNED") }
                             items(pinned, key = { "p-${it.id}" }) { note ->
-                                NoteCard(note = note, repo = repo, onOpen = { onOpenNote(note.id) })
+                                NoteCard(
+                                    note = note,
+                                    repo = repo,
+                                    pendingMedia = pendingMedia[note.id].orEmpty(),
+                                    onOpen = { onOpenNote(note.id) },
+                                )
                             }
                             item { SectionLabel("OTHERS") }
                         }
                         items(others, key = { it.id }) { note ->
-                            NoteCard(note = note, repo = repo, onOpen = { onOpenNote(note.id) })
+                            NoteCard(
+                                note = note,
+                                repo = repo,
+                                pendingMedia = pendingMedia[note.id].orEmpty(),
+                                onOpen = { onOpenNote(note.id) },
+                            )
                         }
                     }
                 }
+            }
+
+            if (standalone) {
+                // Nothing to pull from.
+                Box(modifier = Modifier.padding(padding).fillMaxSize(), content = content)
+            } else {
+                val pullState = rememberPullToRefreshState()
+                var refreshing by remember { mutableStateOf(false) }
+                PullToRefreshBox(
+                    isRefreshing = refreshing,
+                    onRefresh = {
+                        scope.launch {
+                            refreshing = true
+                            repo.refreshAll()
+                            refreshing = false
+                        }
+                    },
+                    state = pullState,
+                    indicator = {
+                        PullToRefreshDefaults.Indicator(
+                            state = pullState,
+                            isRefreshing = refreshing,
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            color = KeepItColors.Accent,
+                        )
+                    },
+                    modifier = Modifier.padding(padding).fillMaxSize(),
+                    content = content,
+                )
             }
         }
     }

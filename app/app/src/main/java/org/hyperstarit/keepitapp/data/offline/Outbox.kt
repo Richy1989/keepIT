@@ -4,7 +4,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.UpdateListDto
+import java.time.Instant
 
 /**
  * The persisted FIFO queue of offline mutations. Enqueueing coalesces per note (see [coalesce]) so
@@ -57,6 +59,19 @@ class Outbox(private val store: LocalStore) {
         }
     }
 
+    /**
+     * Takes one op out of the queue wherever it sits — withdrawing an attachment that will never be
+     * sent, in standalone mode.
+     *
+     * @return the removed op, or null when it was no longer queued.
+     */
+    suspend fun remove(opId: String): PendingOp? = mutex.withLock {
+        val op = ops.firstOrNull { it.opId == opId } ?: return@withLock null
+        ops.remove(op)
+        persist()
+        op
+    }
+
     /** Rewrites every queued op that references a temp note id to the server-assigned id. */
     suspend fun remapId(tempId: String, realId: String) = mutex.withLock {
         ops = ops.map { op ->
@@ -91,6 +106,12 @@ class Outbox(private val store: LocalStore) {
      */
     suspend fun forgetList(listId: String) = mutex.withLock {
         ops = withoutListReferences(ops.filterNot { it.targetId == listId }, listId).toMutableList()
+        persist()
+    }
+
+    /** Readies a standalone device's queue for its first replay into an account; see [readiedForUpload]. */
+    suspend fun prepareForUpload(nowMs: Long) = mutex.withLock {
+        ops = readiedForUpload(ops, nowMs).toMutableList()
         persist()
     }
 
@@ -276,5 +297,27 @@ fun remapListIds(ops: List<PendingOp>, tempId: String, realId: String): List<Pen
             is PendingOp.DeleteList -> if (op.listId == tempId) op.copy(listId = realId) else op
             else -> op
         }
+    }
+}
+
+/**
+ * A standalone device's queue, readied for its first replay into an account.
+ *
+ * Everything replays as it is except reminders that are already due. The server fires any reminder
+ * it is handed in the past, so a one-time reminder that went off on this device would go off again
+ * — it is dropped, as a reminder that is over. A recurring one would get a catch-up for an
+ * occurrence this device already showed — it moves on to its next occurrence after [nowMs] instead.
+ */
+fun readiedForUpload(ops: List<PendingOp>, nowMs: Long): List<PendingOp> = ops.mapNotNull { op ->
+    if (op !is PendingOp.SetReminder) return@mapNotNull op
+    val atMs = epochMsOrNull(op.dto.remindAtUtc) ?: return@mapNotNull op
+    when {
+        atMs > nowMs -> op
+        op.dto.recurrence == ReminderRecurrences.NONE -> null
+        else -> op.copy(
+            dto = op.dto.copy(
+                remindAtUtc = Instant.ofEpochMilli(nextOccurrenceAfter(atMs, op.dto.recurrence, nowMs)).toString(),
+            ),
+        )
     }
 }

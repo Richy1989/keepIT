@@ -5,8 +5,11 @@ import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
+import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.ensureUtc
 import java.time.Instant
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 
 /**
  * Pure functions over the merged note cache — the single source of truth for how a [PendingOp]
@@ -181,5 +184,56 @@ fun activeListCounts(notes: List<NoteDto>): Map<String, Int> = notes
     .groupingBy { it }
     .eachCount()
 
-private fun epochMs(iso: String): Long =
-    runCatching { Instant.parse(ensureUtc(iso)).toEpochMilli() }.getOrDefault(0L)
+/**
+ * Moves reminders that have come due on, as the server's `ReminderDispatcherService` does — for
+ * standalone mode, where there is no server to do it. A one-time reminder is marked fired; a
+ * recurring one advances to its first occurrence after [nowMs], skipping any it missed (one
+ * catch-up, like the server). A trashed note's reminder is left alone, also like the server: it is
+ * still pending, and fires once the note is restored.
+ *
+ * Posting the notification is not this function's job — that belongs to
+ * [org.hyperstarit.keepitapp.notifications.ReminderScheduler], which must see an occurrence before
+ * it is advanced past. This only keeps the cache truthful: without it a fired one-time reminder
+ * would stay pending forever, and a recurring one would keep showing the time it was first set for.
+ */
+fun settleDueReminders(notes: List<NoteDto>, nowMs: Long): List<NoteDto> = notes.map { n ->
+    val at = n.remindAtUtc ?: return@map n
+    if (n.reminderFired || n.isTrashed) return@map n
+    val atMs = epochMsOrNull(at) ?: return@map n
+    if (atMs > nowMs) return@map n
+
+    val recurrence = n.reminderRecurrence ?: ReminderRecurrences.NONE
+    if (recurrence == ReminderRecurrences.NONE) {
+        n.copy(reminderFired = true)
+    } else {
+        n.copy(remindAtUtc = Instant.ofEpochMilli(nextOccurrenceAfter(atMs, recurrence, nowMs)).toString())
+    }
+}
+
+/**
+ * The next occurrence after [fromMs] — the same UTC arithmetic as the server's `Advance`, so an
+ * occurrence computed on the device and one computed by the server agree.
+ */
+fun advanceOccurrence(fromMs: Long, recurrence: String): Long {
+    val from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromMs), ZoneOffset.UTC)
+    val next = when (recurrence) {
+        ReminderRecurrences.DAILY -> from.plusDays(1)
+        ReminderRecurrences.WEEKLY -> from.plusWeeks(1)
+        ReminderRecurrences.MONTHLY -> from.plusMonths(1)
+        ReminderRecurrences.YEARLY -> from.plusYears(1)
+        else -> from.plusDays(1) // unknown cadence: fail safe, never loop forever
+    }
+    return next.toInstant().toEpochMilli()
+}
+
+/** The first occurrence of a recurring reminder strictly after [nowMs], starting from [fromMs]. */
+internal fun nextOccurrenceAfter(fromMs: Long, recurrence: String, nowMs: Long): Long {
+    var next = fromMs
+    while (next <= nowMs) next = advanceOccurrence(next, recurrence)
+    return next
+}
+
+private fun epochMs(iso: String): Long = epochMsOrNull(iso) ?: 0L
+
+internal fun epochMsOrNull(iso: String): Long? =
+    runCatching { Instant.parse(ensureUtc(iso)).toEpochMilli() }.getOrNull()

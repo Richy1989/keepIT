@@ -12,10 +12,10 @@ import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.ensureUtc
+import org.hyperstarit.keepitapp.data.offline.advanceOccurrence
+import org.hyperstarit.keepitapp.data.offline.settleDueReminders
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import java.time.Instant
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
 
 /**
  * Fires note reminders as **native notifications while the app is closed** — the client-side twin
@@ -198,18 +198,11 @@ class ReminderScheduler(private val context: Context) {
         private const val PREVIEW_ITEMS = 3
         private val SnapshotJson = Json { ignoreUnknownKeys = true }
 
-        /** The next occurrence after [fromMs] — same UTC arithmetic as the server's `Advance`. */
-        fun advance(fromMs: Long, recurrence: String): Long {
-            val from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromMs), ZoneOffset.UTC)
-            val next = when (recurrence) {
-                ReminderRecurrences.DAILY -> from.plusDays(1)
-                ReminderRecurrences.WEEKLY -> from.plusWeeks(1)
-                ReminderRecurrences.MONTHLY -> from.plusMonths(1)
-                ReminderRecurrences.YEARLY -> from.plusYears(1)
-                else -> from.plusDays(1) // unknown cadence: fail safe, never loop forever
-            }
-            return next.toInstant().toEpochMilli()
-        }
+        /**
+         * The next occurrence after [fromMs] — same UTC arithmetic as the server's `Advance`, and
+         * shared with the standalone cache's own settling ([settleDueReminders]) so the two agree.
+         */
+        fun advance(fromMs: Long, recurrence: String): Long = advanceOccurrence(fromMs, recurrence)
 
         /** A plain-text excerpt for the notification body: open checklist items, or the stripped body. */
         fun previewOf(n: NoteDto): String =

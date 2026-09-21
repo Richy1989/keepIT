@@ -45,6 +45,7 @@ import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.ensureUtc
 import org.hyperstarit.keepitapp.data.inDisplayOrder
+import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownText
 import org.hyperstarit.keepitapp.ui.theme.CardShape
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
@@ -59,9 +60,18 @@ private const val MAX_PREVIEW_ITEMS = 6
  * One full-width row in the note list, styled like the web NoteCard: palette background + border,
  * title, body/checklist preview, and a footer with pin (trash view: restore / owner-only
  * delete-forever), share badge, and timestamp. Tapping the card opens the editor.
+ *
+ * [pendingMedia] is the note's queued attachments: the hero falls back to the first of them when
+ * the note has no stored image yet — a photo picked offline shows at once, and in standalone mode,
+ * where nothing is ever uploaded, it is the only way the card shows images at all.
  */
 @Composable
-fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
+fun NoteCard(
+    note: NoteDto,
+    repo: NotesRepository,
+    pendingMedia: List<PendingOp.AttachMedia> = emptyList(),
+    onOpen: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val swatch = noteSwatch(note.color)
     var showReminder by remember { mutableStateOf(false) }
@@ -79,26 +89,32 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
             // title on a scrim, but body and checklist rows stay below on the note's own colour,
             // where contrast is a known quantity rather than whatever the user photographed.
             val hero = note.media.firstOrNull()
-            if (hero != null) {
+            val stagedHero = if (hero == null) pendingMedia.firstOrNull() else null
+            val imageCount = note.media.size + pendingMedia.size
+            if (hero != null || stagedHero != null) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    val ratio =
-                        if (hero.width > 0 && hero.height > 0) hero.width.toFloat() / hero.height else 1f
-                    NoteMediaImage(
-                        cache = repo.mediaCache,
-                        noteId = note.id,
-                        mediaId = hero.id,
-                        size = MediaSizes.PREVIEW,
-                        // What the background prefetch keeps on disk for offline use.
-                        fallbackSize = MediaSizes.THUMB,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // Reserve the real ratio, but never let one tall photo eat the card.
-                            .aspectRatio(ratio.coerceAtLeast(0.72f)),
-                    )
+                    if (hero != null) {
+                        val ratio =
+                            if (hero.width > 0 && hero.height > 0) hero.width.toFloat() / hero.height else 1f
+                        NoteMediaImage(
+                            cache = repo.mediaCache,
+                            noteId = note.id,
+                            mediaId = hero.id,
+                            size = MediaSizes.PREVIEW,
+                            // What the background prefetch keeps on disk for offline use.
+                            fallbackSize = MediaSizes.THUMB,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // Reserve the real ratio, but never let one tall photo eat the card.
+                                .aspectRatio(ratio.coerceAtLeast(0.72f)),
+                        )
+                    } else if (stagedHero != null) {
+                        StagedMediaImage(path = stagedHero.stagedPath, modifier = Modifier.fillMaxWidth())
+                    }
 
-                    if (note.media.size > 1) {
+                    if (imageCount > 1) {
                         Text(
-                            text = "+${note.media.size - 1}",
+                            text = "+${imageCount - 1}",
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -134,7 +150,7 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
 
             Column(modifier = Modifier.padding(14.dp)) {
                 // The title already rendered on the scrim when there's a hero.
-                if (!note.title.isNullOrBlank() && hero == null) {
+                if (!note.title.isNullOrBlank() && hero == null && stagedHero == null) {
                     Text(
                         text = note.title,
                         color = KeepItColors.Text,
@@ -160,7 +176,7 @@ fun NoteCard(note: NoteDto, repo: NotesRepository, onOpen: () -> Unit) {
 
                 // A note that is nothing but photos is not empty.
                 if (note.title.isNullOrBlank() && note.body.isNullOrBlank() &&
-                    note.checklistItems.isEmpty() && note.media.isEmpty()
+                    note.checklistItems.isEmpty() && imageCount == 0
                 ) {
                     Text(text = "Empty note", color = KeepItColors.TextFaint, fontSize = 13.sp)
                 }

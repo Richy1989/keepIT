@@ -21,6 +21,9 @@ import java.util.UUID
  * A note or list created offline is identified by a client-generated temp id ([Create.tempId],
  * [CreateList.tempId], prefixed so it can never collide with a server GUID); ops queued against it
  * are rewritten to the real id when the POST lands (see [Outbox.remapId] and [Outbox.remapListId]).
+ *
+ * In standalone mode the queue never drains: it is the complete record of everything made on this
+ * device, kept so that connecting to a server later can replay it into an account.
  */
 @Serializable
 sealed class PendingOp {

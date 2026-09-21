@@ -165,6 +165,8 @@ fun EditorScreen(
     val repo = container.notesRepo
     val scope = rememberCoroutineScope()
     val lists by repo.lists.collectAsState()
+    // Standalone: no sharing, and queued images are the note's images rather than uploads.
+    val standalone by container.appMode.standalone.collectAsState()
 
     // Existing note: prefer the grid cache, fall back to a direct fetch (widget deep link).
     var loaded by remember { mutableStateOf(noteId == null) }
@@ -229,6 +231,10 @@ fun EditorScreen(
     // there and fell back to the snapshot taken at creation — which has no images — so a photo
     // attached to a new note vanished the moment it finished uploading.
     val live = note?.let { n -> allNotes.find { it.id == repo.resolve(n.id) } ?: n }
+
+    // Attachments still in the outbox, looked up by the resolved id for the same reason as `live`.
+    val pendingByNote by repo.pendingMediaByNote.collectAsState()
+    val pending = note?.let { n -> pendingByNote[repo.resolve(n.id)] }.orEmpty()
 
     val canEdit = note?.canEdit ?: true
     val swatch = noteSwatch(color)
@@ -511,7 +517,9 @@ fun EditorScreen(
                             }
                             // Attach from the gallery, or shoot one — the mobile-native half of the
                             // feature, and the reason offline attach exists at all.
-                            val atLimit = (live?.media?.size ?: 0) >= MAX_IMAGES_PER_NOTE
+                            // Queued ones count: the server enforces the limit on upload, and in
+                            // standalone mode they are all the images there are.
+                            val atLimit = (live?.media?.size ?: 0) + pending.size >= MAX_IMAGES_PER_NOTE
                             IconButton(
                                 onClick = {
                                     pickImages.launch(
@@ -561,12 +569,15 @@ fun EditorScreen(
                                 )
                             }
                             // Share management — owners invite/revoke, collaborators see & leave.
-                            IconButton(onClick = { showShare = true }) {
-                                Icon(
-                                    Icons.Filled.PersonAdd,
-                                    contentDescription = "Share note",
-                                    tint = if (current.isShared) KeepItColors.Accent else KeepItColors.TextMuted,
-                                )
+                            // Sharing is between accounts on a server, so standalone has none.
+                            if (!standalone) {
+                                IconButton(onClick = { showShare = true }) {
+                                    Icon(
+                                        Icons.Filled.PersonAdd,
+                                        contentDescription = "Share note",
+                                        tint = if (current.isShared) KeepItColors.Accent else KeepItColors.TextMuted,
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.weight(1f))
@@ -622,11 +633,6 @@ fun EditorScreen(
             }
 
             live?.let { n ->
-                // Remembered per id: the editor recomposes on every keystroke, and a fresh flow each
-                // time would re-subscribe to the outbox just as often.
-                val pending by remember(n.id) { repo.pendingMediaFor(n.id) }
-                    .collectAsState(initial = emptyList())
-
                 MediaRow(
                     cache = repo.mediaCache,
                     noteId = n.id,
@@ -636,16 +642,26 @@ fun EditorScreen(
                     onRemove = { mediaId -> scope.launch { repo.removeMedia(n.id, mediaId) } },
                     onOpen = { index -> viewerIndex = index },
                     modifier = Modifier.padding(bottom = 4.dp),
+                    keptOnDevice = standalone,
+                    onRemovePending = { op -> scope.launch { repo.removePendingMedia(op) } },
                 )
 
                 viewerIndex?.let { index ->
+                    // Same order as the row: stored images first, then (standalone) the device's own.
+                    val images = n.media.map { ViewerImage.Stored(it) } +
+                        if (standalone) pending.map { ViewerImage.OnDevice(it) } else emptyList()
                     MediaViewer(
                         cache = repo.mediaCache,
                         noteId = n.id,
-                        media = n.media,
+                        images = images,
                         startIndex = index,
                         onClose = { viewerIndex = null },
-                        onSave = { mediaId -> repo.saveMediaToGallery(n.id, mediaId) },
+                        onSave = { image ->
+                            when (image) {
+                                is ViewerImage.Stored -> repo.saveMediaToGallery(n.id, image.media.id)
+                                is ViewerImage.OnDevice -> repo.savePendingMediaToGallery(image.attachment)
+                            }
+                        },
                     )
                 }
             }

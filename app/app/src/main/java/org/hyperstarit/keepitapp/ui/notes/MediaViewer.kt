@@ -31,9 +31,20 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
+import coil3.compose.AsyncImage
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.SaveImageResult
 import org.hyperstarit.keepitapp.data.offline.MediaCache
+import org.hyperstarit.keepitapp.data.offline.PendingOp
+import java.io.File
+
+/** One page of the viewer: an image the server stores, or one kept only on this device. */
+sealed interface ViewerImage {
+    data class Stored(val media: NoteMediaDto) : ViewerImage
+
+    /** A queued attachment shown from its staged file — how standalone mode keeps every image. */
+    data class OnDevice(val attachment: PendingOp.AttachMedia) : ViewerImage
+}
 
 /**
  * Full-screen image viewer, swipeable across a note's attachments.
@@ -48,12 +59,12 @@ import org.hyperstarit.keepitapp.data.offline.MediaCache
 fun MediaViewer(
     cache: MediaCache,
     noteId: String,
-    media: List<NoteMediaDto>,
+    images: List<ViewerImage>,
     startIndex: Int,
     onClose: () -> Unit,
-    onSave: suspend (mediaId: String) -> SaveImageResult,
+    onSave: suspend (ViewerImage) -> SaveImageResult,
 ) {
-    if (media.isEmpty()) return
+    if (images.isEmpty()) return
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -65,8 +76,8 @@ fun MediaViewer(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         val pager = rememberPagerState(
-            initialPage = startIndex.coerceIn(0, media.lastIndex),
-            pageCount = { media.size },
+            initialPage = startIndex.coerceIn(0, images.lastIndex),
+            pageCount = { images.size },
         )
 
         Box(
@@ -75,14 +86,22 @@ fun MediaViewer(
                 .background(Color.Black.copy(alpha = 0.96f)),
         ) {
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-                NoteMediaImage(
-                    cache = cache,
-                    noteId = noteId,
-                    mediaId = media[page].id,
-                    size = MediaSizes.FULL,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
+                when (val image = images[page]) {
+                    is ViewerImage.Stored -> NoteMediaImage(
+                        cache = cache,
+                        noteId = noteId,
+                        mediaId = image.media.id,
+                        size = MediaSizes.FULL,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    is ViewerImage.OnDevice -> AsyncImage(
+                        model = File(image.attachment.stagedPath),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
 
             Row(
@@ -92,10 +111,10 @@ fun MediaViewer(
             ) {
                 IconButton(
                     onClick = {
-                        val mediaId = media[pager.currentPage].id
+                        val image = images[pager.currentPage]
                         saving = true
                         scope.launch {
-                            val message = when (onSave(mediaId)) {
+                            val message = when (onSave(image)) {
                                 SaveImageResult.SAVED -> "Saved to Pictures/keepIT"
                                 SaveImageResult.UNAVAILABLE -> "Image not available offline"
                                 SaveImageResult.FAILED -> "Couldn't save the image"
@@ -121,9 +140,9 @@ fun MediaViewer(
                 }
             }
 
-            if (media.size > 1) {
+            if (images.size > 1) {
                 Text(
-                    text = "${pager.currentPage + 1} / ${media.size}",
+                    text = "${pager.currentPage + 1} / ${images.size}",
                     color = Color.White.copy(alpha = 0.75f),
                     fontSize = 13.sp,
                     modifier = Modifier

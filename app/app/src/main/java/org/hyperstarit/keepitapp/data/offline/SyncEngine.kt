@@ -33,6 +33,11 @@ enum class SyncStatus { IDLE, SYNCING, OFFLINE }
  * retries); a 401 defers to the session (queue retained — re-login resumes replay); any other 4xx
  * is permanent for that op, which is dropped with a message on [syncErrors] so the user learns a
  * change didn't stick (e.g. the note was deleted on another device).
+ *
+ * In standalone mode ([isStandalone]) there is no server, so every run is a no-op and the outbox is
+ * left exactly as it is — it is the device's record of everything, waiting for a server to be
+ * connected. This holds for every caller, the widget's refresh and background worker included,
+ * which is why the check lives here rather than at the call sites.
  */
 class SyncEngine(
     private val client: ApiClient,
@@ -41,6 +46,7 @@ class SyncEngine(
     private val scope: CoroutineScope,
     private val updater: CacheUpdater,
     private val staging: MediaStaging,
+    private val isStandalone: () -> Boolean,
 ) {
     /** How synced data lands in the repository's cache — implemented by NotesRepository. */
     interface CacheUpdater {
@@ -65,12 +71,14 @@ class SyncEngine(
 
     /** Fire-and-forget sync request; safe to call from anywhere, collapses concurrent calls. */
     fun kick() {
+        if (isStandalone()) return
         if (kickPending.getAndSet(true)) return // an already-scheduled pass will cover this
         scope.launch { sync() }
     }
 
     /** Replays the outbox, then refetches notes + lists. Suspends until this pass completes. */
     suspend fun sync() {
+        if (isStandalone()) return
         syncMutex.withLock {
             kickPending.set(false)
             status.value = SyncStatus.SYNCING
@@ -145,10 +153,18 @@ class SyncEngine(
                     }
 
                     t is HttpException && t.code() in 400..499 && t.code() != 429 -> {
+                        // Clean-up before the op leaves the queue: a crash in between then leaves
+                        // an op whose file is gone (dropped on the next run), never an orphan file.
+                        var rescued = false
                         when (op) {
                             // The op is going away for good, so its staged bytes go with it —
                             // otherwise every rejected image leaks a file into staging forever.
-                            is PendingOp.AttachMedia -> staging.delete(op.stagedPath)
+                            // To the gallery first, though: for a photo taken offline or in
+                            // standalone mode, the staged file is the only copy there is.
+                            is PendingOp.AttachMedia -> {
+                                rescued = staging.rescueToGallery(op.stagedPath)
+                                staging.delete(op.stagedPath)
+                            }
                             // Everything still naming the list would be refused in turn.
                             is PendingOp.CreateList -> {
                                 outbox.forgetList(op.tempId)
@@ -157,7 +173,7 @@ class SyncEngine(
                             else -> Unit
                         }
                         outbox.removeFirst(op.opId)
-                        syncErrors.tryEmit(permanentFailureMessage(op, t.code()))
+                        syncErrors.tryEmit(permanentFailureMessage(op, t.code(), rescued))
                     }
 
                     else -> {
@@ -192,7 +208,7 @@ class SyncEngine(
         false
     }
 
-    private fun permanentFailureMessage(op: PendingOp, code: Int): String {
+    private fun permanentFailureMessage(op: PendingOp, code: Int, rescued: Boolean): String {
         val what = when (op) {
             is PendingOp.Create -> "creating a note"
             is PendingOp.Update -> "an edit"
@@ -218,6 +234,7 @@ class SyncEngine(
             400 -> if (op is PendingOp.AttachMedia) "the file isn't a supported image" else "the server refused it"
             else -> "the server refused it"
         }
-        return "Couldn't sync $what — $why."
+        val kept = if (rescued) " It was saved to Pictures/keepIT instead." else ""
+        return "Couldn't sync $what — $why.$kept"
     }
 }
