@@ -99,6 +99,9 @@ A few things worth knowing:
 - Running **Unraid**? A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
+Updating from an older version, or something not working? The **[FAQ](FAQ.md)** covers what
+changes when you update, reverse proxies and HTTPS, email, and images.
+
 <details>
 <summary><strong>Prefer Docker Compose, Postgres, or building the image yourself?</strong></summary>
 
@@ -300,6 +303,9 @@ It has since grown into a blazing-fast app with optimistic editing, lists, searc
 I'm really happy with how this turned out.
 
 ## Support
+
+Running into a problem? Check the **[FAQ](FAQ.md)** first, or
+[open an issue](https://github.com/Richy1989/keepIT/issues).
 
 keepIT is free and self-hosted: no accounts, no subscriptions. If it's useful to you and you'd
 like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/hyperstarit). Much
