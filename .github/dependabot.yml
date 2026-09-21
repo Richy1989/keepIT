@@ -1,9 +1,12 @@
-# Version updates for every deployable, as grouped weekly PRs; CI runs on each. Security fixes
+# Version updates for every deployable, as grouped weekly PRs; CI runs on each. Commit messages
+# use the repository's prefixes (api:, web:, app:, infra:, ci:). Security fixes
 # come as separate PRs once "Dependabot security updates" is enabled for the repository, and the
 # Dependencies workflow fails on known high or critical advisories in the meantime.
 version: 2
 updates:
   - package-ecosystem: npm
+    commit-message:
+      prefix: web
     directory: /web
     schedule:
       interval: weekly
@@ -13,11 +16,16 @@ updates:
       # when that does.
       - dependency-name: "@types/node"
         update-types: [version-update:semver-major]
+      # openapi-typescript, which generates the typed API client, doesn't accept TypeScript 7 yet.
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
 
   - package-ecosystem: nuget
+    commit-message:
+      prefix: api
     directories: [/keepIT/keepITCore, /keepIT/keepITCore.Tests]
     schedule:
       interval: weekly
@@ -47,6 +55,8 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: gradle
+    commit-message:
+      prefix: app
     directory: /app
     schedule:
       interval: weekly
@@ -56,6 +66,8 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: docker
+    commit-message:
+      prefix: infra
     directories: [/deploy, /web, /keepIT/keepITCore]
     schedule:
       interval: weekly
@@ -65,6 +77,8 @@ updates:
         update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
+    commit-message:
+      prefix: ci
     directory: /
     schedule:
       interval: monthly
