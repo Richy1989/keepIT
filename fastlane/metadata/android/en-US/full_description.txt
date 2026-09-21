@@ -3,7 +3,7 @@ all your devices in real time. It is the native Android client for the
 open-source keepIT platform, which also has a web app and a REST API.
 
 Use it with your own keepIT server (free and open source) to sync your notes
-across devices while your data stays entirely under your control - or tap
+across devices while your data stays entirely under your control. Or tap
 "Use without a server" and keep everything on your phone alone, with nothing
 to set up. You can connect a server later and your notes move into your
 account.
