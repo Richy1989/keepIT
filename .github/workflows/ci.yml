@@ -68,6 +68,18 @@ jobs:
         run: docker run -d --name keepit -p 8080:80 -e Jwt__Key="$(openssl rand -hex 32)" keepit:ci
       - name: Smoke test through nginx
         run: bash deploy/smoke-test.sh http://localhost:8080
+      - name: No token from a URL reaches the container log
+        # The browser's SignalR client sends its access token in the URL, and a reset link carries
+        # its token in the page URL. nginx logs both redacted (deploy/nginx.conf).
+        run: |
+          curl -s -o /dev/null "http://localhost:8080/api/realtime?id=ci&access_token=ci-hub-secret"
+          curl -s -o /dev/null "http://localhost:8080/reset-password?email=ci%40example.com&token=ci-reset-secret"
+          sleep 1
+          docker logs keepit 2>&1 | grep -q 'access_token=\[redacted\]' \
+            || { echo "the hub request was not logged, or not in the redacted format"; exit 1; }
+          if docker logs keepit 2>&1 | grep -E 'ci-(hub|reset)-secret'; then
+            echo "a token from a URL reached the log"; exit 1
+          fi
       - name: Container log
         if: failure()
         run: docker logs keepit

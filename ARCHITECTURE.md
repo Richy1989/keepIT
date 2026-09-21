@@ -247,9 +247,10 @@ limit — every page reload refreshes, and throttling that signs real users out 
 
 **SignalR auth**
 - `RealTimeHub` is `[Authorize]`. Browsers can't set headers on the WebSocket handshake, so
-  the access token is passed via the query string (`?access_token=…`); JWT bearer's
+  the web client passes the access token via the query string (`?access_token=…`); JWT bearer's
   `OnMessageReceived` reads it, scoped to the `/api/realtime` path. The Android SignalR client
-  authenticates the same way.
+  (OkHttp) can set headers, so it sends an ordinary `Authorization: Bearer` header instead.
+  A token in a URL lands in access logs, so nginx logs it redacted (see **Security**).
 
 ## Security & abuse protection
 
@@ -301,6 +302,18 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   frame-ancestors DENY, referrer policy, HSTS — inert on plain HTTP, effective under TLS) and
   a same-origin **CSP** (inline script/style allowances only for the pre-paint theme script
   and React inline note colors).
+- **No credential from a URL is logged.** Two travel in URLs by necessity: the browser's hub
+  `access_token` (see **SignalR auth**) and the `token` of a password-reset link
+  (`/reset-password?email=…&token=…`). nginx's stock log formats write whole URLs, so both
+  configs log with a `redacted` format that blanks those values in the request line and the
+  referer; both images log to stdout, so `docker logs` shows it. An error-log line quotes the
+  raw request and can't be redacted, so `/api/realtime` has its own location that doesn't write
+  one (a failure still shows as, say, a 502 in the access log). And `Referrer-Policy:
+  strict-origin` keeps the reset page's full URL out of the referer of everything it loads,
+  even same-origin. CI sends both kinds of token through the built image and fails if either
+  reaches its log. A new credential must never go in a URL; if one has to, it joins the
+  redaction map and that CI step. An operator's own proxy in front logs URLs too, which the
+  README points out.
 
 ## SignalR realtime
 
@@ -896,7 +909,8 @@ Store is not (yet) used.
   data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
-  default body limit once hid.
+  default body limit once hid. The same CI job then checks that a hub token and a reset token
+  sent in URLs reach the container log only redacted.
 - No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
 
 ## Status & roadmap

@@ -87,6 +87,10 @@ A few things worth knowing:
   `App__PublicBaseUrl` to your instance's address. Reset emails are not sent without it; if
   it's missing, the server log says so at startup and the web app's Settings page shows a
   warning.
+- **Behind your own reverse proxy** (Traefik, Nginx Proxy Manager, SWAG…)? If it keeps access
+  logs, have it leave out query strings, or at least `token` and `access_token`: the web app's
+  live-sync connection carries a sign-in token in its URL, and so does a password-reset link.
+  keepIT's own logs blank both.
 - Running **Unraid**? A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
