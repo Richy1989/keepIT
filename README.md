@@ -21,9 +21,11 @@
 
 Notes, checklists, lists, reminders and sharing — in a fast web app and a native Android client,
 syncing live across your devices. Everything runs on your own server: no cloud account, no
-subscription, and nobody else holding your notes.
+subscription, and nobody else holding your notes. Just want notes on your phone? The Android app
+also works entirely on its own, with no server at all.
 
-**[Get it running](#quick-start)** with one Docker command.
+**[Get it running](#quick-start)** with one Docker command — or
+**[use the Android app standalone](#no-server-use-it-standalone)**.
 
 <div align="center">
 
@@ -47,11 +49,13 @@ subscription, and nobody else holding your notes.
   refresh, no sync button.
 - 📱 **Android app included** — the same notes on your phone, with a home-screen widget for
   recent notes and one-tap capture. It works fully offline: read and edit anywhere, and your
-  changes sync as soon as you're back online. No server yet? Use it standalone, and move your
-  notes into an account whenever you set one up.
+  changes sync as soon as you're back online.
+- 📴 **No server? No problem** — the Android app also runs standalone: notes, lists, photos,
+  reminders and the widget, all on your phone and nothing to set up. Connect a server later
+  and everything moves into your account.
 - 🎨 **Make it yours** — a background color per note, and an accent color for the whole app.
-- 🔒 **Your notes stay yours** — everything lives on **your** server. No third-party cloud, no
-  account with anyone but yourself.
+- 🔒 **Your notes stay yours** — everything lives on **your** server, or only on your phone. No
+  third-party cloud, no account with anyone but yourself.
 
 ## Quick start
 
@@ -168,7 +172,8 @@ The Compose stack sets most of these itself and reads only five values from `.en
 ## The Android app
 
 The app in [`app/`](app) brings your notes to your phone: offline-first, live sync, native
-reminder notifications, note sharing, and a home-screen widget.
+reminder notifications, note sharing, and a home-screen widget — with your own server, or
+standalone without one.
 
 ### No server? Use it standalone
 
@@ -178,8 +183,9 @@ else. Sharing and syncing with other devices need a server, so they're switched 
 
 When you do set up a server, open **Settings → Connect to a server** and sign in: everything on
 the phone is uploaded into that account (alongside anything already in it) and syncs from then
-on. Standalone notes live only on the phone until then — there's no backup, and **Settings →
-Erase notes** deletes them for good.
+on. A photo the server won't take (over 10 MB, or HEIC) is saved to your gallery instead of
+being lost. Until then, standalone notes live only on the phone — there's no backup, and
+**Settings → Erase notes** deletes them for good.
 
 ### Get it
 
@@ -212,7 +218,8 @@ cd app
 ```
 
 On first launch, enter your **server address** on the sign-in screen — the same URL you open in
-the browser (from the Android emulator, your own machine is `http://10.0.2.2:5025`). For
+the browser (from the Android emulator, your own machine is `http://10.0.2.2:5025`) — or tap
+**Use without a server** to try it standalone. For
 reminders that fire on the minute even while your phone sleeps, grant **Alarms & reminders**
 in the app's Settings screen.
 
