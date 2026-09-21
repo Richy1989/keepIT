@@ -956,8 +956,9 @@ Store is not (yet) used.
   advisory in the web app's runtime npm packages or in any NuGet package, direct or transitive.
   `dotnet list package --vulnerable` never fails by itself, so `.github/scripts/nuget-advisories.py`
   judges its report. Build-only npm tooling is left to Dependabot. The same workflow submits the
-  Android app's resolved Gradle dependencies to GitHub's dependency graph, the only way Dependabot
-  alerts see them. Dependabot (`.github/dependabot.yml`) opens grouped weekly version updates for
+  libraries the Android app ships with (`releaseRuntimeClasspath`) to GitHub's dependency graph,
+  the only way Dependabot alerts see them. Only those: the Android Gradle plugin's own tooling
+  runs on build machines only, and its dozens of advisories would bury the app's. Dependabot (`.github/dependabot.yml`) opens grouped weekly version updates for
   all five ecosystems; it never proposes ImageSharp 4.x, the next .NET major, or a new major base
   image, which are deliberate upgrades.
 - No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
