@@ -33,8 +33,10 @@ import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.data.offline.activeListCounts
+import org.hyperstarit.keepitapp.data.offline.applyListOp
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
+import org.hyperstarit.keepitapp.data.offline.applyPendingLists
 import org.hyperstarit.keepitapp.data.offline.pendingMedia
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
 import org.hyperstarit.keepitapp.data.offline.withUploadedMedia
@@ -101,6 +103,9 @@ class NotesRepository(
     /** temp id → server id for notes created offline, so an open editor survives the remap. */
     private val idAliases = ConcurrentHashMap<String, String>()
 
+    /** temp id → server id for lists created offline — a dialog or editor may still hold the old one. */
+    private val listAliases = ConcurrentHashMap<String, String>()
+
     /** Wired by the app container after construction (repo and engine reference each other). */
     var syncEngine: SyncEngine? = null
 
@@ -158,6 +163,7 @@ class NotesRepository(
             cache.value = emptyList()
             cachedLists.value = emptyList()
             idAliases.clear()
+            listAliases.clear()
             outbox.clear()
             mediaCache.clear()
         }
@@ -171,6 +177,7 @@ class NotesRepository(
         cachedLists.value = emptyList()
         cacheUserId = ""
         idAliases.clear()
+        listAliases.clear()
         outbox.clear()
         store.clear()
         // Downloaded images are as personal as the notes they hang off — the next account to sign
@@ -202,7 +209,11 @@ class NotesRepository(
 
     /** Creates the note locally under a temp id; the sync replaces it with the server's. */
     suspend fun create(dto: CreateNoteDto): NoteDto {
-        val op = PendingOp.Create(tempId = PendingOp.newTempId(), dto = dto, enqueuedAtUtc = nowUtc())
+        val op = PendingOp.Create(
+            tempId = PendingOp.newTempId(),
+            dto = dto.copy(listIds = dto.listIds?.map(::resolveList)),
+            enqueuedAtUtc = nowUtc(),
+        )
         mutate(op)
         return cache.value.first { it.id == op.tempId }
     }
@@ -214,7 +225,7 @@ class NotesRepository(
         mutate(PendingOp.SetState(resolve(id), state, enqueuedAtUtc = nowUtc()))
 
     suspend fun setLists(id: String, listIds: List<String>) =
-        mutate(PendingOp.SetLists(resolve(id), listIds, enqueuedAtUtc = nowUtc()))
+        mutate(PendingOp.SetLists(resolve(id), listIds.map(::resolveList), enqueuedAtUtc = nowUtc()))
 
     suspend fun setReminder(id: String, dto: SetNoteReminderDto) =
         mutate(PendingOp.SetReminder(resolve(id), dto, enqueuedAtUtc = nowUtc()))
@@ -274,30 +285,26 @@ class NotesRepository(
     fun pendingMediaFor(noteId: String): Flow<List<PendingOp.AttachMedia>> =
         outbox.pendingOps.map { ops -> pendingMedia(ops, resolve(noteId)) }
 
-    // ---- lists CRUD: online-only (like the web), applied to the cache on success ----
+    // ---- lists: offline-first like notes — applied locally at once, queued for the server ----
 
-    /** Creates a list. Online-only — offline callers get a failed [Result] to surface. */
-    suspend fun createList(name: String): Result<Unit> = runCatching {
-        val created = client.api.createList(CreateListDto(name.trim()))
-        cachedLists.update { (it + created).sortedBy { l -> l.name.lowercase() } }
-        persistCache()
-    }
+    /** Creates a list under a temp id; notes can be filed into it before the server has seen it. */
+    suspend fun createList(name: String) = mutate(
+        PendingOp.CreateList(
+            tempId = PendingOp.newTempId(),
+            dto = CreateListDto(name.trim()),
+            enqueuedAtUtc = nowUtc(),
+        ),
+    )
 
-    /** Renames a list. Online-only. */
-    suspend fun renameList(id: String, name: String): Result<Unit> = runCatching {
-        val updated = client.api.updateList(id, UpdateListDto(name = name.trim()))
-        cachedLists.update { all -> all.map { if (it.id == id) updated else it }.sortedBy { l -> l.name.lowercase() } }
-        persistCache()
-    }
+    /** Renames a list. */
+    suspend fun renameList(id: String, name: String) =
+        mutate(PendingOp.UpdateList(resolveList(id), UpdateListDto(name = name.trim()), enqueuedAtUtc = nowUtc()))
 
-    /** Deletes a list (notes survive, memberships go). Online-only. */
-    suspend fun deleteList(id: String): Result<Unit> = runCatching {
-        client.api.deleteList(id)
-        cachedLists.update { all -> all.filter { it.id != id } }
-        // Notes filed in the list still carry its id locally; drop it and clear the filter if active.
-        cache.update { all -> all.map { n -> if (id in n.listIds) n.copy(listIds = n.listIds - id) else n } }
-        filter.update { f -> if (id in f.listIds) f.copy(listIds = f.listIds - id) else f }
-        persistCache()
+    /** Deletes a list (notes survive, memberships go), clearing it from the filter if active. */
+    suspend fun deleteList(id: String) {
+        val real = resolveList(id)
+        mutate(PendingOp.DeleteList(real, enqueuedAtUtc = nowUtc()))
+        filter.update { f -> if (real in f.listIds) f.copy(listIds = f.listIds - real) else f }
     }
 
     private suspend fun mutate(op: PendingOp) {
@@ -308,6 +315,7 @@ class NotesRepository(
         // staged bytes are ours, so they go with it rather than sitting in staging forever.
         dropped.filterIsInstance<PendingOp.AttachMedia>().forEach { staging.delete(it.stagedPath) }
         cache.update { applyOp(it, op) }
+        cachedLists.update { applyListOp(it, op) }
         persistCache()
         syncEngine?.kick()
     }
@@ -319,12 +327,15 @@ class NotesRepository(
      */
     fun resolve(id: String): String = idAliases[id] ?: id
 
+    /** [resolve] for lists: a list created offline goes by the server's id once it has synced. */
+    private fun resolveList(id: String): String = listAliases[id] ?: id
+
     // ---- SyncEngine.CacheUpdater ----
 
     override suspend fun onFetched(notes: List<NoteDto>, lists: List<ListDto>, stillPending: List<PendingOp>) {
         // Overlay anything still queued so local edits don't flicker away mid-replay.
         cache.value = applyPending(notes, stillPending)
-        cachedLists.value = lists
+        cachedLists.value = applyPendingLists(lists, stillPending)
         persistCache()
         prefetch()
     }
@@ -373,6 +384,24 @@ class NotesRepository(
 
     override suspend fun onMediaUploaded(noteId: String, media: NoteMediaDto) {
         cache.update { withUploadedMedia(it, noteId, media) }
+        persistCache()
+    }
+
+    override suspend fun onListIdRemapped(tempId: String, realId: String) {
+        listAliases[tempId] = realId
+        fun List<String>.remapped() = map { if (it == tempId) realId else it }
+        cachedLists.update { all -> all.map { if (it.id == tempId) it.copy(id = realId) else it } }
+        cache.update { all -> all.map { n -> if (tempId in n.listIds) n.copy(listIds = n.listIds.remapped()) else n } }
+        filter.update { f -> if (tempId in f.listIds) f.copy(listIds = f.listIds - tempId + realId) else f }
+        persistCache()
+    }
+
+    override suspend fun onListDropped(tempId: String) {
+        // Exactly what deleting it would have done locally.
+        val gone = PendingOp.DeleteList(tempId)
+        cachedLists.update { applyListOp(it, gone) }
+        cache.update { applyOp(it, gone) }
+        filter.update { f -> if (tempId in f.listIds) f.copy(listIds = f.listIds - tempId) else f }
         persistCache()
     }
 

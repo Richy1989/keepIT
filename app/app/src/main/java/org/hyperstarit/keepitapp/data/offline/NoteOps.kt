@@ -1,5 +1,6 @@
 package org.hyperstarit.keepitapp.data.offline
 
+import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.NotesFilter
@@ -62,7 +63,51 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
     is PendingOp.DeleteMedia -> notes.map { n ->
         if (n.id != op.noteId) n else n.copy(media = n.media.filterNot { it.id == op.mediaId })
     }
+
+    // A deleted list takes its memberships with it; the notes themselves stay, as on the server.
+    is PendingOp.DeleteList -> notes.map { n ->
+        if (op.listId !in n.listIds) n else n.copy(listIds = n.listIds - op.listId)
+    }
+
+    // The lists themselves live beside the notes, not on them — see [applyListOp].
+    is PendingOp.CreateList, is PendingOp.UpdateList -> notes
 }
+
+/**
+ * Applies one queued op to the cached lists — the list-side twin of [applyOp]. Only list ops change
+ * anything here. The result keeps the drawer's alphabetical order, so a list created offline lands
+ * where the next fetch will put it.
+ */
+fun applyListOp(lists: List<ListDto>, op: PendingOp): List<ListDto> = when (op) {
+    is PendingOp.CreateList -> sortedLists(
+        lists + ListDto(
+            id = op.tempId,
+            name = op.dto.name,
+            color = op.dto.color,
+            createdAtUtc = op.enqueuedAtUtc,
+        ),
+    )
+
+    // Null fields are left unchanged, mirroring the server's PATCH.
+    is PendingOp.UpdateList -> sortedLists(
+        lists.map { l ->
+            if (l.id != op.listId) l else l.copy(name = op.dto.name ?: l.name, color = op.dto.color ?: l.color)
+        },
+    )
+
+    is PendingOp.DeleteList -> lists.filter { it.id != op.listId }
+
+    is PendingOp.Create, is PendingOp.Update, is PendingOp.SetState, is PendingOp.SetLists,
+    is PendingOp.SetReminder, is PendingOp.ClearReminder, is PendingOp.Delete,
+    is PendingOp.AttachMedia, is PendingOp.DeleteMedia -> lists
+}
+
+/** Overlays every still-queued list op onto a fresh server fetch — [applyPending] for lists. */
+fun applyPendingLists(lists: List<ListDto>, ops: List<PendingOp>): List<ListDto> =
+    ops.fold(lists, ::applyListOp)
+
+/** The drawer's order: alphabetical, ignoring case. */
+private fun sortedLists(lists: List<ListDto>): List<ListDto> = lists.sortedBy { it.name.lowercase() }
 
 /** The still-queued attachments for one note, in the order they were picked. */
 fun pendingMedia(ops: List<PendingOp>, noteId: String): List<PendingOp.AttachMedia> =

@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.hyperstarit.keepitapp.data.UpdateListDto
 
 /**
  * The persisted FIFO queue of offline mutations. Enqueueing coalesces per note (see [coalesce]) so
@@ -71,8 +72,25 @@ class Outbox(private val store: LocalStore) {
                 is PendingOp.AttachMedia -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.DeleteMedia -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.Create -> op
+                // List ops reference lists, not notes — see [remapListId].
+                is PendingOp.CreateList, is PendingOp.UpdateList, is PendingOp.DeleteList -> op
             }
         }.toMutableList()
+        persist()
+    }
+
+    /** Rewrites every queued reference to a temp list id — memberships included — to the server's. */
+    suspend fun remapListId(tempId: String, realId: String) = mutex.withLock {
+        ops = remapListIds(ops, tempId, realId).toMutableList()
+        persist()
+    }
+
+    /**
+     * Drops a list the server refused to create, and every queued reference to it. Anything left
+     * pointing at its temp id would be refused in turn, taking whole notes down with it.
+     */
+    suspend fun forgetList(listId: String) = mutex.withLock {
+        ops = withoutListReferences(ops.filterNot { it.targetId == listId }, listId).toMutableList()
         persist()
     }
 
@@ -103,12 +121,20 @@ class Outbox(private val store: LocalStore) {
  *   Deleting an existing note drops its queued edits (the server purge makes them moot).
  * - **AttachMedia / DeleteMedia** never coalesce with anything: two photos are two uploads, and an
  *   Update touches a different resource entirely. A note-level Delete still removes them.
+ * - **CreateList / UpdateList / DeleteList** mirror the note rules: a rename folds into a queued
+ *   CreateList or merges field-wise into an earlier rename; deleting a list that only exists
+ *   locally annihilates its ops. Deleting any list also takes it out of every queued membership.
+ *
+ * One ordering constraint runs across both: replay is FIFO, so no op may reference a temp list id
+ * whose CreateList sits behind it — the server would refuse the request outright. That is why a
+ * SetLists only folds into a note's Create when every list it names was created first.
  *
  * Pure so the rules are unit-testable; the [Outbox] applies the result under its lock.
  */
 fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
     val id = incoming.targetId
     val pendingCreate = ops.filterIsInstance<PendingOp.Create>().firstOrNull { it.tempId == id }
+    val pendingListCreate = ops.filterIsInstance<PendingOp.CreateList>().firstOrNull { it.tempId == id }
 
     return when (incoming) {
         is PendingOp.Create -> ops + incoming
@@ -130,15 +156,18 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
                 ops.filterNot { it is PendingOp.Update && it.noteId == id } + incoming
             }
 
-        is PendingOp.SetLists ->
-            if (pendingCreate != null) {
-                ops.map { op ->
+        is PendingOp.SetLists -> {
+            // Only the latest membership matters, so an earlier queued one goes either way.
+            val rest = ops.filterNot { it is PendingOp.SetLists && it.noteId == id }
+            if (pendingCreate != null && !namesListCreatedAfter(rest, pendingCreate, incoming.listIds)) {
+                rest.map { op ->
                     if (op !== pendingCreate) op
                     else op.copy(dto = op.dto.copy(listIds = incoming.listIds.ifEmpty { null }))
                 }
             } else {
-                ops.filterNot { it is PendingOp.SetLists && it.noteId == id } + incoming
+                rest + incoming
             }
+        }
 
         is PendingOp.SetState -> {
             val earlier = ops.filterIsInstance<PendingOp.SetState>().firstOrNull { it.noteId == id }
@@ -174,5 +203,78 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
         // an Update must not swallow an attachment (they touch different resources). A note-level
         // Delete still annihilates them — that branch filters by targetId, above.
         is PendingOp.AttachMedia, is PendingOp.DeleteMedia -> ops + incoming
+
+        is PendingOp.CreateList -> ops + incoming
+
+        is PendingOp.UpdateList -> {
+            // Fold into whatever already carries this list's name and color — its queued create,
+            // else an earlier rename. Only a list with neither gets an op of its own.
+            val earlier = pendingListCreate
+                ?: ops.filterIsInstance<PendingOp.UpdateList>().firstOrNull { it.listId == id }
+            if (earlier == null) ops + incoming
+            else ops.map { op -> if (op !== earlier) op else op.withListChanges(incoming.dto) }
+        }
+
+        is PendingOp.DeleteList -> {
+            val remaining = withoutListReferences(ops.filterNot { it.targetId == id }, id)
+            if (pendingListCreate != null) remaining else remaining + incoming
+        }
+    }
+}
+
+/** A queued list create or rename with [changes] merged in; null fields in [changes] keep the old value. */
+private fun PendingOp.withListChanges(changes: UpdateListDto): PendingOp = when (this) {
+    is PendingOp.CreateList -> copy(
+        dto = dto.copy(name = changes.name ?: dto.name, color = changes.color ?: dto.color),
+    )
+    is PendingOp.UpdateList -> copy(
+        dto = dto.copy(name = changes.name ?: dto.name, color = changes.color ?: dto.color),
+    )
+    else -> this
+}
+
+/**
+ * True when [listIds] names a list whose [PendingOp.CreateList] sits *behind* [create] in [ops].
+ * Folding that membership into the create would have the note's POST carry a temp list id the
+ * server has not been told about yet — it would refuse the whole request, and the note with it.
+ */
+private fun namesListCreatedAfter(ops: List<PendingOp>, create: PendingOp.Create, listIds: List<String>): Boolean {
+    val createAt = ops.indexOfFirst { it === create }
+    return ops.withIndex().any { (index, op) ->
+        index > createAt && op is PendingOp.CreateList && op.tempId in listIds
+    }
+}
+
+/**
+ * [ops] with [listId] taken out of every queued membership: a note create's initial lists and every
+ * set-lists. For a list that never reached the server this is required, not tidy — a temp id left
+ * in a payload gets the whole request refused rather than just the list skipped.
+ */
+fun withoutListReferences(ops: List<PendingOp>, listId: String): List<PendingOp> = ops.map { op ->
+    when (op) {
+        is PendingOp.Create -> {
+            val ids = op.dto.listIds
+            if (ids == null || listId !in ids) op
+            else op.copy(dto = op.dto.copy(listIds = (ids - listId).ifEmpty { null }))
+        }
+        is PendingOp.SetLists -> if (listId !in op.listIds) op else op.copy(listIds = op.listIds - listId)
+        else -> op
+    }
+}
+
+/** [ops] with every reference to the temp list [tempId] — memberships included — moved to [realId]. */
+fun remapListIds(ops: List<PendingOp>, tempId: String, realId: String): List<PendingOp> {
+    fun List<String>.remapped() = map { if (it == tempId) realId else it }
+    return ops.map { op ->
+        when (op) {
+            is PendingOp.Create -> {
+                val ids = op.dto.listIds
+                if (ids == null || tempId !in ids) op else op.copy(dto = op.dto.copy(listIds = ids.remapped()))
+            }
+            is PendingOp.SetLists -> if (tempId !in op.listIds) op else op.copy(listIds = op.listIds.remapped())
+            is PendingOp.UpdateList -> if (op.listId == tempId) op.copy(listId = realId) else op
+            is PendingOp.DeleteList -> if (op.listId == tempId) op.copy(listId = realId) else op
+            else -> op
+        }
     }
 }

@@ -72,7 +72,6 @@ import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
-import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 
@@ -112,16 +111,11 @@ fun NotesScreen(
         container.syncEngine.syncErrors.collect { snackbarHostState.showSnackbar(it) }
     }
 
-    // List management (online-only): the dialog being shown, if any.
+    // List management — offline-first like notes; a change the server later refuses surfaces
+    // through syncErrors above. The dialog being shown, if any.
     var newListOpen by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<ListDto?>(null) }
     var deleteTarget by remember { mutableStateOf<ListDto?>(null) }
-
-    fun runListAction(fallback: String, block: suspend () -> Result<Unit>) {
-        scope.launch {
-            block().onFailure { snackbarHostState.showSnackbar(apiErrorMessage(it, fallback)) }
-        }
-    }
 
     fun applyFilter(newFilter: NotesFilter) {
         scope.launch {
@@ -406,7 +400,7 @@ fun NotesScreen(
             initial = "",
             onConfirm = { name ->
                 newListOpen = false
-                runListAction("Could not create the list.") { repo.createList(name) }
+                scope.launch { repo.createList(name) }
             },
             onDismiss = { newListOpen = false },
         )
@@ -419,7 +413,7 @@ fun NotesScreen(
             initial = target.name,
             onConfirm = { name ->
                 renameTarget = null
-                runListAction("Could not rename the list.") { repo.renameList(target.id, name) }
+                scope.launch { repo.renameList(target.id, name) }
             },
             onDismiss = { renameTarget = null },
         )
@@ -439,7 +433,7 @@ fun NotesScreen(
             confirmButton = {
                 Button(onClick = {
                     deleteTarget = null
-                    runListAction("Could not delete the list.") { repo.deleteList(target.id) }
+                    scope.launch { repo.deleteList(target.id) }
                 }) {
                     Text("Delete")
                 }
