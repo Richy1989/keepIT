@@ -8,11 +8,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.AppMode
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.RealtimeClient
 import org.hyperstarit.keepitapp.data.SessionRepository
+import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.offline.ConnectivityMonitor
 import org.hyperstarit.keepitapp.data.offline.LocalStore
 import org.hyperstarit.keepitapp.data.offline.MediaStaging
@@ -60,6 +63,9 @@ class AppContainer(context: Context) {
         apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging,
         isStandalone = { appMode.isStandalone },
     )
+
+    /** Serializes [bootstrap]: two activity creations in a row must not both restore the session. */
+    private val bootstrapLock = Mutex()
 
     /** How many offline changes are still waiting to reach the server (notes screen strip). */
     val pendingChanges: StateFlow<Int> = outbox.pendingCount
@@ -112,6 +118,28 @@ class AppContainer(context: Context) {
         }
         // Cold start (e.g. after a force-stop) may owe due reminders even before any cache change.
         appScope.launch { reminderScheduler.deliverDue() }
+    }
+
+    /**
+     * Brings the app up: the offline cache and outbox off disk, then the session from its refresh
+     * cookie. Called when the UI composes, and safe to call again.
+     *
+     * Deliberately run on [appScope] rather than in the composition that asks for it. The session
+     * is process-scoped state, and an activity recreation — a rotation, the system switching to
+     * dark mode — used to cancel the restore half-way through and leave the app looking signed out.
+     * An already-established session is left alone; an unresolved one is retried on the next open,
+     * which is how a bootstrap that ran with no connectivity still comes good.
+     */
+    fun bootstrap() {
+        appScope.launch {
+            bootstrapLock.withLock {
+                notesRepo.loadFromDisk()
+                when (session.state.value) {
+                    is SessionState.SignedIn, SessionState.Standalone -> Unit
+                    else -> session.restore()
+                }
+            }
+        }
     }
 
     /**

@@ -524,6 +524,15 @@ session distinguishes **rejected** (server said no → sign out) from **unreacha
 problem → stay signed in on the cached user so the offline cache is usable); only an actual
 rejection may destroy the session.
 
+**Session bootstrap.** Restoring that session from the cookie runs on the app scope
+(`AppContainer.bootstrap`), not in the composition that asks for it. The session is
+process-scoped state, so tying its restore to a composition means an activity recreation — a
+rotation, the system switching to dark mode, the app being backgrounded — cancels the restore
+mid-call. A cancellation is not a failed call (`orNullUnlessCancelled`, `resultUnlessCancelled`):
+reading one as failure signed a valid session out and dropped the user on the sign-in screen until
+the next restore put it right. On a later open an established session is left alone and an
+unresolved one is retried, so a bootstrap that ran with no connectivity still comes good.
+
 **Offline-first sync** (`data/offline/`):
 - **`LocalStore`** — the offline cache and outbox as **two JSON files** under
   `filesDir/offline/`, written atomically (temp file + rename). Deliberately **not Room**:
