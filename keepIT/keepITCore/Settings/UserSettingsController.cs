@@ -37,6 +37,7 @@ namespace keepITCore.Settings
         private readonly IRealtimeNotifier _notifier;
         private readonly IEmailSender _emailSender;
         private readonly EmailOptions _emailOptions;
+        private readonly IConfiguration _config;
         private readonly ILogger<UserSettingsController> _logger;
 
         /// <summary>Injects the database context, the image storage service, the realtime notifier, and email.</summary>
@@ -45,6 +46,7 @@ namespace keepITCore.Settings
         /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
         /// <param name="emailSender">Delivers the test email (SMTP, or the server log when unconfigured).</param>
         /// <param name="emailOptions">Email settings, read to report whether SMTP is configured.</param>
+        /// <param name="config">App configuration, read for <c>App:PublicBaseUrl</c>.</param>
         /// <param name="logger">Controller logger.</param>
         public UserSettingsController(
             AppDbContext db,
@@ -52,6 +54,7 @@ namespace keepITCore.Settings
             IRealtimeNotifier notifier,
             IEmailSender emailSender,
             IOptions<EmailOptions> emailOptions,
+            IConfiguration config,
             ILogger<UserSettingsController> logger)
         {
             _db = db;
@@ -59,6 +62,7 @@ namespace keepITCore.Settings
             _notifier = notifier;
             _emailSender = emailSender;
             _emailOptions = emailOptions.Value;
+            _config = config;
             _logger = logger;
         }
         /// <summary>Returns the caller's settings, creating defaults on first access.</summary>
@@ -106,6 +110,29 @@ namespace keepITCore.Settings
             await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Settings);
 
             return Ok(ToDto(settings));
+        }
+
+        /// <summary>
+        /// How this server delivers email, for the Settings page: whether SMTP is configured, where
+        /// emailed links point, and whether password-reset emails are switched off because SMTP is
+        /// set but <c>App:PublicBaseUrl</c> is not — the same rule the reset flow applies (see
+        /// <c>AuthController.ForgotPassword</c>). Any signed-in user may ask: the answer holds no
+        /// secret, and it tells them why a reset email would never arrive.
+        /// </summary>
+        /// <returns>200 with the email status.</returns>
+        [HttpGet("email-status")]
+        public ActionResult<EmailStatusDto> GetEmailStatus()
+        {
+            if (User.GetUserId() is null) return Unauthorized();
+
+            var smtp = _emailSender.DeliversToRecipient;
+            var publicBaseUrl = PublicBaseUrl.Read(_config);
+            return Ok(new EmailStatusDto
+            {
+                SmtpConfigured = smtp,
+                PublicBaseUrl = publicBaseUrl,
+                ResetEmailsDisabled = smtp && publicBaseUrl is null,
+            });
         }
 
         /// <summary>

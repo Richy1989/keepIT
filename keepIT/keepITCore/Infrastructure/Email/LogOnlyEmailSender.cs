@@ -16,6 +16,9 @@ public class LogOnlyEmailSender : IEmailSender
     }
 
     /// <inheritdoc />
+    public bool DeliversToRecipient => false;
+
+    /// <inheritdoc />
     public Task SendAsync(string toEmail, string subject, string textBody, CancellationToken ct = default)
     {
         _logger.LogWarning(

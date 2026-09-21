@@ -27,6 +27,9 @@ public class SmtpEmailSender : IEmailSender
     }
 
     /// <inheritdoc />
+    public bool DeliversToRecipient => true;
+
+    /// <inheritdoc />
     public async Task SendAsync(string toEmail, string subject, string textBody, CancellationToken ct = default)
     {
         var message = new MimeMessage();

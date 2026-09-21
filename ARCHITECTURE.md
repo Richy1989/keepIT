@@ -93,7 +93,8 @@ The C# DTOs are the single source of truth for the API shape.
 - **Email:** an `IEmailSender` abstraction — SMTP (`SmtpEmailSender`) when `Email__SmtpHost`
   is configured, otherwise `LogOnlyEmailSender` writes the message to the server log. Used by
   password reset and the settings page's test-email button. On a self-hosted instance the
-  operator owns the logs, so "reset link lands in the log" is a legitimate no-SMTP mode.
+  operator owns the logs, so "reset link lands in the log" is a legitimate no-SMTP mode. SMTP
+  also needs `App__PublicBaseUrl`, the only source for links in real emails (see **Auth flow**).
 
 ## Data & database configuration
 
@@ -215,9 +216,13 @@ the API issues tokens.
 - `POST /forgot-password` — **always 204**, whether or not the account exists (no email
   enumeration). When it does, a single-use, time-limited Identity reset token is generated and
   the link is delivered via `IEmailSender` (SMTP or the server log). The link points at the
-  frontend's `/reset-password` page; its base URL is `App__PublicBaseUrl` if set, else the
-  request's `Origin` header (dev: Vite origin), else the request's own scheme+host (prod:
-  one origin anyway).
+  frontend's `/reset-password` page. **An emailed link is built only from `App__PublicBaseUrl`**:
+  with SMTP configured and no public URL set, no reset email is sent at all (an error is logged,
+  and a warning at startup), and the response is still 204. So the gap isn't silent for an
+  operator upgrading or one who missed the field, `GET /api/settings/email-status` reports it
+  and the web Settings page shows it (see **Frontend**). Only in log-only mode may the link
+  fall back to the request's `Origin` (dev: the Vite origin) or its own scheme and host, since
+  the operator is the one reading it. See **Security & abuse protection** for why.
 - `POST /reset-password` — completes the reset with the emailed token. Clears any lockout
   (proving control of the email outranks a possibly attacker-induced lockout) and revokes all
   refresh tokens; the user signs in fresh. Bad/expired tokens get a generic error; password-
@@ -272,6 +277,13 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
 - **Non-enumeration stance:** login, lockout, forgot-password, reset-password, and the
   profile-image endpoint all return the same generic response for "doesn't exist" and "no
   permission", so none of them can be used to probe which emails/ids are registered.
+- **Outbound links never come from the request.** `Origin`, `Host` and forwarded-host headers
+  are whatever the sender chooses, and forgot-password is anonymous: a reset link built from
+  them would let anyone send a victim a genuine reset email pointing at their own site, and
+  collect the token when it's clicked (password-reset poisoning). Links that reach a user's
+  inbox are therefore built only from `App__PublicBaseUrl` (`Infrastructure/PublicBaseUrl.cs`),
+  which is validated at startup (a malformed value stops the API, like a bad `Jwt__Key`). Any
+  future email carrying a link, such as invites to non-users, must follow the same rule.
 - **nginx (`web/nginx.conf` and `deploy/nginx.conf`):** security headers (nosniff,
   frame-ancestors DENY, referrer policy, HSTS — inert on plain HTTP, effective under TLS) and
   a same-origin **CSP** (inline script/style allowances only for the pre-paint theme script
@@ -473,6 +485,10 @@ the server row.
   script in `index.html` to avoid a flash. See **Look & feel**.
 - **Settings page** also hosts account management (display name/avatar upload, change
   password), the operator's test-email button, and shows the server version from `/api/meta`.
+  When SMTP is configured without `App__PublicBaseUrl` (so reset emails are switched off), it
+  says so from `GET /api/settings/email-status`: a banner on every section, a marker on the
+  Email section, and the full explanation there, suggesting the address currently in use. Once
+  configured, the Email section shows where reset links point instead.
 
 ## Android client (`app/`)
 
@@ -847,8 +863,10 @@ Store is not (yet) used.
 - **`keepITCore.http`** — request collection for manual endpoint poking.
 - **API tests** (`keepIT/keepITCore.Tests/`, xUnit, run in CI) host the real API in-process on a
   throwaway SQLite data root per host: the schema reconciler bringing an older database up to date
-  without data loss, and note media end to end (renditions, the lazily built preview, upload
-  limits). They run one host at a time because the data root is a process-wide static.
+  without data loss, note media end to end (renditions, the lazily built preview, upload
+  limits), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
+  and no email goes out without `App__PublicBaseUrl`). They run one host at a time because the
+  data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
   default body limit once hid.

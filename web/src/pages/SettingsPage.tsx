@@ -4,8 +4,9 @@ import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
-import { useServerMeta } from '../features/settings/queries';
+import { useEmailStatus, useServerMeta } from '../features/settings/queries';
 import {
+  AlertIcon,
   ChevronLeftIcon,
   LogoutIcon,
   MailIcon,
@@ -28,6 +29,9 @@ export function SettingsPage() {
   const { user, logout } = useAuth();
   const [active, setActive] = useState<SectionKey>('general');
   const meta = useServerMeta();
+  // Surfaced beyond the Email section: it isn't the one that opens, and an operator upgrading
+  // from a version that built reset links from the request would otherwise never look there.
+  const resetEmailsOff = useEmailStatus().data?.resetEmailsDisabled ?? false;
 
   return (
     <div className="h-full overflow-y-auto bg-canvas">
@@ -49,6 +53,25 @@ export function SettingsPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           </div>
         </div>
+
+        {resetEmailsOff && active !== 'email' && (
+          <div
+            role="status"
+            className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-warning-bg px-4 py-3 text-sm text-warning"
+          >
+            <AlertIcon className="shrink-0 text-base" />
+            <p className="min-w-0 flex-1">
+              Password-reset emails are switched off until this server's public address is set.
+            </p>
+            <button
+              type="button"
+              onClick={() => setActive('email')}
+              className="focus-ring rounded-md font-medium underline underline-offset-2 hover:no-underline"
+            >
+              Show details
+            </button>
+          </div>
+        )}
 
         <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
           {/* Left nav */}
@@ -72,6 +95,14 @@ export function SettingsPage() {
                     >
                       <Icon className="text-base" />
                       {s.label}
+                      {s.key === 'email' && resetEmailsOff && (
+                        <AlertIcon
+                          className="ml-auto text-sm text-warning"
+                          aria-label="Needs attention"
+                          aria-hidden={false}
+                          role="img"
+                        />
+                      )}
                     </button>
                   </li>
                 );

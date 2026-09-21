@@ -57,6 +57,23 @@ export function useServerMeta() {
 }
 
 /**
+ * How the server delivers email: via SMTP or into the server log, where emailed links point, and
+ * whether password-reset emails are switched off (SMTP set without `App__PublicBaseUrl`). Server
+ * configuration, so it only changes with a restart.
+ */
+export function useEmailStatus() {
+  return useQuery({
+    queryKey: ['email-status'],
+    staleTime: Infinity,
+    queryFn: async () => {
+      const { data, error } = await api.GET('/api/settings/email-status');
+      if (error || !data) throw new Error('Failed to load the email status.');
+      return data;
+    },
+  });
+}
+
+/**
  * Sends a test email to the caller's own address to check the server's SMTP configuration. The
  * server answers 200 for every completed test — the payload says whether the message went out via
  * SMTP, landed in the server log (SMTP unconfigured), or failed (with the delivery error).
