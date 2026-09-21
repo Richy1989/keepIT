@@ -1,22 +1,22 @@
 [versions]
-agp = "9.3.3"
+agp = "9.4.1"
 # 1.19+ requires compileSdk 37; this machine has platform 36.1 — bump both together later.
-coreKtx = "1.17.0"
+coreKtx = "1.19.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
-kotlin = "2.2.10"
-composeBom = "2026.02.01"
+kotlin = "2.4.20"
+composeBom = "2026.09.00"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
-kotlinxSerializationJson = "1.7.3"
-navigationCompose = "2.8.5"
+kotlinxSerializationJson = "1.11.0"
+navigationCompose = "2.10.1"
 # 1.1.1 predates Android 15: Glance only moved to compileSdk 35 in 1.2.0-alpha01, and we target 36.
 # 1.2.0 is the current stable and the last line that still builds against platform 36 (1.3.x needs 37).
 glance = "1.2.0"
-signalr = "10.0.0"
+signalr = "10.0.12"
 # Glance pulls WorkManager in to run the widget composition inside a worker; we also schedule our
 # own periodic worker on it, so work-runtime-ktx (CoroutineWorker) is a direct dependency now. It
 # is a floor, not a pin - if Glance ever resolves a newer work-runtime, Gradle picks that and both
@@ -27,7 +27,7 @@ materialIconsCore = "1.7.8"
 # Note images only. MediaCache does the authenticated download and hands Coil a plain File, so no
 # custom fetcher or interceptor is needed — Coil just decodes, downsamples and memory-caches.
 # Apache-2.0, so it raises nothing for the F-Droid submission.
-coil = "3.2.0"
+coil = "3.6.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
