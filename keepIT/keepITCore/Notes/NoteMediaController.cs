@@ -84,12 +84,12 @@ public class NoteMediaController : ControllerBase
         if (existing >= _options.MaxImagesPerNote)
             return Conflict($"This note already has {_options.MaxImagesPerNote} images.");
 
-        // Buffer so the processor can seek: it reads the header, then decodes from the start.
-        await using var buffer = new MemoryStream();
-        await file.CopyToAsync(buffer, ct);
-        buffer.Position = 0;
-
-        var result = await _processor.ProcessAsync(buffer, ct);
+        // The processor buffers the upload itself, once it's this upload's turn to decode.
+        await using var upload = file.OpenReadStream();
+        var result = await _processor.ProcessAsync(upload, ct);
+        if (result.Reason == MediaRejection.TooManyPixels)
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                $"Image too large (max {_options.MaxImagePixels / 1_000_000} megapixels).");
         if (result.Image is null)
             return BadRequest(result.Reason switch
             {

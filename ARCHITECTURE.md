@@ -275,6 +275,11 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
 - **Upload validation:** profile images are checked by extension, size (≤2 MB), **and content
   signature** (magic bytes — JPEG/PNG/GIF/WebP) in `Service/ImageService.cs`; stored under a
   fresh GUID filename, never the client's (path-traversal defense).
+- **Image decoding is bounded.** Decoding costs memory by pixel count, not file size, and a
+  1.2 MB PNG can declare 400 megapixels (1.2 GB decoded). So note images are checked against
+  `App__Media__MaxImagePixels` from the header before anything is decoded, only an animation's
+  first frame is decoded (each frame is a full canvas), and two uploads are processed at a time
+  (see **Note media → Limits**).
 - **Non-enumeration stance:** login, lockout, forgot-password, reset-password, and the
   profile-image endpoint all return the same generic response for "doesn't exist" and "no
   permission", so none of them can be used to probe which emails/ids are registered.
@@ -582,8 +587,8 @@ must see the mode before any session is restored.
   only on the sign-in itself, so a crash mid-switch can never restart standalone over a store
   that looks like an account's.
 - **Limits.** Data is only as safe as the phone — no backup until a server is connected. Images
-  are stored as picked, so ones the server would refuse (over 10 MB, HEIC) fail on that first
-  upload; they land in the gallery rather than being lost (see above).
+  are stored as picked, so ones the server would refuse (over 10 MB or 100 megapixels, HEIC)
+  fail on that first upload; they land in the gallery rather than being lost (see above).
 
 **Realtime, reminders, notifications.** `RealtimeClient` (see **SignalR realtime**) kicks the
 sync engine on `notes`/`lists` and the `ServerNotificationsWatcher` on `notification`.
@@ -805,11 +810,21 @@ check so it can be refused *by name*, since iPhone-on-Safari users hit it consta
 ImageSharp is pinned to the **3.1** line on purpose: 4.x requires a Six Labors licence key at build
 time, while 3.1 stays under the Split License covering open-source use.
 
-**Limits:** 10 MB per image and 10 images per note, both configurable under `App:Media`. There is
-no per-user quota — registration is gated, and `ByteSize` is stored so a quota is later a `SUM`
-rather than a migration. Over-sized uploads are answered by a resource filter that runs *before*
-model binding, because the framework's own guard surfaces as a generic 400 and clients map 413
-specifically to "image too large".
+**Limits:** 10 MB per image, 100 megapixels per image and 10 images per note, all configurable
+under `App:Media`. There is no per-user quota — registration is gated, and `ByteSize` is stored so
+a quota is later a `SUM` rather than a migration. Over-sized uploads are answered by a resource
+filter that runs *before* model binding, because the framework's own guard surfaces as a generic
+400 and clients map 413 specifically to "image too large".
+
+Bytes don't bound what decoding costs: that follows the pixel count, and a solid-colour PNG of
+1.2 MB can declare 20,000 × 20,000 pixels. So `NoteMediaProcessor` reads the dimensions from the
+header (`Image.IdentifyAsync`, no decode) and refuses anything over `MaxImagePixels` with a 413
+before a pixel is allocated. It decodes only the first frame (`DecoderOptions.MaxFrames = 1`),
+since every frame of an animation decodes to a full canvas; nothing is lost, as GIFs are stored
+as uploaded and everything else becomes a single JPEG frame. And at most two uploads are buffered
+and decoded at once (a process-wide semaphore; the processor itself is scoped), so parallel
+uploads queue instead of multiplying memory, and the ones waiting hold only their request body,
+which ASP.NET Core keeps on disk.
 
 **Still deferred:** background images, a distinct image note type, reordering attachments, and
 images in the Android widget.
@@ -873,7 +888,8 @@ Store is not (yet) used.
 - **API tests** (`keepIT/keepITCore.Tests/`, xUnit, run in CI) host the real API in-process on a
   throwaway SQLite data root per host: the schema reconciler bringing an older database up to date
   without data loss, note media end to end (renditions, the lazily built preview, upload
-  limits), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
+  limits, an image bomb refused from its header, and only an animation's first frame decoded,
+  witnessed by a GIF whose second frame can't be), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
   and no email goes out without `App__PublicBaseUrl`), and that SMTP mail stays encrypted (a
   loopback `FakeSmtpServer` that never offers STARTTLS receives neither the SMTP password nor
   the message). They run one host at a time because the

@@ -155,6 +155,7 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `App__AllowRegistration` | no | `true` | Whether new accounts may be created. On an internet-exposed instance: register your own accounts first, then set `false` to close public sign-up. |
 | `App__DataRoot` | no | `./App_Data` | Directory for the database, security keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the app: `1` for the plain setups above, `2` if you put another proxy (e.g. Traefik) in front. |
+| `App__Media__MaxImagePixels` | no | `100000000` | Largest image a note can take, in pixels (100 megapixels, above any phone photo that fits in 10 MB). Checked before the image is decoded, since a small file can claim a huge size and decoding costs memory by pixel. Lower it on a server with little memory. |
 | `App__PublicBaseUrl` | with SMTP | *(none)* | The address users open keepIT at (e.g. `https://notes.example.com`). Emailed password-reset links point here, and while it's unset no reset email is sent, since a link built from the incoming request could point anywhere. Optional without SMTP: the link written to the server log then uses the address you opened keepIT at. |
 | `Email__SmtpHost` | no | *(none)* | SMTP server for outgoing email (password-reset links). Needs `App__PublicBaseUrl` too. Leave empty to run without email; reset links then land in the server log. |
 | `Email__From` | with SMTP | *(none)* | From address, e.g. `keepIT <no-reply@example.com>`. Required once `Email__SmtpHost` is set. |
@@ -187,9 +188,9 @@ else. Sharing and syncing with other devices need a server, so they're switched 
 
 When you do set up a server, open **Settings → Connect to a server** and sign in: everything on
 the phone is uploaded into that account (alongside anything already in it) and syncs from then
-on. A photo the server won't take (over 10 MB, or HEIC) is saved to your gallery instead of
-being lost. Until then, standalone notes live only on the phone. There's no backup, and
-**Settings → Erase notes** deletes them for good.
+on. A photo the server won't take (over 10 MB or 100 megapixels, or HEIC) is saved to your
+gallery instead of being lost. Until then, standalone notes live only on the phone. There's no
+backup, and **Settings → Erase notes** deletes them for good.
 
 ### Get it
 
