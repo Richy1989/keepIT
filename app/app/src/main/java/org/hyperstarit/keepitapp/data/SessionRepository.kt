@@ -1,10 +1,10 @@
 package org.hyperstarit.keepitapp.data
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import java.io.IOException
 
 /** The app's sign-in state. `Loading` only during the initial cookie-restore on launch. */
 sealed interface SessionState {
@@ -47,7 +47,15 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      */
     var onLeavingStandalone: (suspend () -> Unit)? = null
 
-    /** Bootstrap: a persisted refresh cookie silently restores the session (survives restarts). */
+    /**
+     * Bootstrap: a persisted refresh cookie silently restores the session (survives restarts).
+     *
+     * Runs from the composition, so an activity recreation — a rotation, the system switching to
+     * dark mode, the app being backgrounded — can cancel it mid-call. That cancellation is left to
+     * propagate ([orNullUnlessCancelled]) instead of being read as a failed call: the session stays
+     * as it was and the next composition restores it, rather than a disposed bootstrap dropping a
+     * signed-in user on the sign-in screen.
+     */
     suspend fun restore() {
         if (mode.isStandalone) {
             _state.value = SessionState.Standalone
@@ -59,26 +67,16 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
             return
         }
         client.configure(base)
-        when (withContext(Dispatchers.IO) { client.refreshBlocking() }) {
-            RefreshResult.SUCCESS ->
-                runCatching { client.api.me() }
-                    .onSuccess { user ->
-                        client.saveLastUser(user)
-                        _state.value = SessionState.SignedIn(user)
-                    }
-                    .onFailure { t ->
-                        // The refresh worked, so only a network blip can justify falling back.
-                        val cached = if (t is IOException) client.loadLastUser() else null
-                        _state.value = cached?.let { SessionState.SignedIn(it) } ?: SessionState.SignedOut
-                    }
 
-            RefreshResult.REJECTED -> _state.value = SessionState.SignedOut
-
-            RefreshResult.NETWORK_ERROR -> {
-                val cached = client.loadLastUser()
-                _state.value = cached?.let { SessionState.SignedIn(it) } ?: SessionState.SignedOut
-            }
+        val refresh = withContext(Dispatchers.IO) { client.refreshBlocking() }
+        val user = if (refresh == RefreshResult.SUCCESS) {
+            orNullUnlessCancelled { client.api.me() }?.also { client.saveLastUser(it) }
+        } else {
+            null
         }
+        // The last-known user is only worth reading when there's no fresh one to prefer.
+        val cached = if (user == null) client.loadLastUser() else null
+        _state.value = restoredState(refresh, user, cached)
     }
 
     suspend fun login(serverUrl: String, email: String, password: String): Result<Unit> =
@@ -160,3 +158,34 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         _state.value = SessionState.SignedOut
     }
 }
+
+/**
+ * Runs [block], reporting an ordinary failure as "no answer" (`null`) — but never a cancellation,
+ * which is rethrown.
+ *
+ * `runCatching` is the obvious shorthand here and is the bug this replaces: it catches
+ * [CancellationException] like any other failure, so a bootstrap cancelled by an activity
+ * recreation came back looking like a failed `me` call and signed a perfectly valid session out.
+ */
+internal suspend fun <T> orNullUnlessCancelled(block: suspend () -> T): T? =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+/**
+ * The session a bootstrap lands in. A refresh the server *answered* has proved the session, so a
+ * blip fetching the profile afterwards falls back to the last-known user — the same fallback an
+ * unreachable server gets. Only a rejected cookie ends the session: it is the one answer that means
+ * the refresh token itself is gone.
+ */
+internal fun restoredState(refresh: RefreshResult, user: UserDto?, cached: UserDto?): SessionState =
+    when (refresh) {
+        RefreshResult.SUCCESS, RefreshResult.NETWORK_ERROR ->
+            (user ?: cached)?.let { SessionState.SignedIn(it) } ?: SessionState.SignedOut
+
+        RefreshResult.REJECTED -> SessionState.SignedOut
+    }
