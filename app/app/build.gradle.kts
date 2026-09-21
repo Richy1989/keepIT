@@ -21,10 +21,11 @@ val hasReleaseSigning = cred("storeFile", "KEYSTORE_PATH") != null
 
 android {
     namespace = "org.hyperstarit.keepitapp"
+    // 37 because current AndroidX, Compose and Coil releases refuse to build against anything
+    // older (checkAarMetadata). compileSdk only decides which Android APIs the code can see: the
+    // devices it runs on are minSdk's business, and platform behaviour follows targetSdk.
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     defaultConfig {
