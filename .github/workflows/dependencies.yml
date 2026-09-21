@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: npm, what ships in the web app
@@ -34,7 +34,7 @@ jobs:
         # Runtime dependencies only, rated high or critical. Build tooling never reaches a browser,
         # and Dependabot keeps it current; `npm audit` without --omit=dev shows it all.
         run: npm audit --omit=dev --audit-level=high
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
       - name: NuGet, including transitive packages
@@ -46,21 +46,25 @@ jobs:
 
   android-graph:
     name: Android dependency graph
-    # Hands the Android app's resolved Gradle dependencies to GitHub's dependency graph, which has
-    # no other way to see them, so Dependabot alerts cover the app's libraries too (once alerts
-    # are enabled for the repository). A submission needs write access, so not from PRs.
+    # Hands the libraries the Android app ships with to GitHub's dependency graph, which has no
+    # other way to see them, so Dependabot alerts cover them too. A submission needs write
+    # access, so not from PRs.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/dependency-submission@v6
         with:
           build-root-directory: app
+          # Only what ships in the APK. The rest is build tooling (the Android Gradle plugin's own
+          # libraries, test runners) that runs on a build machine, never on a phone, and would
+          # bury real alerts under dozens about it; Dependabot's version updates keep it current.
+          dependency-graph-include-configurations: releaseRuntimeClasspath
           # The open-source cache; the default is a commercial caching service.
           cache-provider: basic
