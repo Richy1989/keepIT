@@ -19,7 +19,7 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
 - **Web frontend:** React 19 + Vite + TypeScript — `web/`. TanStack Query owns all server state. Tailwind v4, React Router v7.
 - **Android client:** Kotlin + Jetpack Compose (Material 3) — `app/` (package `org.hyperstarit.keepitapp`). Retrofit + OkHttp + kotlinx.serialization for the REST API, the official Microsoft SignalR Java client for realtime, Glance for the home-screen widget, Navigation Compose for nav. **Offline-first** with a local cache + mutation outbox. No Room, no Hilt — see the Android section.
 - **API contract:** OpenAPI from C# → clients. **C# DTOs are the single source of truth.** Web regenerates a typed client with `openapi-typescript`; the Android `data/Dtos.kt` is hand-kept in sync with the same DTOs.
-- **Deploy:** Docker Compose — nginx (`web`) serves the SPA and reverse-proxies `/api` to the API; Traefik in front for TLS. Also shipped as a single self-contained image for Unraid (`deploy/keepit.unraid.xml`).
+- **Deploy:** Docker Compose — nginx (`web`) serves the SPA and reverse-proxies `/api` to the API; Traefik in front for TLS. Also shipped as a single self-contained image for Unraid (`deploy/keepit.unraid.xml`). In both, the API runs unprivileged (uid 1654, which owns `/data`), never as root — see ARCHITECTURE.md → Deployment.
 
 ## Hard rules (backend + web)
 

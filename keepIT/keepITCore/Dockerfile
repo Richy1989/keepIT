@@ -24,8 +24,13 @@ FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "keepITCore.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# Final runtime image: just the published output on the non-root base.
+# Final runtime image: just the published output on the non-root base. /data is created owned by
+# that user, so a new named volume mounted there starts out writable (Docker copies the mount
+# point's owner into an empty volume); docker-compose.yml's data-owner service fixes older ones.
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+USER root
+RUN mkdir -p /data && chown "$APP_UID:$APP_UID" /data
+USER $APP_UID
 ENTRYPOINT ["dotnet", "keepITCore.dll"]

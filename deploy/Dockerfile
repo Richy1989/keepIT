@@ -46,13 +46,19 @@ COPY --from=api /app/publish ./
 COPY --from=web /web/dist /usr/share/nginx/html
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh \
+ && mkdir -p /data && chown app:app /data
 
-# API binds loopback:8080; nginx is the public face on :80. All writable data under /data.
+# The API listens on loopback:8080 only, so nothing but this container's nginx can reach it:
+# not the host, and not other containers on the same Docker network, which could otherwise skip
+# nginx and send it any X-Forwarded-For they like. The base image's ASPNETCORE_HTTP_PORTS would
+# bind every interface, so it's cleared. nginx is the public face on :80. All writable data is
+# under /data, owned by the unprivileged `app` user the API runs as (see entrypoint.sh).
 # The refresh cookie's Secure default is set in entrypoint.sh instead of here: BuildKit's
 # SecretsUsedInArgOrEnv lint flags any ENV whose name starts with "Auth__", however un-secret the
 # value, and silencing that rule file-wide would also stop it catching a genuinely baked-in key.
-ENV ASPNETCORE_HTTP_PORTS=8080 \
+ENV ASPNETCORE_HTTP_PORTS= \
+    ASPNETCORE_URLS=http://127.0.0.1:8080 \
     App__DataRoot=/data \
     ASPNETCORE_ENVIRONMENT=Production
 

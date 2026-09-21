@@ -87,6 +87,11 @@ A few things worth knowing:
   `App__PublicBaseUrl` to your instance's address. Reset emails are not sent without it; if
   it's missing, the server log says so at startup and the web app's Settings page shows a
   warning.
+- **keepIT doesn't run as root.** The app runs as the unprivileged user `app` (uid 1654). On
+  start, the container makes the data folder that user's, so after updating from an older
+  version your data (on Unraid, the `appdata/keepit` folder) shows 1654 as its owner. Start the
+  container as usual, without `--user`. If that folder is on storage that can't change owners
+  (a network share, for instance), make it writable for uid 1654.
 - **Behind your own reverse proxy** (Traefik, Nginx Proxy Manager, SWAG…)? If it keeps access
   logs, have it leave out query strings, or at least `token` and `access_token`: the web app's
   live-sync connection carries a sign-in token in its URL, and so does a password-reset link.

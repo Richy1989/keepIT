@@ -314,6 +314,9 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   reaches its log. A new credential must never go in a URL; if one has to, it joins the
   redaction map and that CI step. An operator's own proxy in front logs URLs too, which the
   README points out.
+- **The API never runs as root.** In both shapes it runs as uid 1654 and owns `/data`; only a
+  start-up step hands `/data` over, without following symlinks, and nginx's master binds `:80`.
+  In the single container the API also listens on loopback only. See **Deployment**.
 
 ## SignalR realtime
 
@@ -860,7 +863,24 @@ app's own `versionName`/`versionCode` are derived from the same tag by CI.
 `deploy/Dockerfile` builds one image (`richy1989/keepit` on Docker Hub) bundling:
 1. the built React SPA, served by **nginx** (the public face on `:80`),
 2. the .NET API on loopback `:8080`, reverse-proxied at `/api`,
-3. an entrypoint that runs both and tears the container down if either exits.
+3. an entrypoint that runs both and tears the container down if either exits, and passes
+   `docker stop`'s SIGTERM on so both shut down cleanly.
+
+**Who runs as what:** the API runs as the base image's unprivileged `app` user (uid 1654). It
+parses every request body and decodes uploaded images, so a flaw there shouldn't come with
+root. The entrypoint starts as root only to hand `/data` to `app` (`find … ! -user app -exec
+chown -h`): earlier versions ran the API as root, so existing volumes and Unraid folders are
+root-owned, and this makes the upgrade need no manual step. `-h` matters: the API can write
+under `/data`, and without it a symlink planted there would aim the next start's root-run
+chown at a file outside the folder. Storage that can't change owners (a network share with
+root squashing, say) only gets a warning, since such a folder may already be writable for
+everyone; one that isn't makes the API fail on start with SQLite's "unable to open database
+file", which the warning explains. It then starts the API through `setpriv`. nginx's master
+stays root to bind `:80`, and its workers, which handle the requests, run as `www-data`.
+Started with `--user`, the entrypoint refuses with an explanation, since nginx couldn't start.
+The API listens on `127.0.0.1` only (`ASPNETCORE_URLS`, with the base image's
+`ASPNETCORE_HTTP_PORTS` cleared), so other containers on the same Docker network can't bypass
+nginx and hand it a forged `X-Forwarded-For`.
 
 React is still *not hosted by ASP.NET* — nginx and the API are separate processes talking
 over HTTP, just co-located. With no Postgres configured the API uses its SQLite fallback, so
@@ -875,6 +895,11 @@ switches it to an external Postgres. An **Unraid Community Apps template** ships
 `keepIT/keepITCore/Dockerfile`, data on a named volume at `/data`), **`web`** (nginx serving
 the SPA and proxying `/api` — the single entrypoint on `:8080`). One origin → no CORS in the
 stack and a same-origin refresh cookie. The API is not published to the host; only nginx is.
+The API container runs as the image's unprivileged user (uid 1654), never root. Before it
+starts, a one-shot **`data-owner`** service (the same image, run as root, with no network)
+hands the data volume to that user with the same `chown -h` rule as the single container,
+which is what upgrades a volume from the root-run versions; the image also creates `/data`
+owned by that user, so a new volume starts out writable.
 Compose reads five values from `.env` (`JWT_KEY`, `POSTGRES_PASSWORD`,
 `REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION`).
 

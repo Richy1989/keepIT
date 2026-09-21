@@ -8,7 +8,25 @@
 # and the refresh cookie is same-origin. The API itself is not published to the host — only nginx is.
 # Copy .env.example to .env first (sets JWT_KEY).
 
+x-api-build: &api-build
+  context: ./keepIT
+  dockerfile: keepITCore/Dockerfile
+
 services:
+  # Runs once before the API and exits: hands the data volume to the API's unprivileged user
+  # ($APP_UID, from the .NET base image). Earlier versions ran the API as root, so an existing
+  # volume is root-owned; only entries with another owner are touched, so a normal start changes
+  # nothing. -h changes a symlink itself, never its target, so nothing the API writes there can
+  # aim this root-run chown elsewhere. Same image as the API, and no network.
+  data-owner:
+    build: *api-build
+    user: root
+    entrypoint: ["sh", "-c", "find /data ! -user \"$$APP_UID\" -exec chown -h \"$$APP_UID:$$APP_UID\" {} +"]
+    volumes:
+      - app-data:/data
+    network_mode: none
+    restart: "no"
+
   db:
     image: postgres:17-alpine
     environment:
@@ -25,13 +43,8 @@ services:
     networks: [keepit]
 
   api:
-    build:
-      context: ./keepIT
-      dockerfile: keepITCore/Dockerfile
-    # The base image runs as a non-root user that can't write a freshly-created named volume.
-    # Running as root keeps the dev stack working out of the box; in production, provision the
-    # data volume with the right ownership and drop back to the non-root user.
-    user: root
+    build: *api-build
+    # Runs as the image's unprivileged user; data-owner has made the volume writable for it.
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
@@ -63,6 +76,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      data-owner:
+        condition: service_completed_successfully
     networks: [keepit]
 
   web:
