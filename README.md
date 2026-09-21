@@ -99,6 +99,9 @@ A few things worth knowing:
 - Running **Unraid**? A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
+Updating from an older version, or something not working? The **[FAQ](FAQ.md)** covers what
+changes when you update, reverse proxies and HTTPS, email, and images.
+
 <details>
 <summary><strong>Prefer Docker Compose, Postgres, or building the image yourself?</strong></summary>
 
@@ -173,7 +176,7 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `Email__SmtpPort` | no | `587` | SMTP port: `587` for STARTTLS submission, `465` for implicit TLS (set `Email__UseStartTls=false` too). |
 | `Email__UseStartTls` | no | `true` | `true` = STARTTLS (port 587); `false` = implicit TLS (port 465). With STARTTLS the server must offer it, or nothing is sent: the test email in Settings then says so. |
 | `Email__AllowUnencrypted` | no | `false` | Lets STARTTLS mail go out in plain text when the server doesn't offer encryption. Only for a relay on a network you trust (e.g. a local Postfix on port 25); anywhere else it exposes reset links and the SMTP password. Settings shows a warning while it's on. |
-| `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Sign-in cookie is HTTPS-only. Keep `true` behind TLS; set `false` only when serving plain HTTP on a non-localhost address (e.g. a LAN IP without TLS). |
+| `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Whether the sign-in cookie is HTTPS-only even on plain HTTP. Over HTTPS (directly or through a TLS proxy) it always is. `false` lets a plain-HTTP address such as a LAN IP stay signed in; `true` refuses that, for an instance only ever reached over HTTPS. |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the API explorer at `/scalar/v1`. |
@@ -300,6 +303,9 @@ It has since grown into a blazing-fast app with optimistic editing, lists, searc
 I'm really happy with how this turned out.
 
 ## Support
+
+Running into a problem? Check the **[FAQ](FAQ.md)** first, or
+[open an issue](https://github.com/Richy1989/keepIT/issues).
 
 keepIT is free and self-hosted: no accounts, no subscriptions. If it's useful to you and you'd
 like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/hyperstarit). Much
