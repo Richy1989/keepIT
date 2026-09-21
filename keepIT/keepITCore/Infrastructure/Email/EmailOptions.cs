@@ -24,8 +24,19 @@ public class EmailOptions
     /// <summary>From address, e.g. <c>keepIT &lt;no-reply@example.com&gt;</c>. Required when SMTP is configured.</summary>
     public string? From { get; set; }
 
-    /// <summary>True (default) = STARTTLS on connect; false = implicit TLS (use with port 465).</summary>
+    /// <summary>
+    /// True (default) = STARTTLS, which the server must offer or nothing is sent (see
+    /// <see cref="AllowUnencrypted"/>); false = implicit TLS (use with port 465).
+    /// </summary>
     public bool UseStartTls { get; set; } = true;
+
+    /// <summary>
+    /// Lets STARTTLS mail go out unencrypted when the server doesn't offer it. Off by default,
+    /// because a missing offer is exactly what someone on the network path produces by stripping
+    /// it, and the conversation then carries reset links and the SMTP password in plain text. Only
+    /// for a trusted relay on your own network.
+    /// </summary>
+    public bool AllowUnencrypted { get; set; }
 
     /// <summary>Whether SMTP delivery is configured (a host is present).</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(SmtpHost);

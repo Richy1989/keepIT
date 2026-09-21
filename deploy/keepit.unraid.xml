@@ -102,6 +102,11 @@
       <Mode/>
     </Variable>
     <Variable>
+      <Value>false</Value>
+      <Name>Email__AllowUnencrypted</Name>
+      <Mode/>
+    </Variable>
+    <Variable>
       <Value></Value>
       <Name>POSTGRES_HOST</Name>
       <Mode/>
@@ -140,7 +145,8 @@
   <Config Name="SMTP Username" Target="Email__SmtpUsername" Default="" Description="Optional SMTP login username. Leave empty (with SMTP Password) for an unauthenticated relay. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="SMTP Password" Target="Email__SmtpPassword" Default="" Description="Optional SMTP login password, paired with SMTP Username. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="SMTP Port" Target="Email__SmtpPort" Default="587" Description="SMTP port — 587 for STARTTLS submission (default), 465 for implicit TLS (set Use STARTTLS to false too). Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false">587</Config>
-  <Config Name="Use STARTTLS" Target="Email__UseStartTls" Default="true" Description="true = STARTTLS on port 587 (default); false = implicit TLS on port 465. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Use STARTTLS" Target="Email__UseStartTls" Default="true" Description="true = STARTTLS on port 587 (default); false = implicit TLS on port 465. With STARTTLS the server must offer it or no email is sent. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Allow Unencrypted SMTP" Target="Email__AllowUnencrypted" Default="false" Description="Leave false. true lets email go out in plain text when the SMTP server doesn't offer STARTTLS, exposing reset links and the SMTP password to anyone on the network path. Only for a mail relay on a network you trust. Ignored while SMTP Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
   <Config Name="Postgres Host" Target="POSTGRES_HOST" Default="" Description="Optional. LEAVE EMPTY to use the built-in SQLite database (recommended for testing). This field is the switch: empty = SQLite, filled = Postgres. Set it to your Postgres host/container to switch databases (then also set Postgres Password)." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Postgres Port" Target="POSTGRES_PORT" Default="" Description="Optional Postgres port (defaults to 5432 if empty). Ignored while Postgres Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Postgres Database" Target="POSTGRES_DB" Default="" Description="Optional Postgres database name (defaults to 'keepit'). Ignored while Postgres Host is empty." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>

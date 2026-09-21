@@ -35,7 +35,8 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key) || jwtOptions.Key.Length < 32)
 // Emailed links (password reset) are built only from App:PublicBaseUrl, never from the request. A
 // malformed value is refused here, like a bad Jwt:Key, rather than on the first reset request.
 var publicBaseUrl = PublicBaseUrl.Read(builder.Configuration);
-var emailDelivered = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()?.IsConfigured == true;
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>() ?? new EmailOptions();
+var emailDelivered = emailOptions.IsConfigured;
 
 // ---- Common data folder + database provider selection ----
 var dataRoot = FolderManagement.EnsureDataRoot(builder.Configuration, builder.Environment);
@@ -173,6 +174,15 @@ if (emailDelivered && publicBaseUrl is null)
         "Set App__PublicBaseUrl to the address you open keepIT at, e.g. https://notes.example.com " +
         "(Unraid: the \"Public Base URL\" field; Docker: -e App__PublicBaseUrl=...), then restart. " +
         "The Settings page shows this too, under Email.");
+}
+
+// An explicit opt-out of encryption stays loud: it is only safe for a relay on a trusted network.
+if (emailDelivered && emailOptions.UseStartTls && emailOptions.AllowUnencrypted)
+{
+    app.Logger.LogWarning(
+        "SMTP may send without encryption (Email__AllowUnencrypted=true): if the server doesn't " +
+        "offer STARTTLS, password-reset links and the SMTP password travel in plain text. Use this " +
+        "only for a trusted relay on your own network.");
 }
 
 if (app.Environment.IsDevelopment())

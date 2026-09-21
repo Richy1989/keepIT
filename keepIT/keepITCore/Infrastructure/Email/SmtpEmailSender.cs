@@ -8,7 +8,8 @@ namespace keepITCore.Infrastructure.Email;
 /// <summary>
 /// Sends mail over SMTP via MailKit. Registered only when <c>Email:SmtpHost</c> is configured.
 /// Opens a connection per send — fine for this app's volume (password resets), and avoids keeping
-/// idle SMTP connections alive.
+/// idle SMTP connections alive. The connection is always encrypted unless the operator explicitly
+/// allows otherwise (see <see cref="ConnectionSecurity"/>).
 /// </summary>
 public class SmtpEmailSender : IEmailSender
 {
@@ -29,6 +30,19 @@ public class SmtpEmailSender : IEmailSender
     /// <inheritdoc />
     public bool DeliversToRecipient => true;
 
+    /// <summary>
+    /// How the connection is secured. STARTTLS is required, not opportunistic: with
+    /// <see cref="SecureSocketOptions.StartTlsWhenAvailable"/>, anyone on the network path can strip
+    /// the server's STARTTLS offer and read the conversation, reset links and SMTP password
+    /// included. Only an explicit <see cref="EmailOptions.AllowUnencrypted"/> brings that fallback
+    /// back, for a trusted local relay.
+    /// </summary>
+    /// <param name="options">The SMTP settings.</param>
+    public static SecureSocketOptions ConnectionSecurity(EmailOptions options) =>
+        !options.UseStartTls ? SecureSocketOptions.SslOnConnect
+        : options.AllowUnencrypted ? SecureSocketOptions.StartTlsWhenAvailable
+        : SecureSocketOptions.StartTls;
+
     /// <inheritdoc />
     public async Task SendAsync(string toEmail, string subject, string textBody, CancellationToken ct = default)
     {
@@ -39,10 +53,22 @@ public class SmtpEmailSender : IEmailSender
         message.Body = new TextPart("plain") { Text = textBody };
 
         using var client = new SmtpClient();
-        var security = _options.UseStartTls
-            ? SecureSocketOptions.StartTlsWhenAvailable
-            : SecureSocketOptions.SslOnConnect;
-        await client.ConnectAsync(_host, _options.SmtpPort, security, ct);
+        var security = ConnectionSecurity(_options);
+        try
+        {
+            await client.ConnectAsync(_host, _options.SmtpPort, security, ct);
+        }
+        catch (NotSupportedException ex) when (security == SecureSocketOptions.StartTls)
+        {
+            // Refused before any credential or message is sent. The wording reaches the operator
+            // both here in the log and in the Settings page's test-email result.
+            throw new InvalidOperationException(
+                $"The SMTP server {_host}:{_options.SmtpPort} doesn't offer STARTTLS, so keepIT won't " +
+                "send over an unencrypted connection. If it supports implicit TLS, use port 465 with " +
+                "Email__UseStartTls=false. For a trusted relay on your own network only, set " +
+                "Email__AllowUnencrypted=true.",
+                ex);
+        }
 
         if (!string.IsNullOrWhiteSpace(_options.SmtpUsername))
             await client.AuthenticateAsync(_options.SmtpUsername, _options.SmtpPassword ?? string.Empty, ct);

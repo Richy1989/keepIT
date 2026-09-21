@@ -22,6 +22,18 @@ export function TestEmailSetting() {
     <div className="max-w-md space-y-3">
       {status?.resetEmailsDisabled && <ResetEmailsOffNotice />}
 
+      {/* An explicit operator choice, not a fault: stated plainly, without the banner treatment. */}
+      {status?.unencryptedAllowed && (
+        <p className="flex gap-2.5 rounded-lg bg-warning-bg px-3 py-2.5 text-sm text-warning">
+          <AlertIcon className="mt-0.5 shrink-0 text-base" />
+          <span>
+            Email may be sent without encryption when the SMTP server doesn't offer it (
+            <code className="font-mono text-xs">Email__AllowUnencrypted</code> is on). That's only
+            safe for a mail relay on a network you trust.
+          </span>
+        </p>
+      )}
+
       {status?.smtpConfigured && status.publicBaseUrl && (
         <p className="text-sm text-text-muted">
           Password-reset links point to{' '}

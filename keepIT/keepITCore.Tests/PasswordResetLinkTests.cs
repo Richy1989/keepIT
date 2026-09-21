@@ -132,6 +132,18 @@ public sealed class PasswordResetLinkTests
     }
 
     [Fact]
+    public async Task Settings_are_told_when_SMTP_may_send_unencrypted()
+    {
+        var (api, _) = Host(viaSmtp: true, publicBaseUrl: "https://notes.example.com");
+        api.Settings["Email:AllowUnencrypted"] = "true";
+        using var _ = api;
+
+        var status = await EmailStatusAsync(api);
+
+        Assert.True(status.GetProperty("unencryptedAllowed").GetBoolean());
+    }
+
+    [Fact]
     public async Task The_email_status_needs_a_signed_in_user()
     {
         using var api = new KeepItApiFactory();

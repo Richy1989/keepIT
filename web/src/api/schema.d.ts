@@ -1426,6 +1426,7 @@ export interface components {
             smtpConfigured: boolean;
             publicBaseUrl?: null | string;
             resetEmailsDisabled: boolean;
+            unencryptedAllowed: boolean;
         };
         ForgotPasswordRequestDto: {
             email: string;

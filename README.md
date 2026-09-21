@@ -161,7 +161,8 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `Email__SmtpUsername` | no | *(none)* | SMTP login username. Leave empty (along with the password) for an unauthenticated relay. |
 | `Email__SmtpPassword` | no | *(none)* | SMTP login password, paired with `Email__SmtpUsername`. |
 | `Email__SmtpPort` | no | `587` | SMTP port: `587` for STARTTLS submission, `465` for implicit TLS (set `Email__UseStartTls=false` too). |
-| `Email__UseStartTls` | no | `true` | `true` = STARTTLS (port 587); `false` = implicit TLS (port 465). |
+| `Email__UseStartTls` | no | `true` | `true` = STARTTLS (port 587); `false` = implicit TLS (port 465). With STARTTLS the server must offer it, or nothing is sent: the test email in Settings then says so. |
+| `Email__AllowUnencrypted` | no | `false` | Lets STARTTLS mail go out in plain text when the server doesn't offer encryption. Only for a relay on a network you trust (e.g. a local Postfix on port 25); anywhere else it exposes reset links and the SMTP password. Settings shows a warning while it's on. |
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Sign-in cookie is HTTPS-only. Keep `true` behind TLS; set `false` only when serving plain HTTP on a non-localhost address (e.g. a LAN IP without TLS). |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |

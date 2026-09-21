@@ -132,6 +132,7 @@ namespace keepITCore.Settings
                 SmtpConfigured = smtp,
                 PublicBaseUrl = publicBaseUrl,
                 ResetEmailsDisabled = smtp && publicBaseUrl is null,
+                UnencryptedAllowed = smtp && _emailOptions.UseStartTls && _emailOptions.AllowUnencrypted,
             });
         }
 

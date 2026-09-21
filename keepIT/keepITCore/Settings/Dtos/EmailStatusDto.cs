@@ -21,5 +21,11 @@ namespace keepITCore.Settings.Dtos
         /// are then withheld, since a link can't be built from the incoming request safely.
         /// </summary>
         public bool ResetEmailsDisabled { get; set; }
+
+        /// <summary>
+        /// True when SMTP may fall back to an unencrypted connection (<c>Email:AllowUnencrypted</c>):
+        /// safe only for a relay on a trusted network, so the Settings page keeps it visible.
+        /// </summary>
+        public bool UnencryptedAllowed { get; set; }
     }
 }

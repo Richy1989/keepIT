@@ -94,7 +94,8 @@ The C# DTOs are the single source of truth for the API shape.
   is configured, otherwise `LogOnlyEmailSender` writes the message to the server log. Used by
   password reset and the settings page's test-email button. On a self-hosted instance the
   operator owns the logs, so "reset link lands in the log" is a legitimate no-SMTP mode. SMTP
-  also needs `App__PublicBaseUrl`, the only source for links in real emails (see **Auth flow**).
+  also needs `App__PublicBaseUrl`, the only source for links in real emails (see **Auth flow**),
+  and its connection is always encrypted (see **Security**).
 
 ## Data & database configuration
 
@@ -284,6 +285,13 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   inbox are therefore built only from `App__PublicBaseUrl` (`Infrastructure/PublicBaseUrl.cs`),
   which is validated at startup (a malformed value stops the API, like a bad `Jwt__Key`). Any
   future email carrying a link, such as invites to non-users, must follow the same rule.
+- **SMTP never falls back to plain text.** STARTTLS is required (MailKit `StartTls`), not
+  opportunistic (`StartTlsWhenAvailable`): the offer travels unencrypted, so anyone on the
+  path can strip it, and the opportunistic client then sends the SMTP password and every reset
+  link in the clear. A server that doesn't offer STARTTLS gets nothing, and the error names the
+  fixes (implicit TLS on 465, or the opt-in). `Email__AllowUnencrypted=true` restores the
+  fallback for a trusted local relay; it logs a warning at startup and the Settings page shows
+  one, via `GET /api/settings/email-status`.
 - **nginx (`web/nginx.conf` and `deploy/nginx.conf`):** security headers (nosniff,
   frame-ancestors DENY, referrer policy, HSTS — inert on plain HTTP, effective under TLS) and
   a same-origin **CSP** (inline script/style allowances only for the pre-paint theme script
@@ -488,7 +496,8 @@ the server row.
   When SMTP is configured without `App__PublicBaseUrl` (so reset emails are switched off), it
   says so from `GET /api/settings/email-status`: a banner on every section, a marker on the
   Email section, and the full explanation there, suggesting the address currently in use. Once
-  configured, the Email section shows where reset links point instead.
+  configured, the Email section shows where reset links point instead. It also keeps
+  `Email__AllowUnencrypted` visible while it's on, as a warning in the Email section.
 
 ## Android client (`app/`)
 
@@ -865,7 +874,9 @@ Store is not (yet) used.
   throwaway SQLite data root per host: the schema reconciler bringing an older database up to date
   without data loss, note media end to end (renditions, the lazily built preview, upload
   limits), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
-  and no email goes out without `App__PublicBaseUrl`). They run one host at a time because the
+  and no email goes out without `App__PublicBaseUrl`), and that SMTP mail stays encrypted (a
+  loopback `FakeSmtpServer` that never offers STARTTLS receives neither the SMTP password nor
+  the message). They run one host at a time because the
   data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
