@@ -34,8 +34,8 @@ android {
         // Static version is the source of truth — F-Droid reads these literals from the tagged
         // source (its checkupdates can't run Gradle or read env). Bump both when cutting a release
         // so the tag vX.Y.Z matches. CI still overrides them from the tag via env for GitHub builds.
-        versionCode = 700
-        versionName = "0.7.0"
+        versionCode = 701
+        versionName = "0.7.1"
         System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
         System.getenv("VERSION_NAME")?.let { versionName = it }
 

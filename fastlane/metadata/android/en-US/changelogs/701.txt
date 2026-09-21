@@ -1,0 +1,7 @@
+Standalone mode: tap "Use without a server" on the sign-in screen to keep notes, lists, photos and reminders on your phone alone, with no server needed. Connect a server later in Settings and everything is uploaded into your account.
+
+Lists can now be created, renamed and deleted while offline.
+
+A photo the server can't accept is saved to your gallery instead of being lost.
+
+Back now closes the navigation drawer instead of leaving the app.
