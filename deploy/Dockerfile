@@ -49,10 +49,12 @@ COPY deploy/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # API binds loopback:8080; nginx is the public face on :80. All writable data under /data.
+# The refresh cookie's Secure default is set in entrypoint.sh instead of here: BuildKit's
+# SecretsUsedInArgOrEnv lint flags any ENV whose name starts with "Auth__", however un-secret the
+# value, and silencing that rule file-wide would also stop it catching a genuinely baked-in key.
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     App__DataRoot=/data \
-    ASPNETCORE_ENVIRONMENT=Production \
-    Auth__RefreshCookie__Secure=false
+    ASPNETCORE_ENVIRONMENT=Production
 
 EXPOSE 80
 VOLUME ["/data"]
