@@ -944,12 +944,22 @@ Store is not (yet) used.
   witnessed by a GIF whose second frame can't be), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
   and no email goes out without `App__PublicBaseUrl`), and that SMTP mail stays encrypted (a
   loopback `FakeSmtpServer` that never offers STARTTLS receives neither the SMTP password nor
-  the message). They run one host at a time because the
+  the message), and which requests get a Secure refresh cookie (every HTTPS one, direct or
+  forwarded, whatever the setting). They run one host at a time because the
   data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
   default body limit once hid. The same CI job then checks that a hub token and a reset token
   sent in URLs reach the container log only redacted.
+- **Dependency advisories** (`.github/workflows/dependencies.yml`, on every push and PR and
+  weekly, since an advisory can appear for code that hasn't changed): fails on a high or critical
+  advisory in the web app's runtime npm packages or in any NuGet package, direct or transitive.
+  `dotnet list package --vulnerable` never fails by itself, so `.github/scripts/nuget-advisories.py`
+  judges its report. Build-only npm tooling is left to Dependabot. The same workflow submits the
+  Android app's resolved Gradle dependencies to GitHub's dependency graph, the only way Dependabot
+  alerts see them. Dependabot (`.github/dependabot.yml`) opens grouped weekly version updates for
+  all five ecosystems; it never proposes ImageSharp 4.x, the next .NET major, or a new major base
+  image, which are deliberate upgrades.
 - No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
 
 ## Status & roadmap

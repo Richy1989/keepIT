@@ -1,0 +1,73 @@
+# Version updates for every deployable, as grouped weekly PRs; CI runs on each. Security fixes
+# come as separate PRs once "Dependabot security updates" is enabled for the repository, and the
+# Dependencies workflow fails on known high or critical advisories in the meantime.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # The type definitions should match the Node version the app is built with, so they move
+      # when that does.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: nuget
+    directories: [/keepIT/keepITCore, /keepIT/keepITCore.Tests]
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # 4.x needs a Six Labors licence key at build time; 3.1 stays under the Split License that
+      # covers open-source use (ARCHITECTURE.md).
+      - dependency-name: SixLabors.ImageSharp
+        update-types: [version-update:semver-major]
+      # These follow the .NET version: their next major means moving the app to the next .NET,
+      # a deliberate upgrade rather than a weekly PR.
+      - dependency-name: Microsoft.AspNetCore.*
+        update-types: [version-update:semver-major]
+      - dependency-name: Microsoft.EntityFrameworkCore.*
+        update-types: [version-update:semver-major]
+      - dependency-name: Microsoft.Extensions.*
+        update-types: [version-update:semver-major]
+      - dependency-name: Npgsql.EntityFrameworkCore.PostgreSQL
+        update-types: [version-update:semver-major]
+      - dependency-name: Serilog.AspNetCore
+        update-types: [version-update:semver-major]
+      # Microsoft.AspNetCore.OpenApi is built against this library's major.
+      - dependency-name: Microsoft.OpenApi
+        update-types: [version-update:semver-major]
+    groups:
+      api-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: gradle
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      android-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: [/deploy, /web, /keepIT/keepITCore]
+    schedule:
+      interval: weekly
+    ignore:
+      # A new Node or .NET major is a deliberate upgrade, not a weekly PR.
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
