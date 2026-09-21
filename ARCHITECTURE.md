@@ -247,9 +247,10 @@ limit — every page reload refreshes, and throttling that signs real users out 
 
 **SignalR auth**
 - `RealTimeHub` is `[Authorize]`. Browsers can't set headers on the WebSocket handshake, so
-  the access token is passed via the query string (`?access_token=…`); JWT bearer's
+  the web client passes the access token via the query string (`?access_token=…`); JWT bearer's
   `OnMessageReceived` reads it, scoped to the `/api/realtime` path. The Android SignalR client
-  authenticates the same way.
+  (OkHttp) can set headers, so it sends an ordinary `Authorization: Bearer` header instead.
+  A token in a URL lands in access logs, so nginx logs it redacted (see **Security**).
 
 ## Security & abuse protection
 
@@ -275,6 +276,11 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
 - **Upload validation:** profile images are checked by extension, size (≤2 MB), **and content
   signature** (magic bytes — JPEG/PNG/GIF/WebP) in `Service/ImageService.cs`; stored under a
   fresh GUID filename, never the client's (path-traversal defense).
+- **Image decoding is bounded.** Decoding costs memory by pixel count, not file size, and a
+  1.2 MB PNG can declare 400 megapixels (1.2 GB decoded). So note images are checked against
+  `App__Media__MaxImagePixels` from the header before anything is decoded, only an animation's
+  first frame is decoded (each frame is a full canvas), and two uploads are processed at a time
+  (see **Note media → Limits**).
 - **Non-enumeration stance:** login, lockout, forgot-password, reset-password, and the
   profile-image endpoint all return the same generic response for "doesn't exist" and "no
   permission", so none of them can be used to probe which emails/ids are registered.
@@ -296,6 +302,21 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   frame-ancestors DENY, referrer policy, HSTS — inert on plain HTTP, effective under TLS) and
   a same-origin **CSP** (inline script/style allowances only for the pre-paint theme script
   and React inline note colors).
+- **No credential from a URL is logged.** Two travel in URLs by necessity: the browser's hub
+  `access_token` (see **SignalR auth**) and the `token` of a password-reset link
+  (`/reset-password?email=…&token=…`). nginx's stock log formats write whole URLs, so both
+  configs log with a `redacted` format that blanks those values in the request line and the
+  referer; both images log to stdout, so `docker logs` shows it. An error-log line quotes the
+  raw request and can't be redacted, so `/api/realtime` has its own location that doesn't write
+  one (a failure still shows as, say, a 502 in the access log). And `Referrer-Policy:
+  strict-origin` keeps the reset page's full URL out of the referer of everything it loads,
+  even same-origin. CI sends both kinds of token through the built image and fails if either
+  reaches its log. A new credential must never go in a URL; if one has to, it joins the
+  redaction map and that CI step. An operator's own proxy in front logs URLs too, which the
+  README points out.
+- **The API never runs as root.** In both shapes it runs as uid 1654 and owns `/data`; only a
+  start-up step hands `/data` over, without following symlinks, and nginx's master binds `:80`.
+  In the single container the API also listens on loopback only. See **Deployment**.
 
 ## SignalR realtime
 
@@ -591,8 +612,8 @@ must see the mode before any session is restored.
   only on the sign-in itself, so a crash mid-switch can never restart standalone over a store
   that looks like an account's.
 - **Limits.** Data is only as safe as the phone — no backup until a server is connected. Images
-  are stored as picked, so ones the server would refuse (over 10 MB, HEIC) fail on that first
-  upload; they land in the gallery rather than being lost (see above).
+  are stored as picked, so ones the server would refuse (over 10 MB or 100 megapixels, HEIC)
+  fail on that first upload; they land in the gallery rather than being lost (see above).
 
 **Realtime, reminders, notifications.** `RealtimeClient` (see **SignalR realtime**) kicks the
 sync engine on `notes`/`lists` and the `ServerNotificationsWatcher` on `notification`.
@@ -814,11 +835,21 @@ check so it can be refused *by name*, since iPhone-on-Safari users hit it consta
 ImageSharp is pinned to the **3.1** line on purpose: 4.x requires a Six Labors licence key at build
 time, while 3.1 stays under the Split License covering open-source use.
 
-**Limits:** 10 MB per image and 10 images per note, both configurable under `App:Media`. There is
-no per-user quota — registration is gated, and `ByteSize` is stored so a quota is later a `SUM`
-rather than a migration. Over-sized uploads are answered by a resource filter that runs *before*
-model binding, because the framework's own guard surfaces as a generic 400 and clients map 413
-specifically to "image too large".
+**Limits:** 10 MB per image, 100 megapixels per image and 10 images per note, all configurable
+under `App:Media`. There is no per-user quota — registration is gated, and `ByteSize` is stored so
+a quota is later a `SUM` rather than a migration. Over-sized uploads are answered by a resource
+filter that runs *before* model binding, because the framework's own guard surfaces as a generic
+400 and clients map 413 specifically to "image too large".
+
+Bytes don't bound what decoding costs: that follows the pixel count, and a solid-colour PNG of
+1.2 MB can declare 20,000 × 20,000 pixels. So `NoteMediaProcessor` reads the dimensions from the
+header (`Image.IdentifyAsync`, no decode) and refuses anything over `MaxImagePixels` with a 413
+before a pixel is allocated. It decodes only the first frame (`DecoderOptions.MaxFrames = 1`),
+since every frame of an animation decodes to a full canvas; nothing is lost, as GIFs are stored
+as uploaded and everything else becomes a single JPEG frame. And at most two uploads are buffered
+and decoded at once (a process-wide semaphore; the processor itself is scoped), so parallel
+uploads queue instead of multiplying memory, and the ones waiting hold only their request body,
+which ASP.NET Core keeps on disk.
 
 **Still deferred:** background images, a distinct image note type, reordering attachments, and
 images in the Android widget.
@@ -841,7 +872,24 @@ app's own `versionName`/`versionCode` are derived from the same tag by CI.
 `deploy/Dockerfile` builds one image (`richy1989/keepit` on Docker Hub) bundling:
 1. the built React SPA, served by **nginx** (the public face on `:80`),
 2. the .NET API on loopback `:8080`, reverse-proxied at `/api`,
-3. an entrypoint that runs both and tears the container down if either exits.
+3. an entrypoint that runs both and tears the container down if either exits, and passes
+   `docker stop`'s SIGTERM on so both shut down cleanly.
+
+**Who runs as what:** the API runs as the base image's unprivileged `app` user (uid 1654). It
+parses every request body and decodes uploaded images, so a flaw there shouldn't come with
+root. The entrypoint starts as root only to hand `/data` to `app` (`find … ! -user app -exec
+chown -h`): earlier versions ran the API as root, so existing volumes and Unraid folders are
+root-owned, and this makes the upgrade need no manual step. `-h` matters: the API can write
+under `/data`, and without it a symlink planted there would aim the next start's root-run
+chown at a file outside the folder. Storage that can't change owners (a network share with
+root squashing, say) only gets a warning, since such a folder may already be writable for
+everyone; one that isn't makes the API fail on start with SQLite's "unable to open database
+file", which the warning explains. It then starts the API through `setpriv`. nginx's master
+stays root to bind `:80`, and its workers, which handle the requests, run as `www-data`.
+Started with `--user`, the entrypoint refuses with an explanation, since nginx couldn't start.
+The API listens on `127.0.0.1` only (`ASPNETCORE_URLS`, with the base image's
+`ASPNETCORE_HTTP_PORTS` cleared), so other containers on the same Docker network can't bypass
+nginx and hand it a forged `X-Forwarded-For`.
 
 React is still *not hosted by ASP.NET* — nginx and the API are separate processes talking
 over HTTP, just co-located. With no Postgres configured the API uses its SQLite fallback, so
@@ -856,6 +904,11 @@ switches it to an external Postgres. An **Unraid Community Apps template** ships
 `keepIT/keepITCore/Dockerfile`, data on a named volume at `/data`), **`web`** (nginx serving
 the SPA and proxying `/api` — the single entrypoint on `:8080`). One origin → no CORS in the
 stack and a same-origin refresh cookie. The API is not published to the host; only nginx is.
+The API container runs as the image's unprivileged user (uid 1654), never root. Before it
+starts, a one-shot **`data-owner`** service (the same image, run as root, with no network)
+hands the data volume to that user with the same `chown -h` rule as the single container,
+which is what upgrades a volume from the root-run versions; the image also creates `/data`
+owned by that user, so a new volume starts out writable.
 Compose reads five values from `.env` (`JWT_KEY`, `POSTGRES_PASSWORD`,
 `REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION`).
 
@@ -882,14 +935,16 @@ Store is not (yet) used.
 - **API tests** (`keepIT/keepITCore.Tests/`, xUnit, run in CI) host the real API in-process on a
   throwaway SQLite data root per host: the schema reconciler bringing an older database up to date
   without data loss, note media end to end (renditions, the lazily built preview, upload
-  limits), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
+  limits, an image bomb refused from its header, and only an animation's first frame decoded,
+  witnessed by a GIF whose second frame can't be), and where password-reset links point (forged `Origin`/`Host` headers are ignored,
   and no email goes out without `App__PublicBaseUrl`), and that SMTP mail stays encrypted (a
   loopback `FakeSmtpServer` that never offers STARTTLS receives neither the SMTP password nor
   the message). They run one host at a time because the
   data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
-  default body limit once hid.
+  default body limit once hid. The same CI job then checks that a hub token and a reset token
+  sent in URLs reach the container log only redacted.
 - No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
 
 ## Status & roadmap

@@ -30,20 +30,26 @@ public sealed class NoteMediaTests(MediaHost host) : IClassFixture<MediaHost>
 {
     private HttpClient Client => host.Client;
 
-    private async Task<string> NewNoteAsync()
+    private Task<string> NewNoteAsync() => NewNoteAsync(Client);
+
+    internal static async Task<string> NewNoteAsync(HttpClient client)
     {
-        var response = await Client.PostAsJsonAsync("/api/notes", new { type = "Text", title = "images" });
+        var response = await client.PostAsJsonAsync("/api/notes", new { type = "Text", title = "images" });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
     }
 
-    private async Task<HttpResponseMessage> UploadAsync(string noteId, byte[] bytes, string fileName, string contentType)
+    private Task<HttpResponseMessage> UploadAsync(string noteId, byte[] bytes, string fileName, string contentType) =>
+        UploadAsync(Client, noteId, bytes, fileName, contentType);
+
+    internal static async Task<HttpResponseMessage> UploadAsync(
+        HttpClient client, string noteId, byte[] bytes, string fileName, string contentType)
     {
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(bytes);
         file.Headers.ContentType = new MediaTypeHeaderValue(contentType);
         form.Add(file, "file", fileName);
-        return await Client.PostAsync($"/api/notes/{noteId}/media", form);
+        return await client.PostAsync($"/api/notes/{noteId}/media", form);
     }
 
     /// <summary>Uploads an image that must be accepted, returning its media id.</summary>
@@ -161,6 +167,42 @@ public sealed class NoteMediaTests(MediaHost host) : IClassFixture<MediaHost>
     }
 
     [Fact]
+    public async Task An_image_declaring_too_many_pixels_is_refused_before_decoding()
+    {
+        // 2.5 gigapixels in under 100 bytes, which would take some 7.5 GB to decode. A 413 naming
+        // the pixel limit means the header alone decided it.
+        var noteId = await NewNoteAsync();
+
+        var response = await UploadAsync(noteId, TestImages.PngClaiming(50_000, 50_000), "bomb.png", "image/png");
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        Assert.Contains("megapixels", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Only_the_first_frame_of_an_animation_is_decoded()
+    {
+        // Its second frame can't be decoded, so the upload only succeeds if it never is.
+        var noteId = await NewNoteAsync();
+
+        var response = await UploadAsync(noteId, TestImages.GifWithBrokenSecondFrame(), "anim.gif", "image/gif");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_animated_gif_keeps_every_frame()
+    {
+        var noteId = await NewNoteAsync();
+        var gif = TestImages.AnimatedGif(300, 200, frames: 3);
+        var mediaId = await AttachAsync(noteId, gif, "anim.gif", "image/gif");
+
+        var full = await (await GetAsync(noteId, mediaId, "full")).Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(gif, full);
+    }
+
+    [Fact]
     public async Task A_heic_photo_is_refused_by_name()
     {
         var noteId = await NewNoteAsync();
@@ -169,5 +211,29 @@ public sealed class NoteMediaTests(MediaHost host) : IClassFixture<MediaHost>
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("HEIC", await response.Content.ReadAsStringAsync());
+    }
+}
+
+/// <summary>
+/// Media limits that need settings of their own, and so a host of their own. It can't live in
+/// <see cref="NoteMediaTests"/>: a second host alive beside <see cref="MediaHost"/> takes over the
+/// process-wide data root, and that class's later uploads would land in the wrong folder.
+/// </summary>
+public sealed class MediaLimitTests
+{
+    [Fact]
+    public async Task The_pixel_limit_is_configurable_and_inclusive()
+    {
+        using var api = new KeepItApiFactory();
+        api.Settings["App:Media:MaxImagePixels"] = "1000000";
+        using var client = await api.CreateSignedInClientAsync();
+        var noteId = await NoteMediaTests.NewNoteAsync(client);
+
+        var over = await NoteMediaTests.UploadAsync(client, noteId, TestImages.Png(2000, 1000), "over.png", "image/png");
+        var at = await NoteMediaTests.UploadAsync(client, noteId, TestImages.Png(1000, 1000), "at.png", "image/png");
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, over.StatusCode);
+        Assert.Contains("max 1 megapixels", await over.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Created, at.StatusCode);
     }
 }

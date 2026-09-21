@@ -1,4 +1,7 @@
+using keepITCore.Infrastructure;
+using Microsoft.Extensions.Options;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
@@ -19,6 +22,12 @@ public enum MediaRejection
 
     /// <summary>A recognised signature that the decoder could not actually read.</summary>
     Corrupt,
+
+    /// <summary>
+    /// Its header declares more pixels than <see cref="MediaOptions.MaxImagePixels"/> allows.
+    /// Refused before decoding, which is where an oversized image would cost memory.
+    /// </summary>
+    TooManyPixels,
 }
 
 /// <summary>A processed upload, ready to be written to storage. Both streams are positioned at 0.</summary>
@@ -41,12 +50,41 @@ public sealed record MediaProcessResult(ProcessedImage? Image, MediaRejection Re
 /// verbatim, because that is the only way to strip metadata: phone photos carry GPS, and a shared
 /// note would otherwise hand a collaborator the coordinates of the photographer's home. The
 /// accepted trade-off is that pixel-exact originals are not preserved.
+/// <para>
+/// Decoding is the expensive step, and its cost follows the pixel count, not the upload's size, so
+/// it is bounded three ways: the declared size is checked from the header first
+/// (<see cref="MediaOptions.MaxImagePixels"/>), only the first frame of an animation is ever
+/// decoded, and at most <see cref="MaxConcurrentDecodes"/> uploads are processed at once.
+/// </para>
 /// </summary>
 public class NoteMediaProcessor
 {
     private const int MaxOriginalEdge = 2560;
     private const int ThumbnailEdge = 400;
     private const int JpegQuality = 88;
+
+    /// <summary>Uploads processed at the same time; the rest wait their turn.</summary>
+    public const int MaxConcurrentDecodes = 2;
+
+    /// <summary>
+    /// Shared by every instance: the processor is scoped, but memory is a whole-process budget.
+    /// </summary>
+    private static readonly SemaphoreSlim DecodeSlots = new(MaxConcurrentDecodes, MaxConcurrentDecodes);
+
+    /// <summary>
+    /// First frame only. Every frame decodes to a full canvas, so a small GIF with thousands of
+    /// frames would otherwise cost thousands of images' memory. It loses nothing: a GIF is stored
+    /// as uploaded and thumbnailed from frame one, and other formats are re-encoded as a single
+    /// JPEG frame anyway.
+    /// </summary>
+    private static readonly DecoderOptions Decoding = new() { MaxFrames = 1 };
+
+    private readonly long _maxPixels;
+
+    public NoteMediaProcessor(IOptions<MediaOptions> options)
+    {
+        _maxPixels = options.Value.MaxImagePixels;
+    }
 
     /// <summary>Longest edge of the card-sized rendition built by <see cref="CreatePreviewAsync"/>.</summary>
     public const int PreviewEdge = 1280;
@@ -56,6 +94,8 @@ public class NoteMediaProcessor
     /// tiles, but a note card shows its photo at close to screen width — some 1,000–1,400 px on a
     /// phone — where 400 px is visibly soft and the 2,560 px original is several times the bytes
     /// the card needs. Stored originals are already oriented and stripped, so this only resizes.
+    /// They are also this service's own JPEGs of at most 2,560 px, so their decode is small and needs
+    /// none of an upload's limits.
     /// </summary>
     /// <param name="original">A stored original.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -78,11 +118,32 @@ public class NoteMediaProcessor
         return preview;
     }
 
-    /// <summary>Validates and processes an upload.</summary>
-    /// <param name="upload">The uploaded content; must be seekable or already buffered.</param>
+    /// <summary>Validates and processes an upload, once one of the decode slots is free.</summary>
+    /// <param name="upload">The uploaded content, read once from its start.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The processed image, or the rejection reason.</returns>
     public async Task<MediaProcessResult> ProcessAsync(Stream upload, CancellationToken ct)
+    {
+        await DecodeSlots.WaitAsync(ct);
+        try
+        {
+            // Buffered only now, inside the slot: an upload still waiting holds nothing but its
+            // request body, which ASP.NET Core keeps on disk beyond 64 KB.
+            await using var buffer = new MemoryStream();
+            await upload.CopyToAsync(buffer, ct);
+            return await ProcessBufferedAsync(buffer, ct);
+        }
+        finally
+        {
+            DecodeSlots.Release();
+        }
+    }
+
+    /// <summary>The checks and renditions of <see cref="ProcessAsync"/>, on a seekable copy.</summary>
+    /// <param name="upload">The buffered upload.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The processed image, or the rejection reason.</returns>
+    private async Task<MediaProcessResult> ProcessBufferedAsync(MemoryStream upload, CancellationToken ct)
     {
         if (await IsHeicAsync(upload, ct))
             return new MediaProcessResult(null, MediaRejection.Heic);
@@ -95,7 +156,13 @@ public class NoteMediaProcessor
 
         try
         {
-            using var image = await Image.LoadAsync(upload, ct);
+            // The header alone, without decoding: dimensions cost nothing to claim.
+            var info = await Image.IdentifyAsync(Decoding, upload, ct);
+            if ((long)info.Width * info.Height > _maxPixels)
+                return new MediaProcessResult(null, MediaRejection.TooManyPixels);
+
+            upload.Position = 0;
+            using var image = await Image.LoadAsync(Decoding, upload, ct);
 
             // Orientation is applied here; AutoOrient plus stripping metadata below means a sideways
             // phone photo displays upright on every client with no client-side EXIF logic.

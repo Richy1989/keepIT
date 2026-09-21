@@ -230,7 +230,7 @@ class SyncEngine(
             // The media endpoint's own limits — worth naming, since "the server refused it"
             // tells someone nothing about a photo that was simply too big.
             409 -> "the note already has the maximum number of images"
-            413 -> "the image is too large (max 10 MB)"
+            413 -> "the image is too large (max 10 MB and 100 megapixels)"
             400 -> if (op is PendingOp.AttachMedia) "the file isn't a supported image" else "the server refused it"
             else -> "the server refused it"
         }
