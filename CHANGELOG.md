@@ -3,6 +3,41 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## 0.7.6
+
+A visual release: the web app is easier to read, above all in the light theme, and lays notes out
+in reading order. In the Android app, sign-out moves into the menu. The server itself is
+unchanged, so updating needs no change to your setup.
+
+### Web app
+
+- Notes are laid out row by row, newest first across the top, in balanced columns. Before, they
+  ran down the left-hand column first.
+- Easier to read in the light theme: text and icons in the accent colour use a darker shade of it,
+  so the default yellow no longer disappears on white. The light background is a touch grey, so
+  white notes stand out from it.
+- Timestamps, counts, hints and placeholders have more contrast in all three themes, on menus and
+  dialogs as well as on the page.
+- Deleting a list, leaving a shared note and emptying the trash ask in a keepIT dialog instead of
+  the browser's pop-up.
+- A note's reminder and timestamp wrap onto a new line in a narrow column instead of being cut off.
+- The Inter typeface now actually loads. keepIT serves it itself, so no font service is contacted.
+- Menus and dialogs fade in, unless your system asks for reduced motion. Shadows, the dimmed
+  backdrop behind dialogs and the keyboard focus outline follow the theme.
+
+### Android app
+
+- Sign out has moved from the top bar to the bottom of the menu, under your name and email address.
+  In standalone mode there is still no sign-out in the menu: erasing the phone stays in Settings.
+- The menu scrolls, so with many lists, Notifications and Settings stay within reach.
+- Timestamps, counters and hints have more contrast, in the app and on the home-screen widget.
+
+### Also
+
+- The web app has its first automated tests, run in CI: every theme and accent combination is
+  checked for readable contrast, and the note layout for reading order. The Android app checks its
+  colours the same way.
+
 ## 0.7.5
 
 A security release: six fixes from an audit of the server, more reliable sign-in in the Android
