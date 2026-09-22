@@ -86,6 +86,9 @@ class Outbox(private val store: LocalStore) {
                 // offline would otherwise upload against an id the server has never seen.
                 is PendingOp.AttachMedia -> if (op.noteId == tempId) op.copy(noteId = realId) else op
                 is PendingOp.DeleteMedia -> if (op.noteId == tempId) op.copy(noteId = realId) else op
+                is PendingOp.EmptyTrash ->
+                    if (tempId !in op.noteIds) op
+                    else op.copy(noteIds = op.noteIds.map { if (it == tempId) realId else it })
                 is PendingOp.Create -> op
                 // List ops reference lists, not notes — see [remapListId].
                 is PendingOp.CreateList, is PendingOp.UpdateList, is PendingOp.DeleteList -> op
@@ -142,6 +145,10 @@ class Outbox(private val store: LocalStore) {
  *   Deleting an existing note drops its queued edits (the server purge makes them moot).
  * - **AttachMedia / DeleteMedia** never coalesce with anything: two photos are two uploads, and an
  *   Update touches a different resource entirely. A note-level Delete still removes them.
+ * - **EmptyTrash** is a Delete for each note it names, with two differences. A note that only
+ *   exists locally leaves the op as well as the queue: a temp id would get the whole request
+ *   refused, every other note with it. And a queued SetState survives, because the server only
+ *   empties what is in the trash there, and a note trashed offline gets there by that SetState.
  * - **CreateList / UpdateList / DeleteList** mirror the note rules: a rename folds into a queued
  *   CreateList or merges field-wise into an earlier rename; deleting a list that only exists
  *   locally annihilates its ops. Deleting any list also takes it out of every queued membership.
@@ -218,6 +225,16 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
         is PendingOp.Delete -> {
             val remaining = ops.filterNot { it.targetId == id }
             if (pendingCreate != null) remaining else remaining + incoming
+        }
+
+        is PendingOp.EmptyTrash -> {
+            // Temp ids, not just queued creates: one whose create was already refused is just as
+            // unknown to the server.
+            val (local, onServer) = incoming.noteIds.partition(PendingOp::isTempId)
+            val remaining = ops.filterNot { op ->
+                op.targetId in local || (op.targetId in onServer && op !is PendingOp.SetState)
+            }
+            if (onServer.isEmpty()) remaining else remaining + incoming.copy(noteIds = onServer)
         }
 
         // Media ops never coalesce, from either side: two photos are two independent uploads, and

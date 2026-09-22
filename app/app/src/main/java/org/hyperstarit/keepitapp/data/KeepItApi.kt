@@ -79,6 +79,14 @@ interface KeepItApi {
     @DELETE("api/notes/{id}")
     suspend fun deleteNote(@Path("id") id: String)
 
+    /**
+     * Empties the trash of the listed notes: the caller's own are deleted, and they leave the ones
+     * shared with them. Servers before 0.7.5 answer 404, see the fallback in
+     * [org.hyperstarit.keepitapp.data.offline.SyncEngine].
+     */
+    @POST("api/notes/trash/empty")
+    suspend fun emptyTrash(@Body body: EmptyTrashDto)
+
     /** Sets (or replaces) the caller's per-user reminder — read access suffices, viewers included. */
     @PUT("api/notes/{id}/reminder")
     suspend fun setReminder(@Path("id") id: String, @Body body: SetNoteReminderDto): NoteDto

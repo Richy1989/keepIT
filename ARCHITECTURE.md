@@ -566,13 +566,18 @@ unresolved one is retried, so a bootstrap that ran with no connectivity still co
   personal-note-scale, so indexed queries buy nothing; the five-method surface can be swapped
   for a database later without touching callers.
 - **`Outbox` / `PendingOp`** — every mutation (create / update / set-state / set-lists /
-  set-reminder / clear-reminder / delete / attach-media / delete-media, and the list ops
-  create-list / update-list / delete-list) applies to the local cache instantly and enqueues a
-  durable op. Creates — of notes and of lists — use a temp id that is remapped across the queue
-  once the server assigns the real one. Replay is FIFO, so no queued op may name a temp list id
-  whose create sits behind it (the server would refuse the whole request, not just the list):
-  `coalesce` only folds a membership into a note's create when every list it names was created
-  first, and deleting a list created offline strips it from every queued membership.
+  set-reminder / clear-reminder / delete / attach-media / delete-media / empty-trash, and the
+  list ops create-list / update-list / delete-list) applies to the local cache instantly and
+  enqueues a durable op. Creates — of notes and of lists — use a temp id that is remapped
+  across the queue once the server assigns the real one. Replay is FIFO, so no queued op may
+  name a temp list id whose create sits behind it (the server would refuse the whole request,
+  not just the list): `coalesce` only folds a membership into a note's create when every list
+  it names was created first, and deleting a list created offline strips it from every queued
+  membership. Empty-trash names many notes, and one temp id would get it refused just the
+  same, so a note that only exists locally leaves the op along with its create; a queued
+  set-state survives it, since the server only empties what is in its trash. Against a server
+  older than the endpoint (404) it falls back to a `DELETE` per own note still in the trash;
+  notes shared with the user then stay there.
 - **`SyncEngine`** — drains the outbox against the REST API, then refetches everything (all
   three views + lists, in parallel), overlaying any still-queued local edits on the server
   truth. Kicked on sign-in, connectivity return, every enqueue, SignalR pushes, and
@@ -762,6 +767,12 @@ everything else is scoped to):
 
 **Trash is soft-delete and per-user** (`NoteUserState.IsTrashed`), mirroring Keep; only the
 owner can `DELETE` (hard-purge) a note, which cascades and removes it for everyone.
+**Delete all** (`POST /api/notes/trash/empty`) empties the caller's trash in one request: their
+own notes are purged as `DELETE` would, and from a note shared with them they are removed the
+way leaving the share removes them, so its owner keeps it. It takes the ids the client showed,
+not "whatever is in the trash now", and skips any that are no longer in the caller's trash, so
+neither a slow click nor a replay from the Android outbox purges a note trashed or restored on
+another device in the meantime.
 
 ## Lists
 
