@@ -47,7 +47,7 @@ export function SettingsPage() {
             <ChevronLeftIcon className="text-lg" />
           </Link>
           <div className="flex items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-lg bg-accent/15 text-accent">
+            <span className="grid size-7 place-items-center rounded-lg bg-accent/15 text-accent-ink">
               <TypewriterIcon className="text-base" />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
@@ -89,7 +89,7 @@ export function SettingsPage() {
                       className={cn(
                         'focus-ring flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition',
                         on
-                          ? 'bg-accent/15 font-medium text-accent'
+                          ? 'bg-accent/15 font-medium text-accent-ink'
                           : 'text-text-muted hover:bg-surface-hover hover:text-text',
                       )}
                     >

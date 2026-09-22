@@ -56,7 +56,7 @@ export function MarkdownToolbar({
           // Mousedown would move focus out of the textarea and collapse its selection.
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => run(action)}
-          className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-black/20 hover:text-text"
+          className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-overlay-hover hover:text-text"
         >
           {icon}
         </button>

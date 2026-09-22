@@ -23,9 +23,9 @@ export function ReminderChip({ note, onClick }: { note: NoteDto; onClick: () => 
         onClick();
       }}
       className={cn(
-        'focus-ring flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition hover:bg-black/20',
+        'focus-ring flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition hover:bg-overlay-hover',
         past
-          ? 'border-amber-400/40 text-amber-400'
+          ? 'border-warning/40 text-warning'
           : 'border-border-strong text-text-faint hover:text-text',
       )}
     >

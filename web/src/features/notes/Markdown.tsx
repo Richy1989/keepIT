@@ -36,16 +36,16 @@ const components: Components = {
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="text-accent underline decoration-accent/50 hover:decoration-accent"
+      className="text-accent-ink underline decoration-accent-ink/50 hover:decoration-accent-ink"
       {...dom(p)}
     />
   ),
   code: (p) => (
-    <code className="rounded bg-black/25 px-1 py-0.5 font-mono text-[0.85em]" {...dom(p)} />
+    <code className="rounded bg-overlay-hover px-1 py-0.5 font-mono text-[0.85em]" {...dom(p)} />
   ),
   pre: (p) => (
     <pre
-      className="my-1.5 overflow-x-auto rounded-md bg-black/25 p-2 [&>code]:bg-transparent [&>code]:p-0"
+      className="my-1.5 overflow-x-auto rounded-md bg-overlay-hover p-2 [&>code]:bg-transparent [&>code]:p-0"
       {...dom(p)}
     />
   ),

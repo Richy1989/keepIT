@@ -14,6 +14,7 @@ import { MediaLightbox } from './media/MediaLightbox';
 import { useMediaUpload, isAcceptedImage } from './media/useMediaUpload';
 import { useDeleteNoteMedia, ACCEPTED_IMAGE_TYPES, MAX_IMAGES_PER_NOTE } from './media/queries';
 import { ColorPicker } from '../../components/ColorPicker';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useLists } from '../lists/queries';
 import { useAuth } from '../../auth/AuthContext';
 import {
@@ -65,7 +66,6 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   /** Collaborator-only: remove the caller's own share, dropping the note from their grid. */
   function leaveNote() {
     if (note.isOwner || !user) return;
-    if (!window.confirm('Leave this note? It will disappear from your grid until you are invited again.')) return;
     revoke.mutate(user.id, { onSettled: onClose });
   }
 
@@ -78,13 +78,14 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [showColors, setShowColors] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [preview, setPreview] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  // Suspended while the share dialog is up — that child owns the tab ring then.
-  // Released for the share dialog and the image viewer alike: both render outside the panel, so a
-  // trap scoped to the panel would keep pulling focus back out of them.
-  useFocusTrap(panelRef, !showShare && lightbox === null);
+  // Released for the share dialog, the leave confirmation and the image viewer alike: each renders
+  // outside the panel, so a trap scoped to the panel would keep pulling focus back out of them.
+  // Whichever child is up owns the tab ring while it is.
+  useFocusTrap(panelRef, !showShare && !confirmLeave && lightbox === null);
 
   function save() {
     const cleanItems = items
@@ -127,20 +128,20 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
 
   // Esc closes (and saves) — unless a child dialog owns the key, which dismisses itself instead.
   useEffect(() => {
-    if (showShare) return;
+    if (showShare || confirmLeave) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') save();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, title, body, items, color, listIds, showShare]);
+  }, [type, title, body, items, color, listIds, showShare, confirmLeave]);
 
   const swatch = noteColor(color);
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm"
+      className="fade-in fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-scrim p-4 pt-[8vh] backdrop-blur-sm"
       onMouseDown={save}
     >
       <div
@@ -172,7 +173,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               }
             : undefined
         }
-        className="mx-auto w-full max-w-2xl rounded-2xl border shadow-2xl shadow-black/60"
+        className="pop-in mx-auto w-full max-w-2xl rounded-2xl border elev-overlay"
         style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
       >
         <div className="p-5">
@@ -194,14 +195,14 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           {errors.map((message, i) => (
             <div
               key={`${message}-${i}`}
-              className="mb-2 flex items-start justify-between gap-2 rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200"
+              className="mb-2 flex items-start justify-between gap-2 rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger"
             >
               <span>{message}</span>
               <button
                 type="button"
                 onClick={() => dismissError(i)}
                 aria-label="Dismiss"
-                className="focus-ring shrink-0 rounded p-0.5 hover:bg-white/10"
+                className="focus-ring shrink-0 rounded p-0.5 hover:bg-overlay-hover"
               >
                 <XIcon className="text-xs" />
               </button>
@@ -236,7 +237,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                     title={preview ? 'Edit' : 'Preview'}
                     aria-label={preview ? 'Edit' : 'Preview'}
                     onClick={() => setPreview((p) => !p)}
-                    className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-black/20 hover:text-text"
+                    className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-overlay-hover hover:text-text"
                   >
                     {preview ? <PencilIcon /> : <EyeIcon />}
                   </button>
@@ -280,7 +281,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                     className={cn(
                       'focus-ring rounded-full border px-3 py-1 text-xs transition',
                       on
-                        ? 'border-accent/60 bg-accent/15 text-accent'
+                        ? 'border-accent-ink/60 bg-accent/15 text-accent-ink'
                         : 'border-border-strong text-text-muted hover:text-text',
                     )}
                   >
@@ -301,7 +302,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           {showReminder && <ReminderMenu note={note} onClose={() => setShowReminder(false)} />}
         </div>
 
-        <div className="flex items-center justify-between border-t border-black/20 px-4 py-2.5">
+        <div className="flex items-center justify-between border-t border-overlay-line px-4 py-2.5">
           <div className="flex items-center gap-1">
             {canEdit && (
               <>
@@ -320,7 +321,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                     }
                   }}
                 >
-                  <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent')} />
+                  <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent-ink')} />
                 </EditorTool>
                 <EditorTool
                   label={atImageLimit ? `Limit is ${MAX_IMAGES_PER_NOTE} images` : 'Add image'}
@@ -344,20 +345,20 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
             )}
             {/* Reminders are per-user, so viewers get this too — no canEdit gate. */}
             <EditorTool label="Remind me" onClick={() => setShowReminder((s) => !s)}>
-              <ClockIcon className={cn('text-lg', note.remindAtUtc != null && 'text-accent')} />
+              <ClockIcon className={cn('text-lg', note.remindAtUtc != null && 'text-accent-ink')} />
             </EditorTool>
             {note.isOwner && (
               <EditorTool label="Share" onClick={() => setShowShare(true)}>
-                <ShareIcon className={cn('text-lg', note.isShared && 'text-accent')} />
+                <ShareIcon className={cn('text-lg', note.isShared && 'text-accent-ink')} />
               </EditorTool>
             )}
             <ReminderChip note={note} onClick={() => setShowReminder(true)} />
             {!note.isOwner && (
               <button
                 type="button"
-                onClick={leaveNote}
+                onClick={() => setConfirmLeave(true)}
                 disabled={revoke.isPending}
-                className="focus-ring ml-1 rounded-md px-2 py-1 text-xs text-text-muted transition hover:bg-black/20 hover:text-text disabled:opacity-50"
+                className="focus-ring ml-1 rounded-md px-2 py-1 text-xs text-text-muted transition hover:bg-overlay-hover hover:text-text disabled:opacity-50"
               >
                 {revoke.isPending ? 'Leaving…' : 'Leave note'}
               </button>
@@ -366,7 +367,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           <button
             type="button"
             onClick={save}
-            className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-black/20 hover:text-text"
+            className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-overlay-hover hover:text-text"
           >
             Close
           </button>
@@ -375,6 +376,21 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
 
       {showShare && note.isOwner && (
         <ShareDialog note={note} onClose={() => setShowShare(false)} />
+      )}
+
+      {confirmLeave && (
+        <ConfirmDialog
+          title="Leave this note?"
+          body={<p>It disappears from your grid until someone invites you again.</p>}
+          confirmLabel="Leave note"
+          tone="danger"
+          busy={revoke.isPending}
+          onCancel={() => setConfirmLeave(false)}
+          onConfirm={() => {
+            setConfirmLeave(false);
+            leaveNote();
+          }}
+        />
       )}
 
       {lightbox !== null && note.media.length > 0 && (
@@ -432,7 +448,7 @@ function EditorTool({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-overlay-hover hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {children}
     </button>

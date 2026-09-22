@@ -24,7 +24,7 @@ export function Topbar({
         <MenuIcon className="text-xl" />
       </button>
       <div className="flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-lg bg-accent/15 text-accent">
+        <span className="grid size-8 place-items-center rounded-lg bg-accent/15 text-accent-ink">
           <TypewriterIcon className="text-lg" />
         </span>
         <span className="hidden text-lg font-semibold tracking-tight sm:block">keepIT</span>

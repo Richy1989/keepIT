@@ -22,7 +22,8 @@ import {
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, UpdateNoteDto } from '../../api/types';
 
-const MAX_PREVIEW_ITEMS = 8;
+/** How many checklist rows a card previews before collapsing the rest into a "+N more" row. */
+export const MAX_PREVIEW_ITEMS = 8;
 
 /** Builds an UpdateNoteDto from a note plus overrides (used for inline color / checklist edits). */
 function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>): UpdateNoteDto {
@@ -79,7 +80,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         }
       }}
       // overflow-hidden so a full-bleed hero image follows the card's rounded corners.
-      className="focus-ring group relative mb-4 block w-full break-inside-avoid overflow-hidden rounded-card border p-4 text-left shadow-md shadow-black/20 transition hover:shadow-lg hover:shadow-black/40"
+      className="focus-ring group relative block w-full overflow-hidden rounded-card border p-4 text-left elev-card transition"
       style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
     >
       {/* Pin — visible on hover, or always when pinned. */}
@@ -91,7 +92,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         }}
         title={note.isPinned ? 'Unpin' : 'Pin'}
         className={cn(
-          'focus-ring absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text',
+          'focus-ring absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-overlay-hover hover:text-text',
           note.isPinned ? 'opacity-100 text-text' : 'opacity-0 group-hover:opacity-100 touch:opacity-100',
           // Over a photo the muted pin all but disappears, so it gets its own backdrop.
           note.media.length > 0 && 'bg-black/50 text-white hover:bg-black/70 hover:text-white',
@@ -200,9 +201,15 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
       {/* Reminder popover. */}
       {showReminder && <ReminderMenu note={note} onClose={() => setShowReminder(false)} />}
 
-      {/* Footer: hover toolbar (left) + always-visible timestamp (right). */}
-      <div className="mt-3 flex items-center gap-1">
-        <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100 touch:opacity-100">
+      {/*
+        Footer: hover toolbar (left) + always-visible reminder chip and timestamp (right).
+        `flex-wrap` because the toolbar reserves its full width even while it's invisible (it only
+        fades, so the card doesn't resize under the pointer) — in a narrow column that pushed the
+        chip and the date straight out through the card's `overflow-hidden` edge. Wrapping is
+        decided by the column width, not by hover, so nothing jumps when the toolbar appears.
+      */}
+      <div className="mt-3 flex flex-wrap items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100 touch:opacity-100">
         {note.isTrashed ? (
           <>
             <CardTool
@@ -233,7 +240,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
               label={note.isArchived ? 'Unarchive' : 'Archive'}
               onClick={() => setState.mutate({ id: note.id, state: { isArchived: !note.isArchived } })}
             >
-              <ArchiveIcon className={cn('text-base', note.isArchived && 'text-accent')} />
+              <ArchiveIcon className={cn('text-base', note.isArchived && 'text-accent-ink')} />
             </CardTool>
             <CardTool
               label="Trash"
@@ -338,7 +345,7 @@ function CardTool({
         e.stopPropagation();
         onClick();
       }}
-      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text"
+      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-overlay-hover hover:text-text"
     >
       {children}
     </button>

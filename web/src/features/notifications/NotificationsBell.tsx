@@ -53,7 +53,7 @@ export function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-border-subtle bg-elevated shadow-lg shadow-black/30">
+        <div className="pop-in absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-border-subtle bg-elevated elev-panel">
           <div className="border-b border-border-subtle px-3 py-2.5">
             <p className="text-sm font-medium text-text">Notifications</p>
           </div>
@@ -141,7 +141,7 @@ function NotificationRow({ notification: n }: { notification: UserNotificationDt
           aria-label="Dismiss"
           disabled={busy || !n.id}
           onClick={() => n.id && dismiss.mutate(n.id)}
-          className="focus-ring -mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-text-faint transition hover:bg-black/20 hover:text-text disabled:opacity-50"
+          className="focus-ring -mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-text-faint transition hover:bg-overlay-hover hover:text-text disabled:opacity-50"
         >
           <XIcon className="text-sm" />
         </button>
@@ -158,7 +158,7 @@ function NotificationRow({ notification: n }: { notification: UserNotificationDt
         aria-label="Dismiss"
         disabled={busy || !n.id}
         onClick={() => n.id && dismiss.mutate(n.id)}
-        className="focus-ring -mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-text-faint transition hover:bg-black/20 hover:text-text disabled:opacity-50"
+        className="focus-ring -mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-text-faint transition hover:bg-overlay-hover hover:text-text disabled:opacity-50"
       >
         <XIcon className="text-sm" />
       </button>

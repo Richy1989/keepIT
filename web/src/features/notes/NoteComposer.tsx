@@ -127,13 +127,13 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
   const swatch = noteColor(color);
 
   const errorBanner = attachError ? (
-    <div className="mb-2 flex items-start justify-between gap-2 rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-200">
+    <div className="mb-2 flex items-start justify-between gap-2 rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
       <span>{attachError}</span>
       <button
         type="button"
         onClick={() => setAttachError(null)}
         aria-label="Dismiss"
-        className="focus-ring shrink-0 rounded p-0.5 hover:bg-white/10"
+        className="focus-ring shrink-0 rounded p-0.5 hover:bg-overlay-hover"
       >
         <XIcon className="text-xs" />
       </button>
@@ -144,7 +144,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
     return (
       <div className="mx-auto mb-8 max-w-xl">
         {errorBanner}
-        <div className="flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-1 shadow-lg shadow-black/30">
+        <div className="flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-1 elev-panel">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -186,7 +186,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
         e.preventDefault();
         addFiles(files);
       }}
-      className="mx-auto mb-8 max-w-xl rounded-xl border shadow-xl shadow-black/40"
+      className="mx-auto mb-8 max-w-xl rounded-xl border elev-raised"
       style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
     >
       <div className="p-4">
@@ -247,7 +247,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-black/20 px-3 py-2">
+      <div className="flex items-center justify-between border-t border-overlay-line px-3 py-2">
         <div className="flex items-center gap-1">
           <ComposerTool label="Background" onClick={() => setShowColors((s) => !s)}>
             <PaletteIcon className="text-lg" />
@@ -263,7 +263,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
               }
             }}
           >
-            <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent')} />
+            <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent-ink')} />
           </ComposerTool>
           <ComposerTool
             label={
@@ -291,7 +291,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
         <button
           type="button"
           onClick={save}
-          className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-black/20 hover:text-text"
+          className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-overlay-hover hover:text-text"
         >
           Save
         </button>
@@ -319,7 +319,7 @@ function ComposerTool({
       aria-label={label}
       onClick={onClick}
       disabled={disabled}
-      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-black/20 hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+      className="focus-ring grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-overlay-hover hover:text-text disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {children}
     </button>

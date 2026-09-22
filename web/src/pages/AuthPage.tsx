@@ -51,13 +51,13 @@ export function AuthPage() {
     <div className="grid min-h-full place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <span className="grid size-10 place-items-center rounded-xl bg-accent/15 text-accent">
+          <span className="grid size-10 place-items-center rounded-xl bg-accent/15 text-accent-ink">
             <TypewriterIcon className="text-2xl" />
           </span>
           <span className="text-2xl font-semibold tracking-tight">keepIT</span>
         </div>
 
-        <div className="rounded-2xl border border-border-subtle bg-surface p-6 shadow-xl shadow-black/40">
+        <div className="rounded-2xl border border-border-subtle bg-surface p-6 elev-raised">
           <h1 className="text-lg font-medium">
             {mode === 'login' && 'Welcome back'}
             {mode === 'register' && 'Create your account'}
@@ -71,7 +71,7 @@ export function AuthPage() {
 
           {mode === 'forgot' && resetRequested ? (
             <div className="mt-6 space-y-4">
-              <p aria-live="polite" className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+              <p aria-live="polite" className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent-ink">
                 If an account exists for <span className="font-medium">{email}</span>, a reset link
                 is on its way. The link is valid for 2 hours.
               </p>
@@ -120,7 +120,7 @@ export function AuthPage() {
                   <button
                     type="button"
                     onClick={() => switchMode('forgot')}
-                    className="text-xs font-medium text-text-muted hover:text-accent hover:underline"
+                    className="text-xs font-medium text-text-muted hover:text-accent-ink hover:underline"
                   >
                     Forgot password?
                   </button>
@@ -160,7 +160,7 @@ export function AuthPage() {
               <button
                 type="button"
                 onClick={() => switchMode('login')}
-                className="font-medium text-accent hover:underline"
+                className="font-medium text-accent-ink hover:underline"
               >
                 Sign in
               </button>
@@ -171,7 +171,7 @@ export function AuthPage() {
               <button
                 type="button"
                 onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
-                className="font-medium text-accent hover:underline"
+                className="font-medium text-accent-ink hover:underline"
               >
                 {mode === 'login' ? 'Sign up' : 'Sign in'}
               </button>

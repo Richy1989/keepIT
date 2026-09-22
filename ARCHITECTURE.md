@@ -699,15 +699,38 @@ more modern**, not a pixel clone.
   expands inline; hover/touch actions on cards (pin, color, lists, archive, share, remind);
   left sidebar for navigation (Notes / Reminders / Archive / Trash + the user's lists for
   one-click filtering); top search bar.
+- **The masonry is packed in JS** (`features/notes/masonry.ts`), not by CSS `columns`. CSS
+  columns fill **column-major**, so a newest-first list read as a vertical snake down the left
+  edge. We walk the notes in order instead, dropping each into the currently shortest column
+  (ties left), which gives row-major reading order *and* balanced columns. Balancing needs a
+  height before layout, so the module estimates one per note; the estimate only affects how
+  even the bottom edge looks, never the order.
 - **Dark-first theme.** Dark is the baseline; **dim** and **light** plus **8 independent
   accent colors** are token overrides (`data-theme` / `data-accent`), a swap not a rewrite.
   Note background colors are re-tuned per theme (muted on dark, not Keep's bright pastels).
+- **Everything a theme must restate is a token**, not just the palette: elevation
+  (`--shadow-card|panel|raised|overlay`, consumed by the `.elev-*` classes — Tailwind inlines a
+  `--shadow-*` theme value into its utility, so it can't be overridden per theme), the modal
+  scrim (`--color-scrim`), and the tints painted over a surface (`--color-overlay-hover`,
+  `--color-overlay-line`). A hardcoded `shadow-black/40` or `hover:bg-black/20` is tuned for a
+  near-black canvas and turns into a grey smear or a charcoal blob on the light theme.
+- **The accent has two forms.** `--color-accent` is the fill; `--color-accent-ink` is the accent
+  *as content* — text, icons, focus rings. They're the same on dark, but light remaps ink to a
+  deep shade, because the bright 400-level accents sit at 1.7–1.9:1 on white and the default
+  accent is yellow. The `html[data-accent]` blocks therefore set only `--color-accent(-strong)`
+  and an `--accent-ink` input: they come after the theme blocks at equal specificity, so setting
+  `--color-accent-ink` there would beat the theme and put the unreadable shade back.
 - **Modern, restrained styling.** Generous spacing, soft rounded corners, subtle elevation,
-  smooth micro-interactions, good empty/loading states.
+  smooth micro-interactions, good empty/loading states. Menus and dialogs animate in
+  (`.pop-in` / `.fade-in`, neutralized by the global reduced-motion rule). Confirmations use
+  `components/ConfirmDialog.tsx` rather than `window.confirm`, which is the one thing that drops
+  out of the app's theme and renders a multi-paragraph prompt as one unstyled run of text.
 - **Responsive.** Column count adapts from one (phone) up; the sidebar collapses to an
   off-canvas drawer; touch-revealed controls on small screens.
-- **Accessibility.** WCAG AA contrast on the dark theme, keyboard navigation, and
-  `prefers-reduced-motion` respected.
+- **Accessibility.** WCAG AA contrast on **all three** themes for text tokens, keyboard
+  navigation, and `prefers-reduced-motion` respected. The focus ring is an `outline` with an
+  offset, not a Tailwind ring: a ring's offset is painted a solid color, which drew a
+  canvas-colored gap around every tool button sitting on a colored note card.
 
 ## Note functions (product definition)
 

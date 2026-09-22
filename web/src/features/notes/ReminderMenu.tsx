@@ -121,13 +121,13 @@ export function ReminderMenu({ note, onClose }: { note: NoteDto; onClose: () => 
     >
       {/* Hero: the resolved fire time, in words — every control below feeds this line. */}
       <div className="flex items-center gap-2.5">
-        <ClockIcon className="shrink-0 text-lg text-accent" />
+        <ClockIcon className="shrink-0 text-lg text-accent-ink" />
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold leading-tight text-text">
             {selected ? heroLabel(selected) : 'Pick a time'}
           </p>
           {selected && (
-            <p className={cn('text-xs', isPast ? 'text-amber-400' : 'text-text-faint')}>
+            <p className={cn('text-xs', isPast ? 'text-warning' : 'text-text-faint')}>
               {captionLabel(selected, recurrence)}
             </p>
           )}
@@ -149,8 +149,8 @@ export function ReminderMenu({ note, onClose }: { note: NoteDto; onClose: () => 
               className={cn(
                 'focus-ring rounded-full border px-2.5 py-1 text-xs transition',
                 active
-                  ? 'border-accent bg-accent/15 text-accent'
-                  : 'border-border-strong text-text-muted hover:bg-black/20 hover:text-text',
+                  ? 'border-accent-ink bg-accent/15 text-accent-ink'
+                  : 'border-border-strong text-text-muted hover:bg-overlay-hover hover:text-text',
               )}
             >
               {p.label}
@@ -200,7 +200,7 @@ export function ReminderMenu({ note, onClose }: { note: NoteDto; onClose: () => 
           <button
             type="button"
             onClick={clear}
-            className="focus-ring rounded-md px-2 py-1.5 text-xs text-text-muted transition hover:bg-black/20 hover:text-text"
+            className="focus-ring rounded-md px-2 py-1.5 text-xs text-text-muted transition hover:bg-overlay-hover hover:text-text"
           >
             Clear reminder
           </button>
@@ -233,7 +233,7 @@ function Field({
   return (
     <label
       className={cn(
-        'flex flex-col gap-0.5 rounded-lg border border-border-subtle bg-black/20 px-2.5 py-1.5 transition focus-within:border-accent/60',
+        'flex flex-col gap-0.5 rounded-lg border border-border-subtle bg-overlay-hover px-2.5 py-1.5 transition focus-within:border-accent-ink/60',
         className,
       )}
     >

@@ -30,7 +30,7 @@ export function ColorPicker({
             className="focus-ring grid size-6 place-items-center rounded-full border transition hover:scale-110"
             style={{
               backgroundColor: c.key === 'default' ? 'transparent' : c.bg,
-              borderColor: selected ? 'var(--color-accent)' : c.border,
+              borderColor: selected ? 'var(--color-accent-ink)' : c.border,
             }}
           >
             {selected && <CheckIcon className="text-[11px] text-text" />}
