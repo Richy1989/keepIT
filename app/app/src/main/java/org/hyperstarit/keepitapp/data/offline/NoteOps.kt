@@ -57,6 +57,9 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
 
     is PendingOp.Delete -> notes.filter { it.id != op.noteId }
 
+    // Deleted or left, the note is gone from this user's notes either way.
+    is PendingOp.EmptyTrash -> op.noteIds.toSet().let { gone -> notes.filter { it.id !in gone } }
+
     // Attaching can't be represented on a NoteDto: there is no server id, width or height yet, and
     // inventing a client-only field on the DTO is exactly the drift the hand-sync rule forbids.
     // Pending attachments are projected separately by [pendingMedia] and rendered from their staged
@@ -102,7 +105,7 @@ fun applyListOp(lists: List<ListDto>, op: PendingOp): List<ListDto> = when (op) 
 
     is PendingOp.Create, is PendingOp.Update, is PendingOp.SetState, is PendingOp.SetLists,
     is PendingOp.SetReminder, is PendingOp.ClearReminder, is PendingOp.Delete,
-    is PendingOp.AttachMedia, is PendingOp.DeleteMedia -> lists
+    is PendingOp.AttachMedia, is PendingOp.DeleteMedia, is PendingOp.EmptyTrash -> lists
 }
 
 /** Overlays every still-queued list op onto a fresh server fetch — [applyPending] for lists. */

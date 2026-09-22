@@ -13,7 +13,8 @@ import java.util.UUID
 /**
  * One queued offline mutation, mirroring the [org.hyperstarit.keepitapp.data.NotesRepository]
  * mutations 1:1 — the note ops (create, update, set-state, set-lists, set-reminder,
- * clear-reminder, delete, attach/delete media) and the list ops (create, rename, delete). Ops are
+ * clear-reminder, delete, attach/delete media, empty trash) and the list ops (create, rename,
+ * delete). Ops are
  * persisted in the outbox file and replayed FIFO against the same REST endpoints once the server is
  * reachable — payloads are absolute (full DTOs, not diffs), so replay is idempotent and
  * last-write-wins falls out of the backend's unconditional PUT.
@@ -33,7 +34,8 @@ sealed class PendingOp {
     /**
      * What this op targets — the temp id for a [Create] or [CreateList], the note id for the other
      * note ops, the list id for the other list ops. Note and list ids never collide (server GUIDs
-     * and random temp ids alike), so one field serves both.
+     * and random temp ids alike), so one field serves both. [EmptyTrash] targets several notes and
+     * so none on its own: its empty id matches nothing.
      */
     val targetId: String
         get() = when (this) {
@@ -46,6 +48,7 @@ sealed class PendingOp {
             is Delete -> noteId
             is AttachMedia -> noteId
             is DeleteMedia -> noteId
+            is EmptyTrash -> ""
             is CreateList -> tempId
             is UpdateList -> listId
             is DeleteList -> listId
@@ -136,6 +139,20 @@ sealed class PendingOp {
     data class DeleteMedia(
         val noteId: String,
         val mediaId: String,
+        override val opId: String = newOpId(),
+        override val enqueuedAtUtc: String = "",
+    ) : PendingOp()
+
+    /**
+     * Empties the trash of [noteIds], the notes the user saw there when they chose "Delete all":
+     * their own notes are deleted, and they leave the ones shared with them. One op rather than a
+     * Delete per note, because a note shared with the user can't be deleted by them, and one
+     * request instead of hundreds. Never carries a temp id: see [coalesce].
+     */
+    @Serializable
+    @SerialName("emptyTrash")
+    data class EmptyTrash(
+        val noteIds: List<String>,
         override val opId: String = newOpId(),
         override val enqueuedAtUtc: String = "",
     ) : PendingOp()

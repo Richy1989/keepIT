@@ -22,12 +22,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -40,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -122,6 +125,8 @@ fun NotesScreen(
     var newListOpen by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<ListDto?>(null) }
     var deleteTarget by remember { mutableStateOf<ListDto?>(null) }
+    // "Delete all" in the trash: the notes it was pressed for, while the confirmation is up.
+    var emptyTrashTarget by remember { mutableStateOf<List<NoteDto>?>(null) }
 
     fun applyFilter(newFilter: NotesFilter) {
         scope.launch {
@@ -407,6 +412,28 @@ fun NotesScreen(
                                 onOpen = { onOpenNote(note.id) },
                             )
                         }
+                        // Below the last note, as on the web, rather than in the top bar: that is
+                        // full already, and emptying the trash is rare enough to earn a scroll.
+                        // Hidden while searching, where "all" would be ambiguous.
+                        if (filter.view == NotesView.TRASHED && q.isEmpty()) {
+                            item(key = "delete-all") {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    OutlinedButton(onClick = { emptyTrashTarget = visible }) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Delete all", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -467,6 +494,40 @@ fun NotesScreen(
                 scope.launch { repo.renameList(target.id, name) }
             },
             onDismiss = { renameTarget = null },
+        )
+    }
+
+    emptyTrashTarget?.let { target ->
+        val sharedWithMe = target.count { !it.isOwner }
+        AlertDialog(
+            onDismissRequest = { emptyTrashTarget = null },
+            containerColor = KeepItColors.Surface,
+            title = {
+                Text(if (target.size == 1) "Delete the note forever?" else "Delete all ${target.size} notes forever?")
+            },
+            text = {
+                Text(
+                    text = "This can't be undone." + if (sharedWithMe == 0) "" else
+                        " Notes others shared with you are only removed from your notes. Their owners keep them.",
+                    color = KeepItColors.TextMuted,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        emptyTrashTarget = null
+                        scope.launch { repo.emptyTrash(target.map { it.id }) }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Delete all")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { emptyTrashTarget = null }) {
+                    Text("Cancel", color = KeepItColors.TextMuted)
+                }
+            },
         )
     }
 

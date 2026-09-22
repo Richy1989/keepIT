@@ -287,6 +287,16 @@ class NotesRepository(
     suspend fun delete(id: String) =
         mutate(PendingOp.Delete(resolve(id), enqueuedAtUtc = nowUtc()))
 
+    /**
+     * "Delete all" in the trash, for the notes in [ids]: the ones the user saw there, not whatever
+     * the trash holds by the time the op replays. Their own notes are deleted and they leave the
+     * ones shared with them; all of them vanish from the cache now.
+     */
+    suspend fun emptyTrash(ids: List<String>) {
+        if (ids.isEmpty()) return
+        mutate(PendingOp.EmptyTrash(ids.map(::resolve), enqueuedAtUtc = nowUtc()))
+    }
+
     // ---- note media ----
 
     /**

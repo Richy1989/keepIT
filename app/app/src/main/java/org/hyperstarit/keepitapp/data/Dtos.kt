@@ -158,6 +158,10 @@ data class NoteStateDto(
 @Serializable
 data class SetNoteListsDto(val listIds: List<String>)
 
+/** The trashed notes to remove, as the user saw them; ones no longer in the trash are skipped. */
+@Serializable
+data class EmptyTrashDto(val noteIds: List<String>)
+
 /**
  * Sets (or replaces) the caller's reminder on a note. `remindAtUtc` is an ISO-8601 UTC instant; a
  * past value is allowed — the server's dispatcher fires it on its next tick.
