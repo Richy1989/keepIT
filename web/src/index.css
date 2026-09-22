@@ -30,9 +30,11 @@
   --color-border-strong: #3f3f46;
   --color-text: #ececee;
   --color-text-muted: #a1a1aa;
-  /* 4.6:1 on a note card, 5.1:1 on the canvas. The old #71717a was 3.7:1 on a card — under AA for
-     the timestamps, hints, counts and placeholders this token carries. */
-  --color-text-faint: #82828c;
+  /* 4.8:1 on a menu, 5.2:1 on a card, 5.8:1 on the canvas. The old #71717a was 3.7:1 on a card —
+     under AA for the timestamps, hints, counts and placeholders this token carries. The binding
+     surface is --color-elevated, not the canvas: menus and dialogs are the lightest thing in a
+     dark theme, so a value tuned against the near-black canvas still fails inside a dropdown. */
+  --color-text-faint: #8a8a94;
   --color-accent: #fbbf24; /* default accent (yellow); overridden per data-accent */
   --color-accent-strong: #f59e0b;
 
@@ -152,8 +154,8 @@ html[data-theme='dim'] {
   --color-border-strong: #46464d;
   --color-text: #ececee;
   --color-text-muted: #b4b4bd;
-  /* 4.8:1 on a dim card; the old #87878f sat at 4.4:1. */
-  --color-text-faint: #8c8c95;
+  /* 4.6:1 on a dim menu, 5.4:1 on a dim card; the old #87878f sat at 4.4:1 and 3.9:1. */
+  --color-text-faint: #97979f;
 
   --note-default-bg: #232327;  --note-default-border: #323238;
   --note-rose-bg: #4a2e33;     --note-rose-border: #5f3a42;

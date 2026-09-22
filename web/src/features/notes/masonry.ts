@@ -1,4 +1,3 @@
-import { MAX_PREVIEW_ITEMS } from './NoteCard';
 import type { NoteDto } from '../../api/types';
 
 /**
@@ -20,6 +19,14 @@ import type { NoteDto } from '../../api/types';
  * how even the column bottoms look; it can't affect ordering, which is fixed by the walk above.
  * Being a little off means a slightly ragged bottom edge, not a wrong grid.
  */
+
+/**
+ * How many checklist rows a card previews before collapsing the rest into a "+N more" row.
+ * It lives here rather than in NoteCard so this module imports nothing but a type — which is what
+ * lets masonry.test.ts exercise it without pulling in React, the query client and the API client.
+ * NoteCard imports it back.
+ */
+export const MAX_PREVIEW_ITEMS = 8;
 
 /** Roughly how wide one column renders at each column count, for the image-height estimate. */
 const APPROX_COLUMN_WIDTH: Record<number, number> = { 1: 560, 2: 460, 3: 360, 4: 276 };

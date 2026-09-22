@@ -106,6 +106,12 @@ jobs:
         # generated API client means a changed C# DTO surfaces as TypeScript errors at every call
         # site. Building too proves the bundle still comes out.
         run: npm run build
+      - name: Unit tests
+        # Contrast of every design token against the surfaces it lands on, for all 3 themes x 8
+        # accents, plus the masonry column packing. Both guard failures that are invisible rather
+        # than loud: an unreadable token throws nothing and logs nothing, it is simply unreadable
+        # for whoever picked that theme, and a grid that reads in the wrong order still renders.
+        run: npm test
 
   android:
     name: Android (Kotlin + Compose)

@@ -4,6 +4,7 @@ import { Markdown } from './Markdown';
 import { checklistForDisplay } from './checklist';
 import { NoteImage } from './media/NoteImage';
 import { noteColor } from './palette';
+import { MAX_PREVIEW_ITEMS } from './masonry';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
 import { ColorPicker } from '../../components/ColorPicker';
@@ -22,8 +23,7 @@ import {
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, UpdateNoteDto } from '../../api/types';
 
-/** How many checklist rows a card previews before collapsing the rest into a "+N more" row. */
-export const MAX_PREVIEW_ITEMS = 8;
+
 
 /** Builds an UpdateNoteDto from a note plus overrides (used for inline color / checklist edits). */
 function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>): UpdateNoteDto {
