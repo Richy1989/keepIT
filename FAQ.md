@@ -15,9 +15,10 @@ add any other one as a variable.
 
 ### Do I need to change anything when I update?
 
-Usually not. keepIT keeps its settings, moves its data folder over to the user it now runs as,
-and picks up the new protections on its own. A few setups do need a change, each with its own
-answer below:
+Usually not, including from 0.7.1 or earlier to 0.7.5, the release that brought the changes
+below (see the [CHANGELOG](CHANGELOG.md)). keepIT keeps its settings, moves its data folder over
+to the user it now runs as, and picks up the new protections on its own. A few setups do need a
+change, each with its own answer below:
 
 - You send email (SMTP) but never set `App__PublicBaseUrl`: password-reset emails stop until
   you do. See [Password-reset emails stopped arriving](#password-reset-emails-stopped-arriving-after-the-update).
