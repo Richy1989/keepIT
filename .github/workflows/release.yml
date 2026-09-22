@@ -80,11 +80,31 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/keepit-${GITHUB_REF_NAME}-universal.apk"
 
       # ---- GitHub Release ----
+      - name: Release notes
+        # This version's section of CHANGELOG.md heads the release, then how to get it; GitHub's
+        # generated list of changes follows. A tag without a section still releases, with a
+        # warning. Relative links (FAQ.md#…) would resolve against the release page, so they
+        # are pointed at the files as of this tag.
+        run: |
+          awk -v heading="## ${VERSION_NAME}" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md \
+            | sed -E "s#\]\(([A-Za-z0-9_./-]+\.md)#](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/\1#g" \
+            > "$RUNNER_TEMP/changelog-section.md"
+          if [ ! -s "$RUNNER_TEMP/changelog-section.md" ]; then
+            echo "::warning::CHANGELOG.md has no '## ${VERSION_NAME}' section"
+          fi
+          {
+            cat "$RUNNER_TEMP/changelog-section.md"
+            echo
+            echo "**Docker:** \`docker pull richy1989/keepit:${VERSION_NAME}\`"
+            echo
+            echo "The Android APK is attached below: download and install it directly (sideload)."
+          } > "$RUNNER_TEMP/release-notes.md"
       - uses: softprops/action-gh-release@v3
         with:
           files: ${{ runner.temp }}/keepit-*.apk
           generate_release_notes: true
-          body: |
-            **Docker:** `docker pull richy1989/keepit:${{ env.VERSION_NAME }}`
-
-            The Android APK is attached below — download and install it directly (sideload).
+          body_path: ${{ runner.temp }}/release-notes.md

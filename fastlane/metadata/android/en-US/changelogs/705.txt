@@ -1,0 +1,9 @@
+New: Delete all empties the trash in one go.
+
+Staying signed in is more reliable: turning the phone, switching to dark mode or leaving the app while it starts no longer shows the sign-in screen, and signing in or out finishes even if the screen is rebuilt.
+
+When the server refuses a photo, the app now says an image may be up to 10 MB and 100 megapixels.
+
+Updated libraries for the interface, networking and images.
+
+Using a server? Update it to 0.7.5 too: it brings several security fixes.

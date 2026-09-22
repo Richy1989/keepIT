@@ -100,7 +100,8 @@ A few things worth knowing:
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
 Updating from an older version, or something not working? The **[FAQ](FAQ.md)** covers what
-changes when you update, reverse proxies and HTTPS, email, and images.
+changes when you update, reverse proxies and HTTPS, email, and images. What's new in each
+version is in the **[CHANGELOG](CHANGELOG.md)**.
 
 <details>
 <summary><strong>Prefer Docker Compose, Postgres, or building the image yourself?</strong></summary>

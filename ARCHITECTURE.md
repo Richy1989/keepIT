@@ -942,6 +942,14 @@ mirrored locally by a gitignored `app/keystore.properties`), and publishes a Git
 with the APK attached. Sideloading the APK is the current distribution channel; the Play
 Store is not (yet) used.
 
+The release notes open with that version's `## X.Y.Z` section of `CHANGELOG.md` (its relative
+links pointed at the files as of the tag, since they'd resolve against the release page),
+then the Docker pull line and GitHub's generated list of changes. A tag without a section
+still releases, with a warning. **Before tagging:** bump `versionCode`/`versionName` in
+`app/app/build.gradle.kts` (F-Droid reads those literals; the code is `X*10000 + Y*100 + Z`,
+the same the workflow derives), add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
+(500 characters at most, for app users) and the `CHANGELOG.md` section (for operators).
+
 ## Dev conveniences
 
 - **Scalar API UI** at `/scalar/v1` (Development only).
