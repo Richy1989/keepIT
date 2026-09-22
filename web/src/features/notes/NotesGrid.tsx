@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
-import { useNotes, type NotesFilter } from './queries';
+import { useEmptyTrash, useNotes, type NotesFilter } from './queries';
 import { NoteCard } from './NoteCard';
-import { TypewriterIcon } from '../../components/icons';
+import { TrashIcon, TypewriterIcon } from '../../components/icons';
 import type { NoteDto } from '../../api/types';
 
 /** Filters notes client-side by the search query (title, body, or any checklist item). */
@@ -21,6 +21,16 @@ const EMPTY_COPY: Record<NotesFilter['view'], { title: string; hint: string }> =
   trashed: { title: 'Trash is empty', hint: 'Notes you delete land here before being purged.' },
 };
 
+/** The confirmation for "Delete all", saying what happens to notes others shared with the user. */
+function emptyTrashPrompt(notes: NoteDto[]): string {
+  const shared = notes.filter((n) => !n.isOwner).length;
+  const what = notes.length === 1 ? 'the note' : `all ${notes.length} notes`;
+  const prompt = `Delete ${what} in the trash forever? This can’t be undone.`;
+  return shared === 0
+    ? prompt
+    : `${prompt}\n\nNotes others shared with you are only removed from your notes. Their owners keep them.`;
+}
+
 /** The masonry grid (CSS columns). Splits pinned vs. others in the default active view. */
 export function NotesGrid({
   filter,
@@ -32,6 +42,7 @@ export function NotesGrid({
   onOpen: (note: NoteDto) => void;
 }) {
   const { data, isLoading, isError } = useNotes(filter);
+  const emptyTrash = useEmptyTrash();
 
   const notes = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -85,6 +96,22 @@ export function NotesGrid({
           <NoteCard key={n.id} note={n} onOpen={onOpen} />
         ))}
       </Section>
+      {/* Hidden while searching: "all" would be ambiguous between the matches and the whole trash. */}
+      {filter.view === 'trashed' && !search && (
+        <div className="flex justify-center pb-4">
+          <button
+            type="button"
+            disabled={emptyTrash.isPending}
+            onClick={() => {
+              if (window.confirm(emptyTrashPrompt(notes))) emptyTrash.mutate(notes.map((n) => n.id));
+            }}
+            className="focus-ring flex items-center gap-2 rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-danger transition hover:bg-danger-bg disabled:opacity-60"
+          >
+            <TrashIcon className="text-base" />
+            Delete all
+          </button>
+        </div>
+      )}
     </div>
   );
 }

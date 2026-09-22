@@ -779,6 +779,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notes/trash/empty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmptyTrashDto"];
+                    "text/json": components["schemas"]["EmptyTrashDto"];
+                    "application/*+json": components["schemas"]["EmptyTrashDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notes/{noteId}/shares": {
         parameters: {
             query?: never;
@@ -1427,6 +1466,9 @@ export interface components {
             publicBaseUrl?: null | string;
             resetEmailsDisabled: boolean;
             unencryptedAllowed: boolean;
+        };
+        EmptyTrashDto: {
+            noteIds: string[];
         };
         ForgotPasswordRequestDto: {
             email: string;

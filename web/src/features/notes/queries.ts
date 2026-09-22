@@ -308,6 +308,28 @@ export function useSetNoteLists() {
   });
 }
 
+/**
+ * Empties the trash of the given notes, the ones the user saw there: notes they own are deleted
+ * for good, notes shared with them are left (their owners keep them). All vanish at once.
+ */
+export function useEmptyTrash() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (noteIds: string[]) => {
+      const { error } = await api.POST('/api/notes/trash/empty', { body: { noteIds } });
+      if (error) throw new Error('Failed to empty the trash.');
+    },
+    onMutate: async (noteIds) => {
+      await qc.cancelQueries({ queryKey: [NOTES_KEY] });
+      const snapshot = snapshotNotes(qc);
+      for (const id of noteIds) reconcileNote(qc, id, null);
+      return { snapshot };
+    },
+    onError: (_e, _v, ctx) => ctx && restoreNotes(qc, ctx.snapshot),
+    onSettled: () => invalidateAfter(qc),
+  });
+}
+
 /** Permanently deletes a note (used to purge from trash). */
 export function useDeleteNote() {
   const qc = useQueryClient();
