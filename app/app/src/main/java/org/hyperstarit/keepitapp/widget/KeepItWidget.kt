@@ -43,6 +43,7 @@ import org.hyperstarit.keepitapp.R
 import org.hyperstarit.keepitapp.appContainer
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.WidgetNote
+import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 
 class KeepItWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -120,16 +121,20 @@ class RefreshAction : ActionCallback {
     }
 }
 
-// keepIT dim tokens (web index.css `data-theme='dim'`, same as KeepItColors) — the widget's own
-// chrome. Per-note backgrounds are *not* here: they come from the shared NotePalette via
-// `noteSwatch`, which is plain data (a List<NoteSwatch> of compose Colors) rather than a
-// MaterialTheme lookup, so a Glance composition can read it even though it can't reference the
-// app's theme.
-private val Canvas = Color(0xFF18181B)
-private val BorderTextFaint = Color(0xFF87878F)
-private val TextColor = Color(0xFFECECEE)
-private val TextMuted = Color(0xFFB4B4BD)
-private val Accent = Color(0xFFFBBF24)
+// The widget's chrome comes straight from KeepItColors, for the same reason the per-note
+// backgrounds come from NotePalette via `noteSwatch`: both are plain data (an object of compose
+// Colors, a List<NoteSwatch>) rather than a MaterialTheme lookup, so a Glance composition can read
+// them even though it can't reference the app's theme.
+//
+// These used to be five private copies of the same hex. Nothing enforced the copy, so a token
+// change in Color.kt silently left the widget a shade behind — which is exactly what happened to
+// TextFaint. Referencing the tokens directly is the same de-duplication the widget already made
+// for the default note background (see NoteSwatchTest).
+private val Canvas = KeepItColors.Canvas
+private val BorderTextFaint = KeepItColors.TextFaint
+private val TextColor = KeepItColors.Text
+private val TextMuted = KeepItColors.TextMuted
+private val Accent = KeepItColors.Accent
 
 @androidx.compose.runtime.Composable
 private fun WidgetContent(context: Context, notes: List<WidgetNote>) {

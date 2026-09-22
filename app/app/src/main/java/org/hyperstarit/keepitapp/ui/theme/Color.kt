@@ -18,7 +18,14 @@ object KeepItColors {
     val BorderStrong = Color(0xFF46464D)
     val Text = Color(0xFFECECEE)
     val TextMuted = Color(0xFFB4B4BD)
-    val TextFaint = Color(0xFF87878F)
+
+    /**
+     * The binding surface for this one is [Elevated], not [Canvas]: menus, sheets and dialogs are
+     * the lightest thing in a dark theme, so a value picked against the canvas still fails on them.
+     * The old 0xFF87878F read at 4.97:1 on the canvas but 4.39:1 on [Surface] and 3.84:1 on
+     * [Elevated] — under AA for the timestamps, counters, hints and Settings labels it carries.
+     */
+    val TextFaint = Color(0xFF97979F)
     val Accent = Color(0xFFFBBF24) // default accent (yellow), like the web default
     val AccentStrong = Color(0xFFF59E0B)
 }
