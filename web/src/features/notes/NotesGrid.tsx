@@ -1,6 +1,9 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useEmptyTrash, useNotes, type NotesFilter } from './queries';
 import { NoteCard } from './NoteCard';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { distributeIntoColumns } from './masonry';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 import { TrashIcon, TypewriterIcon } from '../../components/icons';
 import type { NoteDto } from '../../api/types';
 
@@ -21,17 +24,25 @@ const EMPTY_COPY: Record<NotesFilter['view'], { title: string; hint: string }> =
   trashed: { title: 'Trash is empty', hint: 'Notes you delete land here before being purged.' },
 };
 
-/** The confirmation for "Delete all", saying what happens to notes others shared with the user. */
-function emptyTrashPrompt(notes: NoteDto[]): string {
-  const shared = notes.filter((n) => !n.isOwner).length;
+/** The confirmation body for "Delete all", saying what happens to notes others shared with us. */
+function EmptyTrashPrompt({ notes }: { notes: NoteDto[] }) {
+  const hasShared = notes.some((n) => !n.isOwner);
   const what = notes.length === 1 ? 'the note' : `all ${notes.length} notes`;
-  const prompt = `Delete ${what} in the trash forever? This can’t be undone.`;
-  return shared === 0
-    ? prompt
-    : `${prompt}\n\nNotes others shared with you are only removed from your notes. Their owners keep them.`;
+  return (
+    <>
+      <p>
+        Delete {what} in the trash forever? This can’t be undone.
+      </p>
+      {hasShared && (
+        <p>
+          Notes others shared with you are only removed from your notes. Their owners keep them.
+        </p>
+      )}
+    </>
+  );
 }
 
-/** The masonry grid (CSS columns). Splits pinned vs. others in the default active view. */
+/** The masonry grid. Splits pinned vs. others in the default active view. */
 export function NotesGrid({
   filter,
   search,
@@ -43,6 +54,8 @@ export function NotesGrid({
 }) {
   const { data, isLoading, isError } = useNotes(filter);
   const emptyTrash = useEmptyTrash();
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const columnCount = useColumnCount();
 
   const notes = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -51,13 +64,17 @@ export function NotesGrid({
 
   if (isLoading) {
     return (
-      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="mb-4 h-32 animate-pulse break-inside-avoid rounded-card border border-border-subtle bg-surface"
-            style={{ height: 90 + ((i * 37) % 120) }}
-          />
+      <div className="flex items-start gap-4">
+        {Array.from({ length: columnCount }).map((_, col) => (
+          <div key={col} className="flex min-w-0 flex-1 flex-col gap-4">
+            {Array.from({ length: 2 }).map((_, row) => (
+              <div
+                key={row}
+                className="animate-pulse rounded-card border border-border-subtle bg-surface"
+                style={{ height: 90 + (((col * 2 + row) * 37) % 120) }}
+              />
+            ))}
+          </div>
         ))}
       </div>
     );
@@ -85,26 +102,21 @@ export function NotesGrid({
   return (
     <div className="space-y-6">
       {pinned.length > 0 && (
-        <Section label="Pinned">
-          {pinned.map((n) => (
-            <NoteCard key={n.id} note={n} onOpen={onOpen} />
-          ))}
-        </Section>
+        <Section label="Pinned" notes={pinned} columnCount={columnCount} onOpen={onOpen} />
       )}
-      <Section label={pinned.length > 0 ? 'Others' : undefined}>
-        {others.map((n) => (
-          <NoteCard key={n.id} note={n} onOpen={onOpen} />
-        ))}
-      </Section>
+      <Section
+        label={pinned.length > 0 ? 'Others' : undefined}
+        notes={others}
+        columnCount={columnCount}
+        onOpen={onOpen}
+      />
       {/* Hidden while searching: "all" would be ambiguous between the matches and the whole trash. */}
       {filter.view === 'trashed' && !search && (
         <div className="flex justify-center pb-4">
           <button
             type="button"
             disabled={emptyTrash.isPending}
-            onClick={() => {
-              if (window.confirm(emptyTrashPrompt(notes))) emptyTrash.mutate(notes.map((n) => n.id));
-            }}
+            onClick={() => setConfirmEmpty(true)}
             className="focus-ring flex items-center gap-2 rounded-lg border border-border-strong px-4 py-2 text-sm font-medium text-danger transition hover:bg-danger-bg disabled:opacity-60"
           >
             <TrashIcon className="text-base" />
@@ -112,12 +124,44 @@ export function NotesGrid({
           </button>
         </div>
       )}
+      {confirmEmpty && (
+        <ConfirmDialog
+          title="Empty the trash?"
+          body={<EmptyTrashPrompt notes={notes} />}
+          confirmLabel="Delete forever"
+          tone="danger"
+          busy={emptyTrash.isPending}
+          onCancel={() => setConfirmEmpty(false)}
+          onConfirm={() => {
+            emptyTrash.mutate(notes.map((n) => n.id));
+            setConfirmEmpty(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-/** A labelled masonry column-group. */
-function Section({ label, children }: { label?: string; children: ReactNode }) {
+/**
+ * A labelled masonry group. Columns are packed in JS rather than by CSS `columns` so the cards read
+ * left-to-right in the order the API returned them — see features/notes/masonry.ts.
+ */
+function Section({
+  label,
+  notes,
+  columnCount,
+  onOpen,
+}: {
+  label?: string;
+  notes: NoteDto[];
+  columnCount: number;
+  onOpen: (note: NoteDto) => void;
+}) {
+  const columns = useMemo(
+    () => distributeIntoColumns(notes, columnCount),
+    [notes, columnCount],
+  );
+
   return (
     <section>
       {label && (
@@ -125,7 +169,28 @@ function Section({ label, children }: { label?: string; children: ReactNode }) {
           {label}
         </h2>
       )}
-      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">{children}</div>
+      <div className="flex items-start gap-4">
+        {columns.map((column, i) => (
+          // Columns are positional, so the index is the only stable key available; the cards
+          // inside carry note ids, which is what React actually needs to keep them identified.
+          <div key={i} className="flex min-w-0 flex-1 flex-col gap-4">
+            {column.map((n) => (
+              <NoteCard key={n.id} note={n} onOpen={onOpen} />
+            ))}
+          </div>
+        ))}
+      </div>
     </section>
   );
+}
+
+/** Column count for the grid, matching the `sm` / `lg` / `xl` breakpoints the layout used before. */
+function useColumnCount(): number {
+  const sm = useMediaQuery('(min-width: 640px)');
+  const lg = useMediaQuery('(min-width: 1024px)');
+  const xl = useMediaQuery('(min-width: 1280px)');
+  if (xl) return 4;
+  if (lg) return 3;
+  if (sm) return 2;
+  return 1;
 }

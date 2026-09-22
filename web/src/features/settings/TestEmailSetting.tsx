@@ -53,7 +53,7 @@ export function TestEmailSetting() {
             <code className="font-mono text-xs">Email__*</code> settings.
           </p>
         ) : result.smtpConfigured ? (
-          <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+          <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent-ink">
             Test email sent to {result.sentTo} — check your inbox. SMTP is working.
           </p>
         ) : (

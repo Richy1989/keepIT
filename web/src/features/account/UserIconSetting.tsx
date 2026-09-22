@@ -69,7 +69,7 @@ export function UserIconSetting() {
           onClick={() => inputRef.current?.click()}
           title="Choose image"
           aria-label="Choose image"
-          className="focus-ring absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full bg-accent text-black shadow-md shadow-black/30 transition hover:bg-accent-strong"
+          className="focus-ring absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full bg-accent text-black elev-card transition hover:bg-accent-strong"
         >
           <CameraIcon className="text-sm" />
         </button>

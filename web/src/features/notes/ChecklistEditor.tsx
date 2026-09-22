@@ -125,7 +125,7 @@ export function ChecklistEditor({
           className={cn(
             'group flex items-center gap-1.5 rounded transition',
             dragIndex === i && 'opacity-40',
-            overIndex === i && dragIndex !== null && dragIndex !== i && 'ring-1 ring-accent/60',
+            overIndex === i && dragIndex !== null && dragIndex !== i && 'ring-1 ring-accent-ink/60',
           )}
         >
           <span

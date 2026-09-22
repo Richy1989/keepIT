@@ -48,7 +48,7 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
 
   return (
     <div
-      className="fixed inset-0 z-[60] grid place-items-start overflow-y-auto bg-black/60 p-4 pt-[12vh] backdrop-blur-sm"
+      className="fade-in fixed inset-0 z-[60] grid place-items-start overflow-y-auto bg-scrim p-4 pt-[12vh] backdrop-blur-sm"
       // Stop the press bubbling into the editor's backdrop, whose onMouseDown saves and closes it.
       onMouseDown={(e) => {
         e.stopPropagation();
@@ -61,7 +61,7 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
         aria-modal="true"
         aria-labelledby="share-dialog-title"
         onMouseDown={(e) => e.stopPropagation()}
-        className="mx-auto w-full max-w-md rounded-2xl border border-border-subtle bg-elevated p-5 shadow-2xl shadow-black/60"
+        className="pop-in mx-auto w-full max-w-md rounded-2xl border border-border-subtle bg-elevated p-5 elev-overlay"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id="share-dialog-title" className="text-base font-semibold text-text">
@@ -138,7 +138,7 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
                   aria-label={s.pending ? `Cancel invite for ${s.email}` : `Remove ${s.email}`}
                   title={s.pending ? 'Cancel invite' : 'Remove'}
                   onClick={() => revoke.mutate(s.granteeId)}
-                  className="focus-ring grid size-6 place-items-center rounded-full text-text-faint transition hover:bg-black/20 hover:text-text"
+                  className="focus-ring grid size-6 place-items-center rounded-full text-text-faint transition hover:bg-overlay-hover hover:text-text"
                 >
                   <XIcon className="text-sm" />
                 </button>
@@ -179,7 +179,7 @@ function RolePicker({
           className={cn(
             'flex items-center gap-1 px-2 py-1.5 text-xs transition',
             value === role
-              ? 'bg-accent/15 text-accent'
+              ? 'bg-accent/15 text-accent-ink'
               : 'text-text-muted hover:bg-surface-hover hover:text-text',
           )}
         >

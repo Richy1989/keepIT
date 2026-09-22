@@ -77,7 +77,7 @@ export function MediaLightbox({
       role="dialog"
       aria-modal="true"
       aria-label="Image viewer"
-      className="fixed inset-0 z-[60] grid place-items-center bg-black/90 p-4"
+      className="fade-in fixed inset-0 z-[60] grid place-items-center bg-black/90 p-4"
       // The viewer renders inside the editor's overlay, whose own mousedown saves and closes the
       // note. Without stopping propagation here, dismissing an image would close the editor too.
       onMouseDown={(e) => {

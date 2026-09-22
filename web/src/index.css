@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Inter is self-hosted (no CDN): this app is self-hosted and must render identically offline. */
+@import '@fontsource-variable/inter';
 
 /* Touch devices can't hover, so `group-hover`/`hover` reveal controls (card actions, the list
    delete button, etc.) would stay permanently hidden. The `touch` variant matches pointers with no
@@ -14,6 +16,10 @@
   Per-note background colors live in --note-*-bg/-border vars, themed alongside the chrome.
   The resolved theme + accent are written to <html> by SettingsProvider (and a pre-paint script
   in index.html to avoid a flash). The accent is also seeded by note palette in features/notes.
+
+  Elevation and the two "overlay" tints are tokens for the same reason the colors are: a hardcoded
+  `shadow-black/40` and `hover:bg-black/20` are tuned for a near-black canvas, and on the light
+  theme the first reads as a grey smear while the second is a charcoal blob over a pastel card.
 */
 @theme {
   --color-canvas: #0a0a0b;
@@ -24,9 +30,19 @@
   --color-border-strong: #3f3f46;
   --color-text: #ececee;
   --color-text-muted: #a1a1aa;
-  --color-text-faint: #71717a;
+  /* 4.8:1 on a menu, 5.2:1 on a card, 5.8:1 on the canvas. The old #71717a was 3.7:1 on a card —
+     under AA for the timestamps, hints, counts and placeholders this token carries. The binding
+     surface is --color-elevated, not the canvas: menus and dialogs are the lightest thing in a
+     dark theme, so a value tuned against the near-black canvas still fails inside a dropdown. */
+  --color-text-faint: #8a8a94;
   --color-accent: #fbbf24; /* default accent (yellow); overridden per data-accent */
   --color-accent-strong: #f59e0b;
+
+  /* The accent *as content* — text, icons, focus rings — rather than as a fill. On a dark canvas
+     the bright accent is legible, so this tracks it; the light theme remaps it to a deep shade
+     (see below), because #fbbf24 on white is 1.7:1 and yellow is the default accent. Fills
+     (`bg-accent`, and the black text on them) keep using --color-accent in every theme. */
+  --color-accent-ink: var(--color-accent);
 
   /* Status colors. Tokens, not raw Tailwind shades: a fixed `text-rose-300`/`text-amber-300` reads
      at ~1.7:1 on the light theme's white canvas, so error and warning panels — the messages that
@@ -35,6 +51,16 @@
   --color-danger-bg: #4c1d24;
   --color-warning: #fcd34d;
   --color-warning-bg: #422f06;
+
+  /* Tints painted *over* a themed surface: the hover wash on card/editor tool buttons, and the
+     divider above a composer/editor footer. Dark-tuned by default, softened on light. */
+  --color-overlay-hover: rgb(0 0 0 / 0.2);
+  --color-overlay-line: rgb(0 0 0 / 0.2);
+
+  /* The scrim behind a modal. A 60%-black veil is right over a near-black canvas and far too
+     heavy over a white one, where it blacks the page out instead of pushing it back. The image
+     lightbox keeps its own near-opaque backdrop — there the point is to show nothing but the photo. */
+  --color-scrim: rgb(0 0 0 / 0.6);
 
   --radius-card: 0.875rem;
 }
@@ -51,27 +77,60 @@
   --note-indigo-bg: #272c44;   --note-indigo-border: #373e5d;
   --note-violet-bg: #322844;   --note-violet-border: #47385e;
   --note-mauve-bg: #39263a;    --note-mauve-border: #503651;
+
+  /* Fallback accent input, for the instant before <html data-accent> is set. See "Accent". */
+  --accent-ink: #b45309;
+
+  /*
+    Elevation, named by role rather than by size, so a theme restates the whole ramp in one place.
+    Deliberately *not* in @theme: Tailwind inlines a `--shadow-*` theme value into the utility it
+    generates (`.shadow-panel{--tw-shadow:0 10px 15px -3px …}`) rather than emitting a `var()`
+    reference the way it does for colors — so a per-theme override would silently never apply.
+    These are consumed by the `.elev-*` classes at the bottom of this file instead.
+  */
+  --shadow-card: 0 4px 6px -1px rgb(0 0 0 / 0.2), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+  --shadow-card-hover: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --shadow-panel: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --shadow-raised: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+  --shadow-overlay: 0 25px 50px -12px rgb(0 0 0 / 0.6);
 }
 
 /* ---- Theme overrides ---------------------------------------------------- */
 
-/* Light: white canvas, dark text, pastel note cards. */
+/* Light: near-white canvas, white cards, dark text, pastel note colors. The canvas sits a shade
+   below the card so an uncolored note still reads as a card rather than as bare page. */
 html[data-theme='light'] {
-  --color-canvas: #ffffff;
-  --color-surface: #f4f4f5;
-  --color-surface-hover: #e9e9eb;
+  --color-canvas: #f7f7f8;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f0f0f2;
   --color-elevated: #ffffff;
   --color-border-subtle: #e4e4e7;
   --color-border-strong: #d4d4d8;
   --color-text: #18181b;
   --color-text-muted: #52525b;
-  --color-text-faint: #9a9aa3;
+  /* 5.3:1 on a card, 5.0:1 on the canvas (was #9a9aa3 at 2.8:1 — below AA at any size). */
+  --color-text-faint: #6b6b75;
+
+  /* The deep form of whichever accent is selected — see --color-accent-ink. Every accent's ink
+     shade clears 4.9:1 on white; the bright shades they replace sat between 1.7:1 and 1.9:1. */
+  --color-accent-ink: var(--accent-ink);
 
   /* Dark-on-pale: ~7:1 and ~6:1 against the tinted panels, vs ~1.7:1 for the 300-level shades. */
   --color-danger: #9f1239;
   --color-danger-bg: #ffe4e6;
   --color-warning: #854d0e;
   --color-warning-bg: #fef9c3;
+
+  --color-overlay-hover: rgb(24 24 27 / 0.07);
+  --color-overlay-line: rgb(24 24 27 / 0.09);
+  --color-scrim: rgb(24 24 27 / 0.32);
+
+  /* Light elevation is a soft, tight shadow — the dark ramp's opacities read as dirt on white. */
+  --shadow-card: 0 1px 2px 0 rgb(24 24 27 / 0.06), 0 1px 3px 0 rgb(24 24 27 / 0.08);
+  --shadow-card-hover: 0 4px 6px -1px rgb(24 24 27 / 0.1), 0 2px 4px -2px rgb(24 24 27 / 0.08);
+  --shadow-panel: 0 4px 12px -2px rgb(24 24 27 / 0.12), 0 2px 4px -2px rgb(24 24 27 / 0.06);
+  --shadow-raised: 0 8px 20px -4px rgb(24 24 27 / 0.14), 0 4px 8px -4px rgb(24 24 27 / 0.08);
+  --shadow-overlay: 0 24px 48px -12px rgb(24 24 27 / 0.25);
 
   --note-default-bg: #ffffff;  --note-default-border: #e4e4e7;
   --note-rose-bg: #fad1d7;     --note-rose-border: #f3aab4;
@@ -95,7 +154,8 @@ html[data-theme='dim'] {
   --color-border-strong: #46464d;
   --color-text: #ececee;
   --color-text-muted: #b4b4bd;
-  --color-text-faint: #87878f;
+  /* 4.6:1 on a dim menu, 5.4:1 on a dim card; the old #87878f sat at 4.4:1 and 3.9:1. */
+  --color-text-faint: #97979f;
 
   --note-default-bg: #232327;  --note-default-border: #323238;
   --note-rose-bg: #4a2e33;     --note-rose-border: #5f3a42;
@@ -109,15 +169,20 @@ html[data-theme='dim'] {
   --note-mauve-bg: #472f48;    --note-mauve-border: #614363;
 }
 
-/* ---- Accent overrides (independent of theme) ---------------------------- */
-html[data-accent='yellow'] { --color-accent: #fbbf24; --color-accent-strong: #f59e0b; }
-html[data-accent='orange'] { --color-accent: #fb923c; --color-accent-strong: #f97316; }
-html[data-accent='red']    { --color-accent: #f87171; --color-accent-strong: #ef4444; }
-html[data-accent='pink']   { --color-accent: #f472b6; --color-accent-strong: #ec4899; }
-html[data-accent='purple'] { --color-accent: #c084fc; --color-accent-strong: #a855f7; }
-html[data-accent='blue']   { --color-accent: #60a5fa; --color-accent-strong: #3b82f6; }
-html[data-accent='teal']   { --color-accent: #2dd4bf; --color-accent-strong: #14b8a6; }
-html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22c55e; }
+/* ---- Accent overrides (independent of theme) ----------------------------
+   Each accent supplies two things: --color-accent(/-strong), the bright fill used in every theme,
+   and --accent-ink, the deep shade the *light* theme maps --color-accent-ink to. These blocks must
+   never set --color-accent-ink themselves: they come after the theme blocks at equal specificity,
+   so doing so would let the accent win over the theme — which is exactly how the bright accent
+   ended up as unreadable light-theme text in the first place. */
+html[data-accent='yellow'] { --color-accent: #fbbf24; --color-accent-strong: #f59e0b; --accent-ink: #b45309; }
+html[data-accent='orange'] { --color-accent: #fb923c; --color-accent-strong: #f97316; --accent-ink: #c2410c; }
+html[data-accent='red']    { --color-accent: #f87171; --color-accent-strong: #ef4444; --accent-ink: #b91c1c; }
+html[data-accent='pink']   { --color-accent: #f472b6; --color-accent-strong: #ec4899; --accent-ink: #be185d; }
+html[data-accent='purple'] { --color-accent: #c084fc; --color-accent-strong: #a855f7; --accent-ink: #7e22ce; }
+html[data-accent='blue']   { --color-accent: #60a5fa; --color-accent-strong: #3b82f6; --accent-ink: #1d4ed8; }
+html[data-accent='teal']   { --color-accent: #2dd4bf; --color-accent-strong: #14b8a6; --accent-ink: #0f766e; }
+html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22c55e; --accent-ink: #15803d; }
 
 @layer base {
   html,
@@ -130,11 +195,13 @@ html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22
     margin: 0;
     background-color: var(--color-canvas);
     color: var(--color-text);
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-family:
+      'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+      sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Respect reduced-motion globally. */
+  /* Respect reduced-motion globally. This also neutralizes the entrance animations below. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -151,9 +218,64 @@ html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22
   }
 }
 
+/* Entrance motion for the things that appear over the page — menus, dialogs, their backdrops.
+   Short enough to read as responsiveness rather than as an animation. */
+@keyframes kit-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+@keyframes kit-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @layer components {
-  /* Focus ring used across interactive controls. */
+  /*
+    Focus ring used across interactive controls. An `outline` rather than a ring: a ring's offset
+    is painted with a solid color (it was --color-canvas), which drew a near-black gap around every
+    tool button sitting on a colored note card. `outline-offset` leaves a genuinely transparent
+    gap, so the card's own color shows through. The ink accent keeps the ring itself visible on the
+    light theme, where the bright accent is 1.7:1 against white.
+  */
   .focus-ring {
-    @apply outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+    outline: none;
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--color-accent-ink);
+    outline-offset: 2px;
+  }
+
+  /* Elevation, by role. See the --shadow-* block for why these aren't `shadow-*` utilities. */
+  .elev-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .elev-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .elev-panel {
+    box-shadow: var(--shadow-panel);
+  }
+
+  .elev-raised {
+    box-shadow: var(--shadow-raised);
+  }
+
+  .elev-overlay {
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .pop-in {
+    animation: kit-pop-in 130ms ease-out;
+  }
+
+  .fade-in {
+    animation: kit-fade-in 130ms ease-out;
   }
 }

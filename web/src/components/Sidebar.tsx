@@ -17,6 +17,7 @@ import {
   TrashIcon,
   XIcon,
 } from './icons';
+import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '../lib/cn';
 import { useMediaQuery } from '../lib/useMediaQuery';
 
@@ -55,6 +56,9 @@ export function Sidebar({
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  // The list awaiting a delete confirmation. Held by value, not by id: the row can vanish from
+  // `lists` the moment the mutation lands, and the dialog still needs the name for its prompt.
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
   function commitNew() {
     const name = draft.trim();
@@ -76,7 +80,7 @@ export function Sidebar({
         <div
           onClick={onClose}
           aria-hidden="true"
-          className="fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 md:hidden"
+          className="fixed inset-x-0 bottom-0 top-14 z-30 bg-scrim md:hidden"
         />
       )}
       <nav
@@ -187,12 +191,7 @@ export function Sidebar({
                 type="button"
                 title="Delete list"
                 aria-label={`Delete list ${l.name}`}
-                onClick={() => {
-                  if (confirm(`Delete the list “${l.name}”? Your notes are kept.`)) {
-                    deleteList.mutate(l.id);
-                    if (selection.listId === l.id) onSelect({ view: 'active', listId: null });
-                  }
-                }}
+                onClick={() => setPendingDelete({ id: l.id, name: l.name })}
                 className="focus-ring grid place-items-center rounded p-1 text-text-faint transition hover:text-danger"
               >
                 <XIcon className="text-sm" />
@@ -242,6 +241,21 @@ export function Sidebar({
         </div>
       )}
       </nav>
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`Delete “${pendingDelete.name}”?`}
+          body={<p>The list is removed. The notes filed under it are kept.</p>}
+          confirmLabel="Delete list"
+          tone="danger"
+          busy={deleteList.isPending}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            deleteList.mutate(pendingDelete.id);
+            if (selection.listId === pendingDelete.id) onSelect({ view: 'active', listId: null });
+            setPendingDelete(null);
+          }}
+        />
+      )}
     </>
   );
 }
@@ -273,11 +287,11 @@ function NavItem({
       className={cn(
         'focus-ring flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition',
         active
-          ? 'bg-accent/15 font-medium text-accent'
+          ? 'bg-accent/15 font-medium text-accent-ink'
           : 'text-text-muted hover:bg-surface-hover hover:text-text',
       )}
     >
-      <span className={cn(active ? 'text-accent' : 'text-text-faint')}>{icon}</span>
+      <span className={cn(active ? 'text-accent-ink' : 'text-text-faint')}>{icon}</span>
       <span className="flex-1 truncate text-left">{label}</span>
       {count !== undefined && count > 0 && (
         // Fade out on hover/focus so the row's action buttons (absolute, same spot) don't overlap.

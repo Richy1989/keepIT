@@ -61,13 +61,13 @@ export function ResetPasswordPage() {
     <div className="grid min-h-full place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <span className="grid size-10 place-items-center rounded-xl bg-accent/15 text-accent">
+          <span className="grid size-10 place-items-center rounded-xl bg-accent/15 text-accent-ink">
             <TypewriterIcon className="text-2xl" />
           </span>
           <span className="text-2xl font-semibold tracking-tight">keepIT</span>
         </div>
 
-        <div className="rounded-2xl border border-border-subtle bg-surface p-6 shadow-xl shadow-black/40">
+        <div className="rounded-2xl border border-border-subtle bg-surface p-6 elev-raised">
           <h1 className="text-lg font-medium">Choose a new password</h1>
 
           {!linkValid ? (
@@ -77,7 +77,7 @@ export function ResetPasswordPage() {
             </p>
           ) : done ? (
             <div className="mt-4 space-y-4">
-              <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+              <p className="rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent-ink">
                 Password changed. You've been signed out on all devices — sign in with your new
                 password.
               </p>
@@ -135,7 +135,7 @@ export function ResetPasswordPage() {
         </div>
 
         <p className="mt-5 text-center text-sm text-text-muted">
-          <Link to="/login" className="font-medium text-accent hover:underline">
+          <Link to="/login" className="font-medium text-accent-ink hover:underline">
             Back to sign in
           </Link>
         </p>

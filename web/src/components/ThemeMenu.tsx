@@ -34,7 +34,7 @@ export function ThemeMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-56 rounded-xl border border-border-subtle bg-elevated p-3 shadow-lg shadow-black/30">
+        <div className="pop-in absolute right-0 z-40 mt-2 w-56 rounded-xl border border-border-subtle bg-elevated p-3 elev-panel">
           <p className="mb-1.5 text-xs font-medium text-text-muted">Theme</p>
           <div className="grid grid-cols-4 gap-1">
             {THEMES.map((t) => (
@@ -56,7 +56,7 @@ export function ThemeMenu() {
           </div>
 
           <p className="mb-1.5 mt-3 text-xs font-medium text-text-muted">Accent</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-4 gap-2">
             {ACCENTS.map((a) => (
               <button
                 key={a.key}
