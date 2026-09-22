@@ -1,0 +1,5 @@
+Sign out has moved from the top bar to the bottom of the menu, under your name and email address.
+
+The menu scrolls now, so with many lists, Notifications and Settings stay within reach.
+
+Timestamps, counters and hints are easier to read, in the app and on the home-screen widget.
