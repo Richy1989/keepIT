@@ -60,10 +60,11 @@ public sealed class KeepItApiFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>Registers a fresh user and returns a client that sends their access token.</summary>
-    public async Task<HttpClient> CreateSignedInClientAsync()
+    /// <param name="email">The account's email, for a test that needs to name the user (sharing); a random one otherwise.</param>
+    public async Task<HttpClient> CreateSignedInClientAsync(string? email = null)
     {
         var client = CreateClient();
-        var email = $"user-{Guid.NewGuid():N}@example.com";
+        email ??= $"user-{Guid.NewGuid():N}@example.com";
         const string password = "Test-password-1";
 
         (await client.PostAsJsonAsync("/api/auth/register", new { email, password })).EnsureSuccessStatusCode();

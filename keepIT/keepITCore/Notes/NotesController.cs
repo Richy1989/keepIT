@@ -375,6 +375,65 @@ public class NotesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Empties the caller's trash. A note they own is deleted for good, as <see cref="Delete"/>
+    /// does; from a note shared with them they are removed instead, as leaving the share does, so
+    /// its owner and the other collaborators keep it.
+    /// <para>
+    /// It takes the ids the client showed rather than whatever the trash holds now, so a note
+    /// trashed on another device a moment earlier is never purged unseen. An id that is no longer
+    /// in the caller's trash (restored elsewhere, already gone, never theirs) is skipped, which
+    /// also makes a replay from an offline queue harmless.
+    /// </para>
+    /// </summary>
+    /// <param name="dto">The trashed notes to remove.</param>
+    /// <returns>204, also when none of the notes was still in the trash.</returns>
+    [HttpPost("trash/empty")]
+    public async Task<IActionResult> EmptyTrash(EmptyTrashDto dto)
+    {
+        var callerId = User.GetUserId();
+        if (callerId is null) return Unauthorized();
+
+        var trashed = await _db.NoteUserStates.AsNoTracking()
+            .Where(us => us.UserId == callerId && us.IsTrashed && dto.NoteIds.Contains(us.NoteId))
+            .Select(us => new { us.NoteId, us.Note.OwnerId })
+            .ToListAsync();
+        if (trashed.Count == 0) return NoContent();
+
+        var ownedIds = trashed.Where(t => t.OwnerId == callerId).Select(t => t.NoteId).ToList();
+        var leftIds = trashed.Where(t => t.OwnerId != callerId).Select(t => t.NoteId).ToList();
+
+        // Everyone else who sees these notes changes too: the collaborators of a purged note lose
+        // it, the owner of a left note loses a collaborator. Gathered before the cascade.
+        var others = await _db.NoteShares.AsNoTracking()
+            .Where(s => ownedIds.Contains(s.NoteId))
+            .Select(s => s.GranteeId)
+            .ToListAsync();
+        others.AddRange(trashed.Where(t => t.OwnerId != callerId).Select(t => t.OwnerId));
+
+        var purged = await _db.Notes.Where(n => ownedIds.Contains(n.Id)).ToListAsync();
+        _db.Notes.RemoveRange(purged);
+
+        // Leaving, as NoteSharesController.RevokeShare does: the share, and everything private to
+        // the caller on the note, their view state, list memberships and reminder.
+        _db.NoteShares.RemoveRange(await _db.NoteShares
+            .Where(s => s.GranteeId == callerId && leftIds.Contains(s.NoteId)).ToListAsync());
+        _db.NoteUserStates.RemoveRange(await _db.NoteUserStates
+            .Where(us => us.UserId == callerId && leftIds.Contains(us.NoteId)).ToListAsync());
+        _db.NoteLists.RemoveRange(await _db.NoteLists
+            .Where(nl => nl.UserId == callerId && leftIds.Contains(nl.NoteId)).ToListAsync());
+        _db.NoteReminders.RemoveRange(await _db.NoteReminders
+            .Where(r => r.UserId == callerId && leftIds.Contains(r.NoteId)).ToListAsync());
+
+        await _db.SaveChangesAsync();
+
+        foreach (var note in purged) _media.DeleteNote(note.OwnerId, note.Id);
+
+        await Task.WhenAll(others.Append(callerId.Value).Distinct().Select(uid =>
+            _notifier.NotifyAsync(uid, RealtimeResources.Notes, RealtimeResources.Lists)));
+        return NoContent();
+    }
+
     // ---- helpers ----
 
     /// <summary>Notifies the owner and every collaborator of a note that the given resources changed.</summary>
