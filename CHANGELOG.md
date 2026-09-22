@@ -21,6 +21,8 @@ unchanged, so updating needs no change to your setup.
 - Deleting a list, leaving a shared note and emptying the trash ask in a keepIT dialog instead of
   the browser's pop-up.
 - A note's reminder and timestamp wrap onto a new line in a narrow column instead of being cut off.
+- The search box fits its label on a phone again. The keepIT mark now shows from tablet width up,
+  where there is room for it; on a phone the menu button already marks the app.
 - The Inter typeface now actually loads. keepIT serves it itself, so no font service is contacted.
 - Menus and dialogs fade in, unless your system asks for reduced motion. Shadows, the dimmed
   backdrop behind dialogs and the keyboard focus outline follow the theme.
