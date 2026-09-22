@@ -69,6 +69,14 @@ pnpm-debug.log*
 *.aab
 *.apks
 
+# Release signing: the keystore and the file holding its passwords, anywhere in the tree. The
+# release key lives in danger/ locally (and in CI secrets); none of it is ever committed.
+# app/.gitignore repeats these for app/, but only this file covers the rest of the repo.
+/danger/
+*.jks
+*.keystore
+keystore.properties
+
 # ---- OS ----
 Thumbs.db
 ehthumbs.db
