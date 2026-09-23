@@ -96,6 +96,14 @@ export const ListIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const MicIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="9" y="2" width="6" height="11" rx="3" />
+    <path d="M5 10v1a7 7 0 0 0 14 0v-1" />
+    <path d="M12 18v4" />
+  </Icon>
+);
+
 export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <circle cx="11" cy="11" r="8" />

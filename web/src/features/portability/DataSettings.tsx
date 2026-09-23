@@ -113,7 +113,7 @@ function ImportSummary({ result }: { result: ImportResultDto }) {
   const parts = [
     count(result.notesImported, 'note'),
     result.listsCreated > 0 ? count(result.listsCreated, 'new list') : null,
-    result.imagesImported > 0 ? count(result.imagesImported, 'image') : null,
+    result.attachmentsImported > 0 ? count(result.attachmentsImported, 'attachment') : null,
   ].filter(Boolean);
 
   return (
@@ -128,7 +128,7 @@ function ImportSummary({ result }: { result: ImportResultDto }) {
           <AlertIcon className="mt-0.5 shrink-0 text-base" />
           <div className="min-w-0 space-y-1">
             <p className="font-medium">
-              {count(result.imagesSkipped, 'image')} couldn't be imported
+              {count(result.attachmentsSkipped, 'attachment')} couldn't be imported
             </p>
             <ul className="list-inside list-disc space-y-0.5">
               {result.warnings.slice(0, 5).map((warning) => (

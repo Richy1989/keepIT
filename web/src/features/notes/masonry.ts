@@ -42,12 +42,16 @@ const CHARS_PER_LINE_PER_100PX = 14;
 const MAX_PREVIEW_CHARS = 600;
 /** NoteImage caps a portrait hero at this multiple of its width. */
 const MAX_HERO_ASPECT = 1.4;
+/** The one-line "Voice note" marker a card shows when it holds a recording. */
+const RECORDING_ROW_HEIGHT = 20;
 
 /** Approximates a card's rendered height in px. See the module comment for why it can be loose. */
 export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
   let height = CARD_CHROME;
 
-  const hero = note.media[0];
+  // The first *image*, matching what the card renders. A voice note has no pixels, so taking it as
+  // the hero would reserve a square of empty space for something that draws as one line of text.
+  const hero = note.media.find((m) => m.kind !== 'Audio');
   if (hero) {
     // Mirrors NoteImage: the box is sized from the stored dimensions, portrait capped at 1.4.
     const ratio = hero.width > 0 && hero.height > 0 ? hero.height / hero.width : 1;
@@ -57,6 +61,8 @@ export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
   } else if (note.title) {
     height += TITLE_HEIGHT;
   }
+
+  if (note.media.some((m) => m.kind === 'Audio')) height += RECORDING_ROW_HEIGHT;
 
   if (note.type === 'Checklist') {
     const shown = Math.min(note.checklistItems.length, MAX_PREVIEW_ITEMS);

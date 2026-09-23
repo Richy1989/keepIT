@@ -47,7 +47,30 @@ function items(count: number) {
 }
 
 function media(width: number, height: number) {
-  return [{ id: 'm1', width, height, byteSize: 1000, order: 0, createdAtUtc: '2026-09-22T10:00:00Z' }];
+  return [
+    {
+      id: 'm1',
+      kind: 'Image' as const,
+      width,
+      height,
+      byteSize: 1000,
+      order: 0,
+      createdAtUtc: '2026-09-22T10:00:00Z',
+    },
+  ];
+}
+
+function recording() {
+  return {
+    id: 'a1',
+    kind: 'Audio' as const,
+    width: 0,
+    height: 0,
+    durationMs: 8000,
+    byteSize: 40_000,
+    order: 0,
+    createdAtUtc: '2026-09-22T10:00:00Z',
+  };
 }
 
 describe('distributeIntoColumns', () => {
@@ -157,6 +180,24 @@ describe('estimateCardHeight', () => {
   it('survives media with zero dimensions', () => {
     expect(() => estimateCardHeight(note({ media: media(0, 0) }), W)).not.toThrow();
     expect(estimateCardHeight(note({ media: media(0, 0) }), W)).toBeGreaterThan(0);
+  });
+
+  // A recording has no pixels, and reading its zeroed width/height as an image's reserved a whole
+  // square of hero space for a card that draws one line of text.
+  it('does not reserve hero space for a voice note', () => {
+    const plain = estimateCardHeight(note({ body: 'hi' }), W);
+    const voice = estimateCardHeight(note({ body: 'hi', media: [recording()] }), W);
+
+    expect(voice).toBeGreaterThan(plain); // it does take a line
+    expect(voice - plain).toBeLessThan(60); // but nowhere near a hero image
+  });
+
+  it('still sizes a hero image on a note that also has a recording', () => {
+    const imageOnly = estimateCardHeight(note({ media: media(1000, 1000) }), W);
+    const both = estimateCardHeight(note({ media: [...media(1000, 1000), recording()] }), W);
+
+    expect(both).toBeGreaterThan(imageOnly);
+    expect(both - imageOnly).toBeLessThan(60);
   });
 
   it('adds room for a reminder chip', () => {

@@ -1570,9 +1570,9 @@ export interface components {
             /** Format: int32 */
             listsReused: number;
             /** Format: int32 */
-            imagesImported: number;
+            attachmentsImported: number;
             /** Format: int32 */
-            imagesSkipped: number;
+            attachmentsSkipped: number;
             warnings: string[];
         };
         ListDto: {
@@ -1621,10 +1621,13 @@ export interface components {
         NoteMediaDto: {
             /** Format: uuid */
             id: string;
+            kind: components["schemas"]["NoteMediaKind"];
             /** Format: int32 */
             width: number;
             /** Format: int32 */
             height: number;
+            /** Format: int32 */
+            durationMs?: null | number;
             /** Format: int64 */
             byteSize: number;
             /** Format: int32 */
@@ -1632,6 +1635,8 @@ export interface components {
             /** Format: date-time */
             createdAtUtc: string;
         };
+        /** @enum {unknown} */
+        NoteMediaKind: "Image" | "Audio";
         /** @enum {unknown} */
         NoteRole: "Viewer" | "Editor" | null;
         NoteShareDto: {

@@ -26,6 +26,24 @@ export const MAX_IMAGES_PER_NOTE = 10;
 export const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/png,image/webp,image/gif';
 
 /**
+ * Splits a note's attachments into the two kinds. Every render site needs it: `note.media` is one
+ * ordered list holding both, and an image grid that blindly rendered a voice note would ask the
+ * server for a thumbnail that was never written.
+ *
+ * Recordings are made on Android only — browsers cannot record over plain http, which keepIT
+ * supports on a LAN — so the web plays them and never creates one.
+ */
+export function splitMedia(media: NoteMediaDto[]): {
+  images: NoteMediaDto[];
+  recordings: NoteMediaDto[];
+} {
+  return {
+    images: media.filter((m) => m.kind !== 'Audio'),
+    recordings: media.filter((m) => m.kind === 'Audio'),
+  };
+}
+
+/**
  * Fetches one image as a Blob. The endpoint is authenticated, so it can't be used directly as an
  * <img src>; the caller turns the Blob into an object URL with `useObjectUrl`.
  *

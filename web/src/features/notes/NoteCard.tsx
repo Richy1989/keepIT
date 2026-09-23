@@ -3,6 +3,8 @@ import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
 import { checklistForDisplay } from './checklist';
 import { NoteImage } from './media/NoteImage';
+import { formatDuration } from './media/duration';
+import { splitMedia } from './media/queries';
 import { noteColor } from './palette';
 import { MAX_PREVIEW_ITEMS } from './masonry';
 import { ReminderChip } from './ReminderChip';
@@ -13,6 +15,7 @@ import {
   CheckIcon,
   ClockIcon,
   EyeIcon,
+  MicIcon,
   PaletteIcon,
   PencilIcon,
   PinIcon,
@@ -49,6 +52,9 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
   const [showColors, setShowColors] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
   const swatch = noteColor(note.color);
+  // A note's attachments are one list of both kinds; the hero is a picture, and a recording has
+  // nothing to show, so they are separated before anything renders.
+  const { images, recordings } = splitMedia(note.media);
 
   const checkedItems = note.checklistItems.filter((i) => i.isChecked).length;
 
@@ -95,7 +101,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           'focus-ring absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-overlay-hover hover:text-text',
           note.isPinned ? 'opacity-100 text-text' : 'opacity-0 group-hover:opacity-100 touch:opacity-100',
           // Over a photo the muted pin all but disappears, so it gets its own backdrop.
-          note.media.length > 0 && 'bg-black/50 text-white hover:bg-black/70 hover:text-white',
+          images.length > 0 && 'bg-black/50 text-white hover:bg-black/70 hover:text-white',
         )}
       >
         <PinIcon className="text-base" />
@@ -104,13 +110,13 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
       {/* Full-bleed hero: negative margins cancel the card's p-4 so the image reaches the edges.
           Only the title sits on the photo — body and checklist rows stay below on the note's own
           colour, where contrast is a known quantity rather than whatever the user photographed. */}
-      {note.media.length > 0 && (
+      {images.length > 0 && (
         <div className="relative -mx-4 -mt-4 mb-3">
-          <NoteImage noteId={note.id} media={note.media[0]} size="preview" />
-          {note.media.length > 1 && (
+          <NoteImage noteId={note.id} media={images[0]} size="preview" />
+          {images.length > 1 && (
             // Top-left, because the pin owns the top-right corner.
             <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
-              +{note.media.length - 1}
+              +{images.length - 1}
             </span>
           )}
           {note.title && (
@@ -123,8 +129,21 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         </div>
       )}
 
-      {note.title && note.media.length === 0 && (
+      {note.title && images.length === 0 && (
         <h3 className="mb-1.5 pr-8 font-medium leading-snug text-text">{note.title}</h3>
+      )}
+
+      {/* A voice note has nothing to show, so the card says it is there and how long it runs.
+          Playing it is the editor's job — a card is a summary, not a transport. */}
+      {recordings.length > 0 && (
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-text-muted">
+          <MicIcon className="text-sm" />
+          {recordings.length === 1
+            ? recordings[0].durationMs != null
+              ? `Voice note · ${formatDuration(recordings[0].durationMs)}`
+              : 'Voice note'
+            : `${recordings.length} voice notes`}
+        </div>
       )}
 
       {note.type === 'Checklist' ? (

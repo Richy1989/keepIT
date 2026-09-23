@@ -61,7 +61,9 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const deleteMedia = useDeleteNoteMedia();
   const fileInput = useRef<HTMLInputElement>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
-  const atImageLimit = note.media.length + pending.length >= MAX_IMAGES_PER_NOTE;
+  // Images and recordings are capped separately on the server, so only images count here.
+  const atImageLimit =
+    note.media.filter((m) => m.kind !== 'Audio').length + pending.length >= MAX_IMAGES_PER_NOTE;
 
   /** Collaborator-only: remove the caller's own share, dropping the note from their grid. */
   function leaveNote() {
