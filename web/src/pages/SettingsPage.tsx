@@ -4,10 +4,12 @@ import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
+import { DataSettings } from '../features/portability/DataSettings';
 import { useEmailStatus, useServerMeta } from '../features/settings/queries';
 import {
   AlertIcon,
   ChevronLeftIcon,
+  DownloadIcon,
   LogoutIcon,
   MailIcon,
   ShieldIcon,
@@ -16,12 +18,13 @@ import {
 } from '../components/icons';
 import { cn } from '../lib/cn';
 
-type SectionKey = 'general' | 'security' | 'email';
+type SectionKey = 'general' | 'security' | 'email' | 'data';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof UserIcon }[] = [
   { key: 'general', label: 'General', icon: UserIcon },
   { key: 'security', label: 'Security', icon: ShieldIcon },
   { key: 'email', label: 'Email', icon: MailIcon },
+  { key: 'data', label: 'Your data', icon: DownloadIcon },
 ];
 
 /** Account settings: section nav on the left, the active section's controls on the right. */
@@ -146,6 +149,15 @@ export function SettingsPage() {
                 description="Update your password. This signs you out of your other devices."
               >
                 <ChangePasswordForm />
+              </SettingCard>
+            )}
+
+            {active === 'data' && (
+              <SettingCard
+                title="Your data"
+                description="Take a copy of your notes with you, or restore one back into this account."
+              >
+                <DataSettings />
               </SettingCard>
             )}
 
