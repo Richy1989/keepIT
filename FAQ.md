@@ -126,6 +126,11 @@ and take over the account when it's clicked. A configured address is the only sa
   Otherwise every visitor looks like your proxy and they all share one rate limit.
 - Nothing to do for the sign-in cookie: keepIT marks it HTTPS-only by itself whenever a request
   arrives over HTTPS.
+- Raise your proxy's request body limit if you plan to **import** a backup. keepIT accepts an
+  archive up to 256 MB and its own nginx allows that, but yours sits in front and usually caps
+  bodies far lower (Nginx Proxy Manager and SWAG default to 1 MB). In an NPM proxy host that is
+  **Advanced → `client_max_body_size 256m;`**; in SWAG, the same line in your site config. Without
+  it a large restore stops with a 413 that comes from your proxy, not from keepIT.
 - If your proxy keeps access logs, leave query strings out of them, or at least `token` and
   `access_token`. The live-sync connection carries a sign-in token in its URL, and a reset link
   carries its token. keepIT's own logs already blank both.
@@ -179,6 +184,41 @@ keepIT removes it on upload. Phone photos carry GPS coordinates, and a shared no
 otherwise tell everyone you share it with where the photo was taken. The image itself is kept,
 turned the right way up and at most 2560 pixels on its longest side. GIFs are kept as they are,
 so animations still play.
+
+## Backups, export and import
+
+### How do I back up my notes?
+
+Two ways, and they answer different questions. **Settings → Your data → Download my notes** gives
+you a `.zip` of everything you own — notes, checklists, lists, reminders and the images attached
+to them — which you can read without keepIT and restore into any keepIT account. That is the one
+to keep off the server. Backing up the **data folder** (`App_Data`, or your Unraid appdata share)
+is the operator's version: it captures every user at once, plus accounts and settings, but only
+restores onto a keepIT server.
+
+### Importing adds my notes twice
+
+That is what it is meant to do. Import never overwrites or merges — every note in the archive
+arrives as a **new** note, so importing the same file twice gives you two of each. It works that
+way on purpose: the one operation that could destroy your notes is the one that must not be able
+to. Lists are the exception, since a list you already have is filed into rather than duplicated.
+Delete the extra copies, or import into a fresh account.
+
+### My import fails, or stops on a big archive
+
+Check who is refusing it. A **413** almost always comes from a proxy in front of keepIT rather
+than from keepIT itself — see the reverse-proxy question above for raising the limit. keepIT's own
+cap is 256 MB, and it answers an archive it cannot read with a plain message saying what was
+wrong ("no keepit-export.json inside", "written by a newer version of keepIT"). A **504** on a
+large archive is also the proxy: every image is re-checked and re-encoded on the way in, which can
+take a few minutes, so raise its read timeout.
+
+Individual images that could not be imported are listed after the import finishes rather than
+failing the whole thing — one unreadable photo never costs you the rest of the archive.
+
+### Can I import my notes from Google Keep?
+
+Not yet. keepIT reads its own export format only; a Google Takeout importer is on the roadmap.
 
 ## Logs and security
 

@@ -95,7 +95,7 @@ public class NotesController : ControllerBase
                 .OrderBy(us => us.Note.Reminders.FirstOrDefault()?.RemindAtUtc ?? DateTime.MaxValue)
                 .ToList();
 
-        return Ok(states.Select(us => ToDto(us.Note, us, callerId.Value)).ToList());
+        return Ok(states.Select(us => NoteProjection.ToDto(us.Note, us, callerId.Value)).ToList());
     }
 
     /// <summary>Gets a single note by id (if the caller owns it or has a share on it).</summary>
@@ -466,7 +466,7 @@ public class NotesController : ControllerBase
         var state = await _db.NoteUserStates.AsNoTracking()
             .FirstOrDefaultAsync(us => us.NoteId == id && us.UserId == callerId);
 
-        return ToDto(note, state, callerId);
+        return NoteProjection.ToDto(note, state, callerId);
     }
 
     /// <summary>Filters the requested list ids down to those the caller actually owns.</summary>
@@ -495,54 +495,4 @@ public class NotesController : ControllerBase
         IsChecked = dto.IsChecked,
         Order = order,
     };
-
-    /// <summary>Projects a note entity to its client DTO for a given caller (view state + access resolved).</summary>
-    /// <param name="n">The note entity (with checklist items, the caller's note-lists, and shares loaded).</param>
-    /// <param name="state">The caller's per-user view state, or null (treated as all-false defaults).</param>
-    /// <param name="callerId">The caller, used to resolve their view, list memberships, and role.</param>
-    /// <returns>The note DTO.</returns>
-    private static NoteDto ToDto(Note n, NoteUserState? state, Guid callerId)
-    {
-        var isOwner = n.OwnerId == callerId;
-        var role = isOwner ? (NoteRole?)null : n.NoteShares.FirstOrDefault(s => s.GranteeId == callerId)?.Role;
-        var reminder = n.Reminders.FirstOrDefault(r => r.UserId == callerId);
-
-        return new NoteDto
-        {
-            Id = n.Id,
-            Type = n.Type,
-            Title = n.Title,
-            Body = n.Body,
-            Color = n.Color,
-            IsPinned = state?.IsPinned ?? false,
-            IsArchived = state?.IsArchived ?? false,
-            IsTrashed = state?.IsTrashed ?? false,
-            RemindAtUtc = reminder?.RemindAtUtc,
-            ReminderRecurrence = reminder?.Recurrence,
-            ReminderFired = reminder?.FiredAtUtc is not null,
-            CreatedAtUtc = n.CreatedAtUtc,
-            UpdatedAtUtc = n.UpdatedAtUtc,
-            IsOwner = isOwner,
-            Role = role,
-            CanEdit = isOwner || role == NoteRole.Editor,
-            IsShared = isOwner && n.NoteShares.Count > 0,
-            ChecklistItems = n.ChecklistItems
-                .OrderBy(c => c.Order)
-                .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, IsChecked = c.IsChecked, Order = c.Order })
-                .ToList(),
-            Media = n.Media
-                .OrderBy(m => m.Order)
-                .Select(m => new NoteMediaDto
-                {
-                    Id = m.Id,
-                    Width = m.Width,
-                    Height = m.Height,
-                    ByteSize = m.ByteSize,
-                    Order = m.Order,
-                    CreatedAtUtc = m.CreatedAtUtc,
-                })
-                .ToList(),
-            ListIds = n.NoteLists.Where(nl => nl.UserId == callerId).Select(nl => nl.ListId).ToList(),
-        };
-    }
 }

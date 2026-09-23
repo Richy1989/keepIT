@@ -31,6 +31,12 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
 - **Note access is "own OR shared", never a bare `OwnerId == me`.** Resolve every note endpoint's access through `NoteAccessService` (`Notes/NoteAccessService.cs`): read needs ownership or any share; content writes need ownership or an **Editor** share; hard-delete is owner-only. Pin/archive/trash and list membership are **per-user** — write the caller's `NoteUserState` / `NoteList` row, not the shared note.
 - **Never build an outbound link from the request.** `Origin`, `Host` and forwarded headers are whatever the sender chooses. A link that reaches a user's inbox (password reset today, invites to non-users later) is built only from `App:PublicBaseUrl` (`Infrastructure/PublicBaseUrl.cs`); without it, don't send the email.
 - **Never put a credential in a URL: URLs get logged.** Two exist by necessity, the browser's hub `access_token` and a reset link's `token`, and both `nginx.conf` files log them redacted (CI checks the image's log). A new one would have to join that redaction `map` in both files and the CI check.
+- **The export archive is the DTOs, not a format of its own.** `keepit-export.json` holds
+  `NoteDto[]` + `ListDto[]` (see ARCHITECTURE.md → Export & import). Never add a hand-written
+  mirror of a DTO to the archive, and never let export project a note by any route other than
+  `NoteProjection.ToDto`. Bump `NoteArchiveDto.CurrentSchemaVersion` when a change would stop an
+  older importer reading the file, and keep the round-trip tests green — they are the format's
+  only specification, since a file format can't live in the OpenAPI document.
 - **A new mutating endpoint must push realtime.** After `SaveChangesAsync`, call `IRealtimeNotifier.NotifyAsync(userId, …)` with the affected resources (`notes` / `lists` / `notification`). For a **shared** note's content, fan out to the whole recipient set (`NoteAccessService.RecipientIdsAsync`, i.e. owner + grantees); for **per-user** changes notify only the caller — mirror the existing controllers, or devices won't resync.
 
 ## Android app (`app/`)
@@ -98,6 +104,7 @@ keepIT/
 │  ├─ Service/              # ImageService, IMediaStorage/DiskMediaStorage, NoteMediaProcessor
 │  ├─ Lists/ Settings/      # one controller + DTOs per resource
 │  ├─ Notifications/        # UserNotificationController + DTOs (per-user inbox, TPH)
+│  ├─ Portability/          # ExportController + ImportController + the archive format
 │  ├─ SignalR/              # RealTimeHub, IRealtimeNotifier, SubUserIdProvider
 │  ├─ Infrastructure/       # OpenAPI, logging, DB provider selection, security/rate limiting
 │  └─ Program.cs
@@ -106,7 +113,7 @@ keepIT/
 │  ├─ api/                  # generated schema.d.ts, typed client, shared types
 │  ├─ auth/                 # AuthProvider, AuthContext, in-memory token store
 │  ├─ components/           # shared UI (Sidebar, Topbar, ColorPicker, icons …)
-│  ├─ features/             # notes/ lists/ settings/ account/ notifications/ — each has queries.ts + components
+│  ├─ features/             # notes/ lists/ settings/ account/ notifications/ portability/ — each has queries.ts + components
 │  ├─ realtime/             # RealtimeSync.tsx — SignalR connection + cache invalidation
 │  ├─ pages/                # AuthPage, HomePage, SettingsPage
 │  └─ lib/                  # utilities (cn, apiError, useDismiss)
@@ -126,7 +133,7 @@ keepIT/
 ## Environment
 
 - Windows host; **PowerShell** is the primary shell. Repo line endings are **LF** (`.gitattributes`).
-- **API tests** live in `keepIT/keepITCore.Tests/` (xUnit): the real API in-process via `WebApplicationFactory`, each host on a throwaway SQLite data root. They cover the SQLite schema reconciler (an older database comes up to date without losing data), note media end to end, where password-reset links point, that SMTP never falls back to plain text, which requests get a Secure refresh cookie, and what emptying the trash removes. `KeepItApiFactory` takes per-host `Settings` and `Services` overrides (e.g. `CapturingEmailSender` to read outgoing mail); `FakeSmtpServer` is a loopback SMTP server that records what it receives. Parallelization is off on purpose — `FolderManagement.RootPath` is process-wide static, so two hosts at once would write each other's media. When you change an entity or a media rule, extend these.
+- **API tests** live in `keepIT/keepITCore.Tests/` (xUnit): the real API in-process via `WebApplicationFactory`, each host on a throwaway SQLite data root. They cover the SQLite schema reconciler (an older database comes up to date without losing data), note media end to end, where password-reset links point, that SMTP never falls back to plain text, which requests get a Secure refresh cookie, what emptying the trash removes, and that an export round-trips back through import (the archive format's only specification). `KeepItApiFactory` takes per-host `Settings` and `Services` overrides (e.g. `CapturingEmailSender` to read outgoing mail); `FakeSmtpServer` is a loopback SMTP server that records what it receives. Parallelization is off on purpose — `FolderManagement.RootPath` is process-wide static, so two hosts at once would write each other's media. When you change an entity or a media rule, extend these.
 - **Deployment smoke test:** `deploy/smoke-test.sh <base-url>` signs up, uploads a ~3 MB photo and reads it back **through whatever proxy is in front** — CI runs it against the freshly built single-container image, which is the only check that sees nginx, then checks tokens sent in URLs reach the container log only redacted. No web tests yet. The **Android app is tested in three layers** — see the Testing section below.
 - **Dependencies:** `.github/workflows/dependencies.yml` fails on high/critical advisories in the web app's runtime npm packages and in NuGet packages (transitive too), on every push/PR and weekly; it also feeds the libraries the Android app ships with (`releaseRuntimeClasspath`, not the build tooling) to GitHub's dependency graph. Dependabot (`.github/dependabot.yml`) proposes grouped weekly updates. A package whose next major must not arrive as a routine PR (ImageSharp 4.x needs a licence; .NET-versioned packages) gets an `ignore` entry there.
 - **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration. The **SQLite DB uses `EnsureCreated`, not migrations** — which does nothing to an existing file, so `Infrastructure/SqliteSchemaReconciler.cs` adds the tables, columns and indexes an older file is missing at startup (see ARCHITECTURE.md). Entity changes therefore land on an existing `App_Data/keepit.db` without deleting it. `App_Data/` is user data (gitignored) — never commit it.

@@ -54,8 +54,10 @@ public static class SecurityServiceExtensions
 
     /// <summary>
     /// Adds per-client-IP fixed-window rate limiting. The <see cref="RateLimitPolicies.Auth"/> policy
-    /// throttles the auth endpoints against password guessing / signup abuse; rejected callers get a
-    /// 429 with a <c>Retry-After</c> header telling them when to try again.
+    /// throttles the auth endpoints against password guessing / signup abuse, and
+    /// <see cref="RateLimitPolicies.Export"/> throttles the one endpoint that reads a whole account
+    /// at once; rejected callers get a 429 with a <c>Retry-After</c> header telling them when to
+    /// try again.
     /// </summary>
     public static IServiceCollection AddKeepItRateLimiting(this IServiceCollection services)
     {
@@ -85,6 +87,29 @@ public static class SecurityServiceExtensions
                     {
                         PermitLimit = 10,
                         Window = TimeSpan.FromMinutes(1),
+                    }));
+
+            // Export reads the caller's whole account and streams every image, so it is throttled
+            // well below the global budget. Partitioned per IP like the others: the limiter runs
+            // before the endpoint, where the caller's identity is not yet resolved.
+            options.AddPolicy(RateLimitPolicies.Export, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: (httpContext.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString(),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(5),
+                    }));
+
+            // Import decodes and re-encodes every image in the archive, which is heavier still than
+            // export, but it is a one-off action — a handful per window is plenty.
+            options.AddPolicy(RateLimitPolicies.Import, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: (httpContext.Connection.RemoteIpAddress ?? IPAddress.Loopback).ToString(),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(5),
                     }));
 
             // Tell rejected clients when they can retry.
