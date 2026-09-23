@@ -45,6 +45,14 @@
 -keep class org.hyperstarit.keepitapp.data.NotesRepository { *; }
 -keep class org.hyperstarit.keepitapp.data.NotesRepository$Companion { *; }
 -keep class org.hyperstarit.keepitapp.data.WidgetNote { *; }
+# The export archive's format surface, for ArchiveSmokeTest. PortabilityRepository — which drives
+# it, and holds the standalone/server branch — is pointedly absent: the test reaches the format the
+# way any caller would, and everything behind it stays shrunk exactly as release ships it.
+-keep class org.hyperstarit.keepitapp.data.portability.Archive { *; }
+-keep class org.hyperstarit.keepitapp.data.portability.ArchiveReader { *; }
+-keep class org.hyperstarit.keepitapp.data.portability.ReadArchive { *; }
+-keep class org.hyperstarit.keepitapp.data.portability.OpenArchiveResult { *; }
+-keep class org.hyperstarit.keepitapp.data.portability.OpenArchiveResult$Opened { *; }
 
 # --- 4. the library API the tests call -----------------------------------------------------------
 # WorkManager's *public* surface only. androidx.work.impl.** and the input mergers are pointedly

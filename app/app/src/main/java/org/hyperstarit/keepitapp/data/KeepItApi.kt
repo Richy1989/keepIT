@@ -162,6 +162,21 @@ interface KeepItApi {
     @DELETE("api/lists/{id}")
     suspend fun deleteList(@Path("id") id: String)
 
+    // ---- export / import ----
+
+    /**
+     * Streams a zip of everything the caller owns. Returned as a raw body so it can be written
+     * straight to the file the user picked rather than held in memory.
+     */
+    @Streaming
+    @GET("api/export")
+    suspend fun export(): ResponseBody
+
+    /** Uploads an archive, adding its contents to the caller's account. Never overwrites. */
+    @Multipart
+    @POST("api/import")
+    suspend fun importArchive(@Part file: MultipartBody.Part): ImportResultDto
+
     // ---- notifications ----
 
     /** The caller's notification inbox, newest first — surfaced as native Android notifications. */

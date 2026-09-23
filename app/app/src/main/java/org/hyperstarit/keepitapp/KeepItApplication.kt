@@ -20,6 +20,7 @@ import org.hyperstarit.keepitapp.data.offline.ConnectivityMonitor
 import org.hyperstarit.keepitapp.data.offline.LocalStore
 import org.hyperstarit.keepitapp.data.offline.MediaStaging
 import org.hyperstarit.keepitapp.data.offline.Outbox
+import org.hyperstarit.keepitapp.data.portability.PortabilityRepository
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.notifications.AppNotifications
 import org.hyperstarit.keepitapp.notifications.ReminderScheduler
@@ -62,6 +63,18 @@ class AppContainer(context: Context) {
     val syncEngine = SyncEngine(
         apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging,
         isStandalone = { appMode.isStandalone },
+    )
+
+    /** Export and import of the archive format, server-backed or standalone (see the class doc). */
+    val portability = PortabilityRepository(
+        context.applicationContext,
+        apiClient,
+        notesRepo,
+        outbox,
+        appMode,
+        appVersion = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull().orEmpty(),
     )
 
     /** Serializes [bootstrap]: two activity creations in a row must not both restore the session. */
