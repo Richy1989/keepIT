@@ -18,11 +18,14 @@ public class ImportResultDto
     /// <summary>Lists in the archive that matched one the caller already had, and were filed into.</summary>
     public int ListsReused { get; set; }
 
-    /// <summary>Images re-attached to their notes.</summary>
-    public int ImagesImported { get; set; }
+    /// <summary>Attachments re-attached to their notes - pictures and voice notes alike.</summary>
+    public int AttachmentsImported { get; set; }
 
-    /// <summary>Images that were listed but not re-attached; each one adds a <see cref="Warnings"/> line.</summary>
-    public int ImagesSkipped { get; set; }
+    /// <summary>
+    /// Attachments that were listed but not re-attached; each one adds a <see cref="Warnings"/>
+    /// line saying which note and why.
+    /// </summary>
+    public int AttachmentsSkipped { get; set; }
 
     /// <summary>Human-readable notes about what was skipped and why. Empty on a clean import.</summary>
     public List<string> Warnings { get; set; } = new();

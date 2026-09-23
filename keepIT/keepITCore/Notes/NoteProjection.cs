@@ -50,6 +50,8 @@ public static class NoteProjection
                 .Select(m => new NoteMediaDto
                 {
                     Id = m.Id,
+                    Kind = m.Kind,
+                    DurationMs = m.DurationMs,
                     Width = m.Width,
                     Height = m.Height,
                     ByteSize = m.ByteSize,

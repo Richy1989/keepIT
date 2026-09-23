@@ -12,6 +12,17 @@ public class MediaOptions
     /// <summary>Largest accepted upload, in bytes. Checked before any processing.</summary>
     public long MaxImageBytes { get; set; } = 10 * 1024 * 1024;
 
+    /// <summary>
+    /// Largest accepted voice note. Deliberately the same 10 MB as an image, because both travel
+    /// through an <c>/api/</c> proxy capped at 12 MB — raising this alone would just move the
+    /// refusal from the API, which explains itself, to nginx, which does not. At the bitrate the
+    /// Android recorder uses (mono, ~32 kbps) it is roughly 40 minutes of speech.
+    /// </summary>
+    public long MaxAudioBytes { get; set; } = 10 * 1024 * 1024;
+
+    /// <summary>How many voice notes one note may hold, counted separately from its images.</summary>
+    public int MaxAudioPerNote { get; set; } = 10;
+
     /// <summary>How many images one note may hold.</summary>
     public int MaxImagesPerNote { get; set; } = 10;
 

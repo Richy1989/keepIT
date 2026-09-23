@@ -1,3 +1,5 @@
+using keepITCore.Data;
+
 namespace keepITCore.Notes.Dtos;
 
 /// <summary>
@@ -9,11 +11,20 @@ public class NoteMediaDto
 {
     public Guid Id { get; set; }
 
-    /// <summary>Pixel width of the stored original.</summary>
+    /// <summary>Whether this attachment is a picture or a sound recording.</summary>
+    public NoteMediaKind Kind { get; set; }
+
+    /// <summary>Pixel width of the stored original. 0 for audio.</summary>
     public int Width { get; set; }
 
-    /// <summary>Pixel height of the stored original.</summary>
+    /// <summary>Pixel height of the stored original. 0 for audio.</summary>
     public int Height { get; set; }
+
+    /// <summary>
+    /// Length of an audio recording in milliseconds; null for an image, and null when the duration
+    /// could not be read. Clients show a running time when it is there and nothing when it isn't.
+    /// </summary>
+    public int? DurationMs { get; set; }
 
     /// <summary>Stored size in bytes, after server-side re-encoding.</summary>
     public long ByteSize { get; set; }

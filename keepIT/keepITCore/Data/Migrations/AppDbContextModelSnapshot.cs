@@ -17,7 +17,7 @@ namespace keepITCore.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -353,12 +353,18 @@ namespace keepITCore.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
                     b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("NoteId")

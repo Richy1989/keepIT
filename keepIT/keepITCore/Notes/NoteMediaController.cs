@@ -76,11 +76,126 @@ public class NoteMediaController : ControllerBase
         if (!access.Value.CanEdit) return Forbid();
 
         if (file is null || file.Length == 0) return BadRequest("No file provided.");
+
+        // One endpoint for both kinds, decided by the bytes rather than by the name or content type
+        // the client sent. Keeping it one endpoint is what lets every client keep a single attach
+        // path: on Android it means the offline outbox needs no new operation for voice notes.
+        var audio = await IdentifyAudioAsync(file, ct);
+        if (audio.IsAudio) return await AttachAudioAsync(noteId, file, audio, ct);
+
+        return await AttachImageAsync(noteId, file, ct);
+    }
+
+    /// <summary>Reads the upload's signature and, when it looks like audio, identifies it properly.</summary>
+    /// <param name="file">The uploaded file.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The audio it found, or none - in which case the upload is treated as an image.</returns>
+    private static async Task<AudioInfo> IdentifyAudioAsync(IFormFile file, CancellationToken ct)
+    {
+        var header = new byte[AudioProbe.HeaderBytes];
+        await using (var peek = file.OpenReadStream())
+        {
+            var got = await peek.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, ct);
+            if (got < header.Length) return default;
+        }
+
+        if (!AudioProbe.HasAudioSignature(header)) return default;
+
+        // MPEG-4 keeps its index in a box that may sit at either end of the file, so identifying it
+        // needs seeking. A form file's stream usually seeks (ASP.NET buffers the body), but when it
+        // does not, copying is bounded by the request size limit on the action.
+        await using var upload = file.OpenReadStream();
+        if (upload.CanSeek) return AudioProbe.Identify(upload);
+
+        using var buffered = new MemoryStream();
+        await upload.CopyToAsync(buffered, ct);
+        buffered.Position = 0;
+        return AudioProbe.Identify(buffered);
+    }
+
+    /// <summary>
+    /// Stores a voice note. Unlike an image it is written <b>exactly as uploaded</b> (see
+    /// <see cref="AudioProbe"/> for why there is no re-encode), so it has no thumbnail, no pixel
+    /// size, and a duration only if the container admitted to one.
+    /// </summary>
+    /// <param name="noteId">The note to attach to.</param>
+    /// <param name="file">The uploaded file.</param>
+    /// <param name="audio">What the probe identified.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>201 with the created media, or 409/413 when a limit says no.</returns>
+    private async Task<ActionResult<NoteMediaDto>> AttachAudioAsync(
+        Guid noteId, IFormFile file, AudioInfo audio, CancellationToken ct)
+    {
+        if (file.Length > _options.MaxAudioBytes)
+            return StatusCode(StatusCodes.Status413PayloadTooLarge,
+                $"Recording too large (max {_options.MaxAudioBytes / (1024 * 1024)} MB).");
+
+        var existing = await _db.NoteMedia
+            .CountAsync(m => m.NoteId == noteId && m.Kind == NoteMediaKind.Audio, ct);
+        if (existing >= _options.MaxAudioPerNote)
+            return Conflict($"This note already has {_options.MaxAudioPerNote} recordings.");
+
+        var ownerId = await _db.Notes.Where(n => n.Id == noteId).Select(n => n.OwnerId).FirstAsync(ct);
+
+        var mediaId = Guid.NewGuid();
+        var fileName = $"{mediaId:N}{audio.Extension}";
+
+        // Bytes first, row second, as for an image: a row pointing at missing bytes breaks every
+        // client, while a file with no row is invisible and the orphan sweep collects it.
+        long byteSize;
+        await using (var upload = file.OpenReadStream())
+        {
+            byteSize = await _storage.SaveAsync(ownerId, noteId, fileName, upload, ct);
+        }
+
+        var maxOrder = await _db.NoteMedia.Where(m => m.NoteId == noteId)
+            .Select(m => (int?)m.Order).MaxAsync(ct);
+
+        var media = new NoteMedia
+        {
+            Id = mediaId,
+            NoteId = noteId,
+            Kind = NoteMediaKind.Audio,
+            FileName = fileName,
+            // Empty rather than null: the column cannot be relaxed on an existing SQLite database.
+            ThumbFileName = string.Empty,
+            DurationMs = audio.DurationMs,
+            ByteSize = byteSize,
+            Order = (maxOrder ?? -1) + 1,
+            CreatedAtUtc = DateTime.UtcNow,
+        };
+
+        _db.NoteMedia.Add(media);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch
+        {
+            _storage.Delete(ownerId, noteId, fileName);
+            throw;
+        }
+
+        await NotifyRecipientsAsync(noteId);
+
+        return CreatedAtAction(nameof(Get), new { noteId, mediaId }, ToDto(media));
+    }
+
+    /// <summary>Stores a picture: validated, re-encoded and thumbnailed by the processor.</summary>
+    /// <param name="noteId">The note to attach to.</param>
+    /// <param name="file">The uploaded file.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>201 with the created media, or 400/409/413 on a refused upload.</returns>
+    private async Task<ActionResult<NoteMediaDto>> AttachImageAsync(
+        Guid noteId, IFormFile file, CancellationToken ct)
+    {
         if (file.Length > _options.MaxImageBytes)
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
                 $"Image too large (max {_options.MaxImageBytes / (1024 * 1024)} MB).");
 
-        var existing = await _db.NoteMedia.CountAsync(m => m.NoteId == noteId, ct);
+        var existing = await _db.NoteMedia
+            .CountAsync(m => m.NoteId == noteId && m.Kind == NoteMediaKind.Image, ct);
         if (existing >= _options.MaxImagesPerNote)
             return Conflict($"This note already has {_options.MaxImagesPerNote} images.");
 
@@ -119,6 +234,7 @@ public class NoteMediaController : ControllerBase
         {
             Id = mediaId,
             NoteId = noteId,
+            Kind = NoteMediaKind.Image,
             FileName = fileName,
             ThumbFileName = thumbName,
             Width = image.Width,
@@ -180,8 +296,10 @@ public class NoteMediaController : ControllerBase
         }
         else
         {
-            // A preview request for an image that needs none falls through to the original.
-            fileName = wantThumb ? media.ThumbFileName : media.FileName;
+            // A preview request for an image that needs none falls through to the original, and so
+            // does every request for audio: a voice note has exactly one rendition, and its
+            // ThumbFileName is empty rather than naming a file that was never written.
+            fileName = wantThumb && media.Kind == NoteMediaKind.Image ? media.ThumbFileName : media.FileName;
             stream = _storage.OpenRead(ownerId, noteId, fileName);
         }
 
@@ -241,7 +359,8 @@ public class NoteMediaController : ControllerBase
     /// its own preview, and a GIF is served as stored so an animation keeps its frames.
     /// </summary>
     private static bool HasOwnPreview(NoteMedia media) =>
-        !media.FileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)
+        media.Kind == NoteMediaKind.Image
+        && !media.FileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)
         && Math.Max(media.Width, media.Height) > NoteMediaProcessor.PreviewEdge;
 
     /// <summary>
@@ -285,6 +404,8 @@ public class NoteMediaController : ControllerBase
     private static NoteMediaDto ToDto(NoteMedia m) => new()
     {
         Id = m.Id,
+        Kind = m.Kind,
+        DurationMs = m.DurationMs,
         Width = m.Width,
         Height = m.Height,
         ByteSize = m.ByteSize,

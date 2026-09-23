@@ -1,6 +1,10 @@
 namespace keepITCore.Service;
 
-/// <summary>Maps a stored file's extension to the content type its response should carry.</summary>
+/// <summary>
+/// Maps a stored file's extension to the content type its response should carry. The extension is
+/// server-generated from what the bytes actually were (see <see cref="NoteMediaProcessor"/> and
+/// <see cref="AudioProbe"/>), never from the name a client sent, so this lookup is trustworthy.
+/// </summary>
 public static class MediaContentTypes
 {
     /// <summary>The content type for a stored media file name, defaulting to a safe binary type.</summary>
@@ -12,6 +16,10 @@ public static class MediaContentTypes
         ".png" => "image/png",
         ".gif" => "image/gif",
         ".webp" => "image/webp",
+        ".m4a" => "audio/mp4",
+        ".ogg" => "audio/ogg",
+        ".mp3" => "audio/mpeg",
+        ".wav" => "audio/wav",
         _ => "application/octet-stream",
     };
 }

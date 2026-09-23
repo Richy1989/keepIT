@@ -139,8 +139,8 @@ public sealed class ImportTests
 
         Assert.Equal(3, result.GetProperty("notesImported").GetInt32());
         Assert.Equal(1, result.GetProperty("listsCreated").GetInt32());
-        Assert.Equal(1, result.GetProperty("imagesImported").GetInt32());
-        Assert.Equal(0, result.GetProperty("imagesSkipped").GetInt32());
+        Assert.Equal(1, result.GetProperty("attachmentsImported").GetInt32());
+        Assert.Equal(0, result.GetProperty("attachmentsSkipped").GetInt32());
         Assert.Empty(result.GetProperty("warnings").EnumerateArray());
 
         // The active grid: the pinned text note and the checklist (the archived one is elsewhere).
@@ -278,8 +278,8 @@ public sealed class ImportTests
         var result = await ImportOkAsync(target, BuildArchive(manifest));
 
         Assert.Equal(1, result.GetProperty("notesImported").GetInt32());
-        Assert.Equal(0, result.GetProperty("imagesImported").GetInt32());
-        Assert.Equal(1, result.GetProperty("imagesSkipped").GetInt32());
+        Assert.Equal(0, result.GetProperty("attachmentsImported").GetInt32());
+        Assert.Equal(1, result.GetProperty("attachmentsSkipped").GetInt32());
         Assert.Contains("missing", Assert.Single(result.GetProperty("warnings").EnumerateArray()).GetString());
 
         var note = Assert.Single(await GridAsync(target));

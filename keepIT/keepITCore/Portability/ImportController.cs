@@ -56,6 +56,13 @@ public class ImportController : ControllerBase
     /// </summary>
     private const long MaxManifestBytes = 64L * 1024 * 1024;
 
+    /// <summary>
+    /// How many attachments one imported note may carry. Both kinds share one cap here because the
+    /// archive does not say which is which until its bytes are read, and an import that stopped
+    /// mid-note would be harder to explain than one that stops at a round number.
+    /// </summary>
+    private const int MaxAttachmentsPerNote = 20;
+
     /// <summary>Matches the writer's options, so the archive round-trips exactly.</summary>
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -355,63 +362,134 @@ public class ImportController : ControllerBase
 
         foreach (var archived in source.Media.OrderBy(m => m.Order))
         {
-            if (order >= _options.MaxImagesPerNote)
+            if (order >= MaxAttachmentsPerNote)
             {
-                result.ImagesSkipped++;
-                result.Warnings.Add($"{label}: only the first {_options.MaxImagesPerNote} images were imported.");
+                result.AttachmentsSkipped++;
+                result.Warnings.Add($"{label}: only the first {MaxAttachmentsPerNote} attachments were imported.");
                 continue;
             }
 
             if (!mediaIndex.TryGetValue((source.Id, archived.Id), out var entry))
             {
-                result.ImagesSkipped++;
-                result.Warnings.Add($"{label}: an image listed in the archive was missing from it.");
+                result.AttachmentsSkipped++;
+                result.Warnings.Add($"{label}: an attachment listed in the archive was missing from it.");
                 continue;
             }
 
-            // The declared uncompressed size, checked before anything is decompressed.
-            if (entry.Length > _options.MaxImageBytes)
+            // The declared uncompressed size, checked before anything is decompressed. The larger
+            // of the two caps, because which one applies is not known until the bytes are read.
+            var sizeCap = Math.Max(_options.MaxImageBytes, _options.MaxAudioBytes);
+            if (entry.Length > sizeCap)
             {
-                result.ImagesSkipped++;
-                result.Warnings.Add($"{label}: an image was over the {_options.MaxImageBytes / (1024 * 1024)} MB limit.");
+                result.AttachmentsSkipped++;
+                result.Warnings.Add($"{label}: an attachment was over the {sizeCap / (1024 * 1024)} MB limit.");
                 continue;
             }
 
-            await using var bytes = entry.Open();
-            var processed = await _processor.ProcessAsync(bytes, ct);
-            if (processed.Image is null)
+            // Buffered so the bytes can be read twice: once to identify them, once to store them.
+            // A zip entry's stream is forward-only, and identifying MPEG-4 needs to seek.
+            using var buffered = new MemoryStream();
+            await using (var bytes = entry.Open())
             {
-                result.ImagesSkipped++;
-                result.Warnings.Add($"{label}: an image could not be read ({Describe(processed.Reason)}).");
+                await bytes.CopyToAsync(buffered, ct);
+            }
+            buffered.Position = 0;
+
+            var audio = AudioProbe.Identify(buffered);
+            buffered.Position = 0;
+
+            NoteMedia? stored = audio.IsAudio
+                ? await StoreAudioAsync(ownerId, note, archived, audio, buffered, order, ct)
+                : await StoreImageAsync(ownerId, note, archived, buffered, order, ct);
+
+            if (stored is null)
+            {
+                result.AttachmentsSkipped++;
+                result.Warnings.Add($"{label}: an image could not be read.");
                 continue;
             }
 
-            var image = processed.Image;
-            var mediaId = Guid.NewGuid();
-            var fileName = $"{mediaId:N}{image.Extension}";
-            var thumbName = $"{mediaId:N}_thumb{image.ThumbnailExtension}";
-
-            var byteSize = await _storage.SaveAsync(ownerId, note.Id, fileName, image.Original, ct);
-            await _storage.SaveAsync(ownerId, note.Id, thumbName, image.Thumbnail, ct);
-
-            note.Media.Add(new NoteMedia
-            {
-                Id = mediaId,
-                NoteId = note.Id,
-                FileName = fileName,
-                ThumbFileName = thumbName,
-                Width = image.Width,
-                Height = image.Height,
-                ByteSize = byteSize,
-                Order = order++,
-                CreatedAtUtc = archived.CreatedAtUtc == default ? DateTime.UtcNow : archived.CreatedAtUtc,
-            });
-
-            result.ImagesImported++;
+            note.Media.Add(stored);
+            order++;
+            result.AttachmentsImported++;
         }
     }
 
-    /// <summary>Indexes the archive's image entries by the ids in their path.</summary>
+    /// <summary>
+    /// Stores an imported picture, re-encoded through the same processor an upload uses, or null
+    /// when the bytes are not a usable image.
+    /// </summary>
+    /// <param name="ownerId">The importing user.</param>
+    /// <param name="note">The note being created.</param>
+    /// <param name="archived">The archived media row, for its original attach time.</param>
+    /// <param name="bytes">The attachment's bytes, positioned at 0.</param>
+    /// <param name="order">Position within the note.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The row to add, or null when it was refused.</returns>
+    private async Task<NoteMedia?> StoreImageAsync(
+        Guid ownerId, Note note, NoteMediaDto archived, Stream bytes, int order, CancellationToken ct)
+    {
+        var processed = await _processor.ProcessAsync(bytes, ct);
+        if (processed.Image is null) return null;
+
+        var image = processed.Image;
+        var mediaId = Guid.NewGuid();
+        var fileName = $"{mediaId:N}{image.Extension}";
+        var thumbName = $"{mediaId:N}_thumb{image.ThumbnailExtension}";
+
+        var byteSize = await _storage.SaveAsync(ownerId, note.Id, fileName, image.Original, ct);
+        await _storage.SaveAsync(ownerId, note.Id, thumbName, image.Thumbnail, ct);
+
+        return new NoteMedia
+        {
+            Id = mediaId,
+            NoteId = note.Id,
+            Kind = NoteMediaKind.Image,
+            FileName = fileName,
+            ThumbFileName = thumbName,
+            Width = image.Width,
+            Height = image.Height,
+            ByteSize = byteSize,
+            Order = order,
+            CreatedAtUtc = archived.CreatedAtUtc == default ? DateTime.UtcNow : archived.CreatedAtUtc,
+        };
+    }
+
+    /// <summary>
+    /// Stores an imported voice note, byte for byte as the archive holds it - there is no audio
+    /// encoder here, and the original is also the best source for a future transcription.
+    /// </summary>
+    /// <param name="ownerId">The importing user.</param>
+    /// <param name="note">The note being created.</param>
+    /// <param name="archived">The archived media row, for its original attach time.</param>
+    /// <param name="audio">What the probe identified.</param>
+    /// <param name="bytes">The attachment's bytes, positioned at 0.</param>
+    /// <param name="order">Position within the note.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The row to add.</returns>
+    private async Task<NoteMedia> StoreAudioAsync(
+        Guid ownerId, Note note, NoteMediaDto archived, AudioInfo audio, Stream bytes, int order,
+        CancellationToken ct)
+    {
+        var mediaId = Guid.NewGuid();
+        var fileName = $"{mediaId:N}{audio.Extension}";
+        var byteSize = await _storage.SaveAsync(ownerId, note.Id, fileName, bytes, ct);
+
+        return new NoteMedia
+        {
+            Id = mediaId,
+            NoteId = note.Id,
+            Kind = NoteMediaKind.Audio,
+            FileName = fileName,
+            ThumbFileName = string.Empty,
+            DurationMs = audio.DurationMs,
+            ByteSize = byteSize,
+            Order = order,
+            CreatedAtUtc = archived.CreatedAtUtc == default ? DateTime.UtcNow : archived.CreatedAtUtc,
+        };
+    }
+
+    /// <summary>Indexes the archive's attachment entries by the ids in their path.</summary>
     /// <param name="zip">The open archive.</param>
     /// <returns>Entries keyed by (archived note id, archived media id).</returns>
     private static Dictionary<(Guid NoteId, Guid MediaId), ZipArchiveEntry> IndexMedia(ZipArchive zip)
@@ -436,17 +514,6 @@ public class ImportController : ControllerBase
 
         return index;
     }
-
-    /// <summary>Turns a rejection into something worth showing a user.</summary>
-    /// <param name="reason">Why the processor refused the image.</param>
-    /// <returns>A short explanation.</returns>
-    private static string Describe(MediaRejection reason) => reason switch
-    {
-        MediaRejection.Heic => "HEIC images aren't supported",
-        MediaRejection.Corrupt => "the file was damaged",
-        MediaRejection.TooManyPixels => "it was too many megapixels",
-        _ => "it wasn't a valid image",
-    };
 
     /// <summary>The scratch folder for spooled uploads, under the data root so it shares its volume.</summary>
     /// <returns>The folder path, created if needed.</returns>

@@ -13,6 +13,9 @@ public class NoteMedia
     /// <summary>The public id and the storage key — a client filename never reaches the disk.</summary>
     public Guid Id { get; set; }
 
+    /// <summary>What this row holds — a picture or a sound recording.</summary>
+    public NoteMediaKind Kind { get; set; } = NoteMediaKind.Image;
+
     /// <summary>The note this image is attached to.</summary>
     public Guid NoteId { get; set; }
 
@@ -28,6 +31,10 @@ public class NoteMedia
     /// <summary>
     /// Thumbnail file name, always <c>{Id}_thumb.{ext}</c>. Held separately because the thumbnail's
     /// encoding need not match the source (an animated GIF thumbnails to a still).
+    /// <para><b>Empty when the kind has no thumbnail</b> (audio). The column stays non-nullable on
+    /// purpose: SQLite cannot relax a NOT NULL constraint on an existing table, and the reconciler
+    /// only ever appends, so making it nullable would break exactly the in-place upgrade that
+    /// `SqliteSchemaReconcilerTests` exists to protect.</para>
     /// </summary>
     public string ThumbFileName { get; set; } = null!;
 
@@ -51,6 +58,13 @@ public class NoteMedia
     /// when it is the first.
     /// </summary>
     public int Order { get; set; }
+
+    /// <summary>
+    /// How long an audio recording runs, in milliseconds; null for an image, and null for audio
+    /// whose container the server could not read a duration from. Display metadata only — nothing
+    /// depends on it being right.
+    /// </summary>
+    public int? DurationMs { get; set; }
 
     /// <summary>Server-set attach time; the tie-break for concurrent attaches.</summary>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
