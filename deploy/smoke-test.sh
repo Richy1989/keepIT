@@ -35,6 +35,22 @@ if [ "${SMOKE_SKIP_SPA:-}" != 1 ]; then
   curl -fsS "$BASE/" | grep -q '<div id="root">' || fail "GET / did not return the web app"
 fi
 
+if [ "${SMOKE_SKIP_SPA:-}" != 1 ]; then
+  step "The security headers allow attachments to play"
+  # Attachments are fetched as authenticated Blobs and rendered from an object URL, so the CSP has
+  # to allow blob: for both. img-src did and media-src did not, which left every voice note in the
+  # web app as greyed-out, dead controls - invisible to every test that does not parse this header.
+  CSP="$(curl -fsS -D - -o /dev/null "$BASE/" | tr -d '\r' | grep -i '^content-security-policy:')"
+  case "$CSP" in
+    *"media-src"*"blob:"*) ;;
+    *) fail "the CSP has no media-src allowing blob:, so audio attachments cannot play: $CSP" ;;
+  esac
+  case "$CSP" in
+    *"img-src"*"blob:"*) ;;
+    *) fail "the CSP has no img-src allowing blob:, so images cannot render: $CSP" ;;
+  esac
+fi
+
 step "Register and sign in"
 EMAIL="smoke-$(date +%s)-$RANDOM@example.com"
 CREDENTIALS="{\"email\":\"$EMAIL\",\"password\":\"Smoke-test-pass-1\"}"
@@ -94,7 +110,7 @@ CODE="$(curl -sS -o "import.json" -w '%{http_code}' -H "$AUTH" \
   -F "file=@export.zip;type=application/zip" "$BASE/api/import")"
 [ "$CODE" = 200 ] || fail "POST /api/import returned HTTP $CODE (413 from a proxy means its body limit is too low for an archive): $(head -c 300 "import.json")"
 [ "$(json "import.json" notesImported)" = 1 ] || fail "the import reported $(cat "import.json")"
-[ "$(json "import.json" imagesImported)" = 1 ] || fail "the photo did not survive the round trip: $(cat "import.json")"
+[ "$(json "import.json" attachmentsImported)" = 1 ] || fail "the photo did not survive the round trip: $(cat "import.json")"
 echo "round trip restored the note and its photo"
 
 step "A 20 MB import body reaches the API rather than a proxy limit"
