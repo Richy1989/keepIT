@@ -198,6 +198,11 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onConnectServer:
 
             HorizontalDivider(color = KeepItColors.BorderSubtle)
 
+            SectionLabel("YOUR DATA")
+            DataSection(container)
+
+            HorizontalDivider(color = KeepItColors.BorderSubtle)
+
             SectionLabel("ABOUT")
             AboutSection(container, showServer = !standalone)
         }
@@ -219,8 +224,8 @@ private fun StandaloneSection(container: AppContainer, onConnectServer: () -> Un
     Column(modifier = Modifier.padding(vertical = 14.dp)) {
         Text("Standalone mode", color = KeepItColors.Text, fontSize = 15.sp)
         Text(
-            text = "Your notes are stored only on this phone, with no server and no backup. " +
-                "Connect a server to upload them into an account and sync them with your other devices.",
+            text = "Your notes are stored only on this phone. Save a copy under Your data below, " +
+                "or connect a server to upload them into an account and sync them with your other devices.",
             color = KeepItColors.TextFaint,
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
@@ -258,8 +263,8 @@ private fun StandaloneSection(container: AppContainer, onConnectServer: () -> Un
             title = { Text("Erase this device?") },
             text = {
                 Text(
-                    text = "$what will be deleted from this phone. " +
-                        "There is no server copy, so this can't be undone.",
+                    text = "$what will be deleted from this phone. There is no server copy, so this " +
+                        "can't be undone — save a copy under Your data first if you might want them back.",
                     color = KeepItColors.TextMuted,
                 )
             },

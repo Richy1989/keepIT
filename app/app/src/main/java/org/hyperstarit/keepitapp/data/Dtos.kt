@@ -129,6 +129,50 @@ data class NoteDto(
     val listIds: List<String> = emptyList(),
 )
 
+/**
+ * `keepit-export.json` — the manifest at the root of an export archive, mirroring
+ * `NoteArchiveDto` in the C# API (the source of truth).
+ *
+ * The archive deliberately carries the same [NoteDto] and [ListDto] shapes the API serves rather
+ * than a format of its own, which is why this device can both read one the server wrote and write
+ * one the server can read: [org.hyperstarit.keepitapp.data.offline.CacheSnapshot] already holds
+ * exactly this pair.
+ *
+ * Fields the server derives per caller — [NoteDto.isOwner], [NoteDto.role], [NoteDto.canEdit],
+ * [NoteDto.isShared], [ListDto.noteCount] — are a snapshot and are ignored on import.
+ */
+@Serializable
+data class NoteArchiveDto(
+    val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
+    val exportedAtUtc: String = "",
+    val appVersion: String = "",
+    val lists: List<ListDto> = emptyList(),
+    val notes: List<NoteDto> = emptyList(),
+) {
+    companion object {
+        /**
+         * The archive format this build writes and reads. An archive declaring a higher version is
+         * refused rather than half-read: this build cannot know what was added to it.
+         */
+        const val CURRENT_SCHEMA_VERSION = 1
+    }
+}
+
+/**
+ * What an import did, mirroring `ImportResultDto` in the C# API. Import never overwrites, so these
+ * are counts of things added. Anything the archive asked for but was not done lands in [warnings]
+ * rather than failing the whole import.
+ */
+@Serializable
+data class ImportResultDto(
+    val notesImported: Int = 0,
+    val listsCreated: Int = 0,
+    val listsReused: Int = 0,
+    val imagesImported: Int = 0,
+    val imagesSkipped: Int = 0,
+    val warnings: List<String> = emptyList(),
+)
+
 @Serializable
 data class CreateNoteDto(
     val type: String = NoteTypes.TEXT,

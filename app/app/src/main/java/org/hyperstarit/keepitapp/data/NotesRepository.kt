@@ -371,14 +371,24 @@ class NotesRepository(
 
     // ---- lists: offline-first like notes — applied locally at once, queued for the server ----
 
-    /** Creates a list under a temp id; notes can be filed into it before the server has seen it. */
-    suspend fun createList(name: String) = mutate(
-        PendingOp.CreateList(
-            tempId = PendingOp.newTempId(),
-            dto = CreateListDto(name.trim()),
-            enqueuedAtUtc = nowUtc(),
-        ),
-    )
+    /**
+     * Creates a list under a temp id; notes can be filed into it before the server has seen it.
+     *
+     * @return the new list's id — the temp one until the create replays. Callers that must file
+     *   notes into the list they just made need it (an import restoring a note into a restored
+     *   list); the rest can ignore it, and [resolveList] swaps in the server's id either way.
+     */
+    suspend fun createList(name: String, color: String? = null): String {
+        val tempId = PendingOp.newTempId()
+        mutate(
+            PendingOp.CreateList(
+                tempId = tempId,
+                dto = CreateListDto(name.trim(), color),
+                enqueuedAtUtc = nowUtc(),
+            ),
+        )
+        return tempId
+    }
 
     /** Renames a list. */
     suspend fun renameList(id: String, name: String) =

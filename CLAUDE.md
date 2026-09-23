@@ -46,6 +46,12 @@ the Android app generally should too. Key design points:
 
 - **Offline-first.** The whole dataset lives in memory as `StateFlow<List<NoteDto>>` in `NotesRepository`, backed by `data/offline/`: `LocalStore` persists a JSON `CacheSnapshot` + the outbox to `filesDir/offline/` (atomic temp-file+rename, **deliberately not Room** — personal-note scale). Mutations — notes *and* lists — enqueue a `PendingOp` in the `Outbox`; `SyncEngine` replays them when connectivity returns (`ConnectivityMonitor`) or on foreground/ sign-in. Go through the repository — never call the API directly from UI.
 - **Standalone mode** (`data/AppMode.kt`): the app can run with **no server** — same cache and outbox, but `SyncEngine` is a no-op and the outbox is kept as the record that uploads everything when a server is connected later. A new server-only feature must be hidden (or gated) when `appMode.standalone` is set, and a new `PendingOp` must replay correctly *after* a long standalone stretch. See ARCHITECTURE.md → Android client → Standalone mode.
+- **Export/import** (`data/portability/`): the same archive the API reads and writes. Server-backed
+  mode goes through `/api/export` and `/api/import`; **standalone builds and applies the archive
+  locally** — the manifest comes from the cache *plus the outbox*, since a standalone note's images
+  are queued `AttachMedia` ops with staged files, not `NoteDto.media`. Keep `Archive.kt` free of
+  Android types (it is JVM-unit-tested); `Uri`, `ContentResolver` and image decoding belong in
+  `PortabilityRepository`.
 - **DTOs are hand-synced.** `data/Dtos.kt` mirrors the C# DTOs (the source of truth). Change a C# DTO → update `Dtos.kt` to match. There is no codegen step here, so this is the one place drift can creep in — keep field names and nullability exactly aligned.
 - **Session** (`SessionRepository` + `ApiClient`): access token in memory, refresh cookie persisted in app-private `SharedPreferences` via `PersistentCookieJar` (the mobile analogue of the web httpOnly cookie), silent refresh on 401. Base server URL is user-entered at login.
 - **Realtime** (`RealtimeClient`): SignalR against `RealTimeHub`; on `Changed` it triggers a sync/refetch, same contract as the web client.
@@ -63,7 +69,8 @@ crashes at build time, nothing appears in our logs, a feature just silently neve
 layers guard it, cheapest first:
 
 1. **JVM unit tests** (`app/app/src/test/`) — offline op application, outbox coalescing, checklist
-   ordering, the widget's snapshot projection + prefs codec, and the note colour palette.
+   ordering, the widget's snapshot projection + prefs codec, the note colour palette, and the
+   export archive's format (`ArchiveTest`).
    `./gradlew.bat :app:testMinifiedUnitTest` (that is the only unit-test task: `testBuildType` scopes
    the test components to the `minified` variant).
 2. **`verifyReleaseKeepRules`** — after R8 runs, reads its own `usage.txt` and fails if anything in
@@ -73,12 +80,17 @@ layers guard it, cheapest first:
 3. **Instrumented smoke tests** (`app/app/src/androidTest/`) — run against the **`minified`**
    variant, which is release's R8 config with debug signing so it installs without secrets
    (`testBuildType = "minified"`). They launch the app, construct the reflective types off the real
-   dex, and compose the widget. `./gradlew.bat :app:connectedMinifiedAndroidTest`.
+   dex, compose the widget, and round-trip an export archive (kotlinx.serialization resolves a
+   `$$serializer` by name, so R8 losing one breaks export and import in release only).
+   `./gradlew.bat :app:connectedMinifiedAndroidTest`.
 
 Rules for layer 3: the tests link against the app, and R8 renames, merges and drops whatever it
 likes, so `proguard-rules-minified.pro` keeps the API surface the tests reference —
 **never the internals they test**. If a smoke test needs a new keep, keep the narrowest entry point
-that makes it link, and check the thing under test is still shrunk. `VariantSanityTest` fails if the
+that makes it link, and check the thing under test is still shrunk. Better still, write the test so
+it needs no keep: assert on data (JSON text, prefs bytes) rather than on the app's data classes,
+whose trivial getters R8 inlines and whose synthetic default-argument constructors it drops — those
+fail for two-pass linking reasons that say nothing about the app. `VariantSanityTest` fails if the
 suite is ever pointed at an unminified build, where all of this would pass while proving nothing.
 
 CI (`.github/workflows/ci.yml`) runs 1 + 2 in the `android` job and 3 in `android-instrumented`, on
@@ -120,7 +132,8 @@ keepIT/
 ├─ app/                     # Android client (Kotlin + Compose) — package org.hyperstarit.keepitapp
 │  └─ app/src/main/java/org/hyperstarit/keepitapp/
 │     ├─ data/              # ApiClient, KeepItApi (Retrofit), Dtos, NotesRepository, RealtimeClient, SessionRepository
-│     │  └─ offline/        # LocalStore, Outbox, SyncEngine, ConnectivityMonitor, PendingOp, NoteOps
+│     │  ├─ offline/        # LocalStore, Outbox, SyncEngine, ConnectivityMonitor, PendingOp, NoteOps
+│     │  └─ portability/    # Archive (the export format), PortabilityRepository
 │     ├─ notifications/     # AlarmManager reminders, BootReceiver, ServerNotificationsWatcher
 │     ├─ ui/                # AppRoot (nav) + auth/ notes/ notifications/ settings/ markdown/ theme/
 │     ├─ widget/            # KeepItWidget (Glance home-screen widget)
