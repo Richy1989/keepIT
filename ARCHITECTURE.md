@@ -624,9 +624,11 @@ must see the mode before any session is restored.
   whole queue into the account — merged with whatever it already holds. The store changes owner
   only on the sign-in itself, so a crash mid-switch can never restart standalone over a store
   that looks like an account's.
-- **Limits.** Data is only as safe as the phone — no backup until a server is connected. Images
-  are stored as picked, so ones the server would refuse (over 10 MB or 100 megapixels, HEIC)
-  fail on that first upload; they land in the gallery rather than being lost (see above).
+- **Limits.** Data lives only on the phone, so a backup is the user's to take — Settings → Your
+  data writes the same archive the server writes (see **Export & import → On Android**), built
+  from the cache and the staged images in the outbox. Images are stored as picked, so ones the
+  server would refuse (over 10 MB or 100 megapixels, HEIC) fail on that first upload; they land in
+  the gallery rather than being lost (see above).
 
 **Realtime, reminders, notifications.** `RealtimeClient` (see **SignalR realtime**) kicks the
 sync engine on `notes`/`lists` and the `ServerNotificationsWatcher` on `notification`.
@@ -972,6 +974,38 @@ and read it back into another, so a DTO change that stops surviving the trip fai
 than the next time a user restores. The format's shape is deliberately *not* in the OpenAPI
 document — it is a file format, not a response body — so those tests are its specification.
 
+### On Android
+
+The phone reads and writes the same archive, through `data/portability/`. Which path runs is the
+only thing standalone mode changes:
+
+- **Server-backed** — export is `GET /api/export` streamed straight into the file the user picked
+  through the system picker, import is the multipart POST, then a refetch. The server holds the
+  authoritative copy including images this device may never have downloaded, so asking it beats
+  assembling an archive from a partial local cache.
+- **Standalone** — there is no server, so `buildStandaloneArchive` assembles the manifest from the
+  cache and the **outbox**. That last part is the wrinkle: a standalone note's images are not on
+  the note at all (`NoteDto.media` is empty) but are still queued `AttachMedia` ops pointing at
+  staged files, so each note gains the media rows its staged bytes justify — and only those,
+  because promising an image the archive doesn't carry is worse than leaving it out.
+- **Standalone import** replays the archive as ordinary local edits through `NotesRepository`, so
+  every restored note and image also lands in the outbox: connect a server later and the whole
+  restored set uploads into the account, which is the promise standalone mode already makes.
+  One deviation from the server: a **one-time reminder whose moment has passed is skipped, not
+  restored**. The server marks such a reminder fired; a queued reminder op cannot, so the
+  standalone scheduler would treat every overdue reminder in the archive as due now and fire them
+  all at once. The user is told in the import's warnings.
+
+`Archive.kt` is deliberately plain JVM — `java.util.zip`, `File`, streams, and the one `Json`
+configuration both ends share — so the format is unit-testable without an emulator; `Uri`,
+`ContentResolver` and image decoding stay in `PortabilityRepository`. It is covered at two of the
+three Android test layers: `ArchiveTest` on the JVM for the format's rules, and `ArchiveSmokeTest`
+on the **minified** variant for the one that only shows up after R8 — kotlinx.serialization
+resolves `NoteArchiveDto$$serializer` by name, so losing it would break export and import in
+release builds only, silently. That smoke test asserts on JSON text rather than on decoded
+objects: it is the actual cross-platform contract, and it keeps the test off data classes whose
+getters R8 inlines and whose synthetic constructors it drops.
+
 **Not yet:** importing other apps' exports. There is no interchange format for notes (Keep ships
 Takeout JSON, Evernote ENEX, Joplin JEX, Notion Markdown+CSV), so each one is an adapter that
 converts *into* this archive and feeds the same import path — one code path that writes data,
@@ -1103,14 +1137,12 @@ then: **sharing/collaboration** (invite→accept, roles, per-user overlay), the
 refresh-token rotation with reuse detection, registration gating), the **native Android app**
 (offline-first, widget, share sheet, and a **standalone mode** that needs no server), the
 **single-container image + Unraid template**, the **tag-driven release pipeline**, and
-**export/import** (a zip of the caller's own notes, lists and images, restorable into any
-account — see "Export & import").
+**export/import** on every client, Android and standalone included (a zip of the caller's own
+notes, lists and images, restorable into any account — see "Export & import").
 
 **Remaining roadmap** (see README "What's next"):
 - 📥 **Foreign importers** — Google Keep Takeout first, as an adapter *into* the existing archive
   format rather than a second import path.
-- 💾 **Export/import on the Android client**, standalone included, where the cache snapshot is
-  already the archive's shape.
 - 🖼️ **Background images** — the remaining half of note media; attachments themselves are done.
 - ✉️ **Invite non-users** — pending share invites keyed by email, resolved on signup.
 - 🤖 **Generated Kotlin API client** — replace the hand-mirrored `Dtos.kt` with a client

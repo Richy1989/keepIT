@@ -189,8 +189,8 @@ so animations still play.
 
 ### How do I back up my notes?
 
-Two ways, and they answer different questions. **Settings → Your data → Download my notes** gives
-you a `.zip` of everything you own — notes, checklists, lists, reminders and the images attached
+Two ways, and they answer different questions. **Settings → Your data** — in the web app and in
+the Android app, standalone phones included — gives you a `.zip` of everything you own — notes, checklists, lists, reminders and the images attached
 to them — which you can read without keepIT and restore into any keepIT account. That is the one
 to keep off the server. Backing up the **data folder** (`App_Data`, or your Unraid appdata share)
 is the operator's version: it captures every user at once, plus accounts and settings, but only
@@ -215,6 +215,14 @@ take a few minutes, so raise its read timeout.
 
 Individual images that could not be imported are listed after the import finishes rather than
 failing the whole thing — one unreadable photo never costs you the rest of the archive.
+
+### My phone has no server — is there any backup at all?
+
+Yes. In the Android app, **Settings → Your data → Save my notes** writes the same `.zip` to
+wherever you choose, built from what is on the phone, images included. It is the only copy a
+standalone phone has, so put it somewhere that is not the phone. Restoring works the same way, and
+the restored notes queue up for upload too — connect a server later and they go into your account
+along with everything else.
 
 ### Can I import my notes from Google Keep?
 
