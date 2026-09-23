@@ -37,6 +37,11 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
   `NoteProjection.ToDto`. Bump `NoteArchiveDto.CurrentSchemaVersion` when a change would stop an
   older importer reading the file, and keep the round-trip tests green — they are the format's
   only specification, since a file format can't live in the OpenAPI document.
+- **A note's attachments are one list of two kinds.** `NoteMedia.Kind` (`Image`/`Audio`) — never a
+  second table, and `Image` must stay `0` so rows predating the enum read back correctly. Audio is
+  stored **byte for byte as uploaded** (no encoder in the container), so identifying it by
+  signature in `Service/AudioProbe.cs` *is* the validation — never trust the client's file name, and
+  never accept an MPEG-4 with a video track. Recording is Android-only; the web plays back.
 - **A new mutating endpoint must push realtime.** After `SaveChangesAsync`, call `IRealtimeNotifier.NotifyAsync(userId, …)` with the affected resources (`notes` / `lists` / `notification`). For a **shared** note's content, fan out to the whole recipient set (`NoteAccessService.RecipientIdsAsync`, i.e. owner + grantees); for **per-user** changes notify only the caller — mirror the existing controllers, or devices won't resync.
 
 ## Android app (`app/`)
@@ -52,6 +57,10 @@ the Android app generally should too. Key design points:
   are queued `AttachMedia` ops with staged files, not `NoteDto.media`. Keep `Archive.kt` free of
   Android types (it is JVM-unit-tested); `Uri`, `ContentResolver` and image decoding belong in
   `PortabilityRepository`.
+- **Voice notes** (`data/AudioRecorder.kt`): record mono / 22.05 kHz / AAC-in-m4a / ~32 kbps — the
+  format is chosen for playback *and* the planned transcription, so do not "optimise" it down to
+  16 kHz. Recording reuses the image attach path end to end (stage → `PendingOp.AttachMedia` →
+  upload), which is why it works offline and in standalone mode without new machinery.
 - **DTOs are hand-synced.** `data/Dtos.kt` mirrors the C# DTOs (the source of truth). Change a C# DTO → update `Dtos.kt` to match. There is no codegen step here, so this is the one place drift can creep in — keep field names and nullability exactly aligned.
 - **Session** (`SessionRepository` + `ApiClient`): access token in memory, refresh cookie persisted in app-private `SharedPreferences` via `PersistentCookieJar` (the mobile analogue of the web httpOnly cookie), silent refresh on 401. Base server URL is user-entered at login.
 - **Realtime** (`RealtimeClient`): SignalR against `RealTimeHub`; on `Changed` it triggers a sync/refetch, same contract as the web client.

@@ -895,8 +895,51 @@ and decoded at once (a process-wide semaphore; the processor itself is scoped), 
 uploads queue instead of multiplying memory, and the ones waiting hold only their request body,
 which ASP.NET Core keeps on disk.
 
-**Still deferred:** background images, a distinct image note type, reordering attachments, and
-images in the Android widget.
+### Voice notes
+
+A note's attachments are **one ordered list of two kinds**, discriminated by `NoteMedia.Kind`
+(`Image` / `Audio`) rather than split across a second table — so ordering, per-note limits,
+deletion, the realtime fan-out and the export archive all carry over untouched. `Image` is
+deliberately `0`: the column is appended to existing databases with the store type's zero value,
+so every row that predates the enum reads back as what it actually is.
+
+**Recording is Android-only, playback is everywhere.** Browsers can only capture audio in a secure
+context — `navigator.mediaDevices` does not exist over plain http, which keepIT supports on a LAN —
+so a recorder in the web app would be missing for a real share of users. The phone records; the web
+plays.
+
+**Format: mono, 22.05 kHz, AAC in m4a, ~32 kbps** (`data/AudioRecorder.kt`). A phone's mic array
+yields one channel after its own noise suppression, so stereo would store the same voice twice.
+22 kHz rather than the 16 kHz speech-to-text consumes, because transcribers downsample anyway —
+recording higher costs accuracy nothing and only costs bytes, while 16 kHz is audibly closed-in on
+playback. At this bitrate the 10 MB attachment cap is ~40 minutes of speech; at 44.1 kHz stereo it
+would be ten. AAC rather than Opus despite Opus being better per bit, because the web plays these
+back and Safari's Ogg support cannot be relied on. The recorder stops itself just under the cap, so
+a long recording ends with a file that uploads rather than one the server refuses.
+
+**Audio is stored exactly as uploaded.** There is no audio encoder in the container, and adding
+ffmpeg to ship voice notes would be a large dependency for a self-hosted image — so the re-encode
+that strips an image's GPS metadata has no equivalent here. That makes identifying the bytes the
+whole of the validation: `Service/AudioProbe.cs` recognises m4a/ogg/mp3/wav by signature, never by
+the name the client sent, and for MPEG-4 walks the box tree to prove the file has a sound track and
+**no** video track — an attachment endpoint must not become video hosting. The same walk reads
+`mvhd` for the duration, which is why m4a is the format that shows a running time. Everything else
+shows none rather than a guess.
+
+One endpoint serves both kinds: `POST /api/notes/{id}/media` sniffs the upload and branches. That
+is what lets every client keep a single attach path — on Android it means the offline outbox needed
+no new operation, so a recording made with no signal stages, queues, survives a reboot and uploads
+through machinery that already existed. `PendingOp.AttachMedia` gained only a `kind` field, with a
+default, so an outbox written before voice notes still decodes.
+
+Images and recordings are capped separately (`MaxImagesPerNote`, `MaxAudioPerNote`), so one cannot
+crowd out the other. `MaxAudioBytes` is the same 10 MB as an image on purpose: both travel through
+an `/api/` proxy capped at 12 MB, and raising it alone would move the refusal from the API, which
+explains itself, to nginx, which does not.
+
+**Still deferred:** transcription of voice notes (a planned feature — the recording format above is
+already chosen with it in mind), background images, a distinct image note type, reordering
+attachments, and images in the Android widget.
 
 ## Export & import (`Portability/`)
 
@@ -1005,6 +1048,10 @@ resolves `NoteArchiveDto$$serializer` by name, so losing it would break export a
 release builds only, silently. That smoke test asserts on JSON text rather than on decoded
 objects: it is the actual cross-platform contract, and it keeps the test off data classes whose
 getters R8 inlines and whose synthetic constructors it drops.
+
+Voice notes ride the archive unchanged: the manifest carries `NoteMediaDto`, so a recording's kind
+and duration travel with it, and the importer branches on the bytes exactly as the upload endpoint
+does. The result counts **attachments**, not images, for the same reason.
 
 **Not yet:** importing other apps' exports. There is no interchange format for notes (Keep ships
 Takeout JSON, Evernote ENEX, Joplin JEX, Notion Markdown+CSV), so each one is an adapter that

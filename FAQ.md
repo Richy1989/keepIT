@@ -224,6 +224,13 @@ standalone phone has, so put it somewhere that is not the phone. Restoring works
 the restored notes queue up for upload too — connect a server later and they go into your account
 along with everything else.
 
+### Why can't I record a voice note in the browser?
+
+Because browsers only allow microphone access over HTTPS (or on localhost), and keepIT is happy to
+run over plain http on a LAN — so a record button in the web app would simply not work for a lot of
+people. Recording lives in the Android app instead. Playback works everywhere: a note recorded on
+your phone plays in the web app on your desktop.
+
 ### Can I import my notes from Google Keep?
 
 Not yet. keepIT reads its own export format only; a Google Takeout importer is on the roadmap.

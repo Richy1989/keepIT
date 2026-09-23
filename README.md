@@ -39,6 +39,8 @@ also works entirely on its own, with no server at all.
   or checklists you tick off as you go.
 - 🖼️ **Photos in your notes:** attach images to any note, up to ten each. Location data is
   stripped from every upload, so sharing a photo doesn't share where you took it.
+- 🎙️ **Voice notes:** record a thought on your phone instead of typing it, and play it back
+  anywhere — on the phone, or in the web app on your desktop. Recording works offline too.
 - 🗂️ **Stay organized:** group notes into lists, pin the important ones, archive what's done,
   and find anything instantly with search. Deleted notes wait in the trash until you're sure.
 - ⏰ **Reminders:** once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
