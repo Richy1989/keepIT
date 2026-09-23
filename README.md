@@ -54,6 +54,9 @@ also works entirely on its own, with no server at all.
   reminders and the widget all live on your phone, with nothing to set up. Connect a server
   later and everything moves into your account.
 - 🎨 **Make it yours:** a background color per note, and an accent color for the whole app.
+- 💾 **Take your notes with you:** download everything you own — notes, checklists, lists,
+  reminders and photos — as a single zip, and upload it back into any keepIT account. Your
+  backup, readable without keepIT, and no lock-in.
 - 🔒 **Your notes stay yours:** everything lives on **your** server, or only on your phone. No
   third-party cloud, no account with anyone but yourself.
 
@@ -247,6 +250,9 @@ keepIT is a work in progress and actively developed. Up next:
 
 - 🖼️ **Background images:** use a photo as a note's background (attaching images already works).
 - ✉️ **Invite anyone:** share a note with someone who hasn't signed up yet.
+- 📥 **Move in from Google Keep:** import a Google Takeout export straight into keepIT.
+- 💾 **Export and import on Android**, including standalone — so a phone with no server still has
+  a backup.
 
 ## For developers
 

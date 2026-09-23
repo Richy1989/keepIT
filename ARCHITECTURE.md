@@ -158,6 +158,9 @@ back up and to mount as a single Docker volume:
 - `{DataRoot}/keepit.db` — the SQLite database (only when SQLite is in use).
 - `{DataRoot}/keys/` — ASP.NET Data Protection keys (cookie/token protection).
 - `{DataRoot}/users/{userId}/profile_image/` — uploaded profile images.
+- `{DataRoot}/tmp/` — uploads being spooled to disk so they can be read back (an import archive
+  has to be seekable). Each file is deleted as soon as its request finishes; anything left there
+  is a crashed request and is safe to remove.
 
 (Named `App_Data`, not `data`, so it never collides with the C# `Data/` source folder on
 case-insensitive filesystems.) The whole folder is **user data**: gitignored, dockerignored,
@@ -893,6 +896,91 @@ which ASP.NET Core keeps on disk.
 **Still deferred:** background images, a distinct image note type, reordering attachments, and
 images in the Android widget.
 
+## Export & import (`Portability/`)
+
+A self-hosted app that can't hand a user their data back doesn't really give them their data.
+Two endpoints do that, and they are the only pair in the app whose *file format* is part of the
+contract rather than just the wire shape.
+
+**The archive.** `GET /api/export` streams a zip:
+
+```
+keepit-export-YYYY-MM-DD.zip
+├─ keepit-export.json     { schemaVersion, exportedAtUtc, appVersion, lists: ListDto[], notes: NoteDto[] }
+└─ media/<noteId>/<mediaId>.<ext>
+```
+
+The manifest is **the DTOs the API already serves**, not a format of its own. That is the whole
+design decision: those types are already the contract (generated into the TypeScript client,
+mirrored in Android's `Dtos.kt`), and the Android offline cache already persists exactly this
+pair as its `CacheSnapshot`, so an Android-side export is the same bytes it has on disk. One
+shape, three producers, nothing extra to keep in sync — and `NoteProjection.ToDto` is shared with
+`NotesController` so the export cannot drift from what a client would have been served.
+
+Per-caller fields (`isOwner`, `role`, `canEdit`, `isShared`, `noteCount`) ride along as a snapshot
+and are ignored on import. Only originals are archived — thumbnails are derived and regenerated,
+so shipping them would double the file. `schemaVersion` is the compatibility gate: an importer
+refuses an archive newer than it understands rather than silently dropping whatever was added.
+
+**Export is owner-scoped** — the one read in the app that deliberately is *not* "own OR shared".
+A note shared with the caller is someone else's data in their grid, and an archive of it would
+outlive the owner revoking the share, so it stops at what the caller owns.
+
+**Export streams.** The manifest is built in memory (the API already returns a user's whole grid
+in one response), but image bytes are copied one file at a time into the response, so account size
+doesn't become memory. `ZipArchive` has no async write path, so the endpoint lifts
+`AllowSynchronousIO` for that one response; the alternative — spooling to a temp file — costs disk
+equal to the archive and delays the first byte. What bounds the thread cost is the rate limit, not
+the thread pool: export and import each get their own tight per-IP policy
+(`RateLimitPolicies.Export` / `.Import`, five per five minutes), kept separate so downloading a
+backup doesn't spend the budget for uploading one.
+
+**The proxy has to agree about size.** Both `nginx.conf` files cap `/api/` bodies at 12 MB —
+sized for one photo — so `/api/import` gets its own nested location raising it to the API's 256 MB,
+with request buffering off (nginx would otherwise spool the whole archive to its own disk before
+the API spools it again) and a 600s read timeout, since re-decoding every image in a large archive
+takes far longer than nginx's 60s default. `/api/export` turns response buffering off so the zip
+streams to the browser as it is produced. This is the failure mode `deploy/smoke-test.sh` exists
+for — a proxy refusing what the API accepts is invisible to every test that talks to the API
+directly — so the script now exports, imports, and pushes a 20 MB body that must come back 400
+from the API rather than 413 from a proxy.
+
+**Import only ever adds.** `POST /api/import` gives every note in the archive a new id and touches
+nothing already in the account. Re-importing the same file therefore duplicates it — the accepted
+trade, because the one operation that could destroy someone's notes is the one that must not be
+able to. Lists are the exception: a list whose name the caller already has is *filed into* rather
+than cloned, which destroys nothing and keeps the sidebar usable across repeated restores.
+Matching notes by id ("restore over the top") is a later mode, once the format has mileage.
+
+Timestamps are preserved (a restore that claimed every note was written today would sort the grid
+into nonsense), and per-user state — pin/archive/trash, list membership, reminders — is restored
+as the *importer's* own. One wrinkle worth knowing: a **one-time reminder whose moment has
+already passed imports as already fired**, or restoring a year-old backup would hand the
+dispatcher every overdue reminder at once and the user would get a notification storm for things
+they dealt with long ago. Recurring ones need no help — the dispatcher advances them.
+
+**An archive is a file from the internet.** Ids in it are never reused; file names in it never
+reach the disk (entries are matched by the ids in their path and rewritten under server-generated
+names, so there is nothing to traverse with); the manifest's *uncompressed* size is checked before
+it is read and each image's before it is decompressed; and every image goes back through
+`NoteMediaProcessor` — the same signature check, pixel bound, metadata stripping and thumbnailing
+an upload gets. A skipped image is a warning in `ImportResultDto`, never a failed import: one
+unreadable photo must not cost someone the other 400 notes in the file.
+
+**Round-tripping is what the tests pin.** `ExportTests` and `ImportTests` export a real account
+and read it back into another, so a DTO change that stops surviving the trip fails in CI rather
+than the next time a user restores. The format's shape is deliberately *not* in the OpenAPI
+document — it is a file format, not a response body — so those tests are its specification.
+
+**Not yet:** importing other apps' exports. There is no interchange format for notes (Keep ships
+Takeout JSON, Evernote ENEX, Joplin JEX, Notion Markdown+CSV), so each one is an adapter that
+converts *into* this archive and feeds the same import path — one code path that writes data,
+foreign formats as an internal detail. A Google Keep adapter is the obvious first, and would be
+lossy in named ways: keepIT has no audio, so voice notes cannot come across; HEIC attachments are
+refused by the processor; Keep has more colours than the palette; and sharees are Google accounts
+that don't exist on the instance. A Markdown export (the outbound half — what makes these notes
+openable in Obsidian or Joplin without anyone writing a keepIT importer) is also still open.
+
 ## Versioning & the meta endpoint
 
 `GET /api/meta` (anonymous — the sign-in screens want it before any session exists) returns
@@ -1014,9 +1102,15 @@ then: **sharing/collaboration** (invite→accept, roles, per-user overlay), the
 **password reset/change + SMTP email**, **security hardening** (rate limiting, lockout,
 refresh-token rotation with reuse detection, registration gating), the **native Android app**
 (offline-first, widget, share sheet, and a **standalone mode** that needs no server), the
-**single-container image + Unraid template**, and the **tag-driven release pipeline**.
+**single-container image + Unraid template**, the **tag-driven release pipeline**, and
+**export/import** (a zip of the caller's own notes, lists and images, restorable into any
+account — see "Export & import").
 
 **Remaining roadmap** (see README "What's next"):
+- 📥 **Foreign importers** — Google Keep Takeout first, as an adapter *into* the existing archive
+  format rather than a second import path.
+- 💾 **Export/import on the Android client**, standalone included, where the cache snapshot is
+  already the archive's shape.
 - 🖼️ **Background images** — the remaining half of note media; attachments themselves are done.
 - ✉️ **Invite non-users** — pending share invites keyed by email, resolved on signup.
 - 🤖 **Generated Kotlin API client** — replace the hand-mirrored `Dtos.kt` with a client
