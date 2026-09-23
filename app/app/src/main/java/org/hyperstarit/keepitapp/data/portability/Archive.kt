@@ -99,8 +99,19 @@ data class ArchiveContent(
     val images: List<ArchiveImage>,
 )
 
-/** Width, height and file extension of a staged image, as an image decoder reports them. */
-data class ImageInfo(val width: Int, val height: Int, val extension: String)
+/**
+ * What a staged attachment turned out to be, as the device's decoders report it: a picture with
+ * pixels, or a recording with a running time. Kept free of Android types so the archive builder
+ * below stays unit-testable; [PortabilityRepository] supplies the real probe.
+ */
+data class AttachmentInfo(
+    /** One of [org.hyperstarit.keepitapp.data.MediaKinds]. */
+    val kind: String,
+    val extension: String,
+    val width: Int = 0,
+    val height: Int = 0,
+    val durationMs: Int? = null,
+)
 
 /**
  * Builds the archive a **standalone** device exports.
@@ -109,10 +120,12 @@ data class ImageInfo(val width: Int, val height: Int, val extension: String)
  * queued [PendingOp.AttachMedia] pointing at a staged file (see
  * [org.hyperstarit.keepitapp.data.offline.MediaStaging]). So the manifest is assembled here rather
  * than taken from the cache as-is — each note gains the [NoteMediaDto] rows its staged files
- * justify, and only those, because promising an image the archive doesn't carry is worse than
- * leaving it out.
+ * justify, and only those, because promising an attachment the archive doesn't carry is worse than
+ * leaving it out. Voice notes ride the same path: an attachment is an attachment to the outbox,
+ * which is what let recording reuse every bit of the offline machinery unchanged.
  *
- * @param probe reads a staged file's dimensions and type; null when it cannot be read at all.
+ * @param probe identifies a staged file; null when it is neither a readable image nor audio, in
+ *   which case it is left out rather than promised.
  */
 fun buildStandaloneArchive(
     notes: List<NoteDto>,
@@ -120,7 +133,7 @@ fun buildStandaloneArchive(
     ops: List<PendingOp>,
     appVersion: String,
     exportedAtUtc: String,
-    probe: (File) -> ImageInfo?,
+    probe: (File) -> AttachmentInfo?,
 ): ArchiveContent {
     val attachmentsByNote = ops
         .filterIsInstance<PendingOp.AttachMedia>()
@@ -140,8 +153,10 @@ fun buildStandaloneArchive(
 
             media += NoteMediaDto(
                 id = op.tempMediaId,
+                kind = info.kind,
                 width = info.width,
                 height = info.height,
+                durationMs = info.durationMs,
                 byteSize = file.length(),
                 order = index,
                 createdAtUtc = op.enqueuedAtUtc,

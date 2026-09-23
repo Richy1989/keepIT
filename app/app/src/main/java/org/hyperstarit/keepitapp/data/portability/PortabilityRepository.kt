@@ -2,6 +2,7 @@ package org.hyperstarit.keepitapp.data.portability
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,6 +13,7 @@ import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.AppMode
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.ImportResultDto
+import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.NotesRepository
@@ -104,7 +106,7 @@ class PortabilityRepository(
             ops = outbox.snapshot(),
             appVersion = appVersion,
             exportedAtUtc = nowUtc(),
-            probe = ::probeImage,
+            probe = ::probeAttachment,
         )
 
         var images = 0
@@ -176,8 +178,8 @@ class PortabilityRepository(
             val warnings = mutableListOf<String>()
             var listsCreated = 0
             var listsReused = 0
-            var imagesImported = 0
-            var imagesSkipped = 0
+            var attachmentsImported = 0
+            var attachmentsSkipped = 0
 
             // A list whose name this device already uses is filed into, not cloned — repeated
             // restores would otherwise fill the drawer with copies.
@@ -224,8 +226,8 @@ class PortabilityRepository(
                 for (media in source.media) {
                     val bytes = archive.openImage(source.id, media.id)
                     if (bytes == null) {
-                        imagesSkipped++
-                        warnings += "${label(source)}: an image listed in the archive was missing from it."
+                        attachmentsSkipped++
+                        warnings += "${label(source)}: an attachment listed in the archive was missing from it."
                         continue
                     }
                     val staged = File(context.cacheDir, "import-img-${media.id}")
@@ -235,9 +237,9 @@ class PortabilityRepository(
                     }.getOrDefault(false)
                     staged.delete()
 
-                    if (ok) imagesImported++ else {
-                        imagesSkipped++
-                        warnings += "${label(source)}: an image couldn't be read."
+                    if (ok) attachmentsImported++ else {
+                        attachmentsSkipped++
+                        warnings += "${label(source)}: an attachment couldn't be read."
                     }
                 }
             }
@@ -247,8 +249,8 @@ class PortabilityRepository(
                     notesImported = archive.manifest.notes.size,
                     listsCreated = listsCreated,
                     listsReused = listsReused,
-                    imagesImported = imagesImported,
-                    imagesSkipped = imagesSkipped,
+                    attachmentsImported = attachmentsImported,
+                    attachmentsSkipped = attachmentsSkipped,
                     warnings = warnings,
                 ),
             )
@@ -283,12 +285,68 @@ class PortabilityRepository(
 
     private fun openOutput(target: Uri) = context.contentResolver.openOutputStream(target)
 
+    /**
+     * Identifies a staged attachment without decoding it: audio first, by the container signature,
+     * then an image by its header alone.
+     *
+     * Audio is checked first because `BitmapFactory` will happily be handed a recording and simply
+     * report no dimensions - a silent "drop this from the archive", which is exactly how a
+     * standalone backup would quietly lose every voice note on the phone.
+     */
+    private fun probeAttachment(file: File): AttachmentInfo? =
+        probeAudio(file) ?: probeImage(file)
+
+    /** Reads a staged recording's container and running time. */
+    private fun probeAudio(file: File): AttachmentInfo? {
+        val header = ByteArray(AUDIO_HEADER_BYTES)
+        val read = runCatching { file.inputStream().use { it.read(header) } }.getOrDefault(-1)
+        if (read < AUDIO_HEADER_BYTES) return null
+
+        val extension = audioExtensionFor(header) ?: return null
+
+        // MediaMetadataRetriever is the only thing on the device that reads a duration without
+        // decoding the audio. It throws on anything it dislikes, so a failure just means no
+        // duration shown - never a lost recording.
+        val durationMs = runCatching {
+            MediaMetadataRetriever().use { retriever ->
+                retriever.setDataSource(file.absolutePath)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toIntOrNull()
+            }
+        }.getOrNull()
+
+        return AttachmentInfo(MediaKinds.AUDIO, extension, durationMs = durationMs)
+    }
+
     /** Reads a staged image's dimensions and type without decoding its pixels. */
-    private fun probeImage(file: File): ImageInfo? {
+    private fun probeImage(file: File): AttachmentInfo? {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, options)
         if (options.outWidth <= 0 || options.outHeight <= 0) return null
-        return ImageInfo(options.outWidth, options.outHeight, extensionFor(options.outMimeType))
+        return AttachmentInfo(
+            kind = MediaKinds.IMAGE,
+            extension = extensionFor(options.outMimeType),
+            width = options.outWidth,
+            height = options.outHeight,
+        )
+    }
+
+    /**
+     * The extension for an audio container, recognised by signature - the same whitelist the API
+     * accepts, so anything this device would archive is something a server would take back.
+     */
+    private fun audioExtensionFor(header: ByteArray): String? {
+        fun matches(at: Int, text: String) =
+            header.size >= at + text.length &&
+                (0 until text.length).all { header[at + it].toInt().toChar() == text[it] }
+
+        return when {
+            matches(4, "ftyp") -> ".m4a"
+            matches(0, "OggS") -> ".ogg"
+            matches(0, "RIFF") && matches(8, "WAVE") -> ".wav"
+            matches(0, "ID3") -> ".mp3"
+            header[0].toInt() and 0xFF == 0xFF && (header[1].toInt() and 0xE6) >= 0xE2 -> ".mp3"
+            else -> null
+        }
     }
 
     /**
@@ -296,6 +354,11 @@ class PortabilityRepository(
      * its content, not its name — but it decides whether the images are openable when someone
      * unzips the archive themselves, which is half the point of having one.
      */
+    /** Bytes of header the audio signature check needs. */
+    private companion object {
+        const val AUDIO_HEADER_BYTES = 16
+    }
+
     private fun extensionFor(mimeType: String?): String = when (mimeType) {
         "image/png" -> ".png"
         "image/gif" -> ".gif"

@@ -16,6 +16,12 @@ object NoteTypes {
     const val CHECKLIST = "Checklist"
 }
 
+/** `NoteMediaKind` values as sent on the wire. */
+object MediaKinds {
+    const val IMAGE = "Image"
+    const val AUDIO = "Audio"
+}
+
 /** `NoteRole` values as sent on the wire. */
 object NoteRoles {
     const val VIEWER = "Viewer"
@@ -94,12 +100,22 @@ data class ChecklistItemDto(
 @Serializable
 data class NoteMediaDto(
     val id: String,
+    /**
+     * [MediaKinds] - a picture or a voice note. Defaulted to an image so a cache written by an
+     * older build, or a server that predates voice notes, still decodes to what it actually held.
+     */
+    val kind: String = MediaKinds.IMAGE,
     val width: Int = 0,
     val height: Int = 0,
+    /** Length of a recording in milliseconds; null for an image, or when it could not be read. */
+    val durationMs: Int? = null,
     val byteSize: Long = 0,
     val order: Int = 0,
     val createdAtUtc: String = "",
-)
+) {
+    /** True for a voice note, which has no thumbnail and no pixel size. */
+    val isAudio: Boolean get() = kind == MediaKinds.AUDIO
+}
 
 @Serializable
 data class NoteDto(
@@ -168,8 +184,8 @@ data class ImportResultDto(
     val notesImported: Int = 0,
     val listsCreated: Int = 0,
     val listsReused: Int = 0,
-    val imagesImported: Int = 0,
-    val imagesSkipped: Int = 0,
+    val attachmentsImported: Int = 0,
+    val attachmentsSkipped: Int = 0,
     val warnings: List<String> = emptyList(),
 )
 

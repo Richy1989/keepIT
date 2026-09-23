@@ -9,7 +9,8 @@ import org.hyperstarit.keepitapp.data.portability.Archive
 import org.hyperstarit.keepitapp.data.portability.ArchiveError
 import org.hyperstarit.keepitapp.data.portability.ArchiveReader
 import org.hyperstarit.keepitapp.data.portability.ArchiveWriter
-import org.hyperstarit.keepitapp.data.portability.ImageInfo
+import org.hyperstarit.keepitapp.data.MediaKinds
+import org.hyperstarit.keepitapp.data.portability.AttachmentInfo
 import org.hyperstarit.keepitapp.data.portability.OpenArchiveResult
 import org.hyperstarit.keepitapp.data.portability.buildStandaloneArchive
 import org.junit.Assert.assertEquals
@@ -39,7 +40,14 @@ class ArchiveTest {
     private fun stagedImage(name: String, bytes: ByteArray = ByteArray(32) { it.toByte() }): File =
         temp.newFile(name).apply { writeBytes(bytes) }
 
-    private val probe: (File) -> ImageInfo? = { ImageInfo(width = 40, height = 30, extension = ".jpg") }
+    private val probe: (File) -> AttachmentInfo? = {
+        AttachmentInfo(kind = MediaKinds.IMAGE, extension = ".jpg", width = 40, height = 30)
+    }
+
+    /** A probe that sees every staged file as a voice note. */
+    private val audioProbe: (File) -> AttachmentInfo? = {
+        AttachmentInfo(kind = MediaKinds.AUDIO, extension = ".m4a", durationMs = 8_250)
+    }
 
     // ---- the manifest a standalone device builds ----
 
@@ -95,6 +103,51 @@ class ArchiveTest {
 
         assertTrue(content.manifest.notes.single().media.isEmpty())
         assertTrue(content.images.isEmpty())
+    }
+
+    /**
+     * The case that makes standalone voice notes exportable at all. A recording lives only as a
+     * queued attachment pointing at a staged file, and the probe that reads a staged image reports
+     * nothing for audio — so without this the archive would quietly leave every voice note on the
+     * phone behind, which is the one thing a standalone backup must not do.
+     */
+    @Test
+    fun `a queued voice note is exported as an audio attachment`() {
+        val staged = stagedImage("v.img")
+        val notes = listOf(NoteDto(id = "n1", title = "voice"))
+        val ops = listOf(PendingOp.AttachMedia("n1", staged.absolutePath, "m1", kind = MediaKinds.AUDIO))
+
+        val content = buildStandaloneArchive(notes, emptyList(), ops, "0.7.6", "now", audioProbe)
+
+        val media = content.manifest.notes.single().media.single()
+        assertEquals(MediaKinds.AUDIO, media.kind)
+        assertTrue(media.isAudio)
+        assertEquals(8_250, media.durationMs)
+        // No pixels, because there are none.
+        assertEquals(0, media.width)
+        assertEquals(0, media.height)
+        assertEquals(".m4a", content.images.single().extension)
+    }
+
+    @Test
+    fun `a voice note survives being written and read back`() {
+        val bytes = ByteArray(48) { (it * 5).toByte() }
+        val staged = stagedImage("v.img", bytes)
+        val ops = listOf(PendingOp.AttachMedia("n1", staged.absolutePath, "m1", kind = MediaKinds.AUDIO))
+        val content = buildStandaloneArchive(
+            listOf(NoteDto(id = "n1", title = "voice")), emptyList(), ops, "0.7.6", "now", audioProbe,
+        )
+
+        val zipFile = temp.newFile("audio.zip")
+        zipFile.outputStream().use { out -> ArchiveWriter.write(out, content) }
+
+        val opened = ArchiveReader.open(zipFile) as OpenArchiveResult.Opened
+        opened.archive.use { archive ->
+            val media = archive.manifest.notes.single().media.single()
+            assertTrue(media.isAudio)
+            assertEquals(8_250, media.durationMs)
+            assertTrue(bytes.contentEquals(archive.openImage("n1", "m1")!!.use { it.readBytes() }))
+        }
     }
 
     @Test

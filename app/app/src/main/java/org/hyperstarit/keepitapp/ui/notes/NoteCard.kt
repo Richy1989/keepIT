@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -88,9 +89,12 @@ fun NoteCard(
             // Full-bleed hero (layout C1): the photo owns the top of the card and carries the
             // title on a scrim, but body and checklist rows stay below on the note's own colour,
             // where contrast is a known quantity rather than whatever the user photographed.
-            val hero = note.media.firstOrNull()
-            val stagedHero = if (hero == null) pendingMedia.firstOrNull() else null
-            val imageCount = note.media.size + pendingMedia.size
+            // The first *picture*: a voice note has no thumbnail, and asking for one would leave
+            // the hero an empty grey block.
+            val hero = note.media.firstOrNull { !it.isAudio }
+            val stagedHero = if (hero == null) pendingMedia.firstOrNull { !it.isAudio } else null
+            val imageCount = note.media.count { !it.isAudio } + pendingMedia.count { !it.isAudio }
+            val recordings = note.media.count { it.isAudio } + pendingMedia.count { it.isAudio }
             if (hero != null || stagedHero != null) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     if (hero != null) {
@@ -159,6 +163,26 @@ fun NoteCard(
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    Spacer(modifier = Modifier.size(6.dp))
+                }
+
+                // A voice note has nothing to show, so the card says it is there. Playing it is
+                // the editor's job — a card is a summary, not a transport.
+                if (recordings > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = KeepItColors.TextMuted,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = if (recordings == 1) "Voice note" else "$recordings voice notes",
+                            color = KeepItColors.TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 5.dp),
+                        )
+                    }
                     Spacer(modifier = Modifier.size(6.dp))
                 }
 

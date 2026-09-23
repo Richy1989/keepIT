@@ -161,8 +161,8 @@ private fun ImportSummary(result: ImportResultDto) {
             if (result.listsCreated > 0) {
                 append(", ${result.listsCreated} new ${plural(result.listsCreated, "list")}")
             }
-            if (result.imagesImported > 0) {
-                append(", ${result.imagesImported} ${plural(result.imagesImported, "image")}")
+            if (result.attachmentsImported > 0) {
+                append(", ${result.attachmentsImported} ${plural(result.attachmentsImported, "attachment")}")
             }
             append(".")
             if (result.listsReused > 0) {

@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import androidx.compose.foundation.layout.Column
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.offline.MediaCache
 import org.hyperstarit.keepitapp.data.offline.PendingOp
@@ -148,8 +149,70 @@ fun MediaRow(
 ) {
     if (media.isEmpty() && pending.isEmpty()) return
 
+    // A note's attachments are one ordered list of both kinds, but they want different shapes: a
+    // square thumbnail tiles in a row, a transport bar does not. Splitting here also keeps the
+    // image strip from asking the server for a thumbnail a recording never had.
+    val images = media.filter { !it.isAudio }
+    val recordings = media.filter { it.isAudio }
+    val pendingImages = pending.filter { !it.isAudio }
+    val pendingRecordings = pending.filter { it.isAudio }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (images.isNotEmpty() || pendingImages.isNotEmpty()) {
+            ImageStrip(
+                cache = cache,
+                noteId = noteId,
+                images = images,
+                pending = pendingImages,
+                canEdit = canEdit,
+                onRemove = onRemove,
+                onOpen = onOpen,
+                keptOnDevice = keptOnDevice,
+                onRemovePending = onRemovePending,
+            )
+        }
+
+        for (recording in recordings) {
+            AudioAttachmentRow(
+                cache = cache,
+                noteId = noteId,
+                media = recording,
+                canEdit = canEdit,
+                onRemove = { onRemove(recording.id) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+        }
+
+        for (queued in pendingRecordings) {
+            PendingAudioRow(
+                op = queued,
+                canEdit = canEdit,
+                // Standalone keeps its recordings here for good; otherwise one is on its way up.
+                uploading = !keptOnDevice,
+                onRemove = { onRemovePending(queued) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+/** The thumbnail strip - the original [MediaRow] body, now only ever handed pictures. */
+@Composable
+private fun ImageStrip(
+    cache: MediaCache,
+    noteId: String,
+    images: List<NoteMediaDto>,
+    pending: List<PendingOp.AttachMedia>,
+    canEdit: Boolean,
+    onRemove: (String) -> Unit,
+    onOpen: (Int) -> Unit,
+    keptOnDevice: Boolean,
+    onRemovePending: (PendingOp.AttachMedia) -> Unit,
+) {
+    val media = images
+
     LazyRow(
-        modifier = modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {

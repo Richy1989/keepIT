@@ -9,6 +9,12 @@
     <!-- Native notifications: runtime-granted on 13+; requested contextually (first reminder set)
          and manageable in the in-app Settings screen. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Voice notes. Requested only when the user first taps record, never at launch, and the app
+         works entirely without it: declining costs the microphone button and nothing else. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- A phone without a microphone is still a perfectly good keepIT client. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- Reminders fire via AlarmManager so they work offline / app closed. Exact timing is special
          app access the user grants in Settings; without it alarms fall back to a ~10-min window. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />

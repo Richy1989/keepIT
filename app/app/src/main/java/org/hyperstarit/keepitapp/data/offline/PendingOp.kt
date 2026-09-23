@@ -4,6 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.hyperstarit.keepitapp.data.CreateListDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
+import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.SetNoteReminderDto
 import org.hyperstarit.keepitapp.data.UpdateListDto
@@ -129,9 +130,18 @@ sealed class PendingOp {
         val noteId: String,
         val stagedPath: String,
         val tempMediaId: String,
+        /**
+         * [org.hyperstarit.keepitapp.data.MediaKinds] - what the staged file is. Defaulted to an
+         * image so an outbox written before voice notes existed still decodes to what it held, and
+         * so the UI can draw a queued recording as a player without opening the file to find out.
+         */
+        val kind: String = MediaKinds.IMAGE,
         override val opId: String = newOpId(),
         override val enqueuedAtUtc: String = "",
-    ) : PendingOp()
+    ) : PendingOp() {
+        /** True for a queued voice note. */
+        val isAudio: Boolean get() = kind == MediaKinds.AUDIO
+    }
 
     /** Removes an image from a note. */
     @Serializable

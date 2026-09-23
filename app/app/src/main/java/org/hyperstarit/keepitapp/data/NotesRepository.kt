@@ -305,7 +305,12 @@ class NotesRepository(
      *
      * @return false when the picked content could not be read at all.
      */
-    suspend fun attachMedia(context: Context, noteId: String, uri: Uri): Boolean {
+    suspend fun attachMedia(
+        context: Context,
+        noteId: String,
+        uri: Uri,
+        kind: String = MediaKinds.IMAGE,
+    ): Boolean {
         val tempMediaId = UUID.randomUUID().toString()
         val staged = staging.stage(context, uri, tempMediaId) ?: return false
         mutate(
@@ -313,6 +318,7 @@ class NotesRepository(
                 noteId = resolve(noteId),
                 stagedPath = staged.absolutePath,
                 tempMediaId = tempMediaId,
+                kind = kind,
                 enqueuedAtUtc = nowUtc(),
             ),
         )

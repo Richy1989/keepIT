@@ -1,6 +1,9 @@
 package org.hyperstarit.keepitapp.ui.notes
 
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -46,6 +49,8 @@ import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Restore
@@ -66,6 +71,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -77,6 +84,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -108,6 +116,8 @@ import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteStateDto
+import org.hyperstarit.keepitapp.data.AudioRecorder
+import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
@@ -342,6 +352,90 @@ fun EditorScreen(
         }
     }
 
+    /**
+     * Records a voice note, then attaches it exactly as a picked image is attached.
+     *
+     * Everything past the recorder is shared with images: the same staging copy, the same outbox
+     * op, the same upload. A recording made with no signal, or in standalone mode, therefore
+     * survives and syncs for free - which is why recording needed no new offline machinery.
+     */
+    val recorder = remember { AudioRecorder(context) }
+    var recordingSince by remember { mutableStateOf<Long?>(null) }
+    var recordingElapsed by remember { mutableIntStateOf(0) }
+
+    // A timer while recording: the one thing that tells the user the microphone is actually live.
+    LaunchedEffect(recordingSince) {
+        val startedAt = recordingSince ?: return@LaunchedEffect
+        while (true) {
+            recordingElapsed = ((System.currentTimeMillis() - startedAt) / 1000).toInt()
+            delay(250)
+        }
+    }
+
+    fun attachRecording(file: java.io.File) {
+        scope.launch {
+            attachIntent += 1
+            persist()
+            val id = note?.id
+            if (id == null) {
+                attachIntent = 0
+                file.delete()
+                return@launch
+            }
+            val ok = repo.attachMedia(context, id, Uri.fromFile(file), MediaKinds.AUDIO)
+            attachIntent = 0
+            // The staged copy is the one that matters from here; this was only the scratch file.
+            file.delete()
+            if (!ok) snackbarHostState.showSnackbar("Couldn't save that recording.")
+        }
+    }
+
+    fun stopRecording(keep: Boolean) {
+        recordingSince = null
+        recordingElapsed = 0
+        val file = if (keep) recorder.stop() else null.also { recorder.cancel() }
+        if (keep && file == null) {
+            scope.launch { snackbarHostState.showSnackbar("That recording was too short.") }
+            return
+        }
+        file?.let(::attachRecording)
+    }
+
+    fun beginRecording() {
+        if (recorder.start(onLimitReached = { stopRecording(keep = true) }) != null) {
+            recordingSince = System.currentTimeMillis()
+        } else {
+            scope.launch { snackbarHostState.showSnackbar("Couldn't start recording.") }
+        }
+    }
+
+    val askForMic = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            beginRecording()
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar("Voice notes need access to the microphone.")
+            }
+        }
+    }
+
+    fun toggleRecording() {
+        if (recordingSince != null) {
+            stopRecording(keep = true)
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) beginRecording() else askForMic.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    // Leaving the editor mid-recording must not leave the microphone open.
+    DisposableEffect(Unit) {
+        onDispose { recorder.cancel() }
+    }
+
     // The system photo picker needs no runtime permission at all.
     val pickImages = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = MAX_IMAGES_PER_NOTE),
@@ -519,7 +613,8 @@ fun EditorScreen(
                             // feature, and the reason offline attach exists at all.
                             // Queued ones count: the server enforces the limit on upload, and in
                             // standalone mode they are all the images there are.
-                            val atLimit = (live?.media?.size ?: 0) + pending.size >= MAX_IMAGES_PER_NOTE
+                            val atLimit = (live?.media?.count { !it.isAudio } ?: 0) +
+                                pending.count { !it.isAudio } >= MAX_IMAGES_PER_NOTE
                             IconButton(
                                 onClick = {
                                     pickImages.launch(
@@ -538,6 +633,28 @@ fun EditorScreen(
                                         "Add image"
                                     },
                                     tint = KeepItColors.TextMuted,
+                                )
+                            }
+                            // Voice notes: Android only. Browsers cannot record over plain http,
+                            // which keepIT supports on a LAN, so the web plays them and never
+                            // makes one - this button is the only way a recording enters keepIT.
+                            IconButton(onClick = ::toggleRecording) {
+                                Icon(
+                                    imageVector = if (recordingSince != null) {
+                                        Icons.Filled.Stop
+                                    } else {
+                                        Icons.Filled.Mic
+                                    },
+                                    contentDescription = if (recordingSince != null) {
+                                        "Stop recording"
+                                    } else {
+                                        "Record a voice note"
+                                    },
+                                    tint = if (recordingSince != null) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        KeepItColors.TextMuted
+                                    },
                                 )
                             }
                             IconButton(onClick = ::launchCamera, enabled = !atLimit) {
@@ -632,6 +749,35 @@ fun EditorScreen(
                 }
             }
 
+            if (recordingSince != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Mic,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        text = "Recording  ${formatDuration(recordingElapsed * 1000)}",
+                        color = KeepItColors.Text,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp),
+                    )
+                    TextButton(onClick = { stopRecording(keep = false) }) {
+                        Text("Discard", color = KeepItColors.TextMuted)
+                    }
+                    TextButton(onClick = { stopRecording(keep = true) }) {
+                        Text("Stop")
+                    }
+                }
+            }
+
             live?.let { n ->
                 MediaRow(
                     cache = repo.mediaCache,
@@ -648,8 +794,14 @@ fun EditorScreen(
 
                 viewerIndex?.let { index ->
                     // Same order as the row: stored images first, then (standalone) the device's own.
-                    val images = n.media.map { ViewerImage.Stored(it) } +
-                        if (standalone) pending.map { ViewerImage.OnDevice(it) } else emptyList()
+                    // Matches the strip's own order and filtering, so the index the row hands
+                    // over lands on the picture the user actually tapped.
+                    val images = n.media.filter { !it.isAudio }.map { ViewerImage.Stored(it) } +
+                        if (standalone) {
+                            pending.filter { !it.isAudio }.map { ViewerImage.OnDevice(it) }
+                        } else {
+                            emptyList()
+                        }
                     MediaViewer(
                         cache = repo.mediaCache,
                         noteId = n.id,
