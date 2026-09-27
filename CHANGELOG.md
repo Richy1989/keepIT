@@ -3,6 +3,70 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## 0.8.0
+
+Voice notes, and a way to take everything with you. Record straight into a note on Android and play
+it back there or in the browser -- from the notes overview, without opening the note. Export your
+whole account to a file you keep, and load it back on another server or another phone.
+
+**This release needs the server updated and its reverse proxy reconfigured.** On an old proxy
+config voice notes play back as dead controls and import is refused outright, so read Updating
+first.
+
+### Updating
+
+- **Two columns are added** to note attachments (the kind of attachment, and how long a recording
+  runs). On PostgreSQL the migration applies at startup; on SQLite the schema reconciler adds them
+  to the database file you already have. Nothing is rewritten and nothing is lost.
+- **Both nginx configs changed** -- `deploy/nginx.conf` for the single container and
+  `web/nginx.conf` for Compose. If you run your own proxy, carry two things across:
+  - The Content-Security-Policy needs `media-src 'self' blob:`. Without it the browser blocks
+    playback and a voice note renders as greyed-out, dead controls. Images were unaffected because
+    `img-src` already allowed `blob:`.
+  - `/api/import` and `/api/export` need their own location blocks: a 256 MB request body, request
+    buffering off, and a 600-second read timeout. The 12 MB cap that suits a single photo refuses a
+    real backup at the proxy, before the API ever sees it or can say why.
+- **Two new settings**, both with working defaults: `App:Media:MaxAudioBytes` (10 MB, the same as an
+  image, because both travel through that proxy cap) and `App:Media:MaxAudioPerNote` (10).
+- Export and import each get their own rate limit, so downloading a backup does not spend the
+  budget you need to upload one.
+
+### Voice notes
+
+- **Recording is on Android**: a microphone button in the editor, a live timer, and playback with a
+  progress bar. Not in the web app, because a browser cannot record audio over plain http -- which
+  keepIT supports on a LAN -- so a record button there would simply be missing for a real share of
+  users.
+- **Playback is everywhere**, including straight from the notes overview on both clients, so a
+  twelve-second recording does not need a note opened to hear it. Only one plays at a time, and
+  nothing is downloaded until you press play.
+- Recordings are stored **exactly as uploaded**. There is no audio encoder in the container, so the
+  file that was recorded is the file that is kept and served. That makes identifying the bytes the
+  whole of the validation: the format is recognised by signature rather than by the name the client
+  sent, and an MPEG-4 carrying a video track is refused -- an attachment endpoint must not become
+  video hosting.
+- Mono, 22.05 kHz, AAC in m4a, around 32 kbps: roughly 40 minutes of speech inside the 10 MB
+  attachment cap.
+- Recording works offline and in standalone mode. It queues in the same outbox a photo uses, and
+  plays from the staged file before it has ever reached a server.
+
+### Export and import
+
+- `GET /api/export` streams a zip of the account -- notes, lists and every attachment -- and
+  `POST /api/import` reads one back. In the web app both are on the settings page; on Android they
+  are in Settings.
+- **In standalone mode the archive is built and applied on the phone**, so a device that has never
+  seen a server can still back itself up and restore.
+- **Import only ever adds.** Every note in the file arrives as a new note and nothing already in
+  the account is touched, so importing the same file twice gives you duplicates. That is the
+  deliberate trade: the one operation that could destroy someone's notes is the one that must not
+  be able to.
+- The archive is the API's own note and list formats plus the attachment files, and it carries a
+  schema version -- so an older keepIT refuses a newer file outright instead of importing half of
+  it.
+- The archive also records the version of the server that wrote it, so a failed import can be
+  traced back to where the file came from.
+
 ## 0.7.6
 
 A visual release: the web app is easier to read, above all in the light theme, and lays notes out

@@ -1,0 +1,7 @@
+Voice notes: record one straight into a note and play it back. Works offline and with no server at all.
+
+Play a voice note from the notes list, without opening the note first.
+
+Export and import: save everything to a file you keep, and load it back on another phone. Works without a server too. Importing only ever adds notes, so the same file twice gives you duplicates.
+
+Running your own server? Update it to 0.8.0 as well, and check its proxy settings: voice notes and import need both.
