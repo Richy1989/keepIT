@@ -40,7 +40,8 @@ also works entirely on its own, with no server at all.
 - 🖼️ **Photos in your notes:** attach images to any note, up to ten each. Location data is
   stripped from every upload, so sharing a photo doesn't share where you took it.
 - 🎙️ **Voice notes:** record a thought on your phone instead of typing it, and play it back
-  anywhere — on the phone, or in the web app on your desktop. Recording works offline too.
+  anywhere — on the phone or in the web app, straight from your list of notes without opening one.
+  Recording works offline too.
 - 🗂️ **Stay organized:** group notes into lists, pin the important ones, archive what's done,
   and find anything instantly with search. Deleted notes wait in the trash until you're sure.
 - ⏰ **Reminders:** once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
@@ -215,21 +216,22 @@ backup, and **Settings → Erase notes** deletes them for good.
 
 <a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/Richy1989/keepIT"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="60"></a>
 &nbsp;&nbsp;
-<a href="https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43792"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid (coming soon)" height="60"></a>
-<sup>coming soon</sup>
+<a href="https://f-droid.org/packages/org.hyperstarit.keepitapp/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"></a>
 
 **[Obtainium](https://github.com/ImranR98/Obtainium)** is the easiest way: tap the badge, or add
 `https://github.com/Richy1989/keepIT` as a GitHub app source. It installs the APK and keeps it
 up to date as new releases land, straight from this repo and without a store account.
 
-**F-Droid** is on the way: the [submission](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/43792)
-is with the maintainers.
+**[F-Droid](https://f-droid.org/packages/org.hyperstarit.keepitapp/)** carries keepIT in its main
+repository, so it updates alongside everything else you installed from there.
 
 Prefer to do it by hand? Grab `keepit-vX.Y.Z-universal.apk` from the
 [latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it.
 
-> **Heads up:** the GitHub and F-Droid builds are signed with different keys, so you can't move
-> from one to the other by updating. Pick a source and stay with it, or uninstall first.
+> Every source ships the **same signed build**: F-Droid checks that the release APK reproduces
+> from this repository and then publishes that developer-signed APK rather than one of its own. So
+> you can move between F-Droid, Obtainium and a hand-downloaded APK by updating, with nothing to
+> uninstall.
 
 ### Build it yourself
 
