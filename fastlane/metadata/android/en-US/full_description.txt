@@ -1,18 +1,7 @@
-A fast, private notes app. Your notes live on your phone, and on your own
-server if you want one - never on ours.
+A fast, private notes app. Your notes live on your phone, and on your own server if you want one - never on ours.
 
-Open it and start writing. No account, no setup, no connection: everything is
-stored on the device first, so keepIT is instant and works offline. When you
-want the same notes on your other devices, run the free and open-source keepIT
-server and they sync in real time. You can start without one and connect a
-server later - your notes come with you.
+Open it and start writing. No account, no setup, no connection: everything is stored on the device first, so keepIT is instant and works offline. When you want the same notes on your other devices, run the free and open-source keepIT server and they sync in real time. You can start without one and connect a server later - your notes come with you.
 
-* Notes and checklists, with Markdown as you type
-* Voice notes - record one and play it back, straight from your list
-* Photos from your camera or gallery
-* Reminders that fire on time, offline and with the app closed
-* Colors, pins, lists, archive and search to keep it findable
-* Share a note with someone to view or edit (needs a server)
-* Home-screen widget, and text shared in from other apps
+<ul><li>Notes and checklists, with Markdown as you type</li><li>Voice notes - record one and play it back, straight from your list</li><li>Photos from your camera or gallery</li><li>Reminders that fire on time, offline and with the app closed</li><li>Colors, pins, lists, archive and search to keep it findable</li><li>Share a note with someone to view or edit (needs a server)</li><li>Home-screen widget, and text shared in from other apps</li></ul>
 
 No ads, no analytics, no tracking.
