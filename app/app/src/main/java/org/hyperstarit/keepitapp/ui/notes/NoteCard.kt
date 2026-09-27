@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.io.File
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteStateDto
@@ -65,11 +65,16 @@ private const val MAX_PREVIEW_ITEMS = 6
  * [pendingMedia] is the note's queued attachments: the hero falls back to the first of them when
  * the note has no stored image yet — a photo picked offline shows at once, and in standalone mode,
  * where nothing is ever uploaded, it is the only way the card shows images at all.
+ *
+ * [audio] is the list's one player. It is passed in rather than remembered here because a card
+ * scrolling out of the `LazyColumn` must not take the recording it is playing with it — see
+ * [CardAudioPlayer].
  */
 @Composable
 fun NoteCard(
     note: NoteDto,
     repo: NotesRepository,
+    audio: CardAudioPlayer,
     pendingMedia: List<PendingOp.AttachMedia> = emptyList(),
     onOpen: () -> Unit,
 ) {
@@ -94,7 +99,9 @@ fun NoteCard(
             val hero = note.media.firstOrNull { !it.isAudio }
             val stagedHero = if (hero == null) pendingMedia.firstOrNull { !it.isAudio } else null
             val imageCount = note.media.count { !it.isAudio } + pendingMedia.count { !it.isAudio }
-            val recordings = note.media.count { it.isAudio } + pendingMedia.count { it.isAudio }
+            val storedRecordings = note.media.filter { it.isAudio }
+            val pendingRecordings = pendingMedia.filter { it.isAudio }
+            val recordings = storedRecordings.size + pendingRecordings.size
             if (hero != null || stagedHero != null) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     if (hero != null) {
@@ -166,22 +173,42 @@ fun NoteCard(
                     Spacer(modifier = Modifier.size(6.dp))
                 }
 
-                // A voice note has nothing to show, so the card says it is there. Playing it is
-                // the editor's job — a card is a summary, not a transport.
+                // A voice note plays from the card itself: it has nothing to show, and making
+                // someone open the note to hear a twelve-second recording is a tap for nothing.
+                // Still capped — past the cap the note itself is the place to go.
                 if (recordings > 0) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Mic,
-                            contentDescription = null,
-                            tint = KeepItColors.TextMuted,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Text(
-                            text = if (recordings == 1) "Voice note" else "$recordings voice notes",
-                            color = KeepItColors.TextMuted,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(start = 5.dp),
-                        )
+                    val storedShown = storedRecordings.take(MAX_CARD_RECORDINGS)
+                    val stagedShown = pendingRecordings.take(MAX_CARD_RECORDINGS - storedShown.size)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        storedShown.forEach { rec ->
+                            CardVoiceNoteRow(
+                                audio = audio,
+                                mediaKey = "${note.id}:${rec.id}",
+                                durationMs = rec.durationMs,
+                                openFile = {
+                                    repo.mediaCache.file(note.id, rec.id, MediaSizes.FULL)
+                                },
+                            )
+                        }
+                        // A staged recording plays straight from the file it was recorded into,
+                        // which is what makes this work offline and in standalone mode, where
+                        // nothing is ever uploaded and the outbox holds the only copy.
+                        stagedShown.forEach { op ->
+                            CardVoiceNoteRow(
+                                audio = audio,
+                                mediaKey = "staged:${op.opId}",
+                                durationMs = null,
+                                openFile = { File(op.stagedPath).takeIf { it.isFile } },
+                            )
+                        }
+                        val hidden = recordings - storedShown.size - stagedShown.size
+                        if (hidden > 0) {
+                            Text(
+                                text = "+$hidden more in the note",
+                                color = KeepItColors.TextFaint,
+                                fontSize = 12.sp,
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.size(6.dp))
                 }

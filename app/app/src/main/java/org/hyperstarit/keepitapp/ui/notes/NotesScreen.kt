@@ -59,6 +59,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -106,6 +107,10 @@ fun NotesScreen(
 ) {
     val repo = container.notesRepo
     val scope = rememberCoroutineScope()
+    // One player for the whole list: scrolling a card away must not cut off the recording it is
+    // playing, and two cards must never talk over each other. See CardAudioPlayer.
+    val cardAudio = remember { CardAudioPlayer(scope) }
+    DisposableEffect(Unit) { onDispose { cardAudio.release() } }
 
     val notes by repo.notes.collectAsState()
     val lists by repo.lists.collectAsState()
@@ -417,6 +422,7 @@ fun NotesScreen(
                                 NoteCard(
                                     note = note,
                                     repo = repo,
+                                    audio = cardAudio,
                                     pendingMedia = pendingMedia[note.id].orEmpty(),
                                     onOpen = { onOpenNote(note.id) },
                                 )
@@ -427,6 +433,7 @@ fun NotesScreen(
                             NoteCard(
                                 note = note,
                                 repo = repo,
+                                audio = cardAudio,
                                 pendingMedia = pendingMedia[note.id].orEmpty(),
                                 onOpen = { onOpenNote(note.id) },
                             )
