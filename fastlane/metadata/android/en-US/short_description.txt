@@ -1,1 +1,1 @@
-simple notes app with checklists and reminders: self-hosted sync or standalone
+Notes, checklists and voice notes. Offline-first, synced on your own server.

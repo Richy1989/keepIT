@@ -1,33 +1,18 @@
-keepIT is a fast, offline-first notes app that keeps your notes in sync across
-all your devices in real time. It is the native Android client for the
-open-source keepIT platform, which also has a web app and a REST API.
+A fast, private notes app. Your notes live on your phone, and on your own
+server if you want one - never on ours.
 
-Use it with your own keepIT server (free and open source) to sync your notes
-across devices while your data stays entirely under your control. Or tap
-"Use without a server" and keep everything on your phone alone, with nothing
-to set up. You can connect a server later and your notes move into your
-account.
+Open it and start writing. No account, no setup, no connection: everything is
+stored on the device first, so keepIT is instant and works offline. When you
+want the same notes on your other devices, run the free and open-source keepIT
+server and they sync in real time. You can start without one and connect a
+server later - your notes come with you.
 
-Features:
+* Notes and checklists, with Markdown as you type
+* Voice notes - record one and play it back, straight from your list
+* Photos from your camera or gallery
+* Reminders that fire on time, offline and with the app closed
+* Colors, pins, lists, archive and search to keep it findable
+* Share a note with someone to view or edit (needs a server)
+* Home-screen widget, and text shared in from other apps
 
-* Standalone mode: notes, lists, photos, reminders and the widget work with
-  no server at all
-* Plain notes and checklists, with an in-line Markdown editor
-* Image attachments from the camera or your gallery, even while offline
-* Colors, pins, archive and trash to keep things organized
-* Per-user lists to group notes your own way
-* Reminders that fire natively via AlarmManager, even offline or with the app
-  closed, and survive a reboot
-* Full-text search across your notes
-* Share notes with other users as Viewer or Editor, with the owner keeping
-  control
-* Real-time sync: a change on one device shows up on the others right away
-* Offline-first: everything works without a connection: your edits are cached
-  locally and a mutation outbox replays them automatically when you are back
-  online
-* Home-screen widget to jump straight into composing, a note, or your inbox;
-  it keeps itself up to date in the background
-* Share text in from other apps to start a new note pre-filled
-
-keepIT stores no analytics, contains no ads and no tracking. The refresh token
-is kept in app-private storage and never leaves your device.
+No ads, no analytics, no tracking.
