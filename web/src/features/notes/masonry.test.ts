@@ -200,6 +200,27 @@ describe('estimateCardHeight', () => {
     expect(both - imageOnly).toBeLessThan(60);
   });
 
+  // Every recording gets its own player now, so the estimate has to grow with them — but only up
+  // to the cap, past which the card collapses the rest into a single "+N more" line.
+  it('reserves a player per recording, up to the cap', () => {
+    const one = estimateCardHeight(note({ body: 'hi', media: [recording()] }), W);
+    const three = estimateCardHeight(
+      note({ body: 'hi', media: [recording(), recording(), recording()] }),
+      W,
+    );
+    const six = estimateCardHeight(
+      note({
+        body: 'hi',
+        media: [recording(), recording(), recording(), recording(), recording(), recording()],
+      }),
+      W,
+    );
+
+    expect(three).toBeGreaterThan(one);
+    // Past the cap the card adds one text line, not three more players.
+    expect(six - three).toBeLessThan(three - one);
+  });
+
   it('adds room for a reminder chip', () => {
     const without = estimateCardHeight(note({ body: 'hi' }), W);
     const with_ = estimateCardHeight(note({ body: 'hi', remindAtUtc: '2026-12-01T09:00:00Z' }), W);

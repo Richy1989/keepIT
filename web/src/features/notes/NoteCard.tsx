@@ -3,10 +3,10 @@ import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
 import { checklistForDisplay } from './checklist';
 import { NoteImage } from './media/NoteImage';
-import { formatDuration } from './media/duration';
+import { CardAudio } from './media/CardAudio';
 import { splitMedia } from './media/queries';
 import { noteColor } from './palette';
-import { MAX_PREVIEW_ITEMS } from './masonry';
+import { MAX_CARD_RECORDINGS, MAX_PREVIEW_ITEMS } from './masonry';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
 import { ColorPicker } from '../../components/ColorPicker';
@@ -15,7 +15,6 @@ import {
   CheckIcon,
   ClockIcon,
   EyeIcon,
-  MicIcon,
   PaletteIcon,
   PencilIcon,
   PinIcon,
@@ -133,16 +132,19 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         <h3 className="mb-1.5 pr-8 font-medium leading-snug text-text">{note.title}</h3>
       )}
 
-      {/* A voice note has nothing to show, so the card says it is there and how long it runs.
-          Playing it is the editor's job — a card is a summary, not a transport. */}
+      {/* A voice note plays from the card itself — it has nothing to show, and making someone open
+          the note to hear a twelve-second recording is a click for nothing. Capped, because a card
+          is still a summary: past the cap the note is the place to go. */}
       {recordings.length > 0 && (
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-text-muted">
-          <MicIcon className="text-sm" />
-          {recordings.length === 1
-            ? recordings[0].durationMs != null
-              ? `Voice note · ${formatDuration(recordings[0].durationMs)}`
-              : 'Voice note'
-            : `${recordings.length} voice notes`}
+        <div className="mb-2 flex flex-col gap-1.5">
+          {recordings.slice(0, MAX_CARD_RECORDINGS).map((rec) => (
+            <CardAudio key={rec.id} noteId={note.id} media={rec} />
+          ))}
+          {recordings.length > MAX_CARD_RECORDINGS && (
+            <p className="text-xs text-text-faint">
+              +{recordings.length - MAX_CARD_RECORDINGS} more in the note
+            </p>
+          )}
         </div>
       )}
 

@@ -49,10 +49,20 @@ export function splitMedia(media: NoteMediaDto[]): {
  *
  * `staleTime: Infinity` is safe in a way it isn't for avatars: a media id's bytes never change, so
  * there is no version of this image the cache could be wrong about.
+ *
+ * `enabled: false` defers the download entirely. A voice note on a note card is the reason: the
+ * whole recording comes down as one blob, so a grid of cards that each fetched on mount would
+ * spend megabytes on players nobody pressed. The card arms the query on the first press instead.
  */
-export function useNoteMediaBlob(noteId: string, mediaId: string, size: MediaSize) {
+export function useNoteMediaBlob(
+  noteId: string,
+  mediaId: string,
+  size: MediaSize,
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: [MEDIA_KEY, noteId, mediaId, size],
+    enabled: options.enabled ?? true,
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
     queryFn: async () => {

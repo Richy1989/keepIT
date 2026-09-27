@@ -42,8 +42,15 @@ const CHARS_PER_LINE_PER_100PX = 14;
 const MAX_PREVIEW_CHARS = 600;
 /** NoteImage caps a portrait hero at this multiple of its width. */
 const MAX_HERO_ASPECT = 1.4;
-/** The one-line "Voice note" marker a card shows when it holds a recording. */
-const RECORDING_ROW_HEIGHT = 20;
+/** One compact player row (button, progress, running time) plus the gap under it. */
+const RECORDING_ROW_HEIGHT = 42;
+
+/**
+ * How many voice notes a card gives a player before collapsing the rest into a "+N more" line.
+ * Here rather than in NoteCard for the same reason as {@link MAX_PREVIEW_ITEMS}: this module
+ * imports nothing but a type, which is what lets masonry.test.ts run without React.
+ */
+export const MAX_CARD_RECORDINGS = 3;
 
 /** Approximates a card's rendered height in px. See the module comment for why it can be loose. */
 export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
@@ -62,7 +69,11 @@ export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
     height += TITLE_HEIGHT;
   }
 
-  if (note.media.some((m) => m.kind === 'Audio')) height += RECORDING_ROW_HEIGHT;
+  const recordings = note.media.filter((m) => m.kind === 'Audio').length;
+  if (recordings > 0) {
+    height += Math.min(recordings, MAX_CARD_RECORDINGS) * RECORDING_ROW_HEIGHT;
+    if (recordings > MAX_CARD_RECORDINGS) height += TEXT_LINE_HEIGHT; // the "+N more" line
+  }
 
   if (note.type === 'Checklist') {
     const shown = Math.min(note.checklistItems.length, MAX_PREVIEW_ITEMS);

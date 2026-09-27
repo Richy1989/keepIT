@@ -104,6 +104,19 @@ export const MicIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const PlayIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M7 4.5 19.5 12 7 19.5Z" fill="currentColor" />
+  </Icon>
+);
+
+export const PauseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M8 4.75h2.5v14.5H8Z" fill="currentColor" />
+    <path d="M13.5 4.75H16v14.5h-2.5Z" fill="currentColor" />
+  </Icon>
+);
+
 export const SearchIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <circle cx="11" cy="11" r="8" />
