@@ -908,6 +908,25 @@ context — `navigator.mediaDevices` does not exist over plain http, which keepI
 so a recorder in the web app would be missing for a real share of users. The phone records; the web
 plays.
 
+**Both clients play a recording from the notes overview**, not only from the editor — a
+twelve-second voice note is not worth opening a note for. Two constraints shape it, and they are
+the same on each client for the same reasons:
+
+* **Nothing downloads until a press.** A recording is served as one authenticated blob (there is no
+  range-request streaming, and no token may go near a URL), so a grid where every card fetched on
+  mount would pull the whole library over the wire to draw play buttons nobody pressed. The web
+  holds the query back with `enabled` (`media/queries.ts`); Android passes the card a lazy
+  `openFile` lambda and only then asks `MediaCache` (`ui/notes/CardAudio.kt`).
+* **One player lives above the list, not inside a card.** On Android a card leaves the composition
+  the moment it scrolls off, which would cut off the recording being listened to, so `NotesScreen`
+  owns a single `CardAudioPlayer` and hands it down. The web keeps the equivalent as one
+  module-level `playingElement`. Either way, starting one recording stops whatever was playing —
+  two cards talking over each other is the one thing a grid of players must not do.
+
+Android plays a **staged** recording from its outbox file too, so a voice note made offline, or in
+standalone mode where nothing is ever uploaded, plays from the card before it has ever reached a
+server.
+
 **Format: mono, 22.05 kHz, AAC in m4a, ~32 kbps** (`data/AudioRecorder.kt`). A phone's mic array
 yields one channel after its own noise suppression, so stereo would store the same voice twice.
 22 kHz rather than the 16 kHz speech-to-text consumes, because transcribers downsample anyway —
