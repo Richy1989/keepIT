@@ -309,27 +309,75 @@ public class AuthController : ControllerBase
 
         if (!stored.IsActive)
         {
-            // Rotated moments ago? That's our own lost response, not theft — fall through and
-            // rotate again. (Logout revokes without setting ReplacedByTokenHash, so a logged-out
-            // token never qualifies.)
-            var isRecentRotation = stored.ReplacedByTokenHash is not null
-                && stored.RevokedAtUtc is not null
-                && DateTime.UtcNow - stored.RevokedAtUtc.Value <= RotationGraceWindow
-                && !stored.IsExpired;
-
-            if (!isRecentRotation)
+            // Expired is simply expired, whatever else is true of the row.
+            if (stored.IsExpired)
             {
-                // A known-but-revoked token was replayed: assume theft and kill the whole family.
-                if (stored.RevokedAtUtc is not null && !stored.IsExpired)
-                {
-                    var now = DateTime.UtcNow;
-                    await _db.RefreshTokens
-                        .Where(rt => rt.UserId == stored.UserId && rt.RevokedAtUtc == null)
-                        .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
-                }
                 ClearRefreshCookie();
                 return Unauthorized(new { error = "Invalid or expired refresh token." });
             }
+
+            // What separates a replay from an accident is the replacement this token points at.
+            var replacement = stored.ReplacedByTokenHash is null
+                ? null
+                : await _db.RefreshTokens.FirstOrDefaultAsync(rt => rt.TokenHash == stored.ReplacedByTokenHash);
+
+            // No replacement recorded at all: Logout revokes without one. The session was ended on
+            // purpose, so a client retrying a queued request with the dead cookie is not an attack
+            // — and must not take every other device down with it.
+            if (replacement is null)
+            {
+                _logger.LogInformation(
+                    "Refresh token for user {UserId} was replayed after logout; rejecting this "
+                    + "session only.",
+                    stored.UserId);
+                ClearRefreshCookie();
+                return Unauthorized(new { error = "Invalid or expired refresh token." });
+            }
+
+            // The replacement was issued but has never been used. Nobody holds it — the client that
+            // asked for it never got the response (a dropped connection, a killed process), which
+            // is why it is still presenting the old token. There is no second holder to cut off.
+            var rotationLost = replacement.IsActive;
+
+            // Rotated moments ago? That's our own lost response too, even if the replacement has
+            // since been used: a reload aborting an in-flight refresh, or two tabs racing on the
+            // shared cookie.
+            var withinGrace = DateTime.UtcNow - stored.RevokedAtUtc!.Value <= RotationGraceWindow;
+
+            if (!rotationLost && !withinGrace)
+            {
+                // The replacement is in active circulation and the token it replaced came back
+                // anyway. That is the signature of a copied cookie: kill every session.
+                var now = DateTime.UtcNow;
+                var endedSessions = await _db.RefreshTokens
+                    .Where(rt => rt.UserId == stored.UserId && rt.RevokedAtUtc == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.RevokedAtUtc, now));
+
+                // Otherwise this is silent: every session on every device has just ended and
+                // nobody can say why afterwards. It is the one place here that ends sessions the
+                // user did not ask to end, so it is a warning, with enough to tell a replay from
+                // a client bug when it recurs.
+                _logger.LogWarning(
+                    "Refresh token replay for user {UserId}: presented token was revoked {TokenAge} ago "
+                    + "and its replacement is already in use; {EndedSessions} active session(s) ended.",
+                    stored.UserId,
+                    now - stored.RevokedAtUtc.Value,
+                    endedSessions);
+
+                ClearRefreshCookie();
+                return Unauthorized(new { error = "Invalid or expired refresh token." });
+            }
+
+            // Not theft: fall through and rotate again. Logged because a client that keeps landing
+            // here is losing rotation responses, and that pattern is invisible one occurrence at a
+            // time.
+            _logger.LogInformation(
+                "Refresh token for user {UserId} replayed {TokenAge} after rotation "
+                + "(replacement used: {ReplacementUsed}); issuing a sibling rather than treating it "
+                + "as a replay.",
+                stored.UserId,
+                DateTime.UtcNow - stored.RevokedAtUtc.Value,
+                !rotationLost);
         }
 
         // Rotate: revoke the presented token and issue a new one in its place. In the grace case
