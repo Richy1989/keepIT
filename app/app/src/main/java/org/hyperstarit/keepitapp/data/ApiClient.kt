@@ -94,7 +94,14 @@ class PersistentCookieJar(private val prefs: SharedPreferences) : CookieJar {
             val scheme = if (c.secure) "https" else "http"
             "$scheme://${c.domain}|$c"
         }.toSet()
-        prefs.edit().putStringSet(KEY, entries).apply()
+        // commit() rather than apply(), and the asymmetry with clear() below is deliberate. This
+        // runs on OkHttp's network thread the moment the server has rotated the refresh token, and
+        // an async write lost to process death would leave the *previous* token on disk - which the
+        // next launch would present to a server that has already replaced it. That used to cost the
+        // user every session on every device; it now costs a round trip, and either way the write
+        // is one small string set off the main thread. clear() keeps apply(): losing that write
+        // only leaves behind a cookie the server has already revoked.
+        prefs.edit().putStringSet(KEY, entries).commit()
     }
 
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
