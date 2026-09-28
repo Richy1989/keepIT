@@ -3,6 +3,36 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## 0.8.1
+
+A fix for being signed out of every device at once, for no apparent reason. It is server-side, so
+updating the server is what applies it; the Android app carries a smaller fix of its own.
+
+### Fixed
+
+- **Signed out everywhere, with nothing to explain it.** Presenting a refresh token that had
+  already been rotated was read as a stolen cookie in every case -- and the answer to a stolen
+  cookie is to end every session the account has. Two entirely ordinary situations reached it. A
+  client that never received a rotation response still holds the previous token and presents it
+  again: a dropped connection, or the app killed at the wrong moment, is enough. And a client
+  retrying a queued request after the user signed out does the same. Either one ended every session
+  on every device, minutes or hours later.
+
+  The tokens say which happened. A replacement that has never been used is in nobody's hands, and
+  signing out leaves no replacement at all. Only a replacement already in circulation means someone
+  else is holding a copy, and that case still ends every session, exactly as before.
+
+- **The Android app now writes a rotated refresh cookie durably** instead of leaving it to an
+  asynchronous write, closing the window where the app being killed just after a refresh left the
+  superseded token on disk for the next launch to present.
+
+### Also
+
+- Ending every session for an account is now logged: a warning naming the account, how old the
+  replayed token was, and how many sessions it ended. It wrote nothing at all before, which is why
+  it could not be explained afterwards. The two ordinary cases above log at information level, so a
+  client that keeps losing rotation responses reads as a pattern rather than a one-off.
+
 ## 0.8.0
 
 Voice notes, and a way to take everything with you. Record straight into a note on Android and play
