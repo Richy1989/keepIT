@@ -561,6 +561,18 @@ session distinguishes **rejected** (server said no → sign out) from **unreacha
 problem → stay signed in on the cached user so the offline cache is usable); only an actual
 rejection may destroy the session.
 
+**Device backup.** Android backs up everything the rules don't exclude — to the cloud (Google, or
+Seedvault on de-Googled phones) and in a transfer to a new phone — so
+`res/xml/data_extraction_rules.xml` is exclusions only, and there are two. The cookie's prefs file
+(`ApiClient.PREFS_NAME`) stays behind: a restored cookie is either a working sign-in sitting in a
+backup or, once the original device has refreshed past it, a replay that the server's reuse
+detection answers by ending every session on the account. A restored phone signs in again, and the
+restored cache and outbox carry on under the same account (a different one wipes them). The
+downloaded-image cache (`offline/media`) stays behind too: it re-downloads, and it alone can exceed
+cloud backup's 25 MB per-app quota, which skips the backup altogether. Everything else travels, and
+must — for a standalone user the offline store and staged images are the only copy.
+`BackupRulesTest` pins both directions.
+
 **Session bootstrap.** Restoring that session from the cookie runs on the app scope
 (`AppContainer.bootstrap`), not in the composition that asks for it. The session is
 process-scoped state, so tying its restore to a composition means an activity recreation — a

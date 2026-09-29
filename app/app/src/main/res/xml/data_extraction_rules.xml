@@ -1,19 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
+   What Android copies off the device: cloud backup (Google, or Seedvault on de-Googled phones) and
+   device-to-device transfer to a new phone. Anything not excluded here goes, so the rules are
+   exclusions only - the notes, the outbox and staged images must travel, because for a standalone
+   user they are the only copy there is.
+
+   Left behind:
+   - keepit_net.xml (ApiClient.PREFS_NAME) - the refresh cookie, plus the server URL and last user.
+     A restored cookie is either a working 14-day sign-in sitting in a backup, or - once the
+     original device has refreshed since - a replay the server answers by ending every session on
+     the account. The new device signs in again instead, and the restored cache and outbox resume
+     under the same account (NotesRepository.onSignedIn).
+   - offline/media - downloaded server images. They download again, and a cache of up to 256 MB
+     would push the app past cloud backup's 25 MB allowance, which skips the backup altogether.
+     offline/media-staging is a different directory and stays in.
+
+   Pinned by BackupRulesTest; backup_rules.xml carries the same exclusions.
    See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="keepit_net.xml"/>
+        <exclude domain="file" path="offline/media"/>
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="keepit_net.xml"/>
+        <exclude domain="file" path="offline/media"/>
     </device-transfer>
-    -->
 </data-extraction-rules>

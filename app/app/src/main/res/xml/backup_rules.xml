@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   The pre-Android 12 form of data_extraction_rules.xml. With minSdk 34 no device reads it, so it
+   only mirrors those exclusions - see that file for why each one is there - rather than leave an
+   empty file that would mean "back up everything" to anyone who lowers minSdk.
+   Pinned by BackupRulesTest.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <exclude domain="sharedpref" path="keepit_net.xml"/>
+    <exclude domain="file" path="offline/media"/>
 </full-backup-content>

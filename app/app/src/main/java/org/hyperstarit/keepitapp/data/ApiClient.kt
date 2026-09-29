@@ -138,7 +138,7 @@ class PersistentCookieJar(private val prefs: SharedPreferences) : CookieJar {
  */
 class ApiClient(context: Context) {
 
-    private val prefs = context.getSharedPreferences("keepit_net", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val tokenStore = TokenStore()
     private val cookieJar = PersistentCookieJar(prefs)
 
@@ -292,6 +292,13 @@ class ApiClient(context: Context) {
     }
 
     companion object {
+        /**
+         * The prefs file holding the refresh cookie, server URL and last user. Kept out of device
+         * backups and transfers by `res/xml/data_extraction_rules.xml`, which names it as a file —
+         * rename it and that exclusion silently stops applying (`BackupRulesTest` catches it).
+         */
+        const val PREFS_NAME = "keepit_net"
+
         /**
          * Makes a user-entered address usable as a Retrofit base URL: adds a scheme when missing
          * (http, since self-hosted LAN/emulator setups are the common bare-address case) and the
