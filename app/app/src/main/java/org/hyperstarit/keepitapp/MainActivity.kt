@@ -1,8 +1,10 @@
 package org.hyperstarit.keepitapp
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
@@ -21,7 +23,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Light icons on both bars, always. The default picks them from the *system* theme, but the
+        // app is dark whatever the phone is set to, so a phone in light mode got dark clock and
+        // battery icons on a near-black bar. Transparent, because every screen draws its own
+        // background edge to edge and pads for the bars itself.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
         pendingDestination.value = destinationFrom(intent)
         setContent {
             KeepITAppTheme {
