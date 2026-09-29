@@ -5,8 +5,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## 0.8.1
 
-A fix for being signed out of every device at once, for no apparent reason. It is server-side, so
-updating the server is what applies it; the Android app carries two smaller fixes of its own.
+A fix for being signed out of every device at once, for no apparent reason, and a roomier note editor
+on Android. The sign-out fix is server-side, so updating the server is what applies it; the Android
+app carries three smaller fixes of its own.
 
 ### Fixed
 
@@ -37,6 +38,23 @@ updating the server is what applies it; the Android app carries two smaller fixe
   uploaded carry on under the same account. Downloaded images stay behind too. They download
   again, and on their own they could take the app past Android's 25 MB cloud-backup allowance,
   which skips the backup entirely.
+
+- **The status bar icons on Android stay light** on a phone set to light mode, where the clock and
+  battery were drawn dark on the app's dark background.
+
+### Android editor
+
+- **The tools float above the navigation bar.** They sat directly on the gesture bar -- or under
+  the buttons of 3-button navigation -- because the app draws edge to edge and they only ever made
+  room for the keyboard. They are now a rounded toolbar clear of both, with larger buttons.
+- **One row instead of two**: add, formatting, colour, checklist and microphone. "Aa" swaps in the
+  formatting buttons instead of stacking a second row; there are more of them than fit, so they
+  scroll, and fade at the edge where more are hidden.
+- **Add and colour open sheets**: labelled choices for a photo, images or a voice note, and large
+  named swatches that recolour the note while the sheet is still open, so trying a few is a tap
+  each.
+- **Reminder and share moved to the top bar**, beside pin, and trash into the menu there -- it used
+  to sit one slip away from the camera.
 
 ### Also
 
