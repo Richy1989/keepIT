@@ -701,8 +701,8 @@ Compose with a shared *design language*, not shared code and not pixel-cloning**
   `settings` push is ignored (`KeepItApplication.kt`). Syncing the value alone would change
   nothing on screen — **there is no theme to switch into yet**, which is why the client doesn't
   pretend to listen. Closing it is a themed-UI job before it is a sync job, in this order:
-  (1) make the tokens runtime-swappable — `KeepItColors` is an `object` read directly at **166
-  call sites across 12 files** (35 of them `Accent`), so this means a `CompositionLocal` and a
+  (1) make the tokens runtime-swappable — `KeepItColors` is an `object` read directly at **223
+  call sites across 15 files** (37 of them `Accent`), so this means a `CompositionLocal` and a
   mechanical sweep; (2) add the dark/light schemes as a token swap, as the web does;
   (3) add the DTO + route + repository, a picker in `SettingsScreen`, and handle `settings` in
   the realtime handler. Until then the dim scheme **is** the Android look, and a user's web
@@ -710,6 +710,13 @@ Compose with a shared *design language*, not shared code and not pixel-cloning**
 - **Per-note palette:** a Compose map keyed by the **same** color keys the `Note.color` DTO
   stores (`"rose"`, `"amber"`, …), so the palette stays in lockstep across clients.
 - **Masonry grid:** Compose `LazyVerticalStaggeredGrid` — a near-1:1 fit for the card grid.
+- **Editor tools are a floating toolbar, not the web's footer** (`ui/notes/EditorToolbar.kt`):
+  a Material 3-style pill above the navigation bar and keyboard, holding only what adds to the
+  note (add sheet, formatting, colour sheet, checklist, microphone), with "Aa" swapping in the
+  Markdown buttons so it stays one row. What acts on the note (reminder, share, pin, archive,
+  trash) is in the top bar. The app draws edge to edge, so anything pinned to the bottom must pad
+  for the navigation bar itself — the old full-width rows only padded for the keyboard and sat on
+  the gesture handle.
 - **Don't chase system-chrome parity:** status bar, back behavior, ripples, and insets follow
   Android conventions. Matching palette/typography/cards/accents is what reads as "same app".
 - **Explicitly rejected:** WebView/TWA/Capacitor wrappers (non-native feel, and the widget

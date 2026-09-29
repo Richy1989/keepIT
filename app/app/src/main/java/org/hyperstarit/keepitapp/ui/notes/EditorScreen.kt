@@ -7,16 +7,11 @@ import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import java.io.File
 import java.util.UUID
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,39 +19,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FormatBold
-import androidx.compose.material.icons.filled.FormatItalic
-import androidx.compose.material.icons.filled.FormatListNumbered
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StrikethroughS
-import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -64,7 +43,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -94,7 +72,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -109,7 +86,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.hyperstarit.keepitapp.AppContainer
-import org.hyperstarit.keepitapp.ui.markdown.MarkdownAction
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownText
 import org.hyperstarit.keepitapp.ui.markdown.applyMarkdown
 import org.hyperstarit.keepitapp.data.ChecklistItemDto
@@ -121,7 +97,6 @@ import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
-import org.hyperstarit.keepitapp.ui.theme.NotePalette
 import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 
 /**
@@ -155,10 +130,11 @@ private fun List<EditableItem>.displayRows(): List<IndexedValue<EditableItem>> =
     withIndex().sortedBy { it.value.isChecked }
 
 /**
- * Full-note editor, the phone twin of the web NoteEditorModal: title, body or checklist, and a
- * bottom toolbar (color + text/checklist toggle) matching the web editor's footer. Saves on leaving
- * (back button or the top-left arrow) rather than with an explicit save; viewers see content
- * read-only but may still file the note into their own lists (list membership is per-user).
+ * Full-note editor, the phone twin of the web NoteEditorModal: title, body or checklist. Tools that
+ * add to the note float at the bottom ([EditorToolbar]); actions on the note — reminder, share, pin,
+ * archive, trash — are in the top bar. Saves on leaving (back button or the top-left arrow) rather
+ * than with an explicit save; viewers see content read-only but may still file the note into their
+ * own lists (list membership is per-user).
  *
  * With a null [noteId] it's the composer — the widget's "+" lands here, as does text shared in from
  * another app (via [initialTitle] / [initialBody], ignored when editing an existing note).
@@ -193,7 +169,8 @@ fun EditorScreen(
     var color by remember { mutableStateOf<String?>(null) }
     val items = remember { mutableStateListOf<EditableItem>() }
     var listIds by remember { mutableStateOf(setOf<String>()) }
-    var showColors by remember { mutableStateOf(false) }
+    var showColorSheet by remember { mutableStateOf(false) }
+    var showAddSheet by remember { mutableStateOf(false) }
     var showReminder by remember { mutableStateOf(false) }
     var showShare by remember { mutableStateOf(false) }
     // The row whose text field should grab focus next (a just-added checklist item).
@@ -248,6 +225,11 @@ fun EditorScreen(
 
     val canEdit = note?.canEdit ?: true
     val swatch = noteSwatch(color)
+
+    // Queued images count: the server enforces the limit on upload, and in standalone mode they are
+    // all the images there are.
+    val atImageLimit = (live?.media?.count { !it.isAudio } ?: 0) +
+        pending.count { !it.isAudio } >= MAX_IMAGES_PER_NOTE
 
     fun addItemAfter(index: Int) {
         val newItem = EditableItem(null, "", false)
@@ -509,6 +491,28 @@ fun EditorScreen(
                 actions = {
                     val current = note
                     if (current != null) {
+                        // Reminders are per-user (read access suffices) — existing notes only,
+                        // since a reminder needs a note id to attach to.
+                        if (!current.isTrashed) {
+                            IconButton(onClick = { showReminder = true }) {
+                                Icon(
+                                    Icons.Filled.Alarm,
+                                    contentDescription = "Remind me",
+                                    tint = if (current.remindAtUtc != null) KeepItColors.Accent else KeepItColors.TextMuted,
+                                )
+                            }
+                            // Share management — owners invite/revoke, collaborators see & leave.
+                            // Sharing is between accounts on a server, so standalone has none.
+                            if (!standalone) {
+                                IconButton(onClick = { showShare = true }) {
+                                    Icon(
+                                        Icons.Filled.PersonAdd,
+                                        contentDescription = "Share note",
+                                        tint = if (current.isShared) KeepItColors.Accent else KeepItColors.TextMuted,
+                                    )
+                                }
+                            }
+                        }
                         IconButton(onClick = {
                             scope.launch { repo.setState(current.id, NoteStateDto(isPinned = !current.isPinned)) }
                             note = current.copy(isPinned = !current.isPinned)
@@ -533,6 +537,18 @@ fun EditorScreen(
                                     }
                                 },
                             )
+                            // Trash is per-user state, so viewers may trash (and restore) too.
+                            // It lives here rather than among the tools, a slip away from the camera.
+                            DropdownMenuItem(
+                                text = { Text(if (current.isTrashed) "Restore" else "Move to trash") },
+                                onClick = {
+                                    menuOpen = false
+                                    scope.launch {
+                                        repo.setState(current.id, NoteStateDto(isTrashed = !current.isTrashed))
+                                        onDone()
+                                    }
+                                },
+                            )
                             if (current.isOwner && current.isTrashed) {
                                 DropdownMenuItem(
                                     text = { Text("Delete forever") },
@@ -551,171 +567,22 @@ fun EditorScreen(
             )
         },
         bottomBar = {
-            val current = note
-            // Editors get the color + type tools; any existing note (viewers too) gets trash/restore.
-            if (canEdit || current != null) {
-                Column(modifier = Modifier.imePadding()) {
-                    // Markdown formatting row — text notes only; each button rewrites the selection.
-                    if (canEdit && type == NoteTypes.TEXT) {
-                        HorizontalDivider(color = swatch.border)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(swatch.bg)
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            FormatButton(Icons.Filled.FormatBold, "Bold") {
-                                body = applyMarkdown(body, MarkdownAction.BOLD)
-                            }
-                            FormatButton(Icons.Filled.FormatItalic, "Italic") {
-                                body = applyMarkdown(body, MarkdownAction.ITALIC)
-                            }
-                            FormatButton(Icons.Filled.StrikethroughS, "Strikethrough") {
-                                body = applyMarkdown(body, MarkdownAction.STRIKE)
-                            }
-                            FormatButton(Icons.Filled.Title, "Heading") {
-                                body = applyMarkdown(body, MarkdownAction.HEADING)
-                            }
-                            FormatButton(Icons.AutoMirrored.Filled.FormatListBulleted, "Bullet list") {
-                                body = applyMarkdown(body, MarkdownAction.BULLET)
-                            }
-                            FormatButton(Icons.Filled.FormatListNumbered, "Numbered list") {
-                                body = applyMarkdown(body, MarkdownAction.ORDERED)
-                            }
-                            FormatButton(Icons.Filled.Link, "Link") {
-                                body = applyMarkdown(body, MarkdownAction.LINK)
-                            }
-                            FormatButton(Icons.Filled.Code, "Code") {
-                                body = applyMarkdown(body, MarkdownAction.CODE)
-                            }
-                        }
-                    }
-                    HorizontalDivider(color = swatch.border)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(swatch.bg)
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (canEdit) {
-                            // Background color picker toggle (web parity: Palette in the footer).
-                            IconButton(onClick = { showColors = !showColors }) {
-                                Icon(
-                                    Icons.Filled.Palette,
-                                    contentDescription = "Background color",
-                                    tint = if (showColors) KeepItColors.Accent else KeepItColors.TextMuted,
-                                )
-                            }
-                            // Attach from the gallery, or shoot one — the mobile-native half of the
-                            // feature, and the reason offline attach exists at all.
-                            // Queued ones count: the server enforces the limit on upload, and in
-                            // standalone mode they are all the images there are.
-                            val atLimit = (live?.media?.count { !it.isAudio } ?: 0) +
-                                pending.count { !it.isAudio } >= MAX_IMAGES_PER_NOTE
-                            IconButton(
-                                onClick = {
-                                    pickImages.launch(
-                                        PickVisualMediaRequest(
-                                            ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                        ),
-                                    )
-                                },
-                                enabled = !atLimit,
-                            ) {
-                                Icon(
-                                    Icons.Filled.Image,
-                                    contentDescription = if (atLimit) {
-                                        "Image limit reached"
-                                    } else {
-                                        "Add image"
-                                    },
-                                    tint = KeepItColors.TextMuted,
-                                )
-                            }
-                            // Voice notes: Android only. Browsers cannot record over plain http,
-                            // which keepIT supports on a LAN, so the web plays them and never
-                            // makes one - this button is the only way a recording enters keepIT.
-                            IconButton(onClick = ::toggleRecording) {
-                                Icon(
-                                    imageVector = if (recordingSince != null) {
-                                        Icons.Filled.Stop
-                                    } else {
-                                        Icons.Filled.Mic
-                                    },
-                                    contentDescription = if (recordingSince != null) {
-                                        "Stop recording"
-                                    } else {
-                                        "Record a voice note"
-                                    },
-                                    tint = if (recordingSince != null) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        KeepItColors.TextMuted
-                                    },
-                                )
-                            }
-                            IconButton(onClick = ::launchCamera, enabled = !atLimit) {
-                                Icon(
-                                    Icons.Filled.PhotoCamera,
-                                    contentDescription = "Take photo",
-                                    tint = KeepItColors.TextMuted,
-                                )
-                            }
-                            // Text ⇄ checklist toggle (web parity: CheckSquare in the footer).
-                            IconButton(onClick = {
-                                if (type == NoteTypes.TEXT) switchToChecklist() else type = NoteTypes.TEXT
-                            }) {
-                                Icon(
-                                    Icons.Filled.Checklist,
-                                    contentDescription = if (type == NoteTypes.CHECKLIST) "Switch to text" else "Switch to checklist",
-                                    tint = if (type == NoteTypes.CHECKLIST) KeepItColors.Accent else KeepItColors.TextMuted,
-                                )
-                            }
-                        }
-                        // Reminders are per-user (read access suffices) — existing notes only,
-                        // since a reminder needs a note id to attach to.
-                        if (current != null && !current.isTrashed) {
-                            IconButton(onClick = { showReminder = true }) {
-                                Icon(
-                                    Icons.Filled.Alarm,
-                                    contentDescription = "Remind me",
-                                    tint = if (current.remindAtUtc != null) KeepItColors.Accent else KeepItColors.TextMuted,
-                                )
-                            }
-                            // Share management — owners invite/revoke, collaborators see & leave.
-                            // Sharing is between accounts on a server, so standalone has none.
-                            if (!standalone) {
-                                IconButton(onClick = { showShare = true }) {
-                                    Icon(
-                                        Icons.Filled.PersonAdd,
-                                        contentDescription = "Share note",
-                                        tint = if (current.isShared) KeepItColors.Accent else KeepItColors.TextMuted,
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        // Move to trash / restore — right-aligned action, like the web card's trash tool.
-                        if (current != null) {
-                            IconButton(onClick = {
-                                val trashing = !current.isTrashed
-                                scope.launch {
-                                    repo.setState(current.id, NoteStateDto(isTrashed = trashing))
-                                    onDone()
-                                }
-                            }) {
-                                Icon(
-                                    imageVector = if (current.isTrashed) Icons.Filled.Restore else Icons.Filled.Delete,
-                                    contentDescription = if (current.isTrashed) "Restore" else "Move to trash",
-                                    tint = KeepItColors.TextMuted,
-                                )
-                            }
-                        }
-                    }
-                }
+            // Editors only: every tool here adds to the note. Viewers reach the rest from the top bar.
+            if (canEdit) {
+                EditorToolbar(
+                    canFormat = type == NoteTypes.TEXT,
+                    isChecklist = type == NoteTypes.CHECKLIST,
+                    hasColor = color != null,
+                    recording = recordingSince != null,
+                    onAdd = { showAddSheet = true },
+                    onColor = { showColorSheet = true },
+                    onToggleChecklist = {
+                        if (type == NoteTypes.TEXT) switchToChecklist() else type = NoteTypes.TEXT
+                    },
+                    onToggleRecording = ::toggleRecording,
+                    // Each button rewrites the body's current selection.
+                    onFormat = { action -> body = applyMarkdown(body, action) },
+                )
             }
         },
     ) { padding ->
@@ -928,27 +795,6 @@ fun EditorScreen(
 
             Spacer(modifier = Modifier.size(16.dp))
 
-            if (canEdit && showColors) {
-                // Color palette — same swatches as the web ColorPicker, themed for dark.
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(NotePalette, key = { it.key }) { option ->
-                        val selected = (color ?: "default") == option.key
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(option.bg, CircleShape)
-                                .border(
-                                    width = if (selected) 2.dp else 1.dp,
-                                    color = if (selected) KeepItColors.Accent else option.border,
-                                    shape = CircleShape,
-                                )
-                                .clickable { color = if (option.key == "default") null else option.key },
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.size(16.dp))
-            }
-
             if (lists.isNotEmpty()) {
                 Text(
                     text = "LISTS",
@@ -1010,6 +856,27 @@ fun EditorScreen(
             )
         }
     }
+
+    if (canEdit && showAddSheet) {
+        AddToNoteSheet(
+            imagesAtLimit = atImageLimit,
+            recording = recordingSince != null,
+            onDismiss = { showAddSheet = false },
+            onTakePhoto = ::launchCamera,
+            onPickImages = {
+                pickImages.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onToggleRecording = ::toggleRecording,
+        )
+    }
+
+    if (canEdit && showColorSheet) {
+        NoteColorSheet(
+            selected = color,
+            onPick = { color = it },
+            onDismiss = { showColorSheet = false },
+        )
+    }
 }
 
 /**
@@ -1036,14 +903,6 @@ private fun editSignatureOf(
     // Length-prefix each field so no separator char is needed and no two distinct field
     // sets can collide into the same fingerprint.
     return parts.joinToString("") { "${it.length}:$it" }
-}
-
-/** One button in the Markdown formatting row. */
-@Composable
-private fun FormatButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(icon, contentDescription = label, tint = KeepItColors.TextMuted, modifier = Modifier.size(20.dp))
-    }
 }
 
 /** Transparent text fields on the note-colored canvas, like the web editor's borderless inputs. */
