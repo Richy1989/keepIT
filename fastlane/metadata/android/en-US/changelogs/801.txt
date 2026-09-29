@@ -1,0 +1,5 @@
+Fixes being signed out of every device at once. The app now saves your sign-in the moment the server renews it, so closing the app at the wrong moment can no longer leave it holding an outdated one.
+
+Backups and moves to a new phone no longer copy your sign-in. On the new phone you sign in again, and your notes and any changes not yet uploaded come with it.
+
+Running your own server? Update it to 0.8.1 as well: most of this fix is on the server.

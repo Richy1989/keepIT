@@ -6,7 +6,7 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 ## 0.8.1
 
 A fix for being signed out of every device at once, for no apparent reason. It is server-side, so
-updating the server is what applies it; the Android app carries a smaller fix of its own.
+updating the server is what applies it; the Android app carries two smaller fixes of its own.
 
 ### Fixed
 
@@ -27,6 +27,16 @@ updating the server is what applies it; the Android app carries a smaller fix of
 - **The Android app now writes a rotated refresh cookie durably** instead of leaving it to an
   asynchronous write, closing the window where the app being killed just after a refresh left the
   superseded token on disk for the next launch to present.
+
+- **Android backups no longer carry the app's sign-in.** Android backed up the whole app, refresh
+  cookie included, so restoring a backup or moving to a new phone brought a copy of it along. If
+  the old phone had refreshed since the backup was taken, that copy looked exactly like a stolen
+  cookie and ended every session on the account -- the same symptom as above, by another route. If
+  it had not, the backup held a working sign-in. The cookie and the server address now stay out of
+  backups and transfers: on a new phone you sign in again, and the notes and any changes not yet
+  uploaded carry on under the same account. Downloaded images stay behind too. They download
+  again, and on their own they could take the app past Android's 25 MB cloud-backup allowance,
+  which skips the backup entirely.
 
 ### Also
 
