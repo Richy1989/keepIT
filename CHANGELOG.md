@@ -20,7 +20,9 @@ updating the server is what applies it; the Android app carries a smaller fix of
 
   The tokens say which happened. A replacement that has never been used is in nobody's hands, and
   signing out leaves no replacement at all. Only a replacement already in circulation means someone
-  else is holding a copy, and that case still ends every session, exactly as before.
+  else is holding a copy, and that case still ends every session, exactly as before. A client whose
+  lost response was made good is held to the token it was given instead, so a copy of its old token
+  is still caught once that one is in use, rather than working until it expires.
 
 - **The Android app now writes a rotated refresh cookie durably** instead of leaving it to an
   asynchronous write, closing the window where the app being killed just after a refresh left the

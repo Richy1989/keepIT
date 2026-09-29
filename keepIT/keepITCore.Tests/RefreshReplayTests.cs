@@ -109,6 +109,69 @@ public sealed class RefreshReplayTests
     }
 
     /// <summary>
+    /// Serving a lost rotation must not leave the old token usable for good. Its first replacement
+    /// is never used — nobody holds it — so judged by that one alone, the old token would pass as a
+    /// lost response on every replay, and a copy of it would mint sessions for as long as it lived
+    /// without ever being noticed. Once the client is using the token it was served instead, the
+    /// old one coming back is a copy like any other.
+    /// </summary>
+    [Fact]
+    public async Task Replay_after_a_lost_rotation_was_served_ends_every_session_once_the_new_token_is_in_use()
+    {
+        using var api = new KeepItApiFactory();
+        var (email, first) = await RegisterAsync(api);
+        var otherDevice = await SignInAgainAsync(api, email);
+
+        using (var lost = await RefreshAsync(api, first))
+            Assert.Equal(HttpStatusCode.OK, lost.StatusCode);
+        await AgeRotationsAsync(api);
+
+        string served;
+        using (var recovered = await RefreshAsync(api, first))
+        {
+            Assert.Equal(HttpStatusCode.OK, recovered.StatusCode);
+            served = RefreshCookie(recovered);
+        }
+
+        // The client carries on with the token it was served, so that one is now in circulation.
+        using (var used = await RefreshAsync(api, served))
+            Assert.Equal(HttpStatusCode.OK, used.StatusCode);
+        await AgeRotationsAsync(api);
+
+        using var replay = await RefreshAsync(api, first);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+
+        using var elsewhere = await RefreshAsync(api, otherDevice);
+        Assert.Equal(HttpStatusCode.Unauthorized, elsewhere.StatusCode);
+    }
+
+    /// <summary>
+    /// The other side of the test above: a client can lose the response to its recovery too, and
+    /// that is still no reason to end anyone's session. Nothing it was served is in use, so it is
+    /// served again.
+    /// </summary>
+    [Fact]
+    public async Task Replay_after_losing_the_recovery_response_too_is_still_served()
+    {
+        using var api = new KeepItApiFactory();
+        var (email, first) = await RegisterAsync(api);
+        var otherDevice = await SignInAgainAsync(api, email);
+
+        using (var lost = await RefreshAsync(api, first))
+            Assert.Equal(HttpStatusCode.OK, lost.StatusCode);
+        await AgeRotationsAsync(api);
+        using (var lostAgain = await RefreshAsync(api, first))
+            Assert.Equal(HttpStatusCode.OK, lostAgain.StatusCode);
+        await AgeRotationsAsync(api);
+
+        using var replay = await RefreshAsync(api, first);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+
+        using var elsewhere = await RefreshAsync(api, otherDevice);
+        Assert.Equal(HttpStatusCode.OK, elsewhere.StatusCode);
+    }
+
+    /// <summary>
     /// The theft case, and the reason any of this exists: the replacement is already in use, so
     /// whoever is presenting the token it replaced is holding a copy. Every session ends, including
     /// the real user's — which is the point, since we cannot tell which caller is which.

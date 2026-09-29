@@ -193,11 +193,19 @@ the API issues tokens.
   failures (429/5xx/network) are retried and never treated as a lost session, because the
   cookie is still valid.
 - **Rotation + reuse detection.** Every `/refresh` revokes the presented token and issues a
-  replacement. Presenting a token that was already rotated/revoked (but not expired) is the
-  signature of a stolen cookie being replayed — **all** of the user's active refresh tokens
-  are revoked, forcing both the attacker and the real user to sign in again. Expired rows are
-  cleaned up opportunistically; revoked-but-unexpired rows are kept because they *are* the
-  replay detector.
+  replacement. Presenting a rotated (not expired) token whose replacement is **already in use**
+  is the signature of a stolen cookie being replayed — **all** of the user's active refresh
+  tokens are revoked, forcing both the attacker and the real user to sign in again, and a
+  warning is logged. Expired rows are cleaned up opportunistically; revoked-but-unexpired rows
+  are kept because they *are* the replay detector.
+- **Lost rotations are not theft.** A rotated token whose replacement was **never used**
+  belongs to a client that never received the rotation response (a dropped connection, a
+  process killed mid-refresh): it gets a fresh sibling, and the old token is **re-pointed at
+  that sibling**. Judged by its first, never-used successor it would pass as lost on every
+  replay and a copy would mint sessions until it expired; judged by the sibling, it is a copy
+  again once the client uses that. A token revoked with **no** replacement (sign-out, password
+  change or reset, or a replay ending every session) is refused on its own — a client retrying
+  a queued request after signing out must not end the user's other sessions.
 - **Rotation grace window (60 s).** A replay *within a minute of the rotation* is exempt from
   the family-wide revoke: that's the browser losing the rotation response (a reload aborting
   the in-flight refresh, or two tabs racing on the shared cookie), not an attacker who sat on

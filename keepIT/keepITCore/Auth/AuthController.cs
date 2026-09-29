@@ -279,10 +279,15 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// Rotate the refresh cookie and mint a fresh access token. No access token required.
-    /// <para><b>Reuse detection:</b> presenting a token that was already rotated/revoked is the
-    /// signature of a stolen cookie being replayed (the legitimate client holds the newer token).
-    /// When that happens every active session for the user is revoked, so both the attacker and the
-    /// real user must sign in again — cutting off whoever only holds the copied token.</para>
+    /// <para><b>Reuse detection:</b> presenting a rotated token whose replacement is already in use
+    /// is the signature of a stolen cookie being replayed (the legitimate client holds the newer
+    /// token). When that happens every active session for the user is revoked, so both the attacker
+    /// and the real user must sign in again — cutting off whoever only holds the copied token.</para>
+    /// <para><b>Lost rotation:</b> a rotated token whose replacement was never used belongs to a
+    /// client that never received the rotation response. It is served a fresh sibling, and the token
+    /// is re-pointed at that sibling, so it is judged by the token its client really holds the next
+    /// time it comes back. A token revoked with no replacement (sign-out, a password change or reset,
+    /// or every session ended) is refused on its own, without touching the user's other sessions.</para>
     /// <para><b>Rotation grace:</b> a replay within <see cref="RotationGraceWindow"/> of the
     /// rotation is exempt — that's the browser losing the rotation response (a reload aborting the
     /// in-flight refresh, or two tabs racing on the shared cookie), not an attacker who sat on a
@@ -307,6 +312,9 @@ public class AuthController : ControllerBase
             return Unauthorized(new { error = "Invalid or expired refresh token." });
         }
 
+        // Set below when this caller is a client that never received its rotation response.
+        var rotationLost = false;
+
         if (!stored.IsActive)
         {
             // Expired is simply expired, whatever else is true of the row.
@@ -321,14 +329,18 @@ public class AuthController : ControllerBase
                 ? null
                 : await _db.RefreshTokens.FirstOrDefaultAsync(rt => rt.TokenHash == stored.ReplacedByTokenHash);
 
-            // No replacement recorded at all: Logout revokes without one. The session was ended on
-            // purpose, so a client retrying a queued request with the dead cookie is not an attack
-            // — and must not take every other device down with it.
+            // No replacement recorded at all: the session was ended rather than rotated — by
+            // Logout, a password change or reset, or the replay response below ending every
+            // session. A client retrying a queued request with the dead cookie is not an attack,
+            // and must not take every other device down with it. The log names every cause: which
+            // one it was is not recorded, and a line blaming logout for sessions a replay ended
+            // would mislead exactly the investigation that warning exists for.
             if (replacement is null)
             {
                 _logger.LogInformation(
-                    "Refresh token for user {UserId} was replayed after logout; rejecting this "
-                    + "session only.",
+                    "Refresh token for user {UserId} was presented after its session was ended "
+                    + "(sign-out, a password change or reset, or every session ended after a replay); "
+                    + "rejecting this session only.",
                     stored.UserId);
                 ClearRefreshCookie();
                 return Unauthorized(new { error = "Invalid or expired refresh token." });
@@ -337,7 +349,7 @@ public class AuthController : ControllerBase
             // The replacement was issued but has never been used. Nobody holds it — the client that
             // asked for it never got the response (a dropped connection, a killed process), which
             // is why it is still presenting the old token. There is no second holder to cut off.
-            var rotationLost = replacement.IsActive;
+            rotationLost = replacement.IsActive;
 
             // Rotated moments ago? That's our own lost response too, even if the replacement has
             // since been used: a reload aborting an in-flight refresh, or two tabs racing on the
@@ -387,6 +399,16 @@ public class AuthController : ControllerBase
         if (stored.IsActive)
         {
             stored.RevokedAtUtc = DateTime.UtcNow;
+            stored.ReplacedByTokenHash = newHash;
+        }
+        else if (rotationLost)
+        {
+            // The first successor reached nobody and never will be used, so judged by it this
+            // token would pass as a lost response on every replay: a copy of it would mint sessions
+            // until it expired, unnoticed. Point it at what its client is given now instead. If it
+            // comes back once that is in use, it is a copy like any other; if this response is lost
+            // too, the sibling is unused and the client is served again. The first successor is left
+            // active, as before: revoking it would lock out a client that did receive it.
             stored.ReplacedByTokenHash = newHash;
         }
 
