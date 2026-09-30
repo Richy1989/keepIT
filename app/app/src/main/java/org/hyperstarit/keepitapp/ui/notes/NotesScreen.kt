@@ -127,6 +127,14 @@ fun NotesScreen(
     val session by container.session.state.collectAsState()
     // Set once Sign out is tapped, so a second tap can't start a second sign-out.
     var signingOut by remember { mutableStateOf(false) }
+    // Changes still queued make Sign out ask first: it tries one last sync, then wipes the queue
+    // whether or not that got through.
+    var confirmSignOut by remember { mutableStateOf(false) }
+    fun signOut() {
+        if (signingOut) return
+        signingOut = true
+        scope.launch { container.session.logout() }
+    }
 
     var search by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -309,12 +317,7 @@ fun NotesScreen(
                 if (!standalone) {
                     DrawerAccountFooter(
                         user = (session as? SessionState.SignedIn)?.user,
-                        onSignOut = {
-                            if (!signingOut) {
-                                signingOut = true
-                                scope.launch { container.session.logout() }
-                            }
-                        },
+                        onSignOut = { if (pending > 0) confirmSignOut = true else signOut() },
                     )
                 }
             }
@@ -588,6 +591,38 @@ fun NotesScreen(
         )
     }
 
+    if (confirmSignOut) {
+        val changes = if (pending == 1) "1 change hasn't" else "$pending changes haven't"
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            containerColor = KeepItColors.Surface,
+            title = { Text("Sign out with unsynced changes?") },
+            text = {
+                Text(
+                    text = "$changes reached the server yet. keepIT tries to send them before signing " +
+                        "out, but anything it can't send — edits, photos and voice notes made on this " +
+                        "phone — is lost.",
+                    color = KeepItColors.TextMuted,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmSignOut = false
+                        signOut()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Sign out")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSignOut = false }) {
+                    Text("Cancel", color = KeepItColors.TextMuted)
+                }
+            },
+        )
+    }
 }
 
 /** Name prompt shared by create and rename. Confirm is disabled while the name is blank. */
