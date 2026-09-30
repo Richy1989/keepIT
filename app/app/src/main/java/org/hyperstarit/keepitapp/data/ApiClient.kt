@@ -32,6 +32,19 @@ import java.time.Instant
 enum class RefreshResult { SUCCESS, REJECTED, NETWORK_ERROR }
 
 /**
+ * A refresh that failed without the server rejecting the cookie — [RefreshResult.NETWORK_ERROR],
+ * with what actually happened: the status the server answered with ([httpCode]), or the exception
+ * that stopped the call ([cause]). An [IOException] so that, thrown from the authenticator, the
+ * request fails as transient rather than as a 401 that would end the session; the detail is what
+ * lets the status strip tell a refresh endpoint answering 500 from a server that can't be reached.
+ */
+class RefreshFailedException(val httpCode: Int? = null, cause: Throwable? = null) :
+    IOException(
+        "Token refresh failed" + (httpCode?.let { ": HTTP $it" } ?: cause?.let { ": $it" } ?: ""),
+        cause,
+    )
+
+/**
  * In-memory holder for the short-lived JWT access token — the Android twin of the web's
  * `tokenStore.ts`. Deliberately never persisted; on process restart the session is restored via
  * the refresh cookie (see [PersistentCookieJar]).
@@ -199,7 +212,18 @@ class ApiClient(context: Context) {
      * [RefreshResult.NETWORK_ERROR]: the refresh cookie is still valid, so the session must
      * survive the blip exactly as it survives being offline.
      */
-    fun refreshBlocking(): RefreshResult {
+    fun refreshBlocking(): RefreshResult =
+        try {
+            refreshOrThrow()
+        } catch (_: RefreshFailedException) {
+            RefreshResult.NETWORK_ERROR
+        }
+
+    /**
+     * [refreshBlocking], with [RefreshResult.NETWORK_ERROR] thrown as a [RefreshFailedException]
+     * that says what went wrong. Returns only [RefreshResult.SUCCESS] or [RefreshResult.REJECTED].
+     */
+    private fun refreshOrThrow(): RefreshResult {
         val base = baseUrl ?: return RefreshResult.REJECTED
         synchronized(refreshLock) {
             if (!tokenStore.isExpiringSoon()) return RefreshResult.SUCCESS
@@ -215,18 +239,19 @@ class ApiClient(context: Context) {
                             RefreshResult.REJECTED
                         }
 
-                        !response.isSuccessful -> RefreshResult.NETWORK_ERROR
+                        !response.isSuccessful -> throw RefreshFailedException(httpCode = response.code)
 
                         else -> {
-                            val body = response.body?.string() ?: return RefreshResult.NETWORK_ERROR
-                            val auth = json.decodeFromString<AuthResponseDto>(body)
+                            val auth = json.decodeFromString<AuthResponseDto>(response.body.string())
                             tokenStore.set(auth.accessToken, auth.accessTokenExpiresAtUtc)
                             RefreshResult.SUCCESS
                         }
                     }
                 }
-            } catch (_: Exception) {
-                RefreshResult.NETWORK_ERROR
+            } catch (e: RefreshFailedException) {
+                throw e
+            } catch (e: Exception) {
+                throw RefreshFailedException(cause = e)
             }
         }
     }
@@ -273,19 +298,15 @@ class ApiClient(context: Context) {
 
     /**
      * On a 401, refreshes once and retries; a second 401 (or a *rejected* refresh) gives up. A
-     * refresh that failed only because the server was unreachable throws instead — the call then
-     * fails as an IOException (transient, retried by the sync engine later), not as a 401 that
-     * would wrongly end the session.
+     * refresh that failed any other way throws its [RefreshFailedException] instead — the call
+     * then fails as an IOException (transient, retried by the sync engine later), not as a 401
+     * that would wrongly end the session.
      */
     private inner class TokenAuthenticator : Authenticator {
         override fun authenticate(route: Route?, response: Response): Request? {
             if (isAuthFree(response.request.url)) return null
             if (response.priorResponse != null) return null // already retried once
-            when (refreshBlocking()) {
-                RefreshResult.SUCCESS -> Unit
-                RefreshResult.REJECTED -> return null
-                RefreshResult.NETWORK_ERROR -> throw IOException("Token refresh failed: server unreachable")
-            }
+            if (refreshOrThrow() == RefreshResult.REJECTED) return null
             val token = tokenStore.accessToken ?: return null
             return response.request.newBuilder().header("Authorization", "Bearer $token").build()
         }

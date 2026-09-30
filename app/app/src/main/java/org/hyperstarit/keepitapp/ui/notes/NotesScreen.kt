@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
@@ -83,6 +84,7 @@ import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
 import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.UserDto
+import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 
@@ -117,6 +119,7 @@ fun NotesScreen(
     val filter by repo.filter.collectAsState()
     val loading by repo.loading.collectAsState()
     val isOnline by container.connectivity.isOnline.collectAsState()
+    val syncProblem by container.connectivity.problem.collectAsState()
     val pending by container.pendingChanges.collectAsState()
     val syncStatus by container.syncEngine.status.collectAsState()
     val standalone by container.appMode.standalone.collectAsState()
@@ -371,7 +374,7 @@ fun NotesScreen(
                     }
                     // Standalone changes are never "waiting to sync" — they are simply saved.
                     if (!standalone) {
-                        SyncStatusStrip(isOnline = isOnline, pending = pending, syncStatus = syncStatus)
+                        SyncStatusStrip(isOnline = isOnline, problem = syncProblem, pending = pending, syncStatus = syncStatus)
                     }
                 }
             },
@@ -401,7 +404,8 @@ fun NotesScreen(
                             text = when {
                                 q.isNotEmpty() -> "No notes match your search."
                                 !standalone && !isOnline && notes.isEmpty() ->
-                                    "You're offline — your notes appear once you've connected."
+                                    syncProblem?.let { "${it.message}. Your notes appear once the app can sync." }
+                                        ?: "You're offline — your notes appear once you've connected."
                                 else -> emptyCopy(filter.view)
                             },
                             color = KeepItColors.TextMuted,
@@ -583,6 +587,7 @@ fun NotesScreen(
             },
         )
     }
+
 }
 
 /** Name prompt shared by create and rename. Confirm is disabled while the name is blank. */
@@ -687,12 +692,18 @@ private fun DrawerAccountFooter(user: UserDto?, onSignOut: () -> Unit) {
 /**
  * One slim line under the top bar, shown only when something is worth saying: offline (with the
  * count of changes waiting), or an active replay. Silent whenever the app is online and in sync.
+ *
+ * Offline while the phone has a network carries a [problem], and the line is that instead: "Can't
+ * find keepit.example.com on this network" sends someone to their phone's DNS, where "Offline"
+ * sent them to a server that was fine.
  */
 @Composable
-private fun SyncStatusStrip(isOnline: Boolean, pending: Int, syncStatus: SyncStatus) {
+private fun SyncStatusStrip(isOnline: Boolean, problem: SyncProblem?, pending: Int, syncStatus: SyncStatus) {
     val changes = if (pending == 1) "1 change" else "$pending changes"
     val text = when {
         syncStatus == SyncStatus.SYNCING && pending > 0 -> "Syncing $changes…"
+        !isOnline && problem != null && pending > 0 -> "${problem.message} — $changes waiting"
+        !isOnline && problem != null -> problem.message
         !isOnline && pending > 0 -> "Offline — $changes will sync when you're back"
         !isOnline -> "Offline — changes will sync when you're back"
         pending > 0 -> "Waiting to sync $changes"
@@ -706,7 +717,11 @@ private fun SyncStatusStrip(isOnline: Boolean, pending: Int, syncStatus: SyncSta
             .padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
         Icon(
-            imageVector = if (!isOnline) Icons.Filled.CloudOff else Icons.Filled.CloudUpload,
+            imageVector = when {
+                isOnline -> Icons.Filled.CloudUpload
+                problem != null -> Icons.Filled.SyncProblemIcon
+                else -> Icons.Filled.CloudOff
+            },
             contentDescription = null,
             tint = KeepItColors.TextFaint,
             modifier = Modifier.padding(end = 8.dp).size(14.dp),

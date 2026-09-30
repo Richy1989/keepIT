@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.getAndUpdate
  * (airplane mode, Wi-Fi drop) — but a validated network can still fail to reach a self-hosted LAN
  * server, so request outcomes are authoritative: the sync engine calls [markOnline]/[markOffline]
  * from actual successes and IOExceptions, and the flag flips on whichever signal arrives first.
+ *
+ * Offline with a network means something specific went wrong, and [problem] says what — a name
+ * that won't resolve, a certificate, a server error — so the status strip names it rather than
+ * blaming the network.
  */
 class ConnectivityMonitor(context: Context) {
 
@@ -21,13 +25,24 @@ class ConnectivityMonitor(context: Context) {
     private val _isOnline = MutableStateFlow(hasInternet())
     val isOnline: StateFlow<Boolean> = _isOnline
 
+    private val _problem = MutableStateFlow<SyncProblem?>(null)
+
+    /**
+     * Why the server is out of reach although the phone has a network; null while online, and while
+     * the phone has no network at all, where "offline" is the whole story.
+     */
+    val problem: StateFlow<SyncProblem?> = _problem
+
     /** Fired on an offline→online transition — the container wires this to the sync engine. */
     var onOnline: (() -> Unit)? = null
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) = markOnline()
         override fun onLost(network: Network) {
-            if (!hasInternet()) _isOnline.value = false
+            if (!hasInternet()) {
+                _problem.value = null
+                _isOnline.value = false
+            }
         }
     }
 
@@ -36,10 +51,17 @@ class ConnectivityMonitor(context: Context) {
     }
 
     fun markOnline() {
+        _problem.value = null
         if (!_isOnline.getAndUpdate { true }) onOnline?.invoke()
     }
 
-    fun markOffline() {
+    /**
+     * A request failed without reaching the server's data. [problem] is kept only while the phone
+     * has a network: with none, every request fails — a lookup first, so it would read as
+     * [SyncProblem.HostNotFound] — and that is a symptom of being offline, not a separate fault.
+     */
+    fun markOffline(problem: SyncProblem) {
+        _problem.value = if (hasInternet()) problem else null
         _isOnline.value = false
     }
 

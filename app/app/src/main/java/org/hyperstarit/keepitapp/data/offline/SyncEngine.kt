@@ -1,5 +1,7 @@
 package org.hyperstarit.keepitapp.data.offline
 
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -9,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -33,7 +36,8 @@ enum class SyncStatus { IDLE, SYNCING, OFFLINE }
  * Failure policy per op: network/5xx stops the run (the queue keeps its head and a later trigger
  * retries); a 401 defers to the session (queue retained — re-login resumes replay); any other 4xx
  * is permanent for that op, which is dropped with a message on [syncErrors] so the user learns a
- * change didn't stick (e.g. the note was deleted on another device).
+ * change didn't stick (e.g. the note was deleted on another device). What stopped a run is handed
+ * to [ConnectivityMonitor.markOffline] as a [SyncProblem], so "offline" can say why.
  *
  * In standalone mode ([isStandalone]) there is no server, so every run is a no-op and the outbox is
  * left exactly as it is — it is the device's record of everything, waiting for a server to be
@@ -179,7 +183,7 @@ class SyncEngine(
                     }
 
                     else -> {
-                        connectivity.markOffline()
+                        stopped(t)
                         return false
                     }
                 }
@@ -228,8 +232,20 @@ class SyncEngine(
         connectivity.markOnline()
         true
     } catch (t: Throwable) {
-        if (t is HttpException && t.code() == 401) onUnauthorized?.invoke() else connectivity.markOffline()
+        if (t is HttpException && t.code() == 401) onUnauthorized?.invoke() else stopped(t)
         false
+    }
+
+    /**
+     * Records what stopped a run, for the status strip and for `adb logcat`. A cancelled pass (the
+     * widget's broadcast window closing) is left out: it says nothing about the server, and would
+     * otherwise leave the app announcing a failure that never happened.
+     */
+    private fun stopped(t: Throwable) {
+        if (t is CancellationException) return
+        val problem = syncProblemOf(t, client.baseUrl?.toHttpUrlOrNull()?.host)
+        Log.w(TAG, "Sync stopped: ${problem.message}", t)
+        connectivity.markOffline(problem)
     }
 
     private fun permanentFailureMessage(op: PendingOp, code: Int, rescued: Boolean): String {
@@ -261,5 +277,9 @@ class SyncEngine(
         }
         val kept = if (rescued) " It was saved to Pictures/keepIT instead." else ""
         return "Couldn't sync $what — $why.$kept"
+    }
+
+    private companion object {
+        const val TAG = "SyncEngine"
     }
 }
