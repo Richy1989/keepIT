@@ -6,6 +6,7 @@ import { ColorPicker } from '../../components/ColorPicker';
 import { CheckSquareIcon, ImageIcon, PaletteIcon, XIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import { isAcceptedImage } from './media/useMediaUpload';
+import { onListEnter } from './listEnter';
 import {
   useUploadNoteMedia,
   ACCEPTED_IMAGE_TYPES,
@@ -227,6 +228,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              onKeyDown={onListEnter(setBody)}
               placeholder="Take a note…"
               rows={3}
               className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-text-faint"

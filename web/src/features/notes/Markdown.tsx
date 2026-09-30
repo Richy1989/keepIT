@@ -9,6 +9,11 @@ function dom<P extends { node?: unknown }>(props: P): Omit<P, 'node'> {
   return rest;
 }
 
+/** A link target that opens somewhere outside keepIT: a web page or a mail client. */
+function isOpenable(href: string | undefined): boolean {
+  return !!href && /^(https?|mailto):/i.test(href);
+}
+
 /**
  * Element styling for note bodies: compact spacing tuned for cards and the editor preview, GFM
  * extras (strikethrough, task lists), and links that open in a new tab without triggering the
@@ -31,15 +36,45 @@ const components: Components = {
     ),
   ol: (p) => <ol className="my-1 list-decimal pl-5 first:mt-0 last:mb-0" {...dom(p)} />,
   li: (p) => <li className="my-0.5" {...dom(p)} />,
-  a: (p) => (
-    <a
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      className="text-accent-ink underline decoration-accent-ink/50 hover:decoration-accent-ink"
-      {...dom(p)}
-    />
-  ),
+  a: (p) => {
+    const { href, children, ...rest } = dom(p);
+    // react-markdown already blanks dangerous schemes (javascript:, file:). What is left that is
+    // not a web or mail address — a blank href, or a relative one like the toolbar's own "url"
+    // placeholder — would open keepIT itself in a new tab, so it shows as plain text instead.
+    if (!isOpenable(href)) return <span>{children}</span>;
+    return (
+      <a
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-accent-ink underline decoration-accent-ink/50 hover:decoration-accent-ink"
+        href={href}
+        {...rest}
+      >
+        {children}
+      </a>
+    );
+  },
+  // The CSP loads images only from keepIT itself, so an image a note points at elsewhere would be
+  // a broken-image icon (and, without the CSP, a tracking pixel in a shared note). Its description
+  // stands in, linked to the image so it is still one click away.
+  img: (p) => {
+    const { src, alt } = dom(p);
+    const label = alt || 'image';
+    return typeof src === 'string' && isOpenable(src) ? (
+      <a
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-accent-ink underline decoration-accent-ink/50 hover:decoration-accent-ink"
+        href={src}
+      >
+        {label}
+      </a>
+    ) : (
+      <span>{label}</span>
+    );
+  },
   code: (p) => (
     <code className="rounded bg-overlay-hover px-1 py-0.5 font-mono text-[0.85em]" {...dom(p)} />
   ),

@@ -13,6 +13,7 @@ import { MediaStrip } from './media/MediaStrip';
 import { MediaLightbox } from './media/MediaLightbox';
 import { useMediaUpload, isAcceptedImage } from './media/useMediaUpload';
 import { useDeleteNoteMedia, ACCEPTED_IMAGE_TYPES, MAX_IMAGES_PER_NOTE } from './media/queries';
+import { onListEnter } from './listEnter';
 import { ColorPicker } from '../../components/ColorPicker';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useLists } from '../lists/queries';
@@ -255,6 +256,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                     ref={bodyRef}
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
+                    onKeyDown={onListEnter(setBody)}
                     placeholder="Take a note…"
                     rows={8}
                     className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
