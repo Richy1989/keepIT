@@ -609,8 +609,19 @@ unresolved one is retried, so a bootstrap that ran with no connectivity still co
   (retry later, queue intact); 401 defers to the session (re-login resumes replay); any other
   4xx is permanent — the op is dropped **with a user-facing message** (e.g. the note was
   deleted on another device).
+- **Saying why it's offline.** `ConnectivityMonitor.isOnline` follows request outcomes as well as
+  the OS network callback, so it also goes false when the phone has a network and the server still
+  can't be had. What stopped the run is classified (`SyncProblem`: a name that won't resolve, no
+  connection, a timeout, a certificate, an HTTP status, a failed sign-in renewal, a body that isn't
+  the API's JSON) and kept only while the phone has a network — with none, the failed lookup is a
+  symptom of being offline. The notes screen's strip shows it instead of "Offline", which is what a
+  phone whose DNS had stopped resolving the server used to show, exactly as for airplane mode. A
+  refresh that fails without the cookie being rejected throws `RefreshFailedException` with the
+  status or the cause, so a refresh endpoint answering 500 isn't reported as an unreachable server.
 - Sign-out best-effort flushes the queue while the session is still valid, then wipes the
-  local store (staged images included), alarms, and posted notifications.
+  local store (staged images included), alarms, and posted notifications. Whatever the flush
+  didn't get through is lost with it, so with changes still queued the drawer's Sign out asks
+  first, naming how many.
 - An upload the server refuses for good (too large, HEIC, the note gone) is saved to the
   gallery before its staged file is deleted — for a photo taken offline, or anything from
   standalone mode, the staged file is the only copy there is.

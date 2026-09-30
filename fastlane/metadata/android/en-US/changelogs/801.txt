@@ -1,5 +1,5 @@
 Fixes being signed out of every device at once. Your sign-in is saved as soon as it is renewed, and backups no longer copy it.
 
-A roomier editor: the tools float above the navigation bar, Markdown is styled as you type, and Enter continues a list. Notes now read exactly as on the web, and tapping an unusual link can no longer crash the app.
+A roomier editor: the tools float above the navigation bar, Markdown is styled as you type, and Enter continues a list. Notes now read exactly as on the web, and tapping an unusual link can no longer crash the app. When it can't sync, the app now says why.
 
 Running your own server? Update it to 0.8.1 too: most of the sign-out fix is there.

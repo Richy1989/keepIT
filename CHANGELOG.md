@@ -39,6 +39,19 @@ server-side, so updating the server is what applies it.
   again, and on their own they could take the app past Android's 25 MB cloud-backup allowance,
   which skips the backup entirely.
 
+- **Android said "Offline" while the phone was online.** Anything that stopped a sync read the
+  same: a server name the phone's DNS would not resolve (or the app being blocked from the
+  network, which Android reports the same way), a certificate the phone does not trust, a server
+  answering 500, the sign-in failing to renew. Only the first is the phone's problem, and nothing
+  said which it was. The status line now names it -- "Can't find keepit.example.com on this
+  network", "Server error (HTTP 500)" -- and "Offline" means a phone with no network at all. The
+  reason is logged too, for `adb logcat`.
+
+- **Signing out on Android warns about changes that haven't synced.** Sign-out tries once more to
+  send them, then clears the phone's copy whether or not that worked -- so signing out to get past
+  a sync problem threw away every edit, photo and voice note still waiting. It now asks first,
+  saying how many changes are waiting.
+
 - **The status bar icons on Android stay light** on a phone set to light mode, where the clock and
   battery were drawn dark on the app's dark background.
 
