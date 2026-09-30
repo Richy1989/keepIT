@@ -1,5 +1,5 @@
-Fixes being signed out of every device at once. Your sign-in is saved the moment the server renews it, and backups or moves to a new phone no longer copy it: sign in again there and your notes come along.
+Fixes being signed out of every device at once. Your sign-in is saved as soon as it is renewed, and backups no longer copy it.
 
-A roomier note editor: the tools float above the navigation bar in one row, with sheets for adding photos, images and voice notes and for picking a colour. Reminder, share and trash moved to the top bar.
+A roomier editor: the tools float above the navigation bar, Markdown is styled as you type, and Enter continues a list. Notes now read exactly as on the web, and tapping an unusual link can no longer crash the app.
 
 Running your own server? Update it to 0.8.1 too: most of the sign-out fix is there.

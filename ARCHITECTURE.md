@@ -544,7 +544,8 @@ native experience, native reminder notifications, and a real home-screen widget.
 first-class consumer of the same REST + SignalR contract — the backend never special-cases it.
 
 **Stack & wiring.** Retrofit + OkHttp + kotlinx.serialization for HTTP; the official SignalR
-Java client for realtime; Glance for the widget. Dependency wiring is a **hand-rolled
+Java client for realtime; Glance for the widget; commonmark-java for note bodies (see **Text
+note** under the note model). Dependency wiring is a **hand-rolled
 `AppContainer`** in `KeepItApplication` (deliberate: a handful of app-scoped singletons
 doesn't justify Hilt). Repositories are app-scoped so their `StateFlow`s survive
 configuration changes; screens reach them via `context.appContainer`.
@@ -677,8 +678,8 @@ Both ways of refreshing it run with **no UI in the process**, which shapes them:
   guard. See the testing section.
 
 **Screens** (`ui/`): login/register (with server URL + forgot-password, or standalone), notes grid
-(staggered, with sync-status strip and pending-changes count), editor (markdown rendering via
-a small custom parser, checklist editing, color, share sheet, reminder dialog),
+(staggered, with sync-status strip and pending-changes count), editor (Markdown styled live as it
+is typed, checklist editing, color, share sheet, reminder dialog),
 notifications inbox, settings (notification + exact-alarm permissions, change password,
 about/version — deliberately no theme/accent, see below).
 
@@ -768,8 +769,23 @@ more modern**, not a pixel clone.
 
 A note is one of several **types**, and any note can carry a background color:
 
-1. **Text note** — free-form **Markdown** text in `body` (rendered on card and in the editor;
-   formatting toolbar on web). The default type.
+1. **Text note** — free-form **Markdown** text in `body`, rendered on cards and for viewers, with
+   a formatting toolbar in both editors. The default type.
+   - **One dialect, two spec-compliant parsers.** CommonMark plus the GFM extensions
+     (strikethrough, tables, task lists, bare-URL autolinks), and a single newline is a line break
+     (remark-breaks) so pre-Markdown notes read as written. The web uses react-markdown +
+     remark-gfm + remark-breaks; Android uses commonmark-java with the matching extensions
+     (`ui/markdown/`). Android once hand-rolled a regex subset, and every gap in it was a note that
+     read differently on the phone — italic arithmetic, parsed code blocks, dead bare URLs — so a
+     client must never render the body with anything less than a CommonMark parser.
+   - **Raw HTML is shown as text, never interpreted**, and only `http(s)`/`mailto` links open
+     (Android adds `tel`). Shared notes are other people's text: a `file://` link crashed the app
+     on tap (FileUriExposedException) before Android filtered schemes.
+   - **Editing rules are shared**: `web/src/features/notes/markdownEdit.ts` and Android's
+     `ui/markdown/MarkdownEdit.kt` implement the same toolbar toggles and Enter-continues-the-list,
+     each unit-tested. The Android editor also styles the raw text in place
+     (`MarkdownVisualTransformation`: same characters, dimmed syntax), where the web has a
+     preview toggle.
 2. **Checklist note** — an ordered list of checkbox items; reorder, check off, add, remove. Ticked
    items display at the bottom of the list and return to their original slot when unticked — see
    `ChecklistItem.order` for the contract that makes that work on every client.

@@ -5,9 +5,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## 0.8.1
 
-A fix for being signed out of every device at once, for no apparent reason, and a roomier note editor
-on Android. The sign-out fix is server-side, so updating the server is what applies it; the Android
-app carries three smaller fixes of its own.
+A fix for being signed out of every device at once, for no apparent reason; a roomier note editor on
+Android; and Markdown that reads the same on the phone as on the web. The sign-out fix is
+server-side, so updating the server is what applies it.
 
 ### Fixed
 
@@ -42,6 +42,11 @@ app carries three smaller fixes of its own.
 - **The status bar icons on Android stay light** on a phone set to light mode, where the clock and
   battery were drawn dark on the app's dark background.
 
+- **Tapping a `file://` link in a note crashed the Android app**, and a note shared with you could
+  hold one. Only web, mail and phone links open now; anything else shows as its text. On the web,
+  a link that pointed nowhere -- the formatting toolbar's `url` placeholder -- opened keepIT itself
+  in a new tab; it is plain text now too.
+
 ### Android editor
 
 - **The tools float above the navigation bar.** They sat directly on the gesture bar -- or under
@@ -55,6 +60,28 @@ app carries three smaller fixes of its own.
   each.
 - **Reminder and share moved to the top bar**, beside pin, and trash into the menu there -- it used
   to sit one slip away from the camera.
+- **Markdown is styled as you type**: bold reads bold, headings are larger, links are coloured, and
+  the syntax itself is dimmed. It is still the plain text underneath, so nothing moves under the
+  cursor.
+
+### Markdown
+
+- **Notes read the same on the phone as on the web.** The Android app parsed Markdown with a
+  hand-rolled subset that disagreed with the web in small ways nobody could predict: `2 * 3 * 4`
+  came out in italics, a `# comment` inside a code block became a heading, `_emphasis_` and bare
+  URLs stayed raw, and a link was cut at its first `)`. It now uses commonmark-java, the same
+  CommonMark and GitHub dialect the web renders. The widget and reminder previews come from the
+  same parse, so they no longer drop every asterisk in the text.
+- **Enter continues a list**, in the web and Android editors alike: after `- milk` the next line
+  starts `- `, after `3.` it starts `4.`, and a new task starts unticked. Enter on an empty item
+  ends the list.
+- **Formatting toolbar fixes, on both clients.** Italic on a bold word turned it into italic instead
+  of bold italic. The list and heading buttons selected the whole line, so the next keystroke
+  replaced it; the cursor now stays put. Switching bullets to numbers stacked the markers (`1. - a`)
+  instead of replacing them, and numbering counted blank lines. Styling a selection that ended in a
+  space, or ran over several lines, gave Markdown that did not render.
+- **Images in a note show as their description, linked to the image**, on the web. The security
+  policy only loads images from keepIT itself, so one from anywhere else was a broken-image icon.
 
 ### Also
 
