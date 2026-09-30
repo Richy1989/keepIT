@@ -53,6 +53,11 @@
 -keep class org.hyperstarit.keepitapp.data.portability.ReadArchive { *; }
 -keep class org.hyperstarit.keepitapp.data.portability.OpenArchiveResult { *; }
 -keep class org.hyperstarit.keepitapp.data.portability.OpenArchiveResult$Opened { *; }
+# One String-to-String door into the Markdown parser, for MarkdownSmokeTest. commonmark-java and the
+# renderer behind this method are not named: they are shrunk here exactly as release ships them.
+-keep class org.hyperstarit.keepitapp.ui.markdown.MarkdownKt {
+    public static java.lang.String stripMarkdown(java.lang.String);
+}
 
 # --- 4. the library API the tests call -----------------------------------------------------------
 # WorkManager's *public* surface only. androidx.work.impl.** and the input mergers are pointedly

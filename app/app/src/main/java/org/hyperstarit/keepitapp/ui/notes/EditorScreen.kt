@@ -87,7 +87,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownText
+import org.hyperstarit.keepitapp.ui.markdown.MarkdownVisualTransformation
 import org.hyperstarit.keepitapp.ui.markdown.applyMarkdown
+import org.hyperstarit.keepitapp.ui.markdown.continueListOnEnter
 import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
@@ -468,6 +470,7 @@ fun EditorScreen(
     }
 
     var menuOpen by remember { mutableStateOf(false) }
+    val markdownStyling = remember { MarkdownVisualTransformation() }
 
     Scaffold(
         containerColor = swatch.bg,
@@ -780,7 +783,10 @@ fun EditorScreen(
             } else {
                 TextField(
                     value = body,
-                    onValueChange = { body = it },
+                    // Enter inside a list starts the next item (or ends the list on an empty one).
+                    onValueChange = { body = continueListOnEnter(body, it) },
+                    // The raw Markdown, styled in place: what is being written reads as it will look.
+                    visualTransformation = markdownStyling,
                     placeholder = { Text("Take a note…", color = KeepItColors.TextFaint) },
                     colors = transparentFieldColors(),
                     textStyle = androidx.compose.ui.text.TextStyle(

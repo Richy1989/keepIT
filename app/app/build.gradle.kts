@@ -143,6 +143,15 @@ dependencies {
     // authenticated fetch and hands it a File, so there is no custom fetcher to keep alive.
     implementation(libs.coil.compose)
 
+    // Note bodies: CommonMark + the GFM extensions the web's remark-gfm enables, so both clients
+    // read a note the same way. Rendering, the editor's live styling and the plain-text previews
+    // all come from one parse (ui/markdown/).
+    implementation(libs.commonmark)
+    implementation(libs.commonmark.ext.autolink)
+    implementation(libs.commonmark.ext.gfm.strikethrough)
+    implementation(libs.commonmark.ext.gfm.tables)
+    implementation(libs.commonmark.ext.task.list.items)
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
