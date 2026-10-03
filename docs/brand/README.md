@@ -1,9 +1,10 @@
 # keepIT icon
 
-The app icon is a clay-style typewriter, the same mark as the line icon in the web app
-(`TypewriterIcon`): the paper is the note, on a platen with two supports, over a keyboard with a
-space bar. It is modelled and rendered in Blender, and **`keepit-icon.blend` is the only source**:
-every icon file in the repo is generated from it.
+The app icon is a two-tone K in soft clay: a forest-green stem and a brass chevron of rounded
+strokes, the chevron layered in front and meeting the stem at its middle. The web app's line glyph
+(`KeepItIcon`) and Android's themed-icon layer are flat drawings of the same strokes. It is
+modelled and rendered in Blender, and **`keepit-icon.blend` is the only source**: every icon file
+in the repo is generated from it. (The typewriter it replaced, never released, is in git history.)
 
 | File | What it is |
 |---|---|
@@ -18,15 +19,19 @@ every icon file in the repo is generated from it.
 2. From the repo root:
 
    ```bash
-   blender -b docs/brand/keepit-icon.blend --python docs/brand/render_icons.py
+   blender -b docs/brand/keepit-icon.blend --python-exit-code 1 --python docs/brand/render_icons.py
    ```
 
    On Windows, Blender lives at `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe`. A CPU
-   render takes a while; the script prints each file as it writes it.
+   render takes a while; the script prints each file as it writes it. `--python-exit-code 1`
+   makes Blender exit non-zero if the script fails — without it a crash still exits 0.
 3. Review the regenerated files with `git diff --stat` and commit them with the `.blend`.
 
-The colours are the materials' base colours (`kIT Body`, `kIT Platen`, `kIT Brass Trim`,
-`kIT Key Cap`, `kIT Paper`, `kIT Ink`). The cream tile behind the typewriter isn't rendered: it is
+The strokes are `K Stem`, `K Arm` and `K Leg`, and their colours are the materials' base colours
+(`kIT Body` for the stem, `kIT Brass Trim` for the chevron). The framing is the camera as saved —
+focal length and shift — and the script zooms that out for Android's safe zone itself. Shadows
+fall only behind the mark: keep the rim light's shadows off (`Rim Light` → Light → Shadow), or the
+strokes cast long streaks toward the viewer. The cream tile behind the K isn't rendered: it is
 painted by the script from two scene custom properties, `keepit_tile_base` and `keepit_tile_glow`
 (Scene properties → Custom Properties), so it comes out exactly that colour. If you change those,
 change the stops in `app/app/src/main/res/drawable/ic_launcher_background.xml` to match — that

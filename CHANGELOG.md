@@ -5,17 +5,17 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
-A new look. The typewriter that has always been keepIT's mark is now a 3D one -- green, with brass
-knobs and a sheet of typed paper -- on the home screen, in the browser tab and in the F-Droid
-listing, and the app's default accent is now that green. Nothing about your notes or your setup
-changes.
+A new look. keepIT has a new icon -- a K of soft, rounded strokes, a green stem and a brass chevron
+-- on the home screen, in the browser tab and in the F-Droid listing, and the app's default accent
+is now that green. Nothing about your notes or your setup changes.
 
 ### New look
 
 - **A new app icon everywhere:** the Android launcher (round and square masks, and Android 13's
-  themed icons, which use a single-colour line drawing of the same typewriter), the browser tab,
-  the icon iPhones and iPads use for a home-screen bookmark, the web app's top bar and sign-in page,
-  and the F-Droid listing.
+  themed icons, which use a single-colour drawing of the same K), the browser tab, the icon iPhones
+  and iPads use for a home-screen bookmark, the web app's top bar and sign-in page, and the F-Droid
+  listing. The small keepIT mark inside the web app -- next to Settings, and on an empty notes
+  page -- is the K too.
 - **A new F-Droid banner**, with the new icon and a line that says where your notes live: on your
   phone and your own server, never on anyone else's.
 - **Forest green is the default accent.** New accounts start on it, and the Android app, which has

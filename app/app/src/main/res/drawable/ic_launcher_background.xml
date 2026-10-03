@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  keepIT launcher background: the cream tile behind the rendered typewriter. Matches the tile
+  keepIT launcher background: the cream tile behind the rendered K. Matches the tile
   docs/brand/render_icons.py paints for the store icons (keepit_tile_base #F3ECD8 warming to
   keepit_tile_glow #FFFDF6 toward the top left); the stops approximate its falloff curve.
 -->

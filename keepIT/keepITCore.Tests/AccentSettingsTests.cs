@@ -33,7 +33,7 @@ public sealed class AccentHost : IAsyncLifetime
 
 /// <summary>
 /// The accent a new account starts on, and the keys the server accepts. Forest is the brand green
-/// of the typewriter icon; the server default has to agree with the web's <c>DEFAULT_ACCENT</c>
+/// of the app icon; the server default has to agree with the web's <c>DEFAULT_ACCENT</c>
 /// and the Android app's fixed accent, or a new account would flash from one to the other.
 /// </summary>
 public sealed class AccentSettingsTests(AccentHost host) : IClassFixture<AccentHost>

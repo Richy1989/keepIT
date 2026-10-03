@@ -1,21 +1,24 @@
 """
 Renders every keepIT app icon from keepit-icon.blend and writes each file where it is used.
 
-    blender -b docs/brand/keepit-icon.blend --python docs/brand/render_icons.py
+    blender -b docs/brand/keepit-icon.blend --python-exit-code 1 --python docs/brand/render_icons.py
 
 Paths resolve from this script, so any working directory works. Edit the model, materials or
 camera in the .blend, save, run this, and every icon in the repo is regenerated at its exact size —
 there is no other copy of the artwork to keep in step.
 
-How an icon is made: Cycles renders the typewriter on a transparent film, with the floor
+How an icon is made: Cycles renders the mark (the two-tone K) on a transparent film, with the floor
 ("Backdrop") as a shadow catcher so its soft shadow lands in the alpha. That render is then laid
 over a flat tile — the cream gradient whose two colours are stored on the scene as the custom
 properties ``keepit_tile_base`` / ``keepit_tile_glow`` — and cut to each target's shape. The tile is
 painted here rather than rendered so its colour is exact, not whatever the lighting makes of it.
+The shadow falls only behind the mark: the rim light behind it has shadows switched off in the
+.blend, because the tall strokes cast long streaks toward the viewer otherwise.
 
 Two framings are rendered:
 
-- **tile**: the icon as a finished picture (store listings, README, favicon, legacy launcher).
+- **tile**: the camera exactly as saved in the .blend, focal length and shift — the icon as a
+  finished picture (store listings, README, favicon, legacy launcher).
 - **foreground**: the same camera zoomed out until the mark fits Android's adaptive-icon safe
   zone (a 66dp circle in the 108dp layer), on a transparent background. The launcher supplies the
   background layer (``res/drawable/ic_launcher_background.xml``) and its own mask.
@@ -23,8 +26,8 @@ Two framings are rendered:
 Renders are made at twice the largest output and area-averaged down, in linear light with
 premultiplied alpha, so small sizes stay crisp without fringes. WebP is written lossless.
 
-Android 13+ themed icons use ``res/drawable/ic_launcher_monochrome.xml``, a flat line drawing of
-the same typewriter: a single-colour silhouette can't come from a shaded render.
+Android 13+ themed icons use ``res/drawable/ic_launcher_monochrome.xml``, a flat drawing of the
+same K: a single-colour silhouette can't come from a shaded render.
 """
 
 import os
@@ -40,7 +43,6 @@ REPO = HERE.parents[1]
 MASTER = 1024              # the largest file written
 RENDER = MASTER * 2        # supersampled render size
 SAMPLES = 128              # per pixel, before denoising; the 2x render adds four more per output pixel
-TILE_LENS = 85.0           # the camera's focal length for the "tile" framing (mm)
 SAFE_RADIUS = 33 / 108     # adaptive-icon safe zone, as a fraction of the layer's width
 SAFE_TARGET = 0.29         # how far out the foreground mark may reach (a little inside the zone)
 TILE_CORNER = 0.225        # corner radius of the rounded tile, as a fraction of its width
@@ -108,10 +110,16 @@ def configure(scene):
     bpy.data.objects["Backdrop"].is_shadow_catcher = True
 
 
-def render(scene, lens, workdir):
-    """Renders at ``lens`` and returns top-down RGBA: sRGB colour, straight alpha, float32."""
-    scene.camera.data.lens = lens
-    path = os.path.join(workdir, f"render_{lens:.2f}.png")
+def render(scene, view, zoom, workdir):
+    """
+    Renders the saved ``view`` (lens, shift_x, shift_y) magnified by ``zoom`` and returns
+    top-down RGBA: sRGB colour, straight alpha, float32. Zooming scales the picture about the
+    optical axis, so the shift that centres the mark has to scale with it.
+    """
+    lens, shift_x, shift_y = view
+    cam = scene.camera.data
+    cam.lens, cam.shift_x, cam.shift_y = lens * zoom, shift_x * zoom, shift_y * zoom
+    path = os.path.join(workdir, f"render_{zoom:.4f}.png")
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
     image = bpy.data.images.load(path, check_existing=False)
@@ -218,13 +226,15 @@ def main():
     base = scene.get("keepit_tile_base", "#f3ecd8")
     glow = scene.get("keepit_tile_glow", "#fffdf6")
     configure(scene)
+    cam = scene.camera.data
+    saved_view = (cam.lens, cam.shift_x, cam.shift_y)
 
     with tempfile.TemporaryDirectory() as workdir:
-        tile_mark = render(scene, TILE_LENS, workdir)
+        tile_mark = render(scene, saved_view, 1.0, workdir)
         # Focal length scales the image without moving the camera, so the reach scales with it.
-        fg_lens = TILE_LENS * SAFE_TARGET / mark_radius(tile_mark)
-        foreground = render(scene, fg_lens, workdir)
-    scene.camera.data.lens = TILE_LENS
+        zoom = SAFE_TARGET / mark_radius(tile_mark)
+        foreground = render(scene, saved_view, zoom, workdir)
+    cam.lens, cam.shift_x, cam.shift_y = saved_view
 
     reach = mark_radius(foreground)
     if reach > SAFE_RADIUS:
@@ -236,7 +246,7 @@ def main():
         out[..., 3] *= shape_mask(size, shape)
         write(out, REPO / rel)
         print(f"  {size:>5}px  {shape:<8} {rel}")
-    print(f"foreground lens {fg_lens:.1f}mm, mark reaches {reach:.3f} (safe zone {SAFE_RADIUS:.3f})")
+    print(f"foreground lens {saved_view[0] * zoom:.1f}mm, mark reaches {reach:.3f} (safe zone {SAFE_RADIUS:.3f})")
 
 
 main()

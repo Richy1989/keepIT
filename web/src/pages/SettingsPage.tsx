@@ -13,7 +13,7 @@ import {
   LogoutIcon,
   MailIcon,
   ShieldIcon,
-  TypewriterIcon,
+  KeepItIcon,
   UserIcon,
 } from '../components/icons';
 import { cn } from '../lib/cn';
@@ -51,7 +51,7 @@ export function SettingsPage() {
           </Link>
           <div className="flex items-center gap-2">
             <span className="grid size-7 place-items-center rounded-lg bg-accent/15 text-accent-ink">
-              <TypewriterIcon className="text-base" />
+              <KeepItIcon className="text-base" />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           </div>

@@ -23,6 +23,6 @@ export const ACCENTS: AccentOption[] = [
   { key: 'green', label: 'Green', color: '#4ade80' },
 ];
 
-/** The brand green of the typewriter icon; also the server's default and the Android accent. */
+/** The brand green of the app icon's K; also the server's default and the Android accent. */
 export const DEFAULT_ACCENT = 'forest';
 export const ACCENT_KEYS = new Set(ACCENTS.map((a) => a.key));

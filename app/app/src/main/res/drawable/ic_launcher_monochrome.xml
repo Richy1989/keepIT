@@ -1,70 +1,28 @@
 <!--
-  keepIT themed-icon layer (Android 13+): the flat line drawing of the typewriter — paper, platen on
-  its two supports, and the body with its space bar — the same mark as the web app's TypewriterIcon.
-  The launcher tints it and uses only its alpha, so the stroke colour is irrelevant. The artwork is
-  authored in a 40-unit box with an inner translate(8,8); the outer group scales it (x2.5) and
-  centres it in the 108-unit canvas so even the base corners stay inside the 66-unit safe circle.
+  keepIT themed-icon layer (Android 13+): the flat form of the two-tone K — a round-capped stem and
+  a chevron meeting at its middle, the same strokes as the rendered icon in docs/brand/keepit-icon.blend
+  and the web app's KeepItIcon. The launcher tints it and uses only its alpha, so the colour is
+  irrelevant. Sized so the furthest stroke edge sits 30 units from the centre, inside the 66-unit
+  safe circle of the 108-unit canvas.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:scaleX="2.5"
-        android:scaleY="2.5"
-        android:translateX="4"
-        android:translateY="6.5">
-        <group
-            android:translateX="8"
-            android:translateY="8">
-            <!-- paper -->
-            <path
-                android:pathData="M9,3 h6 v3 H9 z"
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.8"
-                android:strokeLineCap="round"
-                android:strokeLineJoin="round" />
-            <!-- platen (rounded bar) -->
-            <path
-                android:pathData="M4.5,6 L19.5,6 A1.5,1.5 0 0 1 21,7.5 A1.5,1.5 0 0 1 19.5,9 L4.5,9 A1.5,1.5 0 0 1 3,7.5 A1.5,1.5 0 0 1 4.5,6 Z"
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.8"
-                android:strokeLineCap="round"
-                android:strokeLineJoin="round" />
-            <!-- platen supports -->
-            <path
-                android:pathData="M7,9 v2"
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.8"
-                android:strokeLineCap="round"
-                android:strokeLineJoin="round" />
-            <path
-                android:pathData="M17,9 v2"
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.8"
-                android:strokeLineCap="round"
-                android:strokeLineJoin="round" />
-            <!-- body -->
-            <path
-                android:pathData="M6,11 h12 l2.5,8 H3.5 z"
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.8"
-                android:strokeLineCap="round"
-                android:strokeLineJoin="round" />
-            <!-- space bar -->
-            <path
-                android:pathData="M8,16 h8"
-                android:fillColor="#00000000"
-                android:strokeColor="#FFFFFF"
-                android:strokeWidth="1.8"
-                android:strokeLineCap="round"
-                android:strokeLineJoin="round" />
-        </group>
-    </group>
+    <!-- stem -->
+    <path
+        android:pathData="M39.7,34.9 L39.7,73.1"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="12.2"
+        android:strokeLineCap="round" />
+    <!-- chevron: arm up to the right, leg down to the right -->
+    <path
+        android:pathData="M66.7,34.9 L50.3,55.3 L68.3,73.1"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="12.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
 </vector>
