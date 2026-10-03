@@ -4,7 +4,7 @@ import { NoteCard } from './NoteCard';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { distributeIntoColumns } from './masonry';
 import { useMediaQuery } from '../../lib/useMediaQuery';
-import { TrashIcon, TypewriterIcon } from '../../components/icons';
+import { TrashIcon, KeepItIcon } from '../../components/icons';
 import type { NoteDto } from '../../api/types';
 
 /** Filters notes client-side by the search query (title, body, or any checklist item). */
@@ -88,7 +88,7 @@ export function NotesGrid({
     const copy = EMPTY_COPY[filter.view];
     return (
       <div className="grid place-items-center py-24 text-center">
-        <TypewriterIcon className="mb-4 text-5xl text-border-strong" />
+        <KeepItIcon className="mb-4 text-5xl text-border-strong" />
         <p className="text-text-muted">{search ? 'No notes match your search.' : copy.title}</p>
         {!search && <p className="mt-1 text-sm text-text-faint">{copy.hint}</p>}
       </div>

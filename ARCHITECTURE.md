@@ -751,7 +751,7 @@ more modern**, not a pixel clone.
   even the bottom edge looks, never the order.
 - **Dark-first theme.** Dark is the baseline; **dim** and **light** plus **9 independent
   accent colors** are token overrides (`data-theme` / `data-accent`), a swap not a rewrite. The
-  default accent is **forest**, the green of the typewriter app icon (`docs/brand/`); the API
+  default accent is **forest**, the green of the app icon's K (`docs/brand/`); the API
   gives new accounts the same default, and the Android app uses it as its fixed accent.
   Note background colors are re-tuned per theme (muted on dark, not Keep's bright pastels).
 - **Everything a theme must restate is a token**, not just the palette: elevation

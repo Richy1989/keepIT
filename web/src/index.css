@@ -176,7 +176,7 @@ html[data-theme='dim'] {
    never set --color-accent-ink themselves: they come after the theme blocks at equal specificity,
    so doing so would let the accent win over the theme — which is exactly how the bright accent
    ended up as unreadable light-theme text in the first place.
-   Forest is the default and the brand green: its ink is the typewriter icon's own #1f6f4a, which
+   Forest is the default and the brand green: its ink is the app icon's own #1f6f4a, which
    is too deep for a fill (black on it is 3.4:1) or for content on the dark themes (2.2:1), so the
    fill is the same hue lifted until both pass. */
 html[data-accent='forest'] { --color-accent: #41aa79; --color-accent-strong: #33996a; --accent-ink: #1f6f4a; }
