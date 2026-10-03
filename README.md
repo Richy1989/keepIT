@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.svg" alt="keepIT logo" width="96" height="96">
+<img src="docs/logo.png" alt="keepIT logo" width="96" height="96">
 
 # keepIT
 

@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { apiErrorMessageFor } from '../lib/apiError';
-import { TypewriterIcon } from '../components/icons';
+import { BrandMark } from '../components/BrandMark';
 
 /**
  * Landing page for the emailed password-reset link (`/reset-password?email=…&token=…`). Posts the
@@ -61,9 +61,7 @@ export function ResetPasswordPage() {
     <div className="grid min-h-full place-items-center bg-canvas px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <span className="grid size-10 place-items-center rounded-xl bg-accent/15 text-accent-ink">
-            <TypewriterIcon className="text-2xl" />
-          </span>
+          <BrandMark className="size-10" />
           <span className="text-2xl font-semibold tracking-tight">keepIT</span>
         </div>
 
