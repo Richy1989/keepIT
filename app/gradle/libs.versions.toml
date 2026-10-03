@@ -1,7 +1,7 @@
 [versions]
 agp = "9.4.1"
 # 1.19+ requires compileSdk 37; this machine has platform 36.1 — bump both together later.
-coreKtx = "1.19.0"
+coreKtx = "1.19.1"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
@@ -12,7 +12,7 @@ composeBom = "2026.09.00"
 retrofit = "3.0.0"
 okhttp = "5.5.0"
 kotlinxSerializationJson = "1.11.0"
-navigationCompose = "2.10.1"
+navigationCompose = "2.10.2"
 # 1.1.1 predates Android 15: Glance only moved to compileSdk 35 in 1.2.0-alpha01, and we target 36.
 # 1.2.0 is the current stable and the last line that still builds against platform 36 (1.3.x needs 37).
 glance = "1.2.0"
@@ -21,7 +21,7 @@ signalr = "10.0.12"
 # own periodic worker on it, so work-runtime-ktx (CoroutineWorker) is a direct dependency now. It
 # is a floor, not a pin - if Glance ever resolves a newer work-runtime, Gradle picks that and both
 # our code and the instrumented tests follow.
-work = "2.7.1"
+work = "2.12.0"
 # Final release of the icons artifact (decoupled from material3 / the BOM); static vectors, safe to pin.
 materialIconsCore = "1.7.8"
 # Note images only. MediaCache does the authenticated download and hands Coil a plain File, so no
