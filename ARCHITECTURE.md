@@ -749,8 +749,10 @@ more modern**, not a pixel clone.
   (ties left), which gives row-major reading order *and* balanced columns. Balancing needs a
   height before layout, so the module estimates one per note; the estimate only affects how
   even the bottom edge looks, never the order.
-- **Dark-first theme.** Dark is the baseline; **dim** and **light** plus **8 independent
-  accent colors** are token overrides (`data-theme` / `data-accent`), a swap not a rewrite.
+- **Dark-first theme.** Dark is the baseline; **dim** and **light** plus **9 independent
+  accent colors** are token overrides (`data-theme` / `data-accent`), a swap not a rewrite. The
+  default accent is **forest**, the green of the typewriter app icon (`docs/brand/`); the API
+  gives new accounts the same default, and the Android app uses it as its fixed accent.
   Note background colors are re-tuned per theme (muted on dark, not Keep's bright pastels).
 - **Everything a theme must restate is a token**, not just the palette: elevation
   (`--shadow-card|panel|raised|overlay`, consumed by the `.elev-*` classes — Tailwind inlines a
@@ -760,10 +762,12 @@ more modern**, not a pixel clone.
   near-black canvas and turns into a grey smear or a charcoal blob on the light theme.
 - **The accent has two forms.** `--color-accent` is the fill; `--color-accent-ink` is the accent
   *as content* — text, icons, focus rings. They're the same on dark, but light remaps ink to a
-  deep shade, because the bright 400-level accents sit at 1.7–1.9:1 on white and the default
-  accent is yellow. The `html[data-accent]` blocks therefore set only `--color-accent(-strong)`
-  and an `--accent-ink` input: they come after the theme blocks at equal specificity, so setting
-  `--color-accent-ink` there would beat the theme and put the unreadable shade back.
+  deep shade, because the bright fills sit at 1.7–2.9:1 on white. The fill carries black text
+  (`bg-accent text-black`), so it must also clear AA under black: that is why forest's fill is
+  `#41aa79` while the icon's `#1f6f4a` is only its ink. The `html[data-accent]` blocks set only
+  `--color-accent(-strong)` and an `--accent-ink` input: they come after the theme blocks at equal
+  specificity, so setting `--color-accent-ink` there would beat the theme and put the unreadable
+  shade back.
 - **Modern, restrained styling.** Generous spacing, soft rounded corners, subtle elevation,
   smooth micro-interactions, good empty/loading states. Menus and dialogs animate in
   (`.pop-in` / `.fade-in`, neutralized by the global reduced-motion rule). Confirmations use

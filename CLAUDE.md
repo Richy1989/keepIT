@@ -148,6 +148,7 @@ keepIT/
 │     ├─ widget/            # KeepItWidget (Glance home-screen widget)
 │     └─ MainActivity.kt    # single-activity host; intents → Destination
 ├─ deploy/                  # Unraid template (keepit.unraid.xml)
+├─ docs/brand/              # app icon source: keepit-icon.blend + render_icons.py (writes every icon file)
 ├─ docker-compose.yml
 └─ ARCHITECTURE.md
 ```

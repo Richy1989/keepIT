@@ -6,7 +6,7 @@ export type ThemePref = 'light' | 'dim' | 'dark' | 'system';
 export interface SettingsState {
   /** The stored preference (may be "system"). */
   theme: ThemePref;
-  /** Accent color key (e.g. "yellow"). */
+  /** Accent color key (e.g. "forest"). */
   accent: string;
   /** Set the theme preference (persists to the backend when signed in). */
   setTheme: (theme: ThemePref) => void;

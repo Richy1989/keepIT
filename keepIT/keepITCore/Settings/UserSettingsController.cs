@@ -27,7 +27,7 @@ namespace keepITCore.Settings
 
         /// <summary>Allowed accent color keys. Keep in sync with the frontend accent palette.</summary>
         private static readonly HashSet<string> AllowedAccents =
-            new(StringComparer.Ordinal) { "yellow", "orange", "red", "pink", "purple", "blue", "teal", "green" };
+            new(StringComparer.Ordinal) { "forest", "yellow", "orange", "red", "pink", "purple", "blue", "teal", "green" };
 
         private static readonly string[] AllowedExtensions = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
         private const long MaxFileSize = 2 * 1024 * 1024; // 2 MB

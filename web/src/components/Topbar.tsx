@@ -1,4 +1,5 @@
-import { TypewriterIcon, SearchIcon, MenuIcon } from './icons';
+import { BrandMark } from './BrandMark';
+import { SearchIcon, MenuIcon } from './icons';
 import { ThemeMenu } from './ThemeMenu';
 import { AccountMenu } from './AccountMenu';
 import { NotificationsBell } from '../features/notifications/NotificationsBell';
@@ -37,9 +38,7 @@ export function Topbar({
         do at this width too.
       */}
       <div className="hidden items-center gap-2 sm:flex">
-        <span className="grid size-8 place-items-center rounded-lg bg-accent/15 text-accent-ink">
-          <TypewriterIcon className="text-lg" />
-        </span>
+        <BrandMark className="size-8" />
         <span className="text-lg font-semibold tracking-tight">keepIT</span>
       </div>
 

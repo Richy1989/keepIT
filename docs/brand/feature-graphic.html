@@ -1,0 +1,113 @@
+<!doctype html>
+<!--
+  The F-Droid feature graphic (fastlane/metadata/android/en-US/images/featureGraphic.png), 1024x500.
+  Rendered by render_feature_graphic.py, which inlines the two relative URLs below (the Inter font
+  from web/node_modules and the app icon) so headless Chromium needs no file:// access.
+
+  F-Droid shows this band at about 2.26:1 against the file's 2.05:1 and crops the top and bottom,
+  never the sides, so everything that matters sits between y=40 and y=460.
+
+  Colours are the app's: the forest accent fill (#41aa79), the dark canvas (#18181b), text tokens,
+  and the dim theme's note backgrounds and borders (sky, amber, violet) from web/src/index.css.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face {
+    font-family: 'Inter';
+    font-weight: 100 900;
+    src: url('../../web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+  }
+  :root {
+    --canvas: #18181b;
+    --accent: #41aa79;
+    --text: #ececee;
+    --text-muted: #b4b4bd;
+    --line: rgb(236 236 238 / 0.22);
+  }
+  html, body { margin: 0; }
+  body {
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    position: relative;
+    font-family: 'Inter', sans-serif;
+    background:
+      radial-gradient(ellipse 1000px 760px at 0 0, rgb(65 170 121 / 0.17), transparent 75%),
+      var(--canvas);
+  }
+
+  .brand { position: absolute; left: 75px; top: 148px; }
+  .lockup { display: flex; align-items: center; gap: 26px; }
+  .lockup img {
+    width: 92px;
+    height: 92px;
+    display: block;
+    filter: drop-shadow(0 10px 18px rgb(0 0 0 / 0.45));
+  }
+  .wordmark {
+    color: var(--text);
+    font-size: 74px;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    padding-bottom: 6px;
+  }
+  .tagline {
+    margin: 26px 0 0;
+    width: 420px;
+    color: var(--text-muted);
+    font-size: 25px;
+    line-height: 1.42;
+  }
+  .rule { margin-top: 26px; width: 88px; height: 5px; border-radius: 3px; background: var(--accent); }
+
+  .card {
+    position: absolute;
+    width: 255px;
+    box-sizing: border-box;
+    padding: 26px 22px;
+    border-radius: 14px;
+    border: 1px solid;
+    box-shadow: 0 24px 40px -12px rgb(0 0 0 / 0.55);
+  }
+  .card .title { height: 9px; width: 130px; border-radius: 5px; background: var(--accent); opacity: 0.9; }
+  .card .line { height: 7px; border-radius: 4px; background: var(--line); margin-top: 16px; }
+  .card .row { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .card .row .line { margin-top: 0; flex: none; }
+  .box { width: 13px; height: 13px; border-radius: 3px; box-sizing: border-box; border: 2px solid var(--accent); }
+  .box.done { background: var(--accent); }
+
+  .sky    { left: 592px; top: 42px;  height: 222px; transform: rotate(-4deg); background: #2a3e4d; border-color: #3a5468; }
+  .amber  { left: 738px; top: 142px; height: 222px; transform: rotate(4deg);  background: #463d26; border-color: #5c4e33; }
+  .violet { left: 622px; top: 298px; height: 196px; transform: rotate(-3deg); background: #3e3155; border-color: #564474; }
+</style>
+</head>
+<body>
+  <div class="card sky">
+    <div class="title"></div>
+    <div class="line" style="width: 186px"></div>
+    <div class="line" style="width: 134px"></div>
+  </div>
+  <div class="card amber">
+    <div class="title"></div>
+    <div class="row"><span class="box done"></span><span class="line" style="width: 122px"></span></div>
+    <div class="row"><span class="box"></span><span class="line" style="width: 146px"></span></div>
+  </div>
+  <div class="card violet">
+    <div class="title"></div>
+    <div class="line" style="width: 196px"></div>
+    <div class="line" style="width: 116px"></div>
+  </div>
+
+  <div class="brand">
+    <div class="lockup">
+      <img src="keepit-icon-1024.png" alt="">
+      <div class="wordmark">keepIT</div>
+    </div>
+    <p class="tagline">Your notes on your phone and your own server. Never on others.</p>
+    <div class="rule"></div>
+  </div>
+</body>
+</html>

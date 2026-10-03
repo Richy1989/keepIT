@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo.svg" alt="keepIT logo" width="96" height="96">
+<img src="docs/logo.png" alt="keepIT logo" width="96" height="96">
 
 # keepIT
 
@@ -295,6 +295,10 @@ bash scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.
 ```
 
 </details>
+
+The app icon is a Blender model: **[`docs/brand/`](docs/brand/README.md)** holds the `.blend` and
+a script that renders every icon file from it, for Android, the web, F-Droid and this README, so
+changing the icon means editing one file and running one command.
 
 ## Why I built this
 

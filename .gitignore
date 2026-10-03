@@ -16,6 +16,9 @@ App_Data/
 # dropped an entire feature folder from commits.
 /media/
 
+# Blender's save backups next to the icon source (docs/brand/keepit-icon.blend).
+*.blend1
+
 # ---- .NET / ASP.NET Core ----
 bin/
 obj/

@@ -6,8 +6,8 @@ namespace keepITCore.Settings.Dtos
         /// <summary>Settings row id. Server-assigned; ignored on update.</summary>
         public Guid? Id { get; set; }
 
-        /// <summary>Global UI accent color key (e.g. "yellow").</summary>
-        public string GlobalAccentColor { get; set; } = "yellow";
+        /// <summary>Global UI accent color key (e.g. "forest").</summary>
+        public string GlobalAccentColor { get; set; } = "forest";
 
         /// <summary>UI theme preference: "light", "dim", "dark", or "system".</summary>
         public string Theme { get; set; } = "dark";

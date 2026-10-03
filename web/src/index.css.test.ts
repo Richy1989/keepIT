@@ -32,7 +32,9 @@ const AA_TEXT = 4.5;
 const AA_LARGE = 3;
 
 const THEMES = ['dark', 'light', 'dim'] as const;
-const ACCENTS = ['yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'green'] as const;
+const ACCENTS = [
+  'forest', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'teal', 'green',
+] as const;
 const NOTE_COLORS = [
   'rose', 'coral', 'amber', 'sage', 'teal', 'sky', 'indigo', 'violet', 'mauve',
 ] as const;
@@ -131,6 +133,17 @@ describe.each(THEMES)('theme: %s', (theme) => {
       ).toBeGreaterThanOrEqual(AA_TEXT);
     });
 
+    it('black text reads on the accent fill and its hover shade', () => {
+      // Buttons, checked boxes and the selected theme are `bg-accent text-black`, and hover to
+      // `bg-accent-strong`. A deep accent (forest's #1f6f4a is 3.4:1 under black) belongs in
+      // --accent-ink, never in the fill.
+      for (const token of ['--color-accent', '--color-accent-strong']) {
+        expect(contrast('#000000', t[token]), `black on ${token} (${accent})`).toBeGreaterThanOrEqual(
+          AA_TEXT,
+        );
+      }
+    });
+
     it('status colours read on their own panels', () => {
       expect(contrast(t['--color-danger'], t['--color-danger-bg'])).toBeGreaterThanOrEqual(AA_TEXT);
       expect(contrast(t['--color-warning'], t['--color-warning-bg'])).toBeGreaterThanOrEqual(AA_TEXT);
@@ -175,6 +188,19 @@ describe('token structure', () => {
   it('every accent is offered by the picker and defined in CSS', async () => {
     const { ACCENTS: offered } = await import('./features/settings/accent');
     expect(offered.map((a) => a.key).sort()).toEqual([...ACCENTS].sort());
+  });
+
+  it('the baseline and the pre-paint fallback are the default accent', async () => {
+    // The baseline paints the instant before <html data-accent> is set, and index.html seeds
+    // data-accent from the cache or this fallback: if either disagreed with DEFAULT_ACCENT, a new
+    // visitor would see one accent flash into another.
+    const { DEFAULT_ACCENT } = await import('./features/settings/accent');
+    const chosen = block(`html[data-accent='${DEFAULT_ACCENT}']`);
+    expect(block('@theme')['--color-accent']).toBe(chosen['--color-accent']);
+    expect(block('@theme')['--color-accent-strong']).toBe(chosen['--color-accent-strong']);
+    expect(block(':root')['--accent-ink']).toBe(chosen['--accent-ink']);
+    const html = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8');
+    expect(html).toContain(`localStorage.getItem('keepit:accent') || '${DEFAULT_ACCENT}'`);
   });
 
   it('the light theme remaps the accent and the dark baseline tracks it', () => {

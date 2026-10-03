@@ -8,9 +8,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.net.toUri
 import org.hyperstarit.keepitapp.MainActivity
 import org.hyperstarit.keepitapp.R
+import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 
 /**
  * The app's native notification surface — channels, permission checks, and posting. **Every**
@@ -31,7 +33,7 @@ object AppNotifications {
     private const val NOTIFICATION_ID = 1
 
     /** keepIT accent (the web default) — tints the small icon and action text. */
-    private const val ACCENT = 0xFFFBBF24.toInt()
+    private val ACCENT = KeepItColors.Accent.toArgb()
 
     /** Registers both channels (no-op when they already exist). */
     fun ensureChannels(context: Context) {
