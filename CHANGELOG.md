@@ -7,7 +7,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 A new look. keepIT has a new icon -- a K of soft, rounded strokes, a green stem and a brass chevron
 -- on the home screen, in the browser tab and in the F-Droid listing, and the app's default accent
-is now that green. Nothing about your notes or your setup changes.
+is now that green. The Android app gains a light theme. Nothing about your notes or your setup
+changes.
 
 ### New look
 
@@ -25,6 +26,10 @@ is now that green. Nothing about your notes or your setup changes.
   them stays easy to read.
 - **Your current accent stays as it is.** The web app saves your settings the first time you open
   it, so an existing account keeps yellow. To switch, pick **Forest** in the Appearance menu.
+- **Themes on Android.** Settings has a new Appearance section with the web app's four themes:
+  **Light**, **Dim** (the look the app has always had, and still the default), **Dark**, and
+  **Auto**, which follows your phone between light and dark. The home-screen widget follows
+  along. The choice belongs to the phone: it isn't synced, so the web app keeps its own setting.
 
 ### Updating
 

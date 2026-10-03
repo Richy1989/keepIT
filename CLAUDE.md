@@ -67,6 +67,7 @@ the Android app generally should too. Key design points:
 - **Reminders** are native: `AlarmManager` (`notifications/ReminderScheduler`, `ReminderAlarmReceiver`) so they fire offline / app-closed, re-armed after reboot by `BootReceiver`. `ServerNotificationsWatcher` surfaces the server inbox as tray notifications.
 - **Single-activity** (`MainActivity`, `launchMode=singleTask`) → Compose nav in `ui/AppRoot.kt`. External entry points arrive as intents and are turned into a `Destination` in `MainActivity.destinationFrom()`: the **widget** deep-links (compose / open note / inbox via extras), and **shared-in text** (`ACTION_SEND`, `text/plain`) opens the composer pre-filled. To add an external entry point: add a `Destination`, map the intent in `destinationFrom()`, and route it in `AppRoot`'s `MainNav`.
 - UI is organized under `ui/` by area (`auth/ notes/ notifications/ settings/ markdown/ theme/`); the note editor is `ui/notes/EditorScreen.kt` (null `noteId` = composer). `ui/notes/ShareSheet.kt` is the **share-a-note-with-another-user** feature (owner/Editor grants), not the OS share sheet.
+- **Theme** (`ui/theme/`): Light, Dim and Dark palettes transcribed from `web/src/index.css` (held to it by `WebTokenParityTest`), read through `KeepItColors` (a CompositionLocal) and chosen **per device** in Settings (`data/Appearance.kt`, never synced; Dim by default). `KeepItColors.Accent` is a *fill* that carries black; accent-coloured text, icons and borders use `AccentInk`, or they vanish on Light. No raw colours in composables; where there is no themed composition (Glance, the Markdown renderer) pass a `KeepItPalette` explicitly — `LocalKeepItPalette` there is silently Dim.
 - **Build/verify:** `cd app && ./gradlew.bat :app:compileDebugKotlin` (Windows). Three layers of test, all wired into CI — see the Testing section.
 
 ## Testing the Android app
@@ -78,8 +79,9 @@ crashes at build time, nothing appears in our logs, a feature just silently neve
 layers guard it, cheapest first:
 
 1. **JVM unit tests** (`app/app/src/test/`) — offline op application, outbox coalescing, checklist
-   ordering, the widget's snapshot projection + prefs codec, the note colour palette, and the
-   export archive's format (`ArchiveTest`).
+   ordering, the widget's snapshot projection + prefs codec, the note colour palette, the theme
+   tokens (AA contrast, and parity with the web's `index.css`), and the export archive's format
+   (`ArchiveTest`).
    `./gradlew.bat :app:testMinifiedUnitTest` (that is the only unit-test task: `testBuildType` scopes
    the test components to the `minified` variant).
 2. **`verifyReleaseKeepRules`** — after R8 runs, reads its own `usage.txt` and fails if anything in

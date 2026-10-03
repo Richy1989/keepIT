@@ -671,7 +671,8 @@ after reboot.
 the latest notes at a glance, a "+" that deep-links into the composer, and a header refresh
 that runs a one-shot background sync. It renders purely from the local cache, so it needs no
 network or auth of its own and shows last-known notes even signed out; when the cache
-changes, every widget re-renders.
+changes, every widget re-renders. It draws in the app's theme (see **UI & design parity**), so a
+new theme choice re-renders it too.
 
 Both ways of refreshing it run with **no UI in the process**, which shapes them:
 
@@ -691,8 +692,8 @@ Both ways of refreshing it run with **no UI in the process**, which shapes them:
 **Screens** (`ui/`): login/register (with server URL + forgot-password, or standalone), notes grid
 (staggered, with sync-status strip and pending-changes count), editor (Markdown styled live as it
 is typed, checklist editing, color, share sheet, reminder dialog),
-notifications inbox, settings (notification + exact-alarm permissions, change password,
-about/version — deliberately no theme/accent, see below).
+notifications inbox, settings (theme, notification + exact-alarm permissions, change password,
+about/version — a theme for this device only and no accent, see below).
 
 ### UI & design parity (native, shared design language)
 
@@ -703,24 +704,62 @@ Compose with a shared *design language*, not shared code and not pixel-cloning**
 - **The tokens are the contract.** `web/src/index.css` is the canonical design system; the
   Android theme (`ui/theme/`) transcribes the same values into Compose color objects — never
   re-picked by eye, and no raw hex scattered through composables on either client. `Color.kt`
-  currently carries the web's **dim** theme (`html[data-theme=dim]`): a softer dark that suits
-  phone OLED better than the pitch-black baseline.
-- **Appearance is local and fixed on Android — a gap, not a bug.** The web persists a per-user
-  **theme + accent** server-side (`UserSettingsController`, `/api/settings`) and restyles a
-  user's other open devices live off the `settings` realtime signal. Android does none of it:
-  `Theme.kt` builds one `darkColorScheme` over the dim tokens with a single fixed accent, the
-  settings screen offers no picker, `Dtos.kt`/`KeepItApi.kt` carry no `UserSettingsDto`, and the
-  `settings` push is ignored (`KeepItApplication.kt`). Syncing the value alone would change
-  nothing on screen — **there is no theme to switch into yet**, which is why the client doesn't
-  pretend to listen. Closing it is a themed-UI job before it is a sync job, in this order:
-  (1) make the tokens runtime-swappable — `KeepItColors` is an `object` read directly at **223
-  call sites across 15 files** (37 of them `Accent`), so this means a `CompositionLocal` and a
-  mechanical sweep; (2) add the dark/light schemes as a token swap, as the web does;
-  (3) add the DTO + route + repository, a picker in `SettingsScreen`, and handle `settings` in
-  the realtime handler. Until then the dim scheme **is** the Android look, and a user's web
-  appearance choice intentionally does not follow them to the phone.
-- **Per-note palette:** a Compose map keyed by the **same** color keys the `Note.color` DTO
-  stores (`"rose"`, `"amber"`, …), so the palette stays in lockstep across clients.
+  carries all three of the web's themes as `KeepItPalette.Dark`, `.Dim` and `.Light`, and
+  `WebTokenParityTest` reads `index.css`, resolves each theme the way the cascade does, and fails
+  on any value that drifts — the transcription is about a hundred values, and a mistyped digit
+  is a colour nobody notices until the two apps sit side by side. `ThemeContrastTest` holds every
+  palette, and the Material scheme built from it, to AA.
+- **Themes are a token swap, as on the web.** `KeepITAppTheme` provides the palette through
+  `LocalKeepItPalette`, and `KeepItColors.Text` & co. are `@Composable` getters over it, so screens
+  restyle without knowing there is a theme. The Material scheme is built from the same palette
+  (`colorSchemeFor`), with **every slot a component reads** set: whatever is left out falls back
+  to Material's baseline purple, which is how the drawer's selected row and the time picker came
+  out lavender-grey. Outside a themed composition there is no palette to read — the Markdown
+  renderer and the editor's live highlighting take one as a parameter (the colours are baked
+  into the `AnnotatedString`), and the widget picks its own (below).
+- **The accent has two forms here too.** `KeepItColors.Accent` is the *fill* — the FAB, filled
+  buttons (`accentButtonColors()`, the web's `bg-accent text-black`), the voice-note play button,
+  a ticked checklist box — and always carries black. `AccentInk` is the accent as *content*: text,
+  icons, links, borders, the cursor, spinners. They are the same on Dim and Dark; Light remaps
+  the ink to the icon's deep green, because the bright fill is 2.9:1 on white. Material's
+  `primary` is the ink, since TextButtons, focused fields, selection handles and the date picker
+  all use it as content. A selected state (drawer row, chip, segment, the time picker's field) is
+  the web's 15% accent tint with the **theme's text colour** on it, not the web's ink: the bright
+  ink on a tint over Dim's surfaces measures 4.0–4.3:1.
+- **Appearance is per device on Android, theme only.** Settings → Appearance offers the web's
+  four choices with the web's labels (Light, Dim, Dark, Auto); `data/Appearance.kt` keeps the
+  choice in app-private prefs (`keepit_appearance`) and never sends it anywhere, so the web's
+  per-account theme (`UserSettingsController`, `/api/settings`) does not follow the user to the
+  phone, nor the phone's to the web, and the `settings` realtime push is still ignored
+  (`KeepItApplication.kt`). Nothing stored means **Dim**, the look the app had before the setting,
+  so an update changes nothing. Auto follows the phone between Light and **Dark**, the same rule
+  as the web's "system". The accent stays fixed (forest) — there is no accent picker. Syncing
+  later would be the DTO + route + repository, writing the server's value into the same store,
+  and handling `settings` in the realtime handler.
+- **The platform has to agree before Compose draws.** The choice is also handed to the system
+  as the app's night mode (`UiModeManager.setApplicationNightMode`), which the system persists,
+  so the launch splash and the first window come from the right `values/` or `values-night/`
+  theme — no white flash for Dim on a light phone, no dark one for Light on a dark phone. Those
+  themes also declare the bar icons (`windowLightStatusBar`): when the night mode flips while the
+  app is open, the platform re-derives them during the configuration change, *after* Compose has
+  styled the bars, so a theme that left them at Material.Light's default gave Light white status
+  icons on white. Android 16 goes further and drops the app's choice outright on that change
+  (the window loses `APPEARANCE_CONTROLLED`), so `MainActivity.onConfigurationChanged` re-applies
+  the bar style, posted to run after the platform's handling. `MainActivity` handles `uiMode`
+  itself (no recreation) and also restyles the bars and the window background whenever the
+  palette changes. Checked on API 34 and 36 by reading `dumpsys window displays`
+  (`mLastStatusBarAppearanceRegions`) after each theme switch and phone dark-mode flip; a dialog's
+  scrim legitimately takes white icons.
+- **The widget follows the app's theme.** A Glance composition is outside the app's theme, so
+  `LocalKeepItPalette` there would silently be Dim; `KeepItWidget` reads the stored choice and
+  uses `KeepItPalette` directly. Under Auto every colour is a light/dark *pair* the launcher picks
+  between by its own night mode, so the widget follows the phone without a re-render; any other
+  choice is one fixed palette, and the app re-renders the widget when it changes. The widget
+  picker's static preview can't know the setting at all, so it follows the phone (`values/` and
+  `values-night/colors.xml`).
+- **Per-note palette:** a list per theme keyed by the **same** color keys the `Note.color` DTO
+  stores (`"rose"`, `"amber"`, …), so the palette stays in lockstep across clients and a theme
+  change recolours a note without re-keying it.
 - **Masonry grid:** Compose `LazyVerticalStaggeredGrid` — a near-1:1 fit for the card grid.
 - **Editor tools are a floating toolbar, not the web's footer** (`ui/notes/EditorToolbar.kt`):
   a Material 3-style pill above the navigation bar and keyboard, holding only what adds to the
@@ -730,7 +769,8 @@ Compose with a shared *design language*, not shared code and not pixel-cloning**
   for the navigation bar itself — the old full-width rows only padded for the keyboard and sat on
   the gesture handle.
 - **Don't chase system-chrome parity:** status bar, back behavior, ripples, and insets follow
-  Android conventions. Matching palette/typography/cards/accents is what reads as "same app".
+  Android conventions (the bar *icons* follow the app's theme, not the phone's). Matching
+  palette/typography/cards/accents is what reads as "same app".
 - **Explicitly rejected:** WebView/TWA/Capacitor wrappers (non-native feel, and the widget
   needs native code regardless) and pixel-exact cloning (fights Material conventions).
 
