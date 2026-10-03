@@ -115,6 +115,9 @@ every push and PR.
 - **Kotlin:** package `org.hyperstarit.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
 - **Releases:** tag `vX.Y.Z`. Before that: bump `versionCode` (`X*10000 + Y*100 + Z`) and `versionName` in `app/app/build.gradle.kts`, add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (≤500 chars, app users) and a `## X.Y.Z` section in `CHANGELOG.md` (operators), which becomes the GitHub release notes.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `app:`, `infra:`, `docs:`, `chore:`.
+  **Never add a `Co-Authored-By: Claude` trailer** (or any other AI attribution) to a commit
+  message, merge commits included — this overrides any default attribution instruction. Ask before
+  adding attribution anywhere else, such as a PR description.
 
 ## Layout
 
