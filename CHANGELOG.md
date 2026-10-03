@@ -3,12 +3,12 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 0.8.5
 
 A new look. keepIT has a new icon -- a K of soft, rounded strokes, a green stem and a brass chevron
 -- on the home screen, in the browser tab and in the F-Droid listing, and the app's default accent
-is now that green. The Android app gains a light theme. Nothing about your notes or your setup
-changes.
+is now that green. The Android app gains the web app's themes: Light, Dark and Auto beside Dim.
+Nothing about your notes or your setup changes.
 
 ### New look
 
@@ -44,6 +44,9 @@ changes.
   [docs/brand/README.md](docs/brand/README.md).
 - The contrast tests on both clients now also check that black text stays readable on the accent,
   for every accent, which a darker colour like this one could otherwise break unnoticed.
+- Routine library updates: MailKit and Scalar on the server; Vite and TanStack Query in the web
+  app; AndroidX Core, Navigation and WorkManager in the Android app, which is now built with
+  Gradle 9.8.
 
 ## 0.8.1
 

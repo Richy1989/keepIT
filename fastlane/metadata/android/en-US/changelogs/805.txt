@@ -1,0 +1,5 @@
+A new look: a new icon, a rounded K in green and brass, on your home screen and in F-Droid, and the app's accent is now the icon's green.
+
+Themes: Settings has a new Appearance section with Light, Dim, Dark and Auto, which follows your phone between light and dark. Dim is still the default, the home-screen widget follows along, and the choice stays on this phone.
+
+Running your own server? Update it to 0.8.5 to bring the new icon and green accent to the web app too.

@@ -56,7 +56,8 @@ also works entirely on its own, with no server at all.
 - 📴 **No server? No problem:** the Android app also runs standalone. Notes, lists, photos,
   reminders and the widget all live on your phone, with nothing to set up. Connect a server
   later and everything moves into your account.
-- 🎨 **Make it yours:** a background color per note, and an accent color for the whole app.
+- 🎨 **Make it yours:** light, dim or dark themes (or follow your device), on the web and on
+  Android, a background color per note, and an accent color for the whole app.
 - 💾 **Take your notes with you:** save everything you own — notes, checklists, lists, reminders
   and photos — as a single zip, and load it back into any keepIT account. On the web and on
   Android, standalone phones included, so a phone with no server still has a real backup. Your
@@ -209,8 +210,9 @@ else. Sharing and syncing with other devices need a server, so they're switched 
 When you do set up a server, open **Settings → Connect to a server** and sign in: everything on
 the phone is uploaded into that account (alongside anything already in it) and syncs from then
 on. A photo the server won't take (over 10 MB or 100 megapixels, or HEIC) is saved to your
-gallery instead of being lost. Until then, standalone notes live only on the phone. There's no
-backup, and **Settings → Erase notes** deletes them for good.
+gallery instead of being lost. Until then, standalone notes live only on the phone, so save a copy
+now and then with **Settings → Your data → Save my notes** and keep it somewhere else.
+**Settings → Erase notes** deletes them for good.
 
 ### Get it
 
