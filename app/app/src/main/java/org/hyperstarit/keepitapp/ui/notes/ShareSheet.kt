@@ -18,6 +18,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -154,7 +155,7 @@ fun ShareSheet(
                             }
                         },
                     ) {
-                        Text("Invite", color = KeepItColors.Accent)
+                        Text("Invite", color = KeepItColors.AccentInk)
                     }
                 }
                 HorizontalDivider(color = KeepItColors.BorderSubtle, modifier = Modifier.padding(vertical = 8.dp))
@@ -163,7 +164,7 @@ fun ShareSheet(
             error?.let {
                 Text(
                     text = it,
-                    color = androidx.compose.ui.graphics.Color(0xFFF87171),
+                    color = MaterialTheme.colorScheme.error,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
@@ -174,7 +175,7 @@ fun ShareSheet(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator(color = KeepItColors.Accent, modifier = Modifier.size(24.dp))
+                    CircularProgressIndicator(color = KeepItColors.AccentInk, modifier = Modifier.size(24.dp))
                 }
 
                 shares.isEmpty() -> Text(

@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Static preview shown in the widget picker (referenced by keepit_widget_info previewLayout). It's a
-  representative mock — the live widget is Glance/Compose — matching the dark canvas, note cards, and
-  the floating "+" so the picker shows what you'll get.
+  representative mock — the live widget is Glance/Compose — matching the canvas, note cards, and the
+  floating "+" so the picker shows what you'll get. Colours come from @color/widget_preview_*, which
+  follow the phone's dark mode (values/ and values-night/colors.xml).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -19,7 +20,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="keepIT"
-            android:textColor="#41AA79"
+            android:textColor="@color/widget_preview_title"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -31,7 +32,7 @@
             android:paddingHorizontal="10dp"
             android:paddingVertical="8dp"
             android:text="Shopping"
-            android:textColor="#ECECEE"
+            android:textColor="@color/widget_preview_text"
             android:textSize="13sp" />
 
         <TextView
@@ -42,7 +43,7 @@
             android:paddingHorizontal="10dp"
             android:paddingVertical="8dp"
             android:text="Meeting notes…"
-            android:textColor="#A1A1AA"
+            android:textColor="@color/widget_preview_text_muted"
             android:textSize="12sp" />
     </LinearLayout>
 

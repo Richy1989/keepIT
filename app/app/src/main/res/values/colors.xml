@@ -7,4 +7,17 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!--
+      The widget picker's static preview (layout/widget_preview.xml). The launcher draws it in its
+      own process, so it can't know the app's theme setting; it follows the phone instead - Light's
+      tokens here, Dim's (the default) in values-night/. The live widget is Glance and picks its
+      own colours (KeepItWidget's WidgetColors).
+    -->
+    <color name="widget_preview_canvas">#FFF7F7F8</color>
+    <color name="widget_preview_card">#FFFFFFFF</color>
+    <color name="widget_preview_text">#FF18181B</color>
+    <color name="widget_preview_text_muted">#FF52525B</color>
+    <color name="widget_preview_title">#FF1F6F4A</color>
+    <color name="widget_preview_accent">#FF41AA79</color>
 </resources>

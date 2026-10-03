@@ -1,16 +1,25 @@
 package org.hyperstarit.keepitapp
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.toArgb
 import org.hyperstarit.keepitapp.ui.AppRoot
 import org.hyperstarit.keepitapp.ui.Destination
 import org.hyperstarit.keepitapp.ui.theme.KeepITAppTheme
+import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
+import org.hyperstarit.keepitapp.ui.theme.paletteFor
 
 /**
  * Single-activity host. The home-screen widget deep-links here with intent extras — `singleTask`
@@ -23,20 +32,55 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Light icons on both bars, always. The default picks them from the *system* theme, but the
-        // app is dark whatever the phone is set to, so a phone in light mode got dark clock and
-        // battery icons on a near-black bar. Transparent, because every screen draws its own
-        // background edge to edge and pads for the bars itself.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-        )
+        val appearance = appContainer.appearance
+        // Before the first frame, so the bars are right from the start rather than one frame later.
+        applySystemChrome(currentPalette())
         pendingDestination.value = destinationFrom(intent)
         setContent {
-            KeepITAppTheme {
+            val pref by appearance.theme.collectAsState()
+            val palette = paletteFor(pref, isSystemInDarkTheme())
+            DisposableEffect(palette) {
+                applySystemChrome(palette)
+                onDispose {}
+            }
+            KeepITAppTheme(pref) {
                 AppRoot(container = appContainer, pendingDestination = pendingDestination)
             }
         }
+    }
+
+    /**
+     * Re-styles the bars after the platform has handled a configuration change. A night-mode flip
+     * (the phone's dark mode, or a theme picked in Settings, which changes the app's night mode)
+     * makes the platform re-derive the bar icons from the window theme, *after* Compose has
+     * already set them — and on Android 16 it drops the app's choice outright, leaving white icons
+     * on Light. Posted, so it lands once that handling is done.
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        window.decorView.post { applySystemChrome(currentPalette()) }
+    }
+
+    /** The palette on screen right now: the stored choice, resolved against this configuration. */
+    private fun currentPalette(): KeepItPalette =
+        paletteFor(appContainer.appearance.theme.value, resources.configuration.isNightModeActive)
+
+    /**
+     * The bars and the window behind the UI, for the theme on screen. The bar icons follow the
+     * *app's* theme, not the phone's: by default they come from the system theme, so a phone in
+     * light mode got dark clock and battery icons on Dim's near-black bar, and Light on a dark phone
+     * would get white ones on white. Transparent, because every screen draws its own background
+     * edge to edge and pads for the bars itself. The window colour shows only where Compose has not
+     * drawn yet — the first frame, and behind the keyboard as it animates.
+     */
+    private fun applySystemChrome(palette: KeepItPalette) {
+        val bars = if (palette.isLight) {
+            SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.dark(Color.TRANSPARENT)
+        }
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        window.setBackgroundDrawable(ColorDrawable(palette.canvas.toArgb()))
     }
 
     override fun onNewIntent(intent: Intent) {

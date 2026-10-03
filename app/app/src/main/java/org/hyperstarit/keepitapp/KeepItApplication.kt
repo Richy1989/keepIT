@@ -2,6 +2,7 @@ package org.hyperstarit.keepitapp
 
 import android.app.Application
 import android.content.Context
+import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,6 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.AppMode
+import org.hyperstarit.keepitapp.data.Appearance
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.RealtimeClient
 import org.hyperstarit.keepitapp.data.SessionRepository
@@ -25,6 +27,7 @@ import org.hyperstarit.keepitapp.data.offline.SyncEngine
 import org.hyperstarit.keepitapp.notifications.AppNotifications
 import org.hyperstarit.keepitapp.notifications.ReminderScheduler
 import org.hyperstarit.keepitapp.notifications.ServerNotificationsWatcher
+import org.hyperstarit.keepitapp.widget.KeepItWidget
 
 /**
  * Process-wide wiring — a hand-rolled container instead of a DI framework (deliberate for v1: a
@@ -50,6 +53,9 @@ class AppContainer(context: Context) {
 
     /** Server-backed or standalone; read by every path that would otherwise reach for the network. */
     val appMode = AppMode(context.applicationContext)
+
+    /** The theme this device shows (Settings → Appearance); never synced, see [Appearance]. */
+    val appearance = Appearance(context.applicationContext)
 
     val apiClient = ApiClient(context)
     val session = SessionRepository(apiClient, appMode)
@@ -118,6 +124,15 @@ class AppContainer(context: Context) {
             notificationsWatcher.clear()
         }
         session.onLeavingStandalone = { notesRepo.prepareStandaloneUpload() }
+
+        appearance.applyNightMode()
+        // The widget draws in the chosen theme too, so a new choice re-renders it. (Under Auto it
+        // needs no help when the phone switches: the launcher picks between its two palettes.)
+        appScope.launch {
+            appearance.theme.drop(1).collect {
+                runCatching { KeepItWidget().updateAll(context.applicationContext) }
+            }
+        }
 
         // Keep the alarm snapshot in lockstep with the cache. drop(1) skips the StateFlow's initial
         // empty emission so an app start never wipes scheduled alarms before the disk cache loads.

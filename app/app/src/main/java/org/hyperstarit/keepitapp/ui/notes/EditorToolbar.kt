@@ -255,7 +255,7 @@ private fun ToolButton(
     icon: ImageVector,
     label: String,
     active: Boolean = false,
-    activeColor: Color = KeepItColors.Accent,
+    activeColor: Color = KeepItColors.AccentInk,
     onClick: () -> Unit,
 ) {
     IconButton(
@@ -370,7 +370,7 @@ internal fun NoteColorSheet(
                                         // The default swatch is the sheet's own colour: its usual
                                         // border would leave it an invisible circle.
                                         color = when {
-                                            isSelected -> KeepItColors.Accent
+                                            isSelected -> KeepItColors.AccentInk
                                             isDefault -> KeepItColors.BorderStrong
                                             else -> option.border
                                         },
@@ -381,7 +381,7 @@ internal fun NoteColorSheet(
                                     isSelected -> Icon(
                                         Icons.Filled.Check,
                                         contentDescription = null,
-                                        tint = KeepItColors.Accent,
+                                        tint = KeepItColors.AccentInk,
                                         modifier = Modifier.size(22.dp),
                                     )
                                     isDefault -> Icon(

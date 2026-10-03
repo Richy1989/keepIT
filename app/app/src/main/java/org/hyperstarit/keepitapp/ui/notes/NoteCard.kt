@@ -272,7 +272,7 @@ fun NoteCard(
                             Icon(
                                 imageVector = if (note.isPinned) Icons.Filled.Star else Icons.Outlined.Star,
                                 contentDescription = if (note.isPinned) "Unpin" else "Pin",
-                                tint = if (note.isPinned) KeepItColors.Accent else KeepItColors.TextFaint,
+                                tint = if (note.isPinned) KeepItColors.AccentInk else KeepItColors.TextFaint,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
@@ -322,7 +322,7 @@ private fun ChecklistPreview(note: NoteDto) {
                 Icon(
                     imageVector = Icons.Filled.CheckCircle,
                     contentDescription = null,
-                    tint = if (item.isChecked) KeepItColors.Accent else KeepItColors.BorderStrong,
+                    tint = if (item.isChecked) KeepItColors.AccentInk else KeepItColors.BorderStrong,
                     modifier = Modifier.size(14.dp),
                 )
                 Text(

@@ -4,7 +4,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,7 +19,11 @@ class MarkdownHighlightTest {
     private fun AnnotatedString.styled(predicate: (SpanStyle) -> Boolean): List<String> =
         spanStyles.filter { predicate(it.item) }.map { text.substring(it.start, it.end) }
 
-    private fun AnnotatedString.dimmed() = styled { it.color == KeepItColors.TextFaint }
+    private val dim = KeepItPalette.Dim
+
+    private fun markdownHighlight(source: String) = markdownHighlight(source, dim)
+
+    private fun AnnotatedString.dimmed() = styled { it.color == dim.textFaint }
 
     @Test
     fun `the text is never changed, whatever it holds`() {
@@ -54,13 +58,13 @@ class MarkdownHighlightTest {
     @Test
     fun `a link's label is coloured and its syntax dimmed`() {
         val out = markdownHighlight("[label](https://x.y)")
-        assertEquals(listOf("label"), out.styled { it.color == KeepItColors.Accent })
+        assertEquals(listOf("label"), out.styled { it.color == dim.accentInk })
         assertEquals(listOf("[", "](https://x.y)"), out.dimmed())
     }
 
     @Test
     fun `a bare URL is coloured whole`() {
-        assertEquals(listOf("https://x.y"), markdownHighlight("go https://x.y").styled { it.color == KeepItColors.Accent })
+        assertEquals(listOf("https://x.y"), markdownHighlight("go https://x.y").styled { it.color == dim.accentInk })
     }
 
     @Test
@@ -68,5 +72,22 @@ class MarkdownHighlightTest {
         val out = markdownHighlight("```\ncode\n```")
         assertTrue(out.styled { it.fontFamily == FontFamily.Monospace }.contains("```\ncode\n```"))
         assertEquals(listOf("```", "```"), out.dimmed())
+    }
+
+    @Test
+    fun `the styling is drawn in the theme it was made for`() {
+        // The field re-filters when the theme changes; a transformation that ignored its palette
+        // would keep Dim's pale syntax and bright links on a white page.
+        val light = KeepItPalette.Light
+        val out = markdownHighlight("**b** [label](https://x.y) `c`", light)
+        assertEquals(listOf("**", "**", "[", "](https://x.y)", "`", "`"), out.styled { it.color == light.textFaint })
+        assertEquals(listOf("label"), out.styled { it.color == light.accentInk })
+        assertEquals(listOf("`c`"), out.styled { it.background == light.overlayHover })
+    }
+
+    @Test
+    fun `transformations are equal per theme, so the field re-filters only when it changes`() {
+        assertEquals(MarkdownVisualTransformation(dim), MarkdownVisualTransformation(dim))
+        assertTrue(MarkdownVisualTransformation(dim) != MarkdownVisualTransformation(KeepItPalette.Light))
     }
 }

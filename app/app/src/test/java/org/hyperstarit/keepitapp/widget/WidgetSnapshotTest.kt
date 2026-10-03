@@ -45,8 +45,8 @@ class WidgetSnapshotTest {
 
     @Test
     fun `the note's colour key rides along so the widget can tint the row`() {
-        // The widget resolves this key through noteSwatch(); dropping it here would silently
-        // repaint every row the default grey.
+        // The widget resolves this key through KeepItPalette.swatch(); dropping it here would
+        // silently repaint every row the default grey.
         val projected = NotesRepository.widgetNotesFrom(listOf(text("n1", title = "Tinted", color = "sky")))
 
         assertEquals("sky", projected.single().color)

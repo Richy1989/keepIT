@@ -7,6 +7,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,7 +20,7 @@ import org.junit.Test
  */
 class MarkdownRenderTest {
 
-    private fun render(source: String) = markdownToAnnotated(source)
+    private fun render(source: String) = markdownToAnnotated(source, KeepItPalette.Dim)
 
     /** The substrings covered by spans matching [predicate]. */
     private fun AnnotatedString.styled(predicate: (SpanStyle) -> Boolean): List<String> =

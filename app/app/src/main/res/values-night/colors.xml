@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The widget picker preview on a dark phone: Dim's tokens. See values/colors.xml. -->
+    <color name="widget_preview_canvas">#FF18181B</color>
+    <color name="widget_preview_card">#FF232327</color>
+    <color name="widget_preview_text">#FFECECEE</color>
+    <color name="widget_preview_text_muted">#FFB4B4BD</color>
+    <color name="widget_preview_title">#FF41AA79</color>
+    <color name="widget_preview_accent">#FF41AA79</color>
+</resources>

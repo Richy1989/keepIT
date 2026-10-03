@@ -194,7 +194,7 @@ private fun AudioPlayerRow(
                 Icon(
                     imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     contentDescription = if (playing) "Pause" else "Play recording",
-                    tint = if (file != null) KeepItColors.Accent else KeepItColors.TextFaint,
+                    tint = if (file != null) KeepItColors.AccentInk else KeepItColors.TextFaint,
                 )
             }
         }

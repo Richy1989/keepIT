@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -62,6 +61,7 @@ import org.hyperstarit.keepitapp.data.SetNoteReminderDto
 import org.hyperstarit.keepitapp.data.ensureUtc
 import org.hyperstarit.keepitapp.notifications.AppNotifications
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -105,14 +105,14 @@ fun ReminderChip(note: NoteDto, onClick: () -> Unit, modifier: Modifier = Modifi
     val at = reminderInstant(note) ?: return
     val past = note.reminderFired || at.isBefore(Instant.now())
     val recurring = note.reminderRecurrence != null && note.reminderRecurrence != ReminderRecurrences.NONE
-    val tint = if (past) KeepItColors.Accent else KeepItColors.TextFaint
+    val tint = if (past) KeepItColors.AccentInk else KeepItColors.TextFaint
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier
             .border(
-                border = BorderStroke(1.dp, if (past) KeepItColors.Accent.copy(alpha = 0.4f) else KeepItColors.BorderStrong),
+                border = BorderStroke(1.dp, if (past) KeepItColors.AccentInk.copy(alpha = 0.4f) else KeepItColors.BorderStrong),
                 shape = RoundedCornerShape(50),
             )
             .clickable(onClick = onClick)
@@ -211,7 +211,7 @@ fun ReminderDialog(
                 Icon(
                     Icons.Filled.Alarm,
                     contentDescription = null,
-                    tint = KeepItColors.Accent,
+                    tint = KeepItColors.AccentInk,
                     modifier = Modifier.size(22.dp),
                 )
                 Column {
@@ -223,7 +223,7 @@ fun ReminderDialog(
                     )
                     Text(
                         text = captionLabel(selected, recurrence),
-                        color = if (selected.isBefore(LocalDateTime.now())) KeepItColors.Accent else KeepItColors.TextFaint,
+                        color = if (selected.isBefore(LocalDateTime.now())) KeepItColors.AccentInk else KeepItColors.TextFaint,
                         fontSize = 12.sp,
                     )
                 }
@@ -301,7 +301,7 @@ fun ReminderDialog(
                             ),
                         )
                     }) {
-                        Text("Enable", color = KeepItColors.Accent, fontSize = 12.sp)
+                        Text("Enable", color = KeepItColors.AccentInk, fontSize = 12.sp)
                     }
                 }
             }
@@ -319,10 +319,7 @@ fun ReminderDialog(
                 Button(
                     onClick = ::save,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = KeepItColors.Accent,
-                        contentColor = Color.Black,
-                    ),
+                    colors = accentButtonColors(),
                 ) {
                     Text(
                         text = if (note.remindAtUtc != null) "Update reminder" else "Set reminder",
@@ -403,18 +400,20 @@ private fun captionLabel(at: LocalDateTime, recurrence: String): String {
     return if (recurrence == ReminderRecurrences.NONE) distance else "$distance · repeats ${repeat.lowercase()}"
 }
 
-/** A quick-pick pill: quiet outline at rest, amber fill + text when it matches the selection. */
+/** A quick-pick pill: quiet outline at rest, accent tint + text when it matches the selection. */
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(50),
         color = if (selected) KeepItColors.Accent.copy(alpha = 0.15f) else Color.Transparent,
-        border = BorderStroke(1.dp, if (selected) KeepItColors.Accent else KeepItColors.BorderStrong),
+        border = BorderStroke(1.dp, if (selected) KeepItColors.AccentInk else KeepItColors.BorderStrong),
     ) {
         Text(
             text = label,
-            color = if (selected) KeepItColors.Accent else KeepItColors.TextMuted,
+            // Text, not the accent, on the tint: green on a green tint is under AA on Dim (see
+            // colorSchemeFor). The border carries the accent.
+            color = if (selected) KeepItColors.Text else KeepItColors.TextMuted,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
         )

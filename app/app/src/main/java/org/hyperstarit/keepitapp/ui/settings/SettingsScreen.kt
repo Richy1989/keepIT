@@ -26,9 +26,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,15 +60,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.AppContainer
+import org.hyperstarit.keepitapp.data.ThemePref
 import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.notifications.AppNotifications
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
 /**
- * App settings: **notification permission management** (reminders and the server inbox surface as
- * native notifications, so POST_NOTIFICATIONS and SCHEDULE_EXACT_ALARM decide how well that works —
- * both read live from the system and re-read on resume, so the rows always tell the truth) and the
- * **account section** (change password, mirroring the web Settings page).
+ * App settings: the **theme** (this device's own, see [ThemeSection]), **notification permission
+ * management** (reminders and the server inbox surface as native notifications, so
+ * POST_NOTIFICATIONS and SCHEDULE_EXACT_ALARM decide how well that works — both read live from the
+ * system and re-read on resume, so the rows always tell the truth) and the **account section**
+ * (change password, mirroring the web Settings page).
  *
  * In standalone mode there is no account: that section becomes the device's own — connect a server
  * ([onConnectServer]) to upload the notes, or erase them.
@@ -130,6 +137,11 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onConnectServer:
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
+            SectionLabel("APPEARANCE")
+            ThemeSection(container)
+
+            HorizontalDivider(color = KeepItColors.BorderSubtle)
+
             SectionLabel("NOTIFICATIONS")
 
             PermissionRow(
@@ -210,6 +222,39 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onConnectServer:
 }
 
 /**
+ * The theme picker: the web's four choices, labelled as its Appearance menu labels them. The
+ * choice is this phone's — it isn't sent to the server, so the web app keeps its own and neither
+ * follows the other (see [org.hyperstarit.keepitapp.data.Appearance]). It applies at once, here
+ * and on the home-screen widget.
+ */
+@Composable
+private fun ThemeSection(container: AppContainer) {
+    val theme by container.appearance.theme.collectAsState()
+    val options = ThemePref.entries
+
+    Column(modifier = Modifier.padding(vertical = 14.dp)) {
+        Text("Theme", color = KeepItColors.Text, fontSize = 15.sp)
+        Text(
+            text = "Auto follows your phone between light and dark. Set on this phone only — the " +
+                "web app keeps its own.",
+            color = KeepItColors.TextFaint,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+        )
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            options.forEachIndexed { index, pref ->
+                SegmentedButton(
+                    selected = theme == pref,
+                    onClick = { container.appearance.setTheme(pref) },
+                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                    label = { Text(pref.label, fontSize = 13.sp) },
+                )
+            }
+        }
+    }
+}
+
+/**
  * Standalone mode's stand-in for the account section: where the notes live, the way to a server,
  * and the way out. Erasing goes through the sign-out path — in standalone mode that is what it
  * means — behind a confirmation, since there is no server copy to come back to.
@@ -230,7 +275,7 @@ private fun StandaloneSection(container: AppContainer, onConnectServer: () -> Un
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
         )
-        Button(onClick = onConnectServer) {
+        Button(onClick = onConnectServer, colors = accentButtonColors()) {
             Text("Connect to a server")
         }
 
@@ -372,7 +417,7 @@ private fun ChangePasswordSection(container: AppContainer) {
         if (done) {
             Text(
                 text = "Password changed. Your other devices have been signed out.",
-                color = KeepItColors.Accent,
+                color = KeepItColors.AccentInk,
                 fontSize = 13.sp,
             )
             OutlinedButton(onClick = { done = false }, modifier = Modifier.padding(top = 8.dp)) {
@@ -398,12 +443,13 @@ private fun ChangePasswordSection(container: AppContainer) {
             onClick = ::submit,
             enabled = !busy && current.isNotBlank() && next.isNotBlank() && confirm.isNotBlank(),
             modifier = Modifier.padding(top = 10.dp),
+            colors = accentButtonColors(),
         ) {
             if (busy) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = LocalContentColor.current,
                 )
             } else {
                 Text("Update password")
@@ -443,7 +489,7 @@ private fun PermissionRow(
             Text(title, color = KeepItColors.Text, fontSize = 15.sp, modifier = Modifier.weight(1f))
             Text(
                 text = if (granted) grantedLabel else deniedLabel,
-                color = if (granted) KeepItColors.Accent else KeepItColors.TextFaint,
+                color = if (granted) KeepItColors.AccentInk else KeepItColors.TextFaint,
                 fontSize = 13.sp,
             )
         }

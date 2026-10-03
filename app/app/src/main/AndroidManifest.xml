@@ -35,9 +35,13 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.KeepITApp">
 
-        <!-- singleTask so widget taps land in the running instance via onNewIntent. -->
+        <!-- singleTask so widget taps land in the running instance via onNewIntent. uiMode is
+             handled in place: Compose restyles from the new configuration, so neither the phone's
+             dark-mode switch nor a theme picked in Settings (which changes the app's night mode)
+             tears the activity down mid-screen. -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="uiMode"
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"

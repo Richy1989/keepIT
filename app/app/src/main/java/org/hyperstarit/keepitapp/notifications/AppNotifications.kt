@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.core.net.toUri
 import org.hyperstarit.keepitapp.MainActivity
 import org.hyperstarit.keepitapp.R
-import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
 
 /**
  * The app's native notification surface — channels, permission checks, and posting. **Every**
@@ -32,8 +32,11 @@ object AppNotifications {
     /** One shared notification id; the per-note/per-item tag is what distinguishes entries. */
     private const val NOTIFICATION_ID = 1
 
-    /** keepIT accent (the web default) — tints the small icon and action text. */
-    private val ACCENT = KeepItColors.Accent.toArgb()
+    /**
+     * keepIT accent (the web default) — tints the small icon and action text. The fill form, the
+     * same in every theme: the system draws the notification in its own colours, not the app's.
+     */
+    private val ACCENT = KeepItPalette.Dim.accent.toArgb()
 
     /** Registers both channels (no-op when they already exist). */
     fun ensureChannels(context: Context) {

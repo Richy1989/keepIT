@@ -22,7 +22,7 @@ import org.commonmark.node.ListItem
 import org.commonmark.node.Node
 import org.commonmark.node.StrongEmphasis
 import org.commonmark.node.ThematicBreak
-import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
 
 /**
  * Live styling for the note editor. The field still holds — and shows — the raw Markdown exactly
@@ -33,21 +33,25 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItColors
  * selection, the keyboard's composition and the formatting toolbar all work on the source text,
  * exactly as without it. A preview that rewrote the text would have to map every offset back.
  */
-class MarkdownVisualTransformation : VisualTransformation {
+class MarkdownVisualTransformation(private val palette: KeepItPalette) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText =
-        TransformedText(markdownHighlight(text.text), OffsetMapping.Identity)
+        TransformedText(markdownHighlight(text.text, palette), OffsetMapping.Identity)
 
-    // Stateless: every instance styles alike, so the field need not re-filter on recomposition.
-    override fun equals(other: Any?): Boolean = other is MarkdownVisualTransformation
-    override fun hashCode(): Int = MarkdownVisualTransformation::class.hashCode()
+    // Equal per theme: the field re-filters when the theme changes, and only then.
+    override fun equals(other: Any?): Boolean =
+        other is MarkdownVisualTransformation && other.palette == palette
+    override fun hashCode(): Int = palette.hashCode()
 }
 
-private val Syntax = SpanStyle(color = KeepItColors.TextFaint)
-private val LinkText = SpanStyle(color = KeepItColors.Accent)
-private val Done = SpanStyle(color = KeepItColors.TextFaint, textDecoration = TextDecoration.LineThrough)
-
-/** [source] with styles laid over its own characters. The text itself is returned unchanged. */
-fun markdownHighlight(source: String): AnnotatedString {
+/**
+ * [source] with styles laid over its own characters, in [palette]'s colours. The text itself is
+ * returned unchanged.
+ */
+fun markdownHighlight(source: String, palette: KeepItPalette): AnnotatedString {
+    val syntax = SpanStyle(color = palette.textFaint)
+    val linkText = SpanStyle(color = palette.accentInk)
+    val done = SpanStyle(color = palette.textFaint, textDecoration = TextDecoration.LineThrough)
+    val code = codeStyle(palette)
     val spans = mutableListOf<AnnotatedString.Range<SpanStyle>>()
     fun add(style: SpanStyle, start: Int?, end: Int?) {
         if (start == null || end == null) return
@@ -64,54 +68,54 @@ fun markdownHighlight(source: String): AnnotatedString {
                 is Heading -> {
                     add(headingStyle(node.level), s, e)
                     // "# " before the text; for a setext heading, the underline after it.
-                    add(Syntax, s, node.firstChild?.start() ?: e)
-                    add(Syntax, node.lastChild?.end(), e)
+                    add(syntax, s, node.firstChild?.start() ?: e)
+                    add(syntax, node.lastChild?.end(), e)
                 }
-                is StrongEmphasis -> delimited(s, e, 2, SpanStyle(fontWeight = FontWeight.Bold), ::add)
-                is Emphasis -> delimited(s, e, 1, SpanStyle(fontStyle = FontStyle.Italic), ::add)
+                is StrongEmphasis -> delimited(s, e, 2, SpanStyle(fontWeight = FontWeight.Bold), syntax, ::add)
+                is Emphasis -> delimited(s, e, 1, SpanStyle(fontStyle = FontStyle.Italic), syntax, ::add)
                 is Strikethrough -> delimited(
                     s, e, node.openingDelimiter?.length ?: 2,
-                    SpanStyle(textDecoration = TextDecoration.LineThrough), ::add,
+                    SpanStyle(textDecoration = TextDecoration.LineThrough), syntax, ::add,
                 )
                 is Code -> {
                     val ticks = source.run(s, '`')
-                    delimited(s, e, ticks, CodeStyle, ::add)
+                    delimited(s, e, ticks, code, syntax, ::add)
                 }
                 is Link, is Image -> {
                     val first = node.firstChild?.start()
                     val last = node.lastChild?.end()
                     if (first != null && last != null && (first > s || last < e)) {
-                        add(Syntax, s, first)
-                        add(LinkText, first, last)
-                        add(Syntax, last, e)
+                        add(syntax, s, first)
+                        add(linkText, first, last)
+                        add(syntax, last, e)
                     } else {
                         // A bare URL is its own label.
-                        add(LinkText, s, e)
+                        add(linkText, s, e)
                     }
                 }
                 is ListItem -> {
                     // The marker: everything from the item's start up to its content.
-                    add(Syntax, s, node.firstChild?.start())
-                    if (taskMarkerOf(node)?.isChecked == true) add(Done, node.firstChild?.end(), e)
+                    add(syntax, s, node.firstChild?.start())
+                    if (taskMarkerOf(node)?.isChecked == true) add(done, node.firstChild?.end(), e)
                 }
-                is TaskListItemMarker -> add(Syntax, s, e)
+                is TaskListItemMarker -> add(syntax, s, e)
                 is BlockQuote -> {
-                    add(SpanStyle(color = KeepItColors.TextMuted), s, e)
+                    add(SpanStyle(color = palette.textMuted), s, e)
                     // Every line of a quote carries its own ">".
                     for (span in node.sourceSpans) {
                         val at = source.indexOf('>', span.inputIndex)
-                        if (at != -1 && at < span.inputIndex + span.length) add(Syntax, at, at + 1)
+                        if (at != -1 && at < span.inputIndex + span.length) add(syntax, at, at + 1)
                     }
                 }
                 is FencedCodeBlock -> {
-                    add(CodeStyle, s, e)
-                    node.sourceSpans.firstOrNull()?.let { add(Syntax, it.inputIndex, it.inputIndex + it.length) }
+                    add(code, s, e)
+                    node.sourceSpans.firstOrNull()?.let { add(syntax, it.inputIndex, it.inputIndex + it.length) }
                     if (node.closingFenceLength != null && node.sourceSpans.size > 1) {
-                        node.sourceSpans.last().let { add(Syntax, it.inputIndex, it.inputIndex + it.length) }
+                        node.sourceSpans.last().let { add(syntax, it.inputIndex, it.inputIndex + it.length) }
                     }
                 }
-                is IndentedCodeBlock -> add(CodeStyle, s, e)
-                is ThematicBreak -> add(Syntax, s, e)
+                is IndentedCodeBlock -> add(code, s, e)
+                is ThematicBreak -> add(syntax, s, e)
             }
         }
         // Nothing inside code is Markdown, so its children (there are none) and its text stay as is.
@@ -122,18 +126,19 @@ fun markdownHighlight(source: String): AnnotatedString {
     return AnnotatedString(source, spans)
 }
 
-/** Styles a delimited inline: the whole of it, then its [width]-character markers dimmed. */
+/** Styles a delimited inline: the whole of it, then its [width]-character markers in [marker]. */
 private inline fun delimited(
     s: Int,
     e: Int,
     width: Int,
     style: SpanStyle,
+    marker: SpanStyle,
     add: (SpanStyle, Int?, Int?) -> Unit,
 ) {
     add(style, s, e)
     if (e - s > 2 * width) {
-        add(Syntax, s, s + width)
-        add(Syntax, e - width, e)
+        add(marker, s, s + width)
+        add(marker, e - width, e)
     }
 }
 

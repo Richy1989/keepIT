@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Dark platform theme so the pre-Compose window matches the app's dark canvas (no white flash). -->
-    <style name="Theme.KeepITApp" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#18181B</item>
+    <!--
+      The platform theme only paints what shows before Compose draws: the launch splash and the
+      window behind the first frame. Light here, dark in values-night/. The app hands its own theme
+      setting to the system as its night mode (Appearance.applyNightMode), so this picks the user's
+      choice even on a cold start, not the phone's. MainActivity then sets the window to the exact
+      canvas of the theme on screen.
+
+      The bar icons are declared here too, not only by MainActivity: when the app's night mode
+      flips while it is open, the platform re-applies these attributes during the configuration
+      change, after Compose has already styled the bars - and Material.Light's default is white
+      icons, which left a Light theme picked in Settings with an unreadable clock.
+    -->
+    <style name="Theme.KeepITApp" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#F7F7F8</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

@@ -87,6 +87,7 @@ import org.hyperstarit.keepitapp.data.UserDto
 import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
 /**
  * The phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the user's lists (with
@@ -178,7 +179,7 @@ fun NotesScreen(
                 Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     Text(
                         text = "keepIT",
-                        color = KeepItColors.Accent,
+                        color = KeepItColors.AccentInk,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 22.sp,
                         modifier = Modifier.padding(
@@ -395,7 +396,7 @@ fun NotesScreen(
                 when {
                     (loading || syncStatus == SyncStatus.SYNCING) && notes.isEmpty() -> CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
-                        color = KeepItColors.Accent,
+                        color = KeepItColors.AccentInk,
                     )
 
                     // Empty states get a scrollable box so the pull gesture still works.
@@ -492,7 +493,7 @@ fun NotesScreen(
                             state = pullState,
                             isRefreshing = refreshing,
                             modifier = Modifier.align(Alignment.TopCenter),
-                            color = KeepItColors.Accent,
+                            color = KeepItColors.AccentInk,
                         )
                     },
                     modifier = Modifier.padding(padding).fillMaxSize(),
@@ -576,7 +577,7 @@ fun NotesScreen(
                 )
             },
             confirmButton = {
-                Button(onClick = {
+                Button(colors = accentButtonColors(), onClick = {
                     deleteTarget = null
                     scope.launch { repo.deleteList(target.id) }
                 }) {
@@ -649,7 +650,7 @@ private fun ListNameDialog(
             )
         },
         confirmButton = {
-            Button(enabled = name.isNotBlank(), onClick = { onConfirm(name.trim()) }) {
+            Button(enabled = name.isNotBlank(), colors = accentButtonColors(), onClick = { onConfirm(name.trim()) }) {
                 Text(confirmLabel)
             }
         },

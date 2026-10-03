@@ -24,6 +24,7 @@ import androidx.glance.ImageProvider
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.background
+import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
@@ -41,10 +42,12 @@ import androidx.glance.unit.ColorProvider
 import org.hyperstarit.keepitapp.MainActivity
 import org.hyperstarit.keepitapp.R
 import org.hyperstarit.keepitapp.appContainer
+import org.hyperstarit.keepitapp.data.Appearance
 import org.hyperstarit.keepitapp.data.NotesRepository
+import org.hyperstarit.keepitapp.data.ThemePref
 import org.hyperstarit.keepitapp.data.WidgetNote
-import org.hyperstarit.keepitapp.ui.theme.KeepItColors
-import org.hyperstarit.keepitapp.ui.theme.noteSwatch
+import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
+import org.hyperstarit.keepitapp.ui.theme.paletteFor
 
 class KeepItWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = KeepItWidget()
@@ -85,13 +88,14 @@ class KeepItWidgetReceiver : GlanceAppWidgetReceiver() {
  * Android affordance) into the new-note composer — the headline reason for going native
  * (ARCHITECTURE.md). It renders from a local cache that [NotesRepository] refreshes after every
  * active-grid load, so it needs no network or auth of its own and shows the last-known notes even
- * while signed out. Styled with the keepIT dark tokens.
+ * while signed out. Styled in the app's theme (see [WidgetColors]).
  */
 class KeepItWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val notes = NotesRepository.readWidgetNotes(context)
-        provideContent { WidgetContent(context, notes) }
+        val colors = WidgetColors(Appearance.read(context))
+        provideContent { WidgetContent(context, notes, colors) }
     }
 }
 
@@ -121,30 +125,38 @@ class RefreshAction : ActionCallback {
     }
 }
 
-// The widget's chrome comes straight from KeepItColors, for the same reason the per-note
-// backgrounds come from NotePalette via `noteSwatch`: both are plain data (an object of compose
-// Colors, a List<NoteSwatch>) rather than a MaterialTheme lookup, so a Glance composition can read
-// them even though it can't reference the app's theme.
-//
-// These used to be five private copies of the same hex. Nothing enforced the copy, so a token
-// change in Color.kt silently left the widget a shade behind — which is exactly what happened to
-// TextFaint. Referencing the tokens directly is the same de-duplication the widget already made
-// for the default note background (see NoteSwatchTest).
-private val Canvas = KeepItColors.Canvas
-private val BorderTextFaint = KeepItColors.TextFaint
-private val TextColor = KeepItColors.Text
-private val TextMuted = KeepItColors.TextMuted
-private val Accent = KeepItColors.Accent
+/**
+ * The widget's colours: the app's own tokens, in the theme picked in Settings, so a note reads as
+ * "the yellow one" on the home screen too.
+ *
+ * Read from [KeepItPalette] directly rather than through `KeepItColors`: a Glance composition is
+ * not inside the app's theme, so `LocalKeepItPalette` there would silently be its default (Dim)
+ * whatever the user picked. These used to be five private copies of the same hex, and nothing
+ * enforced the copy — a token change in Color.kt left the widget a shade behind, which is exactly
+ * what happened to TextFaint.
+ *
+ * Under Auto each colour is a light/dark *pair*, and the launcher picks between them by its own
+ * night mode when it draws the widget, so the widget follows the phone without being re-rendered.
+ * Any other choice is a single fixed palette; the app re-renders the widget when it changes.
+ */
+private class WidgetColors(pref: ThemePref) {
+    private val day = paletteFor(pref, systemDark = false)
+    private val night = paletteFor(pref, systemDark = true)
+
+    /** One token in the widget's theme. */
+    fun of(token: (KeepItPalette) -> Color): ColorProvider =
+        if (day == night) ColorProvider(token(day)) else DayNightColorProvider(day = token(day), night = token(night))
+}
 
 @androidx.compose.runtime.Composable
-private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
+private fun WidgetContent(context: Context, notes: List<WidgetNote>, colors: WidgetColors) {
     // Outer Box stacks the note list and the floating "+": the list fills the box, the small FAB is
     // aligned bottom-end and drawn on top (Glance aligns every child by contentAlignment, but the
     // full-size list ignores it, so only the FAB is actually positioned).
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(Canvas))
+            .background(colors.of { it.canvas })
             .cornerRadius(16.dp),
         contentAlignment = Alignment.BottomEnd,
     ) {
@@ -161,7 +173,7 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
                     text = "keepIT",
                     modifier = GlanceModifier.defaultWeight(),
                     style = TextStyle(
-                        color = ColorProvider(Accent),
+                        color = colors.of { it.accentInk },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                     ),
@@ -169,7 +181,7 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
                 Image(
                     provider = ImageProvider(R.drawable.ic_refresh),
                     contentDescription = "Refresh notes",
-                    colorFilter = ColorFilter.tint(ColorProvider(TextMuted)),
+                    colorFilter = ColorFilter.tint(colors.of { it.textMuted }),
                     modifier = GlanceModifier
                         .size(20.dp)
                         .clickable(actionRunCallback<RefreshAction>()),
@@ -181,13 +193,13 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
                 Box(modifier = GlanceModifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = "No notes yet — tap + to add one.",
-                        style = TextStyle(color = ColorProvider(TextMuted), fontSize = 14.sp),
+                        style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
                     )
                 }
             } else {
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(notes, itemId = { it.id.hashCode().toLong() }) { note ->
-                        NoteRow(context, note)
+                        NoteRow(context, note, colors)
                     }
                     // Trailing gap so the last note clears the floating "+".
                     item { Spacer(modifier = GlanceModifier.height(52.dp)) }
@@ -201,7 +213,7 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
             Box(
                 modifier = GlanceModifier
                     .size(56.dp)
-                    .background(ColorProvider(Accent))
+                    .background(colors.of { it.accent })
                     .cornerRadius(16.dp)
                     .clickable(actionStartActivity(composeIntent(context))),
                 contentAlignment = Alignment.Center,
@@ -218,17 +230,16 @@ private fun WidgetContent(context: Context, notes: List<WidgetNote>) {
 }
 
 @androidx.compose.runtime.Composable
-private fun NoteRow(context: Context, note: WidgetNote) {
+private fun NoteRow(context: Context, note: WidgetNote, colors: WidgetColors) {
     // Same swatch the in-app NoteCard fills with, so a note reads as "the yellow one" on the home
     // screen too. Only the background: Glance has no border modifier, so the card's 1dp
     // swatch.border is dropped rather than faked with a nested Box. An unset/unknown key falls
-    // back to NotePalette[0] — the plain surface this row used to hardcode.
-    val swatch = noteSwatch(note.color)
+    // back to the default swatch — the plain surface this row used to hardcode.
     Column {
         Column(
             modifier = GlanceModifier
                 .fillMaxWidth()
-                .background(ColorProvider(swatch.bg))
+                .background(colors.of { it.swatch(note.color).bg })
                 .cornerRadius(10.dp)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
                 .clickable(actionStartActivity(noteIntent(context, note.id))),
@@ -238,7 +249,7 @@ private fun NoteRow(context: Context, note: WidgetNote) {
                     text = note.title,
                     maxLines = 1,
                     style = TextStyle(
-                        color = ColorProvider(TextColor),
+                        color = colors.of { it.text },
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                     ),
@@ -249,20 +260,20 @@ private fun NoteRow(context: Context, note: WidgetNote) {
                 Text(
                     text = line,
                     maxLines = 1,
-                    style = TextStyle(color = ColorProvider(TextMuted), fontSize = 14.sp),
+                    style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
                 )
             }
             if (note.preview.isNotBlank()) {
                 Text(
                     text = note.preview,
                     maxLines = if (note.title.isBlank()) 2 else 1,
-                    style = TextStyle(color = ColorProvider(TextMuted), fontSize = 14.sp),
+                    style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
                 )
             }
             if (note.title.isBlank() && note.preview.isBlank() && note.checklist.isEmpty()) {
                 Text(
                     text = "Empty note",
-                    style = TextStyle(color = ColorProvider(BorderTextFaint), fontSize = 14.sp),
+                    style = TextStyle(color = colors.of { it.textFaint }, fontSize = 14.sp),
                 )
             }
         }

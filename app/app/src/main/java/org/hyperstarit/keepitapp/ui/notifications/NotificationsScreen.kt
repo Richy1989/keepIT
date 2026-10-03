@@ -121,7 +121,7 @@ fun NotificationsScreen(container: AppContainer, onBack: () -> Unit) {
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(color = KeepItColors.Accent)
+                CircularProgressIndicator(color = KeepItColors.AccentInk)
             }
 
             items.isEmpty() -> Box(
@@ -217,7 +217,7 @@ private fun NotificationCard(
                 Spacer(modifier = Modifier.weight(1f))
                 if (busy) {
                     CircularProgressIndicator(
-                        color = KeepItColors.Accent,
+                        color = KeepItColors.AccentInk,
                         modifier = Modifier.padding(12.dp).size(18.dp),
                     )
                 } else {
@@ -225,7 +225,7 @@ private fun NotificationCard(
                         Text("Decline", color = KeepItColors.TextMuted, fontSize = 13.sp)
                     }
                     TextButton(onClick = onAccept) {
-                        Text("Accept", color = KeepItColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Accept", color = KeepItColors.AccentInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

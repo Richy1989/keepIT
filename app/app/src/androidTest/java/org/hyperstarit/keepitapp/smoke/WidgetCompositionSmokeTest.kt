@@ -43,10 +43,19 @@ class WidgetCompositionSmokeTest {
     private val prefs get() = context.getSharedPreferences("keepit_widget", Context.MODE_PRIVATE)
     private var saved: String? = null
 
-    @Before fun captureSnapshot() { saved = prefs.getString("notes_json", null) }
+    // The theme setting, written as data like the snapshot above (Appearance.PREFS_NAME/KEY_THEME),
+    // so the test needs no keep rule for the class that owns it.
+    private val appearance get() = context.getSharedPreferences("keepit_appearance", Context.MODE_PRIVATE)
+    private var savedTheme: String? = null
+
+    @Before fun captureSnapshot() {
+        saved = prefs.getString("notes_json", null)
+        savedTheme = appearance.getString("theme", null)
+    }
 
     @After fun restoreSnapshot() {
         prefs.edit().apply { if (saved == null) remove("notes_json") else putString("notes_json", saved) }.apply()
+        appearance.edit().apply { if (savedTheme == null) remove("theme") else putString("theme", savedTheme) }.apply()
     }
 
     private fun seed(vararg notes: WidgetNote) {
@@ -95,11 +104,24 @@ class WidgetCompositionSmokeTest {
 
     @Test
     fun a_note_with_an_unknown_colour_still_composes() {
-        // The colour key comes off the wire, so noteSwatch() must fall back rather than throw
-        // mid-composition - which would take the whole widget down, not just one row.
+        // The colour key comes off the wire, so KeepItPalette.swatch() must fall back rather than
+        // throw mid-composition - which would take the whole widget down, not just one row.
         seed(WidgetNote("n1", "Mystery", "", "chartreuse"))
 
         assertTrue(texts(composeWidget()).any { it == "keepIT" })
+    }
+
+    @Test
+    fun the_widget_composes_in_every_theme() {
+        // "system" is the odd one out: every colour is a light/dark pair the launcher resolves,
+        // which Glance encodes differently from a single colour - a path the fixed themes never
+        // take. The keys are the stored ones (ThemePref.key), literal so a rename fails here.
+        seed(WidgetNote("n1", "Tinted", "", "rose", listOf("☐ item")), WidgetNote("n2", "Plain", "body", null))
+        for (theme in listOf("light", "dim", "dark", "system")) {
+            appearance.edit().putString("theme", theme).commit()
+            val views = composeWidget()
+            assertTrue("header missing in $theme: ${texts(views)}", texts(views).any { it == "keepIT" })
+        }
     }
 
     @Test

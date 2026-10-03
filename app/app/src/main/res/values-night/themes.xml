@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Dim's canvas (the default theme), so a dark start shows no white flash. See values/themes.xml. -->
+    <style name="Theme.KeepITApp" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#18181B</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

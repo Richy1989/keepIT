@@ -15,6 +15,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -38,6 +39,7 @@ import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.data.SessionRepository
 import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
 /**
  * Sign-in / sign-up, the phone twin of the web's AuthPage: a centered card on the dark canvas with
@@ -125,7 +127,7 @@ fun LoginScreen(
                     text = "keepIT",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = KeepItColors.Accent,
+                    color = KeepItColors.AccentInk,
                 )
                 Text(
                     text = when {
@@ -150,12 +152,13 @@ fun LoginScreen(
                         text = "If an account exists for ${email.trim()}, a reset link is on its " +
                             "way (valid for 2 hours). Open it, choose a new password, then sign " +
                             "in here.",
-                        color = KeepItColors.Accent,
+                        color = KeepItColors.AccentInk,
                         fontSize = 13.sp,
                     )
                     Button(
                         onClick = { forgotMode = false; resetRequested = false; error = null },
                         modifier = Modifier.fillMaxWidth(),
+                        colors = accentButtonColors(),
                     ) {
                         Text("Back to sign in")
                     }
@@ -209,12 +212,13 @@ fun LoginScreen(
                     enabled = !busy && serverUrl.isNotBlank() && email.isNotBlank() &&
                         (forgotMode || password.isNotBlank()),
                     modifier = Modifier.fillMaxWidth(),
+                    colors = accentButtonColors(),
                 ) {
                     if (busy) {
                         CircularProgressIndicator(
                             modifier = Modifier.padding(2.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = LocalContentColor.current,
                         )
                     } else {
                         Text(

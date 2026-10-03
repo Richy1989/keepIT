@@ -99,6 +99,7 @@ import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.LocalKeepItPalette
 import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 
 /**
@@ -470,7 +471,8 @@ fun EditorScreen(
     }
 
     var menuOpen by remember { mutableStateOf(false) }
-    val markdownStyling = remember { MarkdownVisualTransformation() }
+    val palette = LocalKeepItPalette.current
+    val markdownStyling = remember(palette) { MarkdownVisualTransformation(palette) }
 
     Scaffold(
         containerColor = swatch.bg,
@@ -501,7 +503,7 @@ fun EditorScreen(
                                 Icon(
                                     Icons.Filled.Alarm,
                                     contentDescription = "Remind me",
-                                    tint = if (current.remindAtUtc != null) KeepItColors.Accent else KeepItColors.TextMuted,
+                                    tint = if (current.remindAtUtc != null) KeepItColors.AccentInk else KeepItColors.TextMuted,
                                 )
                             }
                             // Share management — owners invite/revoke, collaborators see & leave.
@@ -511,7 +513,7 @@ fun EditorScreen(
                                     Icon(
                                         Icons.Filled.PersonAdd,
                                         contentDescription = "Share note",
-                                        tint = if (current.isShared) KeepItColors.Accent else KeepItColors.TextMuted,
+                                        tint = if (current.isShared) KeepItColors.AccentInk else KeepItColors.TextMuted,
                                     )
                                 }
                             }
@@ -523,7 +525,7 @@ fun EditorScreen(
                             Icon(
                                 imageVector = if (current.isPinned) Icons.Filled.Star else Icons.Outlined.Star,
                                 contentDescription = if (current.isPinned) "Unpin" else "Pin",
-                                tint = if (current.isPinned) KeepItColors.Accent else KeepItColors.TextMuted,
+                                tint = if (current.isPinned) KeepItColors.AccentInk else KeepItColors.TextMuted,
                             )
                         }
                         IconButton(onClick = { menuOpen = true }) {
@@ -920,5 +922,5 @@ private fun transparentFieldColors() = TextFieldDefaults.colors(
     focusedIndicatorColor = Color.Transparent,
     unfocusedIndicatorColor = Color.Transparent,
     disabledIndicatorColor = Color.Transparent,
-    cursorColor = KeepItColors.Accent,
+    cursorColor = KeepItColors.AccentInk,
 )

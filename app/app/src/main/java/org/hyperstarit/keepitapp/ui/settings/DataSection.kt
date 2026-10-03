@@ -24,6 +24,7 @@ import org.hyperstarit.keepitapp.data.ImportResultDto
 import org.hyperstarit.keepitapp.data.portability.ExportOutcome
 import org.hyperstarit.keepitapp.data.portability.ImportOutcome
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
 /**
  * Export and import, for both modes.
@@ -101,6 +102,7 @@ fun DataSection(container: AppContainer) {
         Button(
             onClick = { saveTo.launch(portability.suggestedFileName()) },
             enabled = !busy,
+            colors = accentButtonColors(),
         ) {
             Text(if (busy) "Working…" else "Save my notes")
         }
