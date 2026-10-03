@@ -26,8 +26,8 @@ object KeepItColors {
      * [Elevated] — under AA for the timestamps, counters, hints and Settings labels it carries.
      */
     val TextFaint = Color(0xFF97979F)
-    val Accent = Color(0xFFFBBF24) // default accent (yellow), like the web default
-    val AccentStrong = Color(0xFFF59E0B)
+    val Accent = Color(0xFF41AA79) // default accent (forest), like the web default
+    val AccentStrong = Color(0xFF33996A)
 }
 
 /** One per-note background swatch (background + border), keyed like the web palette. */

@@ -35,13 +35,14 @@
      surface is --color-elevated, not the canvas: menus and dialogs are the lightest thing in a
      dark theme, so a value tuned against the near-black canvas still fails inside a dropdown. */
   --color-text-faint: #8a8a94;
-  --color-accent: #fbbf24; /* default accent (yellow); overridden per data-accent */
-  --color-accent-strong: #f59e0b;
+  --color-accent: #41aa79; /* default accent (forest); overridden per data-accent */
+  --color-accent-strong: #33996a;
 
   /* The accent *as content* — text, icons, focus rings — rather than as a fill. On a dark canvas
      the bright accent is legible, so this tracks it; the light theme remaps it to a deep shade
-     (see below), because #fbbf24 on white is 1.7:1 and yellow is the default accent. Fills
-     (`bg-accent`, and the black text on them) keep using --color-accent in every theme. */
+     (see below), because the bright fills sit at 1.7–3:1 on white (yellow, the old default, at
+     1.7:1). Fills (`bg-accent`, and the black text on them) keep using --color-accent in every
+     theme. */
   --color-accent-ink: var(--color-accent);
 
   /* Status colors. Tokens, not raw Tailwind shades: a fixed `text-rose-300`/`text-amber-300` reads
@@ -79,7 +80,7 @@
   --note-mauve-bg: #39263a;    --note-mauve-border: #503651;
 
   /* Fallback accent input, for the instant before <html data-accent> is set. See "Accent". */
-  --accent-ink: #b45309;
+  --accent-ink: #1f6f4a;
 
   /*
     Elevation, named by role rather than by size, so a theme restates the whole ramp in one place.
@@ -174,7 +175,11 @@ html[data-theme='dim'] {
    and --accent-ink, the deep shade the *light* theme maps --color-accent-ink to. These blocks must
    never set --color-accent-ink themselves: they come after the theme blocks at equal specificity,
    so doing so would let the accent win over the theme — which is exactly how the bright accent
-   ended up as unreadable light-theme text in the first place. */
+   ended up as unreadable light-theme text in the first place.
+   Forest is the default and the brand green: its ink is the typewriter icon's own #1f6f4a, which
+   is too deep for a fill (black on it is 3.4:1) or for content on the dark themes (2.2:1), so the
+   fill is the same hue lifted until both pass. */
+html[data-accent='forest'] { --color-accent: #41aa79; --color-accent-strong: #33996a; --accent-ink: #1f6f4a; }
 html[data-accent='yellow'] { --color-accent: #fbbf24; --color-accent-strong: #f59e0b; --accent-ink: #b45309; }
 html[data-accent='orange'] { --color-accent: #fb923c; --color-accent-strong: #f97316; --accent-ink: #c2410c; }
 html[data-accent='red']    { --color-accent: #f87171; --color-accent-strong: #ef4444; --accent-ink: #b91c1c; }

@@ -91,6 +91,16 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun `black reads on the accent fills`() {
+        // The FAB (in the app and the widget) is a black glyph on Accent, and the Material scheme
+        // pairs onPrimary/onSecondary = Black with Accent/AccentStrong. The brand green itself
+        // (#1F6F4A, the icon's) is 3.4:1 under black -- it belongs to the web's light-theme ink,
+        // not here.
+        assertContrast(Color.Black, KeepItColors.Accent, aaText, "Black on Accent")
+        assertContrast(Color.Black, KeepItColors.AccentStrong, aaText, "Black on AccentStrong")
+    }
+
+    @Test
     fun `note content reads on every per-note background`() {
         for (swatch in NotePalette) {
             assertContrast(KeepItColors.Text, swatch.bg, aaText, "Text on ${swatch.key}")

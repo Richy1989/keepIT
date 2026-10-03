@@ -15,8 +15,11 @@ namespace keepITCore.Data
         /// <summary>Navigation to the owning user.</summary>
         public ApplicationUser Owner { get; set; } = null!;
 
-        /// <summary>Global UI accent color key (e.g. "yellow"); maps to a swatch on the frontend.</summary>
-        public string GlobalAccentColor { get; set; } = "yellow";
+        /// <summary>
+        /// Global UI accent color key (e.g. "forest"); maps to a swatch on the frontend. New rows
+        /// start on "forest", the brand green the Android app also uses.
+        /// </summary>
+        public string GlobalAccentColor { get; set; } = "forest";
 
         /// <summary>UI theme preference: "light", "dim", "dark", or "system" (follow the OS).</summary>
         public string Theme { get; set; } = "dark";

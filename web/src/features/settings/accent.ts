@@ -12,6 +12,7 @@ export interface AccentOption {
 }
 
 export const ACCENTS: AccentOption[] = [
+  { key: 'forest', label: 'Forest', color: '#41aa79' },
   { key: 'yellow', label: 'Yellow', color: '#fbbf24' },
   { key: 'orange', label: 'Orange', color: '#fb923c' },
   { key: 'red', label: 'Red', color: '#f87171' },
@@ -22,5 +23,6 @@ export const ACCENTS: AccentOption[] = [
   { key: 'green', label: 'Green', color: '#4ade80' },
 ];
 
-export const DEFAULT_ACCENT = 'yellow';
+/** The brand green of the typewriter icon; also the server's default and the Android accent. */
+export const DEFAULT_ACCENT = 'forest';
 export const ACCENT_KEYS = new Set(ACCENTS.map((a) => a.key));
