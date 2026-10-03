@@ -296,6 +296,10 @@ bash scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.
 
 </details>
 
+The app icon is a Blender model: **[`docs/brand/`](docs/brand/README.md)** holds the `.blend` and
+a script that renders every icon file from it, for Android, the web, F-Droid and this README, so
+changing the icon means editing one file and running one command.
+
 ## Why I built this
 
 Honestly? I just wanted a simple notes app, and couldn't find one with the three things I

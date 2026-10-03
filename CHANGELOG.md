@@ -3,6 +3,43 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+A new look. The typewriter that has always been keepIT's mark is now a 3D one -- green, with brass
+knobs and a sheet of typed paper -- on the home screen, in the browser tab and in the F-Droid
+listing, and the app's default accent is now that green. Nothing about your notes or your setup
+changes.
+
+### New look
+
+- **A new app icon everywhere:** the Android launcher (round and square masks, and Android 13's
+  themed icons, which use a single-colour line drawing of the same typewriter), the browser tab,
+  the icon iPhones and iPads use for a home-screen bookmark, the web app's top bar and sign-in page,
+  and the F-Droid listing.
+- **A new F-Droid banner**, with the new icon and a line that says where your notes live: on your
+  phone and your own server, never on anyone else's.
+- **Forest green is the default accent.** New accounts start on it, and the Android app, which has
+  no accent setting, uses it throughout. Yellow and the other seven are still in the web app's
+  Appearance menu (the palette icon in the top bar). In the light theme, text and icons in the
+  accent use the icon's own deep green; buttons use a lighter shade of it, so the black text on
+  them stays easy to read.
+- **Your current accent stays as it is.** The web app saves your settings the first time you open
+  it, so an existing account keeps yellow. To switch, pick **Forest** in the Appearance menu.
+
+### Updating
+
+- Nothing to do: no migration and no configuration change. The server accepts the new `forest`
+  accent and gives it to new accounts.
+
+### Also
+
+- The icon is now made in Blender, and `docs/brand/keepit-icon.blend` is its only source: one
+  command (`docs/brand/render_icons.py`) renders it and writes every icon file at its exact size,
+  and `docs/brand/render_feature_graphic.py` renders the F-Droid banner. See
+  [docs/brand/README.md](docs/brand/README.md).
+- The contrast tests on both clients now also check that black text stays readable on the accent,
+  for every accent, which a darker colour like this one could otherwise break unnoticed.
+
 ## 0.8.1
 
 A fix for being signed out of every device at once, for no apparent reason; a roomier note editor on
