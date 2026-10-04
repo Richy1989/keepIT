@@ -49,6 +49,14 @@ interface KeepItApi {
     @POST("api/auth/changepassword")
     suspend fun changePassword(@Body body: ChangePasswordRequestDto): AuthResponseDto
 
+    /**
+     * Streams a user's profile picture; 404 when they have none (or the caller may not see it).
+     * Raw so [ProfileImage] can write it straight to disk.
+     */
+    @Streaming
+    @GET("api/settings/getProfileImage/{userId}")
+    suspend fun profileImage(@Path("userId") userId: String): ResponseBody
+
     // ---- meta ----
 
     /** The server's public metadata (version). Anonymous. */

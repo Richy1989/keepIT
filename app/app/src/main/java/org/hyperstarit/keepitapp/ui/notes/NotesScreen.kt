@@ -112,8 +112,10 @@ import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
 import org.hyperstarit.keepitapp.data.offline.membershipOf
 import org.hyperstarit.keepitapp.ui.auth.UnsyncedSignOutDialog
+import org.hyperstarit.keepitapp.ui.settings.ProfilePicture
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
+import java.io.File
 
 /**
  * The phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the user's lists (with
@@ -158,6 +160,7 @@ fun NotesScreen(
     val standalone by container.appMode.standalone.collectAsState()
     val pendingMedia by repo.pendingMediaByNote.collectAsState()
     val session by container.session.state.collectAsState()
+    val profilePicture by container.profileImage.file.collectAsState()
     // Set once Sign out is tapped, so a second tap can't start a second sign-out.
     var signingOut by remember { mutableStateOf(false) }
     // Changes still queued make Sign out ask first: it tries one last sync, then wipes the queue
@@ -406,6 +409,7 @@ fun NotesScreen(
                 if (!standalone) {
                     DrawerAccountFooter(
                         user = (session as? SessionState.SignedIn)?.user,
+                        picture = profilePicture,
                         onSignOut = { if (pending > 0) confirmSignOut = true else signOut() },
                     )
                 }
@@ -1046,12 +1050,12 @@ private fun ListNameDialog(
 
 /**
  * The foot of the drawer, below the scrolling nav: who is signed in — the web account menu's
- * header, with the same initial-letter avatar — and Sign out. Sign out is inset and tinted with
+ * header, with the same avatar: their profile [picture], else their initial — and Sign out. Sign out is inset and tinted with
  * the error colour so it reads as an action, not one more place to go. [user] is null only in
  * the moment the session is changing; the account line waits for it, Sign out doesn't.
  */
 @Composable
-private fun DrawerAccountFooter(user: UserDto?, onSignOut: () -> Unit) {
+private fun DrawerAccountFooter(user: UserDto?, picture: File?, onSignOut: () -> Unit) {
     HorizontalDivider(color = KeepItColors.BorderSubtle)
     if (user != null) {
         val name = user.displayName?.takeIf { it.isNotBlank() }
@@ -1070,6 +1074,7 @@ private fun DrawerAccountFooter(user: UserDto?, onSignOut: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
                 )
+                ProfilePicture(picture)
             }
             Column(modifier = Modifier.padding(start = 14.dp)) {
                 Text(

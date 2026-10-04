@@ -35,6 +35,13 @@ app: it is what saves the display name.
   Notes shared with you as view-only keep their color, as they would one at a time. It works
   offline and in standalone mode, and needs nothing new from the server.
 
+### Fixed
+
+- **The Android app shows your profile picture.** A picture uploaded in the web app's Settings
+  only ever appeared on the web: the Android app drew your initial instead. It now shows the
+  picture in the menu and at the top of Settings, keeps it for when you're offline, and picks up a
+  new one as soon as you upload it. Uploading is still done on the web.
+
 ### Updating
 
 - Nothing to configure. The name is saved by the server, so update it along with the app: against
