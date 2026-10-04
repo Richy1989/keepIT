@@ -14,9 +14,9 @@
 </div>
 
 <div align="center">
-  <img src="images/web-01-notes-photos.png" alt="keepIT web app: masonry grid of notes, checklists and photos in the dark UI" width="72%">
+  <img src="images/web-notes-dark.png" alt="keepIT web app in the dark theme: pinned notes with a photo, a shopping list, a reminder and a shared checklist" width="72%">
   &nbsp;
-  <img src="images/android-12-search.png" alt="keepIT Android app: a note with photos on a phone" width="20%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="keepIT Android app in the dim theme: a photo note and a shopping list" width="20%">
 </div>
 
 Notes, checklists, lists, reminders and sharing in a fast web app and a native Android client,
@@ -43,7 +43,8 @@ also works entirely on its own, with no server at all.
   anywhere — on the phone or in the web app, straight from your list of notes without opening one.
   Recording works offline too.
 - 🗂️ **Stay organized:** group notes into lists, pin the important ones, archive what's done,
-  and find anything instantly with search. Deleted notes wait in the trash until you're sure.
+  and find anything instantly with search. Deleted notes wait in the trash until you're sure. On
+  Android, long-press to select several notes and pin, color, file or delete them together.
 - ⏰ **Reminders:** once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
   arrive as real notifications, even with the app closed, the screen locked, or no internet.
 - 👥 **Share notes:** invite someone by email to view or edit a note with you. You each keep
@@ -64,6 +65,22 @@ also works entirely on its own, with no server at all.
   data, readable without keepIT, and no lock-in.
 - 🔒 **Your notes stay yours:** everything lives on **your** server, or only on your phone. No
   third-party cloud, no account with anyone but yourself.
+
+## A closer look
+
+Light, dim or dark, on the web and on your phone:
+
+<div align="center">
+  <img src="images/web-notes-light.png" alt="The web app in the light theme" width="49%">
+  <img src="images/web-editor-dim.png" alt="Editing a note with photos in the web app, dim theme" width="49%">
+</div>
+
+<div align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Android: three notes selected at once, with the actions for all of them in the top bar" width="23%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Android, light theme: a photo note with a voice recording, and a recipe" width="23%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Android, dark theme: the menu with lists and the signed-in account" width="23%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" alt="The keepIT home-screen widget with recent notes and a new-note button" width="23%">
+</div>
 
 ## Quick start
 
