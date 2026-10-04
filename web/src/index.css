@@ -66,18 +66,21 @@
   --radius-card: 0.875rem;
 }
 
-/* Per-note background palette — dark baseline (muted, dark enough for light text). */
+/* Per-note background palette — dark baseline. Saturated hues held dark enough for light text:
+   the ceiling is --color-text-muted at 4.5:1 on every fill (ThemeContrastTest in the Android app
+   checks all three themes), and each keeps a little headroom below the gamut edge, where a dark
+   colour turns lurid. Dim follows the same rule at its own, higher ceiling. */
 :root {
   --note-default-bg: #18181b;  --note-default-border: #27272a;
-  --note-rose-bg: #3b2327;     --note-rose-border: #532f35;
-  --note-coral-bg: #3c2a21;    --note-coral-border: #543b2e;
-  --note-amber-bg: #39311d;    --note-amber-border: #4f4228;
-  --note-sage-bg: #26342a;     --note-sage-border: #34493b;
-  --note-teal-bg: #1e3535;     --note-teal-border: #294a4a;
-  --note-sky-bg: #22323f;      --note-sky-border: #2f4557;
-  --note-indigo-bg: #272c44;   --note-indigo-border: #373e5d;
-  --note-violet-bg: #322844;   --note-violet-border: #47385e;
-  --note-mauve-bg: #39263a;    --note-mauve-border: #503651;
+  --note-rose-bg: #531a27;     --note-rose-border: #6a2938;
+  --note-coral-bg: #52260d;    --note-coral-border: #6b391d;
+  --note-amber-bg: #42330a;    --note-amber-border: #58450f;
+  --note-sage-bg: #0c3d21;     --note-sage-border: #1b5432;
+  --note-teal-bg: #0c3b3c;     --note-teal-border: #155152;
+  --note-sky-bg: #0c3855;      --note-sky-border: #184c71;
+  --note-indigo-bg: #252c66;   --note-indigo-border: #363f82;
+  --note-violet-bg: #3f2166;   --note-violet-border: #543383;
+  --note-mauve-bg: #4c1d50;    --note-mauve-border: #652f68;
 
   /* Fallback accent input, for the instant before <html data-accent> is set. See "Accent". */
   --accent-ink: #1f6f4a;
@@ -134,15 +137,15 @@ html[data-theme='light'] {
   --shadow-overlay: 0 24px 48px -12px rgb(24 24 27 / 0.25);
 
   --note-default-bg: #ffffff;  --note-default-border: #e4e4e7;
-  --note-rose-bg: #fad1d7;     --note-rose-border: #f3aab4;
-  --note-coral-bg: #fbdcc8;    --note-coral-border: #f5b78f;
-  --note-amber-bg: #fdf0b5;    --note-amber-border: #f3df7a;
-  --note-sage-bg: #d6f3c6;     --note-sage-border: #aee79a;
-  --note-teal-bg: #c2f5ee;     --note-teal-border: #93e8da;
-  --note-sky-bg: #cfe8f7;      --note-sky-border: #a6d3ef;
-  --note-indigo-bg: #d9e1fb;   --note-indigo-border: #b0c2f5;
-  --note-violet-bg: #e6d8fb;   --note-violet-border: #cbb0f3;
-  --note-mauve-bg: #f9d9f0;    --note-mauve-border: #efb3dd;
+  --note-rose-bg: #fbcbd2;     --note-rose-border: #f9a2b1;
+  --note-coral-bg: #fcd7bf;    --note-coral-border: #f8b181;
+  --note-amber-bg: #fdec9e;    --note-amber-border: #f7da51;
+  --note-sage-bg: #c6f3ad;     --note-sage-border: #a6e57f;
+  --note-teal-bg: #a3f6ec;     --note-teal-border: #75e7db;
+  --note-sky-bg: #c1e5fb;      --note-sky-border: #96d1f2;
+  --note-indigo-bg: #d3ddfb;   --note-indigo-border: #adbdf8;
+  --note-violet-bg: #e3d3fb;   --note-violet-border: #cbaaf8;
+  --note-mauve-bg: #fcd2f0;    --note-mauve-border: #f4abe1;
 }
 
 /* Dim: a softer dark — lifted off near-black, gentler contrast. */
@@ -159,15 +162,15 @@ html[data-theme='dim'] {
   --color-text-faint: #97979f;
 
   --note-default-bg: #232327;  --note-default-border: #323238;
-  --note-rose-bg: #4a2e33;     --note-rose-border: #5f3a42;
-  --note-coral-bg: #4a352a;    --note-coral-border: #5f493a;
-  --note-amber-bg: #463d26;    --note-amber-border: #5c4e33;
-  --note-sage-bg: #2f4035;     --note-sage-border: #3f594a;
-  --note-teal-bg: #264242;     --note-teal-border: #34595a;
-  --note-sky-bg: #2a3e4d;      --note-sky-border: #3a5468;
-  --note-indigo-bg: #313858;   --note-indigo-border: #444d72;
-  --note-violet-bg: #3e3155;   --note-violet-border: #564474;
-  --note-mauve-bg: #472f48;    --note-mauve-border: #614363;
+  --note-rose-bg: #652635;     --note-rose-border: #7b3444;
+  --note-coral-bg: #633317;    --note-coral-border: #7e4728;
+  --note-amber-bg: #503f0e;    --note-amber-border: #665114;
+  --note-sage-bg: #0f4b2d;     --note-sage-border: #256642;
+  --note-teal-bg: #104949;     --note-teal-border: #1a6262;
+  --note-sky-bg: #104566;      --note-sky-border: #215d84;
+  --note-indigo-bg: #2f3883;   --note-indigo-border: #424fa4;
+  --note-violet-bg: #4e297f;   --note-violet-border: #683fa1;
+  --note-mauve-bg: #5f2662;    --note-mauve-border: #7d3c80;
 }
 
 /* ---- Accent overrides (independent of theme) ----------------------------
