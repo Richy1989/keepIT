@@ -1,0 +1,3 @@
+Opening a note no longer counts as editing it. A note you open and close without changing stays where it was, and on a shared note it can no longer overwrite a change someone else made while you had it open.
+
+New screenshots, in all three themes.
