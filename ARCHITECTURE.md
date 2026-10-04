@@ -86,8 +86,16 @@ The C# DTOs are the single source of truth for the API shape.
   signals after mutations. See **SignalR realtime**.
 - **Background work:** `ReminderDispatcherService`, a hosted service that fires due note
   reminders every 30 s. See **Reminders**.
-- **Logging:** Serilog — clean colored console, one request-log line per request, levels from
-  the `Serilog` config section.
+- **Logging:** Serilog, written by `Infrastructure/ConsoleLogFormatter.cs`: one short, aligned,
+  coloured line per event (`18:31:06 INF  POST   /api/notes   201  157 ms`), meant to be read as
+  an overview in `docker logs` and in Unraid's log view (a web terminal, so ANSI colour shows).
+  The formatter writes the colour itself, because Serilog's console themes apply only when the
+  output is a terminal, which in a container it never is; `NO_COLOR` turns it off. A request line
+  is the path only (GUIDs cut to 8 characters), never the query string. Everything that came
+  from outside is written with its control characters as `\xNN`: the log goes to terminals, and
+  an escape sequence in a request path would otherwise recolour or rewrite it. The host's own
+  start-up lines are silenced in favour of one `keepIT <version> starting · <database> · data in
+  <folder>`, then `ready`. Levels come from the `Serilog` config section.
 - **Edge protection:** forwarded-headers handling + per-IP rate limiting registered in
   `Infrastructure/Security/`. See **Security & abuse protection**.
 - **Email:** an `IEmailSender` abstraction — SMTP (`SmtpEmailSender`) when `Email__SmtpHost`
@@ -267,7 +275,7 @@ abuse protection**).
   the web client passes the access token via the query string (`?access_token=…`); JWT bearer's
   `OnMessageReceived` reads it, scoped to the `/api/realtime` path. The Android SignalR client
   (OkHttp) can set headers, so it sends an ordinary `Authorization: Bearer` header instead.
-  A token in a URL lands in access logs, so nginx logs it redacted (see **Security**).
+  A token in a URL lands in access logs, so nothing of ours logs a query string (see **Security**).
 
 ## Security & abuse protection
 
@@ -326,16 +334,17 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   and React inline note colors).
 - **No credential from a URL is logged.** Two travel in URLs by necessity: the browser's hub
   `access_token` (see **SignalR auth**) and the `token` of a password-reset link
-  (`/reset-password?email=…&token=…`). nginx's stock log formats write whole URLs, so both
-  configs log with a `redacted` format that blanks those values in the request line and the
-  referer; both images log to stdout, so `docker logs` shows it. An error-log line quotes the
-  raw request and can't be redacted, so `/api/realtime` has its own location that doesn't write
-  one (a failure still shows as, say, a 502 in the access log). And `Referrer-Policy:
-  strict-origin` keeps the reset page's full URL out of the referer of everything it loads,
-  even same-origin. CI sends both kinds of token through the built image and fails if either
-  reaches its log. A new credential must never go in a URL; if one has to, it joins the
-  redaction map and that CI step. An operator's own proxy in front logs URLs too, which the
-  README points out.
+  (`/reset-password?email=…&token=…`). So no log of ours holds a query string or a referer. The
+  API's request line is the path only. nginx's stock formats write whole URLs, so both configs
+  replace them: nginx logs only what never reached the API (an error it answered itself, or the
+  API not answering), by path, in the API's line layout, to stdout beside the API's log. An
+  error-log line quotes the raw request and can't be trimmed, so `/api/realtime` has its own
+  location that doesn't write one (a failure still shows in the access log as a 502). And
+  `Referrer-Policy: strict-origin` keeps the reset page's full URL out of the referer of
+  everything it loads, even same-origin. CI sends both kinds of token through the built image and
+  fails if either reaches its log. A new credential must never go in a URL; if one has to, it
+  must stay out of every log format, and that CI step sends it too. An operator's own proxy in
+  front logs URLs too, which the README points out.
 - **The API never runs as root.** In both shapes it runs as uid 1654 and owns `/data`; only a
   start-up step hands `/data` over, without following symlinks, and nginx's master binds `:80`.
   In the single container the API also listens on loopback only. See **Deployment**.
@@ -1348,8 +1357,9 @@ not be newer than the literals.
   data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
-  default body limit once hid. The same CI job then checks that a hub token and a reset token
-  sent in URLs reach the container log only redacted.
+  default body limit once hid. The same CI job then checks that neither a hub token nor a reset
+  token sent in a URL reaches the container log, and that an escape sequence sent in a path is
+  shown escaped by both the API and nginx, never obeyed.
 - **Dependency advisories** (`.github/workflows/dependencies.yml`, on every push and PR and
   weekly, since an advisory can appear for code that hasn't changed): fails on a high or critical
   advisory in the web app's runtime npm packages or in any NuGet package, direct or transitive.

@@ -31,7 +31,7 @@ change, each with its own answer below:
 
 Two things you'll notice but don't need to act on: the data folder
 [now belongs to user 1654](#why-does-my-data-folder-now-belong-to-user-1654), and the container
-log [got bigger](#my-container-log-got-much-bigger).
+log is now [one short, coloured line per request](#what-does-the-container-log-show).
 
 ### Password-reset emails stopped arriving after the update
 
@@ -81,10 +81,8 @@ No. Start it normally. The container already runs the app as the unprivileged us
 root for a moment at startup to hand the data folder over and to let nginx open port 80. Started
 with `--user`, it stops with a message saying so.
 
-### My container log got much bigger
+### How do I keep the container log from growing?
 
-In the single container, the log now includes a line from nginx for every request, next to the
-app's own line. It used to go to a file inside the container, which nothing ever cleaned up. Now
 Docker's log handling can cap it:
 
 - On Unraid, make sure **Settings → Docker → Docker LOG rotation** is enabled (the default).
@@ -133,7 +131,7 @@ and take over the account when it's clicked. A configured address is the only sa
   it a large restore stops with a 413 that comes from your proxy, not from keepIT.
 - If your proxy keeps access logs, leave query strings out of them, or at least `token` and
   `access_token`. The live-sync connection carries a sign-in token in its URL, and a reset link
-  carries its token. keepIT's own logs already blank both.
+  carries its token. keepIT's own logs leave query strings out altogether.
 
 ### Should Auth__RefreshCookie__Secure be true or false?
 
@@ -237,10 +235,30 @@ Not yet. keepIT reads its own export format only; a Google Takeout importer is o
 
 ## Logs and security
 
+### What does the container log show?
+
+One short, coloured line per request, and a line when keepIT starts, is ready and shuts down:
+
+```
+18:31:04 INF  keepIT 0.9.0 starting · SQLite · data in /data
+18:31:06 INF  POST   /api/notes                               201  157 ms
+18:31:07 INF  GET    /assets/index-old.js 404  nginx
+```
+
+The status is coloured by kind (green for success, amber for something the request got wrong,
+red for a server error), so a problem stands out. Lines that end in `nginx` are requests that
+never reached the app: a file that doesn't exist, an upload over the size limit, or the app not
+answering yet (a `502` or two while the container starts is normal). Times are in the container's
+time zone; Unraid sets it for you, and with plain Docker you pass `-e TZ=Europe/Berlin` or yours.
+
+The colour shows in Unraid's log view and in `docker logs` in a terminal. To turn it off, for a
+log collector that doesn't understand it, set `NO_COLOR=1`.
+
 ### Does keepIT write sign-in tokens to its logs?
 
 No. The web app's live-sync connection has to carry its sign-in token in the URL, and a reset
-link carries its token in the page address. keepIT's nginx writes both as `[redacted]`. The one
+link carries its token in the page address. keepIT's logs write the path of a request, never the
+part after the `?`, so neither token reaches them. The one
 deliberate exception is a reset link when no mail server is configured
 ([see above](#can-i-use-password-reset-without-a-mail-server)). Your own proxy's logs are
 [yours to configure](#how-do-i-run-keepit-behind-nginx-proxy-manager-swag-or-traefik).

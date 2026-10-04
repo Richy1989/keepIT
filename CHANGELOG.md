@@ -38,6 +38,14 @@ app: it is what saves the display name.
   colors were so muted they read as shades of grey; they are now about twice as saturated and a
   little brighter, with text on them as legible as before. The light theme's pastels are a touch
   richer too. Your notes keep the colors you gave them: only the shades change.
+- **A server log you can read at a glance.** The container log is now one short, coloured line
+  per request: time, method, path, status and how long it took, with the status green, amber or
+  red so a problem stands out. It shows in colour in Unraid's log view and in `docker logs`. Each
+  request used to be logged twice, once in a long line by nginx; now nginx only speaks up for what
+  never reached keepIT (a missing file, an upload over the limit, the app not answering), and
+  start-up says in one line which version is running on which database. See
+  [What does the container log show?](FAQ.md#what-does-the-container-log-show)
+  (`NO_COLOR=1` turns the colour off).
 
 ### Fixed
 
@@ -45,6 +53,9 @@ app: it is what saves the display name.
   only ever appeared on the web: the Android app drew your initial instead. It now shows the
   picture in the menu and at the top of Settings, keeps it for when you're offline, and picks up a
   new one as soon as you upload it. Uploading is still done on the web.
+- **Stopping the single container cut keepIT off mid-request.** On a stop, the container's start
+  script passed the signal on to keepIT and then quit at once, and the moment it quit Docker killed
+  everything left in the container. keepIT now gets to finish what it was doing first.
 
 ### Updating
 
@@ -331,7 +342,7 @@ You'll also notice, with nothing to do:
 - The data folder (on Unraid, `appdata/keepit`) now belongs to uid 1654, because keepIT no longer
   runs as root. ([FAQ](FAQ.md#why-does-my-data-folder-now-belong-to-user-1654))
 - The single container's log includes nginx's request lines. Docker's log rotation can cap it.
-  ([FAQ](FAQ.md#my-container-log-got-much-bigger))
+  ([FAQ](FAQ.md#how-do-i-keep-the-container-log-from-growing))
 
 ### New
 

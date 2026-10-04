@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Scalar.AspNetCore;
 using Serilog;
 using System.Text.Json.Serialization;
@@ -56,6 +57,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         SQLitePCL.raw.SetProvider(new SQLitePCL.SQLite3Provider_e_sqlite3());
         options.UseSqlite(DatabaseSetup.SqliteConnectionString(dataRoot));
     }
+
+    // Loading a note with its checklist and its media is two collection includes, which EF warns
+    // about in favour of split queries. Single queries are deliberate: the data is personal-scale,
+    // and a split query reads each collection in its own round trip, which a concurrent write can
+    // fall between. The warning repeated for every query shape and said nothing an operator could
+    // act on.
+    options.ConfigureWarnings(w => w.Ignore(RelationalEventId.MultipleCollectionIncludeWarning));
 });
 
 // Keep Data Protection keys inside the common data folder too (cookie/token protection).
@@ -157,11 +165,20 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// The first line of the log says what is running, on what. The host's own start-up lines ("Now
+// listening on", "Press Ctrl+C to shut down", …) are silenced in appsettings.json: in a container
+// they name a loopback port behind nginx that nobody can open, and a key press that isn't there.
+var databaseName = postgresConnection is not null ? "PostgreSQL" : "SQLite";
 app.Logger.LogInformation(
-    postgresConnection is not null
-        ? "Database provider: PostgreSQL"
-        : "Database provider: SQLite (dev) — data folder: {DataRoot}",
-    dataRoot);
+    "keepIT {Version} starting · {Database} · data in {DataRoot}", AppVersion.Current, databaseName, dataRoot);
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    if (app.Environment.IsDevelopment())
+        app.Logger.LogInformation("keepIT is ready on {Urls}", string.Join(", ", app.Urls));
+    else
+        app.Logger.LogInformation("keepIT is ready");
+});
+app.Lifetime.ApplicationStopping.Register(() => app.Logger.LogInformation("keepIT is shutting down"));
 
 // Not fatal, so an upgraded instance keeps serving notes; but until it is set, password-reset
 // emails are withheld rather than built from request headers (see AuthController.ForgotPassword).
@@ -197,7 +214,9 @@ if (app.Environment.IsDevelopment())
 // before forwarded headers restore the original scheme). Enforce HTTPS at the proxy instead.
 
 app.UseForwardedHeaders();
-app.UseSerilogRequestLogging(); // one clean line per request (after forwarded headers, so the client IP is real)
+// One line per request, laid out by ConsoleLogFormatter. The path only, never the query string,
+// which can carry a token (the hub's access_token). After forwarded headers, so the client IP is real.
+app.UseSerilogRequestLogging();
 app.UseCors("frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
