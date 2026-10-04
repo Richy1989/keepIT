@@ -3,12 +3,14 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 0.9.0
 
-A tidier Settings. Your display name is no longer fixed at sign-up, the Android app's Settings
-becomes a short list with a page for each part, and the web and Android apps gain a proper About
-page. On Android you can also select several notes at once. Update your server along with the
-app: it is what saves the display name.
+Many notes at once, and more colour. On Android, long-press a note to select several and act on
+them together; the app now shows your profile picture, and its Settings becomes a short list with a
+page for each part. On the web and Android, note colours are livelier, your display name is no
+longer fixed at sign-up, and there is a proper About page. On the server, the log becomes a short,
+coloured overview of what is happening. Update your server along with the app: it is what saves
+the display name.
 
 ### New
 
@@ -29,15 +31,15 @@ app: it is what saves the display name.
   support, and the open-source projects keepIT is built on, with our thanks. On the web it is the
   new **About** section in Settings; on Android, **Settings → About**.
 - **Select several notes at once, on Android.** Long-press a note to select it, tap others to add
-  them, and the top bar acts on all of them together: pin, change the color, file them into lists
+  them, and the top bar acts on all of them together: pin, change the colour, file them into lists
   (or make a new list for them), archive, or move them to the trash. In the trash, restore them or
   delete them for good. Archive, trash and restore offer **Undo**; Back or ✕ ends the selection.
-  Notes shared with you as view-only keep their color, as they would one at a time. It works
+  Notes shared with you as view-only keep their colour, as they would one at a time. It works
   offline and in standalone mode, and needs nothing new from the server.
-- **Livelier note colors, on the web and Android.** On the dark and dim themes the nine note
-  colors were so muted they read as shades of grey; they are now about twice as saturated and a
+- **Livelier note colours, on the web and Android.** On the dark and dim themes the nine note
+  colours were so muted they read as shades of grey; they are now about twice as saturated and a
   little brighter, with text on them as legible as before. The light theme's pastels are a touch
-  richer too. Your notes keep the colors you gave them: only the shades change.
+  richer too. Your notes keep the colours you gave them: only the shades change.
 - **A server log you can read at a glance.** The container log is now one short, coloured line
   per request: time, method, path, status and how long it took, with the status green, amber or
   red so a problem stands out. It shows in colour in Unraid's log view and in `docker logs`. Each

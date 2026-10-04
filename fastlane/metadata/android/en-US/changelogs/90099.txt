@@ -1,9 +1,9 @@
-Select several notes at once: long-press one, tap more, then pin, recolor, file, archive or delete them together.
+Select several notes at once: long-press one, tap more, then pin, recolour, file, archive or delete them together.
 
-Change your display name in Settings → Account; your other devices pick it up straight away.
+Livelier note colours, and the profile picture you set on the web now shows in the app.
 
-A tidier Settings: a short list, with a page for your account, notifications, this phone and your data.
+Change your display name in Settings → Account.
 
-A proper About page: your app and server versions, and the open-source projects keepIT is built on.
+A tidier Settings, and a proper About page.
 
 Running your own server? Update it to 0.9.0 too: it saves the display name.

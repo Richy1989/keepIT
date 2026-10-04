@@ -38,8 +38,8 @@ android {
         // refuses a tag they disagree with. CI still overrides them from the tag via env for GitHub
         // builds, which is all a beta tag vX.Y.Z-beta.N is: it leaves these at the last release,
         // and CI builds it as X.Y.Z-beta.N with code X*1000000 + Y*10000 + Z*100 + N.
-        versionCode = 805
-        versionName = "0.8.5"
+        versionCode = 90099
+        versionName = "0.9.0"
         System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
         System.getenv("VERSION_NAME")?.let { versionName = it }
 
