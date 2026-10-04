@@ -615,6 +615,15 @@ unresolved one is retried, so a bootstrap that ran with no connectivity still co
   set-state survives it, since the server only empties what is in its trash. Against a server
   older than the endpoint (404) it falls back to a `DELETE` per own note still in the trash;
   notes shared with the user then stay there.
+- **Acting on several notes at once** (the note list's multi-select: pin, color, lists,
+  archive, trash, restore, delete forever) has no op or endpoint of its own. `BulkOps.kt` turns
+  it into the single-note ops, one per note that actually changes, and `Outbox.enqueueAll`
+  coalesces them in turn exactly as one-by-one enqueues would, but writes the queue once. A
+  color is content and the server sets it only through the full update, so a recolor sends each
+  note as cached with the new color, as the web card's picker does, and skips view-only notes
+  rather than queue a certain 403. Delete forever on a selection is the empty-trash op, which
+  already leaves what the user can't delete. Nothing new reaches the server, so the feature works
+  against servers older than it.
 - **`SyncEngine`** — drains the outbox against the REST API, then refetches everything (all
   three views + lists, in parallel), overlaying any still-queued local edits on the server
   truth. Kicked on sign-in, connectivity return, every enqueue, SignalR pushes, and

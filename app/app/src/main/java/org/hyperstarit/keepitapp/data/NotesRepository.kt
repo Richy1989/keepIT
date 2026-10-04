@@ -36,7 +36,10 @@ import org.hyperstarit.keepitapp.data.offline.applyListOp
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
 import org.hyperstarit.keepitapp.data.offline.applyPendingLists
+import org.hyperstarit.keepitapp.data.offline.colorOps
+import org.hyperstarit.keepitapp.data.offline.listMembershipOps
 import org.hyperstarit.keepitapp.data.offline.settleDueReminders
+import org.hyperstarit.keepitapp.data.offline.stateOps
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
 import org.hyperstarit.keepitapp.data.offline.withUploadedMedia
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
@@ -419,15 +422,48 @@ class NotesRepository(
         if (changed) persistCache()
     }
 
-    private suspend fun mutate(op: PendingOp) {
+    // ---- several notes at once: the note list's multi-select ----
+
+    /**
+     * Sets [state]'s flags on each note in [ids] — pin, archive, trash or restore a selection. Notes
+     * already in that state queue nothing; see [stateOps].
+     */
+    suspend fun setStateOf(ids: Collection<String>, state: NoteStateDto) =
+        mutateAll(stateOps(cachedNotes(ids), state, nowUtc()))
+
+    /**
+     * Recolours each note in [ids] the user can edit; view-only ones keep their colour, as the
+     * server would insist. See [colorOps] for why this is a full content update per note.
+     */
+    suspend fun recolor(ids: Collection<String>, color: String?) =
+        mutateAll(colorOps(cachedNotes(ids), color, nowUtc()))
+
+    /** Files each note in [ids] into [listId] when [member], or takes it out, leaving its other lists be. */
+    suspend fun setListMembership(ids: Collection<String>, listId: String, member: Boolean) =
+        mutateAll(listMembershipOps(cachedNotes(ids), resolveList(listId), member, nowUtc()))
+
+    /**
+     * The cached notes behind [ids], read when the action runs rather than when the screen last
+     * drew: a colour change sends the note's whole content, and that must be the latest.
+     */
+    private fun cachedNotes(ids: Collection<String>): List<NoteDto> {
+        val real = ids.mapTo(HashSet(), ::resolve)
+        return cache.value.filter { it.id in real }
+    }
+
+    private suspend fun mutate(op: PendingOp) = mutateAll(listOf(op))
+
+    /** Applies [ops] in order, as [mutate] would one by one, with one disk write and one sync kick. */
+    private suspend fun mutateAll(ops: List<PendingOp>) {
+        if (ops.isEmpty()) return
         // Intent lands on disk before the cache: after a crash the worst case is a re-sent op
         // (replay is idempotent), never a change that looks saved but was lost.
-        val dropped = outbox.enqueue(op)
+        val dropped = outbox.enqueueAll(ops)
         // Coalescing can discard a queued attachment (deleting the note annihilates its ops); the
         // staged bytes are ours, so they go with it rather than sitting in staging forever.
         dropped.filterIsInstance<PendingOp.AttachMedia>().forEach { staging.delete(it.stagedPath) }
-        cache.update { applyOp(it, op) }
-        cachedLists.update { applyListOp(it, op) }
+        cache.update { ops.fold(it, ::applyOp) }
+        cachedLists.update { ops.fold(it, ::applyListOp) }
         persistCache()
         syncEngine?.kick()
     }

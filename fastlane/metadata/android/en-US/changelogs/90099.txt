@@ -1,7 +1,9 @@
-Change your display name: it was fixed at sign-up, and is now in Settings → Account. Your other devices pick up the new name straight away.
+Select several notes at once: long-press one, tap more, then pin, recolor, file, archive or delete them together.
 
-A tidier Settings: a short list that says where each thing stands, with a page for your account, notifications, this phone and your data.
+Change your display name in Settings → Account; your other devices pick it up straight away.
 
-A proper About page: what keepIT is, your app and server versions, and the open-source projects it is built on.
+A tidier Settings: a short list, with a page for your account, notifications, this phone and your data.
+
+A proper About page: your app and server versions, and the open-source projects keepIT is built on.
 
 Running your own server? Update it to 0.9.0 too: it saves the display name.
