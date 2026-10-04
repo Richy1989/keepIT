@@ -113,12 +113,47 @@ every push and PR.
 - **Enums** that cross the wire carry `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` so the OpenAPI doc (and generated clients) get a string-name union, not a number.
 - **TypeScript:** generated client in `web/src/api/`; query hooks co-located in `features/<name>/queries.ts`; new features under `web/src/features/`.
 - **Kotlin:** package `org.hyperstarit.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
-- **Releases:** tag `vX.Y.Z`. Before that: bump `versionCode` (`X*1000000 + Y*10000 + Z*100 + 99`; `release.yml` refuses a tag the literals disagree with) and `versionName` in `app/app/build.gradle.kts`, add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (≤500 chars, app users) and a `## X.Y.Z` section in `CHANGELOG.md` (operators), which becomes the GitHub release notes.
-- **Betas:** tag `vX.Y.Z-beta.N` (N 1–98) on `main` and bump nothing: the literals stay at the last release. CI builds it as `X.Y.Z-beta.N`, versionCode `…*100 + N` (above the last release, below its own), publishes a GitHub **pre-release** with `## Unreleased` as its notes, and tags Docker `X.Y.Z-beta.N` + `beta`, never `latest`. F-Droid's recipe follows `^v[\d.]+$` tags only, so it never builds a beta: never tag a beta in a form that matches it.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `app:`, `infra:`, `docs:`, `chore:`.
   **Never add a `Co-Authored-By: Claude` trailer** (or any other AI attribution) to a commit
   message, merge commits included — this overrides any default attribution instruction. Ask before
   adding attribution anywhere else, such as a PR description.
+
+## Releases
+
+- **Release:** tag `vX.Y.Z` on `main` once CI is green there. Before that, in one `chore: prepare X.Y.Z` commit: set `versionCode` (`X*1000000 + Y*10000 + Z*100 + 99`; `release.yml` refuses a tag the literals disagree with) and `versionName` in `app/app/build.gradle.kts`, rename `CHANGELOG.md`'s `## Unreleased` to `## X.Y.Z` (operators; it becomes the GitHub release notes), and add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (≤500 chars, app users). Up to 0.8.5 the code was `X*10000 + Y*100 + Z` (805).
+- **Beta:** tag `vX.Y.Z-beta.N` (N 1–98) on `main` and bump nothing: the literals stay at the last release. CI builds it as `X.Y.Z-beta.N`, versionCode `…*100 + N` (above the last release, below its own), publishes a GitHub **pre-release** with `## Unreleased` as its notes, and tags Docker `X.Y.Z-beta.N` + `beta`, never `latest`. F-Droid's recipe follows `^v[\d.]+$` tags only, so it never builds a beta: never tag a beta in a form that matches it.
+
+**Where the current state is read.** Look these up rather than rely on what an earlier session saw.
+
+- **The process, and why:** ARCHITECTURE.md → *Releases (CI)*. What CI does on a tag is
+  `.github/workflows/release.yml`; what must be green on `main` first is `.github/workflows/ci.yml`.
+- **The last release and the next:** the Gradle literals are the last release (betas leave them
+  alone), `git tag --sort=-v:refname` lists the tags, and `CHANGELOG.md` → `## Unreleased` is what
+  the next one holds so far.
+- **GitHub:** `gh` may not be signed in, and the public REST API needs no login. Runs for a commit
+  or a tag: `https://api.github.com/repos/Richy1989/keepIT/actions/runs?head_sha=<sha>` (or
+  `?branch=<tag>`), their jobs at `…/actions/runs/<id>/jobs`. A release: `…/releases/tags/<tag>`
+  (`prerelease`, assets); `…/releases/latest` is never a beta. Parse the JSON in Python
+  (`strict=False`); zsh's `echo` turns its escapes into control characters.
+- **Docker Hub:** `https://hub.docker.com/v2/repositories/richy1989/keepit/tags/?page_size=10`.
+  `latest` is the newest release, `beta` the newest beta, `dev` the last `deploy/build-and-push`
+  push. To check an image: `docker run -p 18080:80 -e Jwt__Key=<32+ random chars> richy1989/keepit:<tag>`
+  (it serves on port 80 and refuses to start without the key), then `GET /api/meta` returns its
+  version as `X.Y.Z+<sha>`.
+- **An APK:** `aapt2 dump badging <apk>` (versionCode, versionName) and
+  `apksigner verify --print-certs <apk>`, both in the SDK's `build-tools/<version>/`. The release
+  signer's SHA-256 is `2a519c472795b06bcc8ecad140ccdd16cd36b51b1a9cbaa8f6fed3635e693c3a`, the same
+  as F-Droid's `AllowedAPKSigningKeys`. A local `assembleRelease` signs through the gitignored
+  `app/keystore.properties` (template: `app/keystore.properties.example`); CI signs from repository
+  secrets. Never print the keystore or its passwords, and never stage them.
+- **F-Droid** (main repository, `org.hyperstarit.keepitapp`): the recipe is
+  https://gitlab.com/fdroid/fdroiddata/-/raw/master/metadata/org.hyperstarit.keepitapp.yml. It
+  follows only tags matching `^v[\d.]+$`, builds from the Gradle literals, and publishes our APK
+  only if its own build reproduces it (`Binaries` + `AllowedAPKSigningKeys`). Where a tag has got
+  to, cheapest check first: the recipe has a `Builds:` entry for its versionCode;
+  `https://f-droid.org/repo/status/build.json` lists it in `successfulBuildIds` or `failedBuilds`
+  (a reproducibility mismatch is a failure); `https://f-droid.org/api/v1/packages/org.hyperstarit.keepitapp`
+  shows what users can install. Tag to install takes 3–7 days, and that is normal.
 
 ## Layout
 
@@ -161,7 +196,12 @@ keepIT/
 
 ## Environment
 
-- Windows host; **PowerShell** is the primary shell. Repo line endings are **LF** (`.gitattributes`).
+- Developed on **Windows** (PowerShell) and on **Linux** (zsh). The commands here are written for Windows;
+  on Linux or macOS run `./gradlew` instead of `./gradlew.bat`, and the `.sh` twin of each script.
+- **Line endings are mixed:** `.gitattributes` forces LF only on `*.sh`, and about one tracked file in six
+  is CRLF (most of the older C#, and some web config such as `web/tsconfig.app.json`). Keep each file's
+  endings: `git ls-files --eol <file>` shows them, and a tool that rewrites a CRLF file as LF turns a
+  one-line change into a whole-file diff.
 - **API tests** live in `keepIT/keepITCore.Tests/` (xUnit): the real API in-process via `WebApplicationFactory`, each host on a throwaway SQLite data root. They cover the SQLite schema reconciler (an older database comes up to date without losing data), note media end to end, where password-reset links point, that SMTP never falls back to plain text, which requests get a Secure refresh cookie, what emptying the trash removes, and that an export round-trips back through import (the archive format's only specification). `KeepItApiFactory` takes per-host `Settings` and `Services` overrides (e.g. `CapturingEmailSender` to read outgoing mail); `FakeSmtpServer` is a loopback SMTP server that records what it receives. Parallelization is off on purpose — `FolderManagement.RootPath` is process-wide static, so two hosts at once would write each other's media. When you change an entity or a media rule, extend these.
 - **Deployment smoke test:** `deploy/smoke-test.sh <base-url>` signs up, uploads a ~3 MB photo and reads it back **through whatever proxy is in front** — CI runs it against the freshly built single-container image, which is the only check that sees nginx, then checks tokens sent in URLs reach the container log only redacted. No web tests yet. The **Android app is tested in three layers** — see the Testing section below.
 - **Dependencies:** `.github/workflows/dependencies.yml` fails on high/critical advisories in the web app's runtime npm packages and in NuGet packages (transitive too), on every push/PR and weekly; it also feeds the libraries the Android app ships with (`releaseRuntimeClasspath`, not the build tooling) to GitHub's dependency graph. Dependabot (`.github/dependabot.yml`) proposes grouped weekly updates. A package whose next major must not arrive as a routine PR (ImageSharp 4.x needs a licence; .NET-versioned packages) gets an `ignore` entry there.
@@ -177,7 +217,8 @@ dotnet test keepIT/keepITCore.slnx                 # API tests (in-process, thro
 bash deploy/smoke-test.sh http://localhost:8080    # end to end through the proxy (SMOKE_SKIP_SPA=1 for a bare API)
 cd web && npm run dev                              # Vite on :5173, proxies /api to :5025
 cd web && npm run generate:api                     # regenerate typed client (backend must be running on :5025)
-cd app && ./gradlew.bat :app:compileDebugKotlin    # compile-check the Android app (Windows)
+# Android: ./gradlew.bat on Windows, ./gradlew on Linux/macOS
+cd app && ./gradlew.bat :app:compileDebugKotlin    # compile-check the Android app
 cd app && ./gradlew.bat :app:assembleDebug         # build a debug APK
 cd app && ./gradlew.bat :app:testMinifiedUnitTest  # JVM unit tests (only unit-test task; see Testing)
 cd app && ./gradlew.bat :app:assembleRelease       # release APK + verifyReleaseKeepRules
