@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -245,6 +246,7 @@ private fun linkIcon(id: String): ImageVector = when (id) {
     "issues" -> Icons.Outlined.ChatBubbleOutline
     "releases" -> Icons.Outlined.LocalOffer
     "license" -> Icons.Outlined.Description
+    "privacy" -> Icons.Outlined.PrivacyTip
     "support" -> Icons.Outlined.FavoriteBorder
     else -> Icons.AutoMirrored.Outlined.OpenInNew
 }

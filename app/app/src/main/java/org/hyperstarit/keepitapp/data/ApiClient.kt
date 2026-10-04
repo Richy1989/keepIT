@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Authenticator
@@ -335,19 +338,32 @@ class ApiClient(context: Context) {
 }
 
 /**
- * A human-readable message from an API error, mirroring the web's `apiError.ts`: prefers the
- * `{error}` shape, then ProblemDetails (`detail`/`title`), then validation `errors` values.
+ * A human-readable message from an API error, mirroring the web's `apiError.ts`; see
+ * [errorBodyMessage] for how the body is read.
  */
 fun apiErrorMessage(t: Throwable, fallback: String): String {
     if (t !is HttpException) return t.message ?: fallback
-    return try {
-        val body = t.response()?.errorBody()?.string() ?: return fallback
-        val obj = Json.parseToJsonElement(body).jsonObject
-        obj["error"]?.jsonPrimitive?.content
-            ?: obj["detail"]?.jsonPrimitive?.content
-            ?: obj["title"]?.jsonPrimitive?.content
-            ?: fallback
-    } catch (_: Exception) {
-        fallback
-    }
+    val body = runCatching { t.response()?.errorBody()?.string() }.getOrNull() ?: return fallback
+    return errorBodyMessage(body) ?: fallback
+}
+
+/**
+ * The message in an API error body, as the web's `apiError.ts` reads one: the messages of a
+ * ValidationProblemDetails first, then the `{error}` shape, then ProblemDetails' `detail` and
+ * `title`. Validation comes first because that is where the real message is — a wrong password
+ * arrives as `errors.Password`, under a `title` that only says "One or more validation errors
+ * occurred.", which is what this used to show. Null when the body has none of them.
+ */
+internal fun errorBodyMessage(body: String): String? = try {
+    val obj = Json.parseToJsonElement(body).jsonObject
+    val validation = (obj["errors"] as? JsonObject)?.values
+        ?.flatMap { (it as? JsonArray)?.mapNotNull { m -> m.jsonPrimitive.contentOrNull } ?: emptyList() }
+        ?.filter { it.isNotBlank() }
+        .orEmpty()
+    validation.takeIf { it.isNotEmpty() }?.joinToString(" ")
+        ?: obj["error"]?.jsonPrimitive?.contentOrNull
+        ?: obj["detail"]?.jsonPrimitive?.contentOrNull
+        ?: obj["title"]?.jsonPrimitive?.contentOrNull
+} catch (_: Exception) {
+    null
 }
