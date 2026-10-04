@@ -68,6 +68,9 @@ app: it is what saves the display name.
   out as GitHub pre-releases and as the Docker tag `beta`. Nobody gets one without asking: Docker's
   `latest`, F-Droid, and Obtainium with its default settings stay on releases. To take part, see
   [Beta releases](README.md#beta-releases).
+- The About page also thanks nginx, the web server in the Docker image, and SQLitePCLRaw, which
+  connects the server to SQLite. Both were missing; tests now keep the list in step with the
+  libraries keepIT actually uses.
 
 ## 0.8.5
 

@@ -58,9 +58,11 @@
       { "name": "Entity Framework Core", "role": "Database access", "license": "MIT", "url": "https://github.com/dotnet/efcore" },
       { "name": "Npgsql", "role": "PostgreSQL driver", "license": "PostgreSQL License", "url": "https://www.npgsql.org" },
       { "name": "SQLite", "role": "Built-in database", "license": "Public domain", "url": "https://sqlite.org" },
+      { "name": "SQLitePCLRaw", "role": "SQLite for .NET", "license": "Apache 2.0", "url": "https://github.com/ericsink/SQLitePCL.raw" },
       { "name": "ImageSharp", "role": "Image processing", "license": "Six Labors Split License", "url": "https://sixlabors.com/products/imagesharp/" },
       { "name": "MailKit", "role": "Email delivery", "license": "MIT", "url": "https://github.com/jstedfast/MailKit" },
-      { "name": "Serilog", "role": "Logging", "license": "Apache 2.0", "url": "https://serilog.net" }
+      { "name": "Serilog", "role": "Logging", "license": "Apache 2.0", "url": "https://serilog.net" },
+      { "name": "nginx", "role": "Web server in the Docker image", "license": "BSD 2-Clause", "url": "https://nginx.org" }
     ]
   }
 }
