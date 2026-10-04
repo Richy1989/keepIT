@@ -10,6 +10,10 @@ namespace keepITCore.SignalR
         public const string Lists = "lists";
         public const string Notification = "notification";
         public const string Settings = "settings";
+
+        /// <summary>The signed-in user's own account (display name): clients refetch <c>/api/auth/me</c>.
+        /// Clients that predate it ignore the name, as they ignore any they don't know.</summary>
+        public const string Account = "account";
     }
 
     /// <summary>

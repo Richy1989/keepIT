@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -53,6 +55,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,6 +64,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.AppContainer
+import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.ThemePref
 import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.notifications.AppNotifications
@@ -71,7 +76,7 @@ import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
  * management** (reminders and the server inbox surface as native notifications, so
  * POST_NOTIFICATIONS and SCHEDULE_EXACT_ALARM decide how well that works — both read live from the
  * system and re-read on resume, so the rows always tell the truth) and the **account section**
- * (change password, mirroring the web Settings page).
+ * (display name and change password, mirroring the web Settings page).
  *
  * In standalone mode there is no account: that section becomes the device's own — connect a server
  * ([onConnectServer]) to upload the notes, or erase them.
@@ -205,6 +210,8 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onConnectServer:
                 StandaloneSection(container, onConnectServer)
             } else {
                 SectionLabel("ACCOUNT")
+                DisplayNameSection(container)
+                HorizontalDivider(color = KeepItColors.BorderSubtle)
                 ChangePasswordSection(container)
             }
 
@@ -365,6 +372,104 @@ private fun VersionRow(label: String, value: String) {
         Text(value, color = KeepItColors.TextMuted, fontSize = 14.sp)
     }
 }
+
+/**
+ * Display-name form, the phone twin of the web's: edit the name shown in the drawer, or clear it to
+ * fall back to the email. Until the field is touched it shows the signed-in user's name — including
+ * one just changed on another device, which the realtime `account` push brings into the session.
+ * Online only, like the password: a failure (offline included) says so and keeps the edit.
+ */
+@Composable
+private fun DisplayNameSection(container: AppContainer) {
+    val scope = rememberCoroutineScope()
+    val session by container.session.state.collectAsState()
+    val user = (session as? SessionState.SignedIn)?.user ?: return
+
+    // null while untouched, so the field follows the session's name rather than a stale copy of it.
+    var draft by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var saved by remember { mutableStateOf(false) }
+
+    val current = user.displayName.orEmpty()
+    val value = draft ?: current
+    val changed = value.trim() != current
+
+    fun submit() {
+        if (busy || !changed) return
+        error = null
+        busy = true
+        scope.launch {
+            container.session.updateDisplayName(value)
+                .onSuccess {
+                    draft = null
+                    saved = true
+                }
+                .onFailure { error = apiErrorMessage(it, "Could not save the display name.") }
+            busy = false
+        }
+    }
+
+    Column(modifier = Modifier.padding(vertical = 14.dp)) {
+        Text("Display name", color = KeepItColors.Text, fontSize = 15.sp)
+        Text(
+            text = "Shown with your account in the menu. Leave it empty to use your email.",
+            color = KeepItColors.TextFaint,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                draft = it.take(DISPLAY_NAME_MAX_LENGTH)
+                saved = false
+            },
+            label = { Text("Display name") },
+            placeholder = { Text(user.email) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+        )
+
+        error?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
+            Button(onClick = ::submit, enabled = !busy && changed, colors = accentButtonColors()) {
+                if (busy) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalContentColor.current,
+                    )
+                } else {
+                    Text("Save name")
+                }
+            }
+            if (saved && !changed) {
+                Text(
+                    text = "Saved",
+                    color = KeepItColors.AccentInk,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Matches the server's limit on `UpdateProfileRequestDto.DisplayName`. */
+private const val DISPLAY_NAME_MAX_LENGTH = 100
 
 /**
  * Change-password form, the phone twin of the web's: current/new/confirm with inline validation.

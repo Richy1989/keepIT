@@ -95,10 +95,14 @@ class AppContainer(context: Context) {
     /** Surfaces the server notification inbox (share invites …) as native notifications. */
     val notificationsWatcher = ServerNotificationsWatcher(context.applicationContext, apiClient, appScope)
 
-    /** SignalR pushes mean the server moved on — one sync replays anything queued and refetches. */
+    /**
+     * SignalR pushes mean the server moved on — one sync replays anything queued and refetches.
+     * `account` is the signed-in user (renamed on another device), which lives in the session.
+     */
     val realtime = RealtimeClient(apiClient, appScope) { resources ->
         if ("notes" in resources || "lists" in resources) syncEngine.kick()
         if ("notification" in resources) notificationsWatcher.kick()
+        if ("account" in resources) appScope.launch { session.refreshUser() }
     }
 
     init {
@@ -109,8 +113,10 @@ class AppContainer(context: Context) {
         connectivity.start()
         realtime.onConnected = {
             syncEngine.kick()
-            // Anything that landed in the inbox while the socket was down was missed too.
+            // Anything that landed in the inbox while the socket was down was missed too, and so
+            // was a rename on another device.
             notificationsWatcher.kick()
+            appScope.launch { session.refreshUser() }
         }
         session.onLogout = {
             // Best-effort flush of queued changes while the session is still valid, then wipe.

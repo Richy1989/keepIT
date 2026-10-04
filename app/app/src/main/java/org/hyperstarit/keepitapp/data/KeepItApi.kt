@@ -41,6 +41,10 @@ interface KeepItApi {
     @GET("api/auth/me")
     suspend fun me(): UserDto
 
+    /** Renames the signed-in user (blank or null removes the name); answers with the updated user. */
+    @PUT("api/auth/me")
+    suspend fun updateMe(@Body body: UpdateProfileRequestDto): UserDto
+
     /** Changes the password. The server revokes all other sessions and returns fresh tokens for this one. */
     @POST("api/auth/changepassword")
     suspend fun changePassword(@Body body: ChangePasswordRequestDto): AuthResponseDto

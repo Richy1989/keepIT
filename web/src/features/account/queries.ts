@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { tokenStore } from '../../auth/tokenStore';
+import { useAuth } from '../../auth/AuthContext';
 
 export const PROFILE_IMAGE_KEY = 'profileImage';
 
@@ -21,6 +22,25 @@ export function useChangePassword() {
         tokenStore.set(data.accessToken, data.accessTokenExpiresAtUtc);
       }
     },
+  });
+}
+
+/**
+ * Changes (or, with blank text, removes) the signed-in user's display name. The answer is the
+ * updated user, applied straight to the auth context; the server's `account` push brings the
+ * user's other devices along. The raw error body is thrown so the caller can surface server messages.
+ */
+export function useUpdateDisplayName() {
+  const { updateUser } = useAuth();
+  return useMutation({
+    mutationFn: async (displayName: string) => {
+      const { data, error } = await api.PUT('/api/auth/me', {
+        body: { displayName: displayName.trim() || null },
+      });
+      if (error || !data) throw error ?? new Error('Failed to save the display name.');
+      return data;
+    },
+    onSuccess: updateUser,
   });
 }
 

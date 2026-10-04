@@ -71,6 +71,13 @@ data class RegisterRequestDto(
 @Serializable
 data class ForgotPasswordRequestDto(val email: String)
 
+/**
+ * Changes the signed-in user's display name; the caller comes from the access token. Null or blank
+ * removes the name (the server trims and stores null), and the app falls back to the email.
+ */
+@Serializable
+data class UpdateProfileRequestDto(val displayName: String?)
+
 /** Changes the signed-in user's password; the caller comes from the access token. */
 @Serializable
 data class ChangePasswordRequestDto(

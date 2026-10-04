@@ -13,6 +13,10 @@ export interface AuthState {
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   /** Revoke the refresh token and clear local session state. */
   logout: () => Promise<void>;
+  /** Replace the signed-in user with the server's answer to a change made here (a rename). */
+  updateUser: (user: UserDto) => void;
+  /** Refetch the signed-in user, after another device changed the account. Never throws. */
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthState | undefined>(undefined);
