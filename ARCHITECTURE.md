@@ -746,7 +746,11 @@ appears in the drawer and on the Account page, and both use the same unsynced-ch
 when the parts both pages show drift apart (everything but each client's own credits) — the same
 arrangement as the colour tokens below. Both web files that Android tests read (`index.css`,
 `about.json`) are declared inputs of the unit-test task in `app/build.gradle.kts`, so a change on
-the web side alone reruns them instead of the tests being skipped as up to date. The page's icon
+the web side alone reruns them instead of the tests being skipped as up to date. The credits are
+also held to the dependencies: `about.test.ts` reads `web/package.json`, `keepITCore.csproj` and
+what `deploy/Dockerfile` installs, and `AboutCreditsTest` reads `app/build.gradle.kts`; a library
+added or removed without its credit following, or a credit no library needs any more, fails them.
+Tooling that never reaches users is listed there as not credited, with why. The page's icon
 is drawn from the launcher's own layers (Compose can't draw an adaptive icon), so it stays the
 icon `docs/brand/render_icons.py` writes.
 

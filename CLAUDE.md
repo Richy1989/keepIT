@@ -81,7 +81,8 @@ layers guard it, cheapest first:
 1. **JVM unit tests** (`app/app/src/test/`) — offline op application, outbox coalescing, checklist
    ordering, the widget's snapshot projection + prefs codec, the note colour palette, the theme
    tokens (AA contrast, and parity with the web's `index.css`), the About page's text (parity with
-   the web's `about.json`), and the export archive's format (`ArchiveTest`).
+   the web's `about.json`) and credits (against the libraries the app ships, `AboutCreditsTest`),
+   and the export archive's format (`ArchiveTest`).
    `./gradlew.bat :app:testMinifiedUnitTest` (that is the only unit-test task: `testBuildType` scopes
    the test components to the `minified` variant).
 2. **`verifyReleaseKeepRules`** — after R8 runs, reads its own `usage.txt` and fails if anything in
@@ -113,6 +114,7 @@ every push and PR.
 - **Enums** that cross the wire carry `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` so the OpenAPI doc (and generated clients) get a string-name union, not a number.
 - **TypeScript:** generated client in `web/src/api/`; query hooks co-located in `features/<name>/queries.ts`; new features under `web/src/features/`.
 - **Kotlin:** package `org.hyperstarit.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
+- **Libraries:** adding, removing or swapping one means updating the About page's credits in the same change: `web/src/features/about/about.json` for the web and the server (NuGet packages and what the Docker image installs), `AboutContent.kt` for the Android app (and its copy of the server's). Tests compare the credits with `package.json`, `keepITCore.csproj`, `deploy/Dockerfile` and `app/build.gradle.kts` and fail until they match; a dependency that never reaches users (linters, test runners, development-only tools) goes in the test's not-credited list with the reason.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `app:`, `infra:`, `docs:`, `chore:`.
   **Never add a `Co-Authored-By: Claude` trailer** (or any other AI attribution) to a commit
   message, merge commits included — this overrides any default attribution instruction. Ask before
