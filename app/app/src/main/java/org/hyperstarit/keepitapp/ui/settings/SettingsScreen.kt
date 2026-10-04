@@ -67,6 +67,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onOpen: (route: 
     val standalone by container.appMode.standalone.collectAsState()
     val session by container.session.state.collectAsState()
     val theme by container.appearance.theme.collectAsState()
+    val picture by container.profileImage.file.collectAsState()
     val access = rememberNotificationAccess()
     val appVersion = rememberAppVersion()
     var choosingTheme by remember { mutableStateOf(false) }
@@ -89,6 +90,7 @@ fun SettingsScreen(container: AppContainer, onBack: () -> Unit, onOpen: (route: 
                     .joinToString(" · ")
                     .ifEmpty { "Your account" },
                 initial = (name ?: user.email).take(1).uppercase().ifEmpty { "?" },
+                picture = picture,
                 onClick = { onOpen(SettingsRoutes.ACCOUNT) },
             )
         }

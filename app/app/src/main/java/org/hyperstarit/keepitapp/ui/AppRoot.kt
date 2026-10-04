@@ -62,6 +62,8 @@ fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destinatio
         when (val s = sessionState) {
             is SessionState.SignedIn -> {
                 container.notesRepo.onSignedIn(s.user.id)
+                // From disk; the realtime connection's onConnected fetches the current one.
+                container.profileImage.show(s.user.id)
                 container.realtime.start()
                 container.syncEngine.kick()
             }

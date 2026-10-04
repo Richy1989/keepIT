@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,8 +51,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import coil3.compose.AsyncImage
 import org.hyperstarit.keepitapp.ui.theme.CardShape
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import java.io.File
 
 /*
  * The building blocks every settings page is made of, so the pages read as one screen: a frame
@@ -214,7 +218,8 @@ fun SettingsIcon(icon: ImageVector, tint: Color) {
 /**
  * The card at the top of Settings: who this is, or that there is no account. [initial] fills the
  * avatar circle — tinted like the rows' icons, since the drawer's elevated grey vanishes on the
- * light theme's white card — or [icon] does when there's no one to name.
+ * light theme's white card — or [icon] does when there's no one to name. A [picture], the user's
+ * uploaded profile picture, covers either.
  */
 @Composable
 fun SettingsAccountCard(
@@ -223,6 +228,7 @@ fun SettingsAccountCard(
     onClick: () -> Unit,
     initial: String? = null,
     icon: ImageVector? = null,
+    picture: File? = null,
 ) {
     Surface(
         color = KeepItColors.Surface,
@@ -247,6 +253,7 @@ fun SettingsAccountCard(
                     )
                     icon != null -> Icon(icon, contentDescription = null, tint = KeepItColors.AccentInk)
                 }
+                ProfilePicture(picture)
             }
             Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                 Text(
@@ -274,6 +281,22 @@ fun SettingsAccountCard(
             )
         }
     }
+}
+
+/**
+ * The user's profile picture, filling an avatar circle the caller has already clipped, over the
+ * initial drawn beneath it — which is what shows while the file decodes, if it can't be, and when
+ * there is no [file] at all. See [org.hyperstarit.keepitapp.data.ProfileImage].
+ */
+@Composable
+fun BoxScope.ProfilePicture(file: File?) {
+    if (file == null) return
+    AsyncImage(
+        model = file,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.matchParentSize(),
+    )
 }
 
 /**

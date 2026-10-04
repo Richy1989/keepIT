@@ -989,6 +989,13 @@ resource, with `Service/ImageService.cs` doing the storage work:
   collaborator, fellow collaborators, or a pending invite between them) — what the share UI
   needs, without making avatars public to any signed-in user. "No image" and "no permission"
   are the same 404, so ids can't be probed.
+- **On Android** (`data/ProfileImage.kt`) the signed-in user's own picture is fetched through the
+  authenticated client into `filesDir/offline/profile/` and drawn over the initial in the drawer
+  and on Settings' account card, so it shows offline and from a cold start's first frame. It is
+  refetched when realtime connects (every sign-in, every reconnect) and on the `settings` push an
+  upload sends. A 404 removes it and any other failure keeps it, so a bad connection never turns a
+  picture back into an initial; sign-out deletes it. Each new picture gets a new file name, since
+  Coil caches by path. Uploading stays web-only.
 
 **Implemented: note media (image attachments).** Images attach to **any** note — text or
 checklist — as an ordered, append-only collection (`NoteMedia`, cascade-deleted with the note).

@@ -15,6 +15,7 @@ import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.AppMode
 import org.hyperstarit.keepitapp.data.Appearance
 import org.hyperstarit.keepitapp.data.NotesRepository
+import org.hyperstarit.keepitapp.data.ProfileImage
 import org.hyperstarit.keepitapp.data.RealtimeClient
 import org.hyperstarit.keepitapp.data.SessionRepository
 import org.hyperstarit.keepitapp.data.SessionState
@@ -28,6 +29,7 @@ import org.hyperstarit.keepitapp.notifications.AppNotifications
 import org.hyperstarit.keepitapp.notifications.ReminderScheduler
 import org.hyperstarit.keepitapp.notifications.ServerNotificationsWatcher
 import org.hyperstarit.keepitapp.widget.KeepItWidget
+import java.io.File
 
 /**
  * Process-wide wiring — a hand-rolled container instead of a DI framework (deliberate for v1: a
@@ -59,6 +61,11 @@ class AppContainer(context: Context) {
 
     val apiClient = ApiClient(context)
     val session = SessionRepository(apiClient, appMode)
+
+    /** The signed-in user's profile picture, kept on disk so it shows offline too. */
+    val profileImage = ProfileImage(File(context.filesDir, "offline/profile")) { userId ->
+        apiClient.api.profileImage(userId)
+    }
 
     private val localStore = LocalStore(context.applicationContext)
     private val outbox = Outbox(localStore)
@@ -98,11 +105,13 @@ class AppContainer(context: Context) {
     /**
      * SignalR pushes mean the server moved on — one sync replays anything queued and refetches.
      * `account` is the signed-in user (renamed on another device), which lives in the session.
+     * `settings` is what the server pushes after a profile picture upload.
      */
     val realtime = RealtimeClient(apiClient, appScope) { resources ->
         if ("notes" in resources || "lists" in resources) syncEngine.kick()
         if ("notification" in resources) notificationsWatcher.kick()
         if ("account" in resources) appScope.launch { session.refreshUser() }
+        if ("settings" in resources) appScope.launch { profileImage.refresh() }
     }
 
     init {
@@ -114,9 +123,11 @@ class AppContainer(context: Context) {
         realtime.onConnected = {
             syncEngine.kick()
             // Anything that landed in the inbox while the socket was down was missed too, and so
-            // was a rename on another device.
+            // was a rename or a new profile picture on another device. Connecting follows every
+            // sign-in, so this is also where a signed-in session first fetches its picture.
             notificationsWatcher.kick()
             appScope.launch { session.refreshUser() }
+            appScope.launch { profileImage.refresh() }
         }
         session.onLogout = {
             // Best-effort flush of queued changes while the session is still valid, then wipe.
@@ -128,6 +139,7 @@ class AppContainer(context: Context) {
             if (erasing) notesRepo.clearWidget()
             reminderScheduler.clear()
             notificationsWatcher.clear()
+            profileImage.clear()
         }
         session.onLeavingStandalone = { notesRepo.prepareStandaloneUpload() }
 
