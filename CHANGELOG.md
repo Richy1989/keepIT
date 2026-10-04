@@ -5,6 +5,10 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
+A tidier Settings. Your display name is no longer fixed at sign-up, the Android app's Settings
+becomes a short list with a page for each part, and the web and Android apps gain a proper About
+page. Update your server along with the app: it is what saves the display name.
+
 ### New
 
 - **Change your display name after sign-up.** It could only be set once, on the sign-up form, and
