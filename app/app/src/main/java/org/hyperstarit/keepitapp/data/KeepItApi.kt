@@ -50,6 +50,13 @@ interface KeepItApi {
     suspend fun changePassword(@Body body: ChangePasswordRequestDto): AuthResponseDto
 
     /**
+     * Deletes the account and everything it owns. 204 on success, 400 for a wrong password, and
+     * 404 from a server older than 0.9.2, which has no such endpoint.
+     */
+    @POST("api/auth/delete-account")
+    suspend fun deleteAccount(@Body body: DeleteAccountRequestDto)
+
+    /**
      * Streams a user's profile picture; 404 when they have none (or the caller may not see it).
      * Raw so [ProfileImage] can write it straight to disk.
      */

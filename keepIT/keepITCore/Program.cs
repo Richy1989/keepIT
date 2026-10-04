@@ -94,6 +94,7 @@ builder.Services.AddAppEmail(builder.Configuration);
 builder.Services.AddScoped<ITokenService, TokenService>();
 // Central "own OR shared" note authorization + realtime recipient resolution (used by note endpoints).
 builder.Services.AddScoped<keepITCore.Notes.NoteAccessService>();
+builder.Services.AddScoped<AccountDeletionService>();
 builder.Services
     .AddControllers()
      .ConfigureApiBehaviorOptions(options =>

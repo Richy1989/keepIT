@@ -459,6 +459,43 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Deletes the signed-in user's account and everything it owns: their notes with every photo
+    /// and recording, their lists, settings, inbox, profile picture and sign-in sessions. From notes
+    /// shared with them they are removed, and the owners keep those notes. The password is asked for
+    /// again, so neither a device left signed in nor a stolen access token can do this alone. See
+    /// <see cref="AccountDeletionService"/> for what goes and who is told.
+    /// </summary>
+    /// <param name="dto">The account's current password.</param>
+    /// <param name="deletion">The service that does the work.</param>
+    /// <returns>204 with the refresh cookie cleared, 400 if the password is wrong, or 401 if
+    /// unauthenticated.</returns>
+    [HttpPost("delete-account")]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
+    public async Task<IActionResult> DeleteAccount(DeleteAccountRequestDto dto, [FromServices] AccountDeletionService deletion)
+    {
+        var userId = User.GetUserId();
+        if (userId is null)
+            return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId.Value.ToString());
+        if (user is null)
+            return Unauthorized();
+
+        if (!await _userManager.CheckPasswordAsync(user, dto.Password))
+        {
+            ModelState.AddModelError(nameof(dto.Password), "That password isn't right.");
+            return ValidationProblem(ModelState);
+        }
+
+        if (!await deletion.DeleteAsync(user, HttpContext.RequestAborted))
+            return Problem("The account could not be deleted. Nothing was changed.");
+
+        ClearRefreshCookie();
+        return NoContent();
+    }
+
     /// <summary>The current user. Requires a valid access token.</summary>
     /// <returns>200 with the user, or 401 if the token is missing/invalid or the user no longer exists.</returns>
     [HttpGet("me")]

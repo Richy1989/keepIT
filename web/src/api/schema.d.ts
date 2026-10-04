@@ -1473,6 +1473,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/delete-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeleteAccountRequestDto"];
+                    "text/json": components["schemas"]["DeleteAccountRequestDto"];
+                    "application/*+json": components["schemas"]["DeleteAccountRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/me": {
         parameters: {
             query?: never;
@@ -1574,6 +1613,9 @@ export interface components {
         CreateShareDto: {
             email: string;
             role: components["schemas"]["NoteRole"];
+        };
+        DeleteAccountRequestDto: {
+            password: string;
         };
         EmailStatusDto: {
             smtpConfigured: boolean;

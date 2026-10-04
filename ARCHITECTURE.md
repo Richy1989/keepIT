@@ -254,9 +254,26 @@ the API issues tokens.
   caller's own devices only: the name is shown to its owner alone (shares and invites identify
   people by email). No new token: the access token's `name` claim keeps the old name until its
   next refresh, which is harmless since nothing reads it.
+- `POST /delete-account` — deletes the caller's account and everything it owns
+  (`DeleteAccountRequestDto`). The password is asked for again (a wrong one is a 400
+  ValidationProblem under `Password`, and nothing is touched), so a device left signed in or a
+  stolen access token can't erase an account. `AccountDeletionService` does the work in one
+  transaction: most of it is the cascade from the user row (owned notes with their checklists,
+  media rows, shares and every collaborator's view of them; lists, settings, inbox, refresh
+  tokens; the user's own state on notes shared with them). What doesn't cascade is done first:
+  shares **to** the user (that FK is `Restrict` on purpose, so no other user delete can sever a
+  share), and other people's inbox entries that point at the account by id — pending invites it
+  sent, reminders that fired on its notes. Files go after the commit (a leftover file is
+  harmless and the media sweep takes it; a note whose files went while its rows stayed is not):
+  each owned note's media, then the whole `users/{id}` folder with the profile picture. Realtime
+  then tells everyone whose view changed — collaborators who lose the notes, owners who lose a
+  collaborator, people whose invite or reminder went — and pushes `account` to the user's other
+  devices, whose next request finds no account and signs them out. Answers 204 and clears the
+  refresh cookie. Web: Settings → Security; Android: Settings → Account, which on success wipes
+  the device like sign-out does (cache, outbox, widget, reminders, profile picture).
 
-The credential endpoints (register, login, change-/forgot-/reset-password) carry the tight `auth`
-rate limit; `/refresh`, `/logout`, and `/me` (read or rename) deliberately sit under only the global
+The credential endpoints (register, login, change-/forgot-/reset-password, delete-account) carry
+the tight `auth` rate limit; `/refresh`, `/logout`, and `/me` (read or rename) deliberately sit under only the global
 limit — every page reload refreshes, and throttling that signs real users out (see **Security &
 abuse protection**).
 

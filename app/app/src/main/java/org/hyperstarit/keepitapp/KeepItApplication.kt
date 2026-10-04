@@ -141,6 +141,13 @@ class AppContainer(context: Context) {
             notificationsWatcher.clear()
             profileImage.clear()
         }
+        session.onAccountDeleted = {
+            notesRepo.clearLocal()
+            notesRepo.clearWidget()
+            reminderScheduler.clear()
+            notificationsWatcher.clear()
+            profileImage.clear()
+        }
         session.onLeavingStandalone = { notesRepo.prepareStandaloneUpload() }
 
         appearance.applyNightMode()

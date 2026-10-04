@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
+import { DeleteAccountForm } from '../features/account/DeleteAccountForm';
 import { DisplayNameForm } from '../features/account/DisplayNameForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
@@ -149,12 +150,20 @@ export function SettingsPage() {
             )}
 
             {active === 'security' && (
-              <SettingCard
-                title="Change password"
-                description="Update your password. This signs you out of your other devices."
-              >
-                <ChangePasswordForm />
-              </SettingCard>
+              <div className="space-y-6">
+                <SettingCard
+                  title="Change password"
+                  description="Update your password. This signs you out of your other devices."
+                >
+                  <ChangePasswordForm />
+                </SettingCard>
+                <SettingCard
+                  title="Delete account"
+                  description="Delete your account and everything in it from this server, for good. What goes:"
+                >
+                  <DeleteAccountForm />
+                </SettingCard>
+              </div>
             )}
 
             {active === 'data' && (

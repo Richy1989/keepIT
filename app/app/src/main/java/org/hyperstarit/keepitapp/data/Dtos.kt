@@ -85,6 +85,10 @@ data class ChangePasswordRequestDto(
     val newPassword: String,
 )
 
+/** Deletes the signed-in user's account; the password is asked for again. */
+@Serializable
+data class DeleteAccountRequestDto(val password: String)
+
 /** Public facts about the server instance (`GET api/meta`, anonymous). */
 @Serializable
 data class MetaDto(val version: String = "")

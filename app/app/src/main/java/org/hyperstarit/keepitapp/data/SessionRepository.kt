@@ -41,6 +41,9 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
     /** Wired by the app container: flushes pending offline changes + clears the local store. */
     var onLogout: (suspend () -> Unit)? = null
 
+    /** Wipes this phone's copy of an account the server has just deleted; see [deleteAccount]. */
+    var onAccountDeleted: (suspend () -> Unit)? = null
+
     /**
      * Wired by the app container: readies the standalone notes for upload into the account being
      * connected. Runs once an account has accepted the credentials but *before* the mode flips, so
@@ -117,6 +120,28 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      * last-known user, so an offline launch shows the new name too. Online only, like
      * [changePassword]: an account setting rather than note data, so it has no place in the outbox.
      */
+    /**
+     * Deletes the account on the server, then everything of it on this phone. Online only, like
+     * [changePassword]; nothing changes anywhere unless the server has deleted the account.
+     *
+     * The local wipe is [logout]'s without its flush: queued changes would only be refused by a
+     * server that no longer has the account, and they are the account's data, which the user has
+     * just asked to have deleted. [onAccountDeleted] clears the widget as well, since the notes it
+     * shows no longer exist anywhere.
+     */
+    suspend fun deleteAccount(password: String): Result<Unit> {
+        val result = resultUnlessCancelled { client.api.deleteAccount(DeleteAccountRequestDto(password)) }
+        if (result.isSuccess) {
+            withContext(NonCancellable) {
+                runCatching { onAccountDeleted?.invoke() }
+                client.clearSession()
+                client.clearLastUser()
+                _state.value = SessionState.SignedOut
+            }
+        }
+        return result
+    }
+
     suspend fun updateDisplayName(displayName: String): Result<Unit> =
         resultUnlessCancelled {
             applyUser(client.api.updateMe(UpdateProfileRequestDto(displayName.trim().ifEmpty { null })))
