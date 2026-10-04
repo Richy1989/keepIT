@@ -1,0 +1,66 @@
+{
+  "name": "keepIT",
+  "tagline": "A modern, real-time notes app you can run yourself.",
+  "description": [
+    "keepIT is a notes app for the web and Android. Write notes and checklists, add photos and voice notes, set reminders, and share notes with the people you choose. Every change appears on all your devices as you make it.",
+    "Your notes live on a server you run yourself, or only on your phone: the Android app also works entirely on its own. There are no ads, no analytics and no tracking, and no one else ever holds your data.",
+    "keepIT is free and open-source software, released under the MIT License."
+  ],
+  "copyright": "© 2026 Richard Leopold",
+  "links": [
+    {
+      "id": "source",
+      "label": "Source code",
+      "detail": "github.com/Richy1989/keepIT",
+      "url": "https://github.com/Richy1989/keepIT"
+    },
+    {
+      "id": "issues",
+      "label": "Report a problem",
+      "detail": "Bugs and ideas, on GitHub",
+      "url": "https://github.com/Richy1989/keepIT/issues"
+    },
+    {
+      "id": "releases",
+      "label": "What's new",
+      "detail": "Release notes on GitHub",
+      "url": "https://github.com/Richy1989/keepIT/releases"
+    },
+    {
+      "id": "license",
+      "label": "License",
+      "detail": "MIT License",
+      "url": "https://github.com/Richy1989/keepIT/blob/main/LICENSE"
+    },
+    {
+      "id": "support",
+      "label": "Support keepIT",
+      "detail": "Buy the developer a coffee",
+      "url": "https://buymeacoffee.com/hyperstarit"
+    }
+  ],
+  "thanks": "keepIT is built on the work of many open-source projects. Our sincere thanks to everyone who creates and maintains them.",
+  "credits": {
+    "web": [
+      { "name": "React", "role": "User interface", "license": "MIT", "url": "https://react.dev" },
+      { "name": "React Router", "role": "Navigation", "license": "MIT", "url": "https://reactrouter.com" },
+      { "name": "TanStack Query", "role": "Data fetching and caching", "license": "MIT", "url": "https://tanstack.com/query" },
+      { "name": "react-markdown and remark", "role": "Markdown rendering", "license": "MIT", "url": "https://github.com/remarkjs/react-markdown" },
+      { "name": "SignalR JavaScript client", "role": "Live sync", "license": "MIT", "url": "https://github.com/dotnet/aspnetcore" },
+      { "name": "openapi-fetch", "role": "Typed API client", "license": "MIT", "url": "https://openapi-ts.dev" },
+      { "name": "Tailwind CSS", "role": "Styling", "license": "MIT", "url": "https://tailwindcss.com" },
+      { "name": "Vite", "role": "Build tooling", "license": "MIT", "url": "https://vite.dev" },
+      { "name": "TypeScript", "role": "Programming language", "license": "Apache 2.0", "url": "https://www.typescriptlang.org" },
+      { "name": "Inter", "role": "Typeface, by Rasmus Andersson", "license": "SIL OFL 1.1", "url": "https://rsms.me/inter/" }
+    ],
+    "server": [
+      { "name": "ASP.NET Core", "role": "Web framework and live sync (SignalR)", "license": "MIT", "url": "https://github.com/dotnet/aspnetcore" },
+      { "name": "Entity Framework Core", "role": "Database access", "license": "MIT", "url": "https://github.com/dotnet/efcore" },
+      { "name": "Npgsql", "role": "PostgreSQL driver", "license": "PostgreSQL License", "url": "https://www.npgsql.org" },
+      { "name": "SQLite", "role": "Built-in database", "license": "Public domain", "url": "https://sqlite.org" },
+      { "name": "ImageSharp", "role": "Image processing", "license": "Six Labors Split License", "url": "https://sixlabors.com/products/imagesharp/" },
+      { "name": "MailKit", "role": "Email delivery", "license": "MIT", "url": "https://github.com/jstedfast/MailKit" },
+      { "name": "Serilog", "role": "Logging", "license": "Apache 2.0", "url": "https://serilog.net" }
+    ]
+  }
+}

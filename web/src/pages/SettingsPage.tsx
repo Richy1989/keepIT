@@ -6,11 +6,13 @@ import { DisplayNameForm } from '../features/account/DisplayNameForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
 import { DataSettings } from '../features/portability/DataSettings';
+import { AboutSettings } from '../features/about/AboutSettings';
 import { useEmailStatus, useServerMeta } from '../features/settings/queries';
 import {
   AlertIcon,
   ChevronLeftIcon,
   DownloadIcon,
+  InfoIcon,
   LogoutIcon,
   MailIcon,
   ShieldIcon,
@@ -19,13 +21,14 @@ import {
 } from '../components/icons';
 import { cn } from '../lib/cn';
 
-type SectionKey = 'general' | 'security' | 'email' | 'data';
+type SectionKey = 'general' | 'security' | 'email' | 'data' | 'about';
 
 const SECTIONS: { key: SectionKey; label: string; icon: typeof UserIcon }[] = [
   { key: 'general', label: 'General', icon: UserIcon },
   { key: 'security', label: 'Security', icon: ShieldIcon },
   { key: 'email', label: 'Email', icon: MailIcon },
   { key: 'data', label: 'Your data', icon: DownloadIcon },
+  { key: 'about', label: 'About', icon: InfoIcon },
 ];
 
 /** Account settings: section nav on the left, the active section's controls on the right. */
@@ -163,6 +166,8 @@ export function SettingsPage() {
               </SettingCard>
             )}
 
+            {active === 'about' && <AboutSettings />}
+
             {active === 'email' && (
               <SettingCard
                 title="Email delivery"
@@ -174,7 +179,8 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {meta.data && (
+        {/* About shows the version in its own header. */}
+        {meta.data && active !== 'about' && (
           <p className="mt-8 text-center text-xs text-text-faint">
             keepIT · server v{meta.data.version}
           </p>
