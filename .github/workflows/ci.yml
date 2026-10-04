@@ -68,17 +68,29 @@ jobs:
         run: docker run -d --name keepit -p 8080:80 -e Jwt__Key="$(openssl rand -hex 32)" keepit:ci
       - name: Smoke test through nginx
         run: bash deploy/smoke-test.sh http://localhost:8080
-      - name: No token from a URL reaches the container log
-        # The browser's SignalR client sends its access token in the URL, and a reset link carries
-        # its token in the page URL. nginx logs both redacted (deploy/nginx.conf).
+      - name: The container log holds no token from a URL, and no escape a request sent
+        # Two credentials travel in URLs: the browser's SignalR client sends its access token in
+        # one, and a reset link carries its token in the page URL. The API logs a request's path
+        # only, and nginx logs only what never reached the API, by path (deploy/nginx.conf), so no
+        # query string may appear. A path can also carry escape sequences, which a terminal showing
+        # the log would obey (Unraid's log view is one): both logs must show them escaped.
         run: |
           curl -s -o /dev/null "http://localhost:8080/api/realtime?id=ci&access_token=ci-hub-secret"
           curl -s -o /dev/null "http://localhost:8080/reset-password?email=ci%40example.com&token=ci-reset-secret"
+          curl -s -o /dev/null "http://localhost:8080/assets/ci-missing.js?token=ci-asset-secret"
+          curl -s -o /dev/null "http://localhost:8080/api/ci%1b%5b31minject"
+          curl -s -o /dev/null "http://localhost:8080/assets/ci%1b%5b31minject.js"
           sleep 1
-          docker logs keepit 2>&1 | grep -q 'access_token=\[redacted\]' \
-            || { echo "the hub request was not logged, or not in the redacted format"; exit 1; }
-          if docker logs keepit 2>&1 | grep -E 'ci-(hub|reset)-secret'; then
+          docker logs keepit > container.log 2>&1
+          grep -q '/api/realtime' container.log || { echo "the API did not log the hub request"; exit 1; }
+          grep -q '/assets/ci-missing.js' container.log || { echo "nginx did not log the missing asset"; exit 1; }
+          if grep -E 'ci-(hub|reset|asset)-secret' container.log; then
             echo "a token from a URL reached the log"; exit 1
+          fi
+          [ "$(grep -ci 'x1b\[31minject' container.log)" -ge 2 ] \
+            || { echo "the API and nginx did not both log the escape in the path, escaped"; exit 1; }
+          if grep -q $'\e\[31minject' container.log; then
+            echo "an escape sequence from a request reached the log raw"; exit 1
           fi
       - name: Container log
         if: failure()

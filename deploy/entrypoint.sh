@@ -53,8 +53,14 @@ nginx_pid=$!
 # it on, so the API finishes what it's doing and nginx closes its connections.
 trap 'kill -TERM "$api_pid" "$nginx_pid" 2>/dev/null || true' TERM INT
 
-# Wait for whichever process exits first, then stop the other and exit with its code.
-wait -n "$api_pid" "$nginx_pid"
-exit_code=$?
+# Wait for whichever process exits first (or for the stop signal, which ends the wait early), then
+# stop the other and exit with its code. Both have to be waited for before this script exits: when
+# PID 1 exits, the kernel kills everything left in the container on the spot, which cut the API off
+# in the middle of the shutdown the trap had just asked it for.
+# The `||` matters as much: a wait the signal ends returns 143, and under `set -e` that alone used
+# to exit the script before the lines below ran.
+exit_code=0
+wait -n "$api_pid" "$nginx_pid" || exit_code=$?
 kill "$api_pid" "$nginx_pid" 2>/dev/null || true
+wait "$api_pid" "$nginx_pid" 2>/dev/null || true
 exit "$exit_code"
