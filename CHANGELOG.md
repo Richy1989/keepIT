@@ -7,7 +7,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 A tidier Settings. Your display name is no longer fixed at sign-up, the Android app's Settings
 becomes a short list with a page for each part, and the web and Android apps gain a proper About
-page. Update your server along with the app: it is what saves the display name.
+page. On Android you can also select several notes at once. Update your server along with the
+app: it is what saves the display name.
 
 ### New
 
@@ -27,6 +28,12 @@ page. Update your server along with the app: it is what saves the display name.
   (and, on Android, your server's), links to the source code, issues, release notes, licence and
   support, and the open-source projects keepIT is built on, with our thanks. On the web it is the
   new **About** section in Settings; on Android, **Settings → About**.
+- **Select several notes at once, on Android.** Long-press a note to select it, tap others to add
+  them, and the top bar acts on all of them together: pin, change the color, file them into lists
+  (or make a new list for them), archive, or move them to the trash. In the trash, restore them or
+  delete them for good. Archive, trash and restore offer **Undo**; Back or ✕ ends the selection.
+  Notes shared with you as view-only keep their color, as they would one at a time. It works
+  offline and in standalone mode, and needs nothing new from the server.
 
 ### Updating
 

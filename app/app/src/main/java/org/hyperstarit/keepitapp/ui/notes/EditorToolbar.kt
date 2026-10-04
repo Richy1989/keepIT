@@ -329,6 +329,9 @@ internal fun AddToNoteSheet(
  * The note's background, as large swatches with their names. Picking one applies it at once and
  * leaves the sheet open: the note recolours behind it, so trying a few is a tap each rather than a
  * reopen each. Same swatches, same order as the web ColorPicker.
+ *
+ * The note list's multi-select opens it for several notes: [mixed] when they differ, so no swatch
+ * claims to be theirs, and a [footnote] when some of them are view-only and won't change.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -337,10 +340,21 @@ internal fun NoteColorSheet(
     selected: String?,
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
+    /** The notes have different colours, so none is shown as selected. */
+    mixed: Boolean = false,
+    footnote: String? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = KeepItColors.Surface) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
             SheetTitle("Background")
+            if (footnote != null) {
+                Text(
+                    text = footnote,
+                    color = KeepItColors.TextFaint,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                )
+            }
             NotePalette.chunked(5).forEach { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
@@ -348,7 +362,7 @@ internal fun NoteColorSheet(
                 ) {
                     row.forEach { option ->
                         val isDefault = option.key == "default"
-                        val isSelected = (selected ?: "default") == option.key
+                        val isSelected = !mixed && (selected ?: "default") == option.key
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -407,7 +421,7 @@ internal fun NoteColorSheet(
 }
 
 @Composable
-private fun SheetTitle(text: String) {
+internal fun SheetTitle(text: String) {
     Text(
         text = text,
         color = KeepItColors.Text,

@@ -1,5 +1,9 @@
 package org.hyperstarit.keepitapp.ui.notes
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,29 +13,40 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star as StarOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,6 +56,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -48,9 +64,12 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -67,11 +86,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,12 +103,14 @@ import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
 import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.UserDto
 import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
+import org.hyperstarit.keepitapp.data.offline.membershipOf
 import org.hyperstarit.keepitapp.ui.auth.UnsyncedSignOutDialog
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
@@ -99,6 +124,12 @@ import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
  *
  * In standalone mode there is nothing to sync with or sign out of: refresh, sign-out, the sync
  * strip and the server inbox all go, and the drawer says where the notes live.
+ *
+ * Long-pressing a card starts a multi-select, Android's usual way: taps then select, the top bar
+ * becomes the selection's actions (pin, color, lists, trash, archive; restore or delete forever in
+ * the trash), and Back or the close button ends it. Every action ends it too, and the ones that
+ * move notes out of sight offer an Undo. All of it goes through the repository as the single-note
+ * ops would, so it works offline and in standalone mode alike.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,6 +187,17 @@ fun NotesScreen(
     // "Delete all" in the trash: the notes it was pressed for, while the confirmation is up.
     var emptyTrashTarget by remember { mutableStateOf<List<NoteDto>?>(null) }
 
+    // Multi-select: the selected notes' ids, saved so a rotation keeps the selection. The sheets
+    // act on it live; [selectionEdited] records whether one changed anything, since closing a
+    // sheet that did ends the selection and closing one that didn't leaves it be.
+    var selectedIds by rememberSaveable(stateSaver = IdSetSaver) { mutableStateOf(emptySet<String>()) }
+    var colorSheetOpen by remember { mutableStateOf(false) }
+    var listsSheetOpen by remember { mutableStateOf(false) }
+    var newListForSelection by remember { mutableStateOf(false) }
+    var selectionEdited by remember { mutableStateOf(false) }
+    // "Delete forever" on a selection in the trash, while its confirmation is up.
+    var purgeTarget by remember { mutableStateOf<List<NoteDto>?>(null) }
+
     fun applyFilter(newFilter: NotesFilter) {
         scope.launch {
             repo.setFilter(newFilter)
@@ -169,8 +211,53 @@ fun NotesScreen(
     val pinned = if (showSections) visible.filter { it.isPinned } else emptyList()
     val others = if (showSections) visible.filter { !it.isPinned } else visible
 
+    val selectedNotes = visible.filter { it.id in selectedIds }
+    val selecting = selectedNotes.isNotEmpty()
+    // A selected note can leave the list under the selection (trashed on another device, or
+    // searched out of view), and one created offline changes id when it syncs. The selection keeps
+    // to what is on screen, under the ids the notes go by now.
+    val visibleIds = visible.mapTo(HashSet()) { it.id }
+    LaunchedEffect(visibleIds) {
+        val kept = selectedIds.mapTo(HashSet(), repo::resolve).filterTo(HashSet()) { it in visibleIds }
+        if (kept != selectedIds) selectedIds = kept
+    }
+
+    fun toggleSelected(id: String) {
+        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+    }
+
+    fun clearSelection() {
+        selectedIds = emptySet()
+    }
+
+    // Back leaves the selection before it leaves the screen.
+    BackHandler(enabled = selecting) { clearSelection() }
+
+    /**
+     * Applies [state] to the notes in [changed] and ends the selection. With a [message], a
+     * snackbar offers to put back [undo] — on exactly those notes, not the ones that were already
+     * that way.
+     */
+    fun changeSelection(changed: List<String>, state: NoteStateDto, message: String? = null, undo: NoteStateDto? = null) {
+        clearSelection()
+        if (changed.isEmpty()) return
+        scope.launch {
+            repo.setStateOf(changed, state)
+            if (message == null || undo == null) return@launch
+            val result = snackbarHostState.showSnackbar(message, actionLabel = "Undo", duration = SnackbarDuration.Long)
+            if (result == SnackbarResult.ActionPerformed) repo.setStateOf(changed, undo)
+        }
+    }
+
+    fun endSheet() {
+        if (selectionEdited) clearSelection()
+        selectionEdited = false
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // A swipe from the edge mid-selection would change the view out from under it.
+        gesturesEnabled = !selecting,
         drawerContent = {
             // Given the drawer state, the sheet handles Back itself: an open drawer closes (following
             // a predictive back gesture) instead of Back falling through and finishing the activity.
@@ -330,7 +417,51 @@ fun NotesScreen(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 Column {
-                    TopAppBar(
+                    if (selecting) SelectionTopBar(
+                        notes = selectedNotes,
+                        view = filter.view,
+                        allSelected = selectedNotes.size == visible.size,
+                        onClear = ::clearSelection,
+                        onSelectAll = { selectedIds = visibleIds },
+                        onPin = {
+                            val pin = selectedNotes.any { !it.isPinned }
+                            changeSelection(
+                                selectedNotes.filter { it.isPinned != pin }.map { it.id },
+                                NoteStateDto(isPinned = pin),
+                            )
+                        },
+                        onColor = { colorSheetOpen = true },
+                        onLists = { listsSheetOpen = true },
+                        onArchive = {
+                            val archive = selectedNotes.any { !it.isArchived }
+                            val changed = selectedNotes.filter { it.isArchived != archive }.map { it.id }
+                            changeSelection(
+                                changed,
+                                NoteStateDto(isArchived = archive),
+                                message = "${notesLabel(changed.size)} ${if (archive) "archived" else "unarchived"}",
+                                undo = NoteStateDto(isArchived = !archive),
+                            )
+                        },
+                        onTrash = {
+                            val changed = selectedNotes.map { it.id }
+                            changeSelection(
+                                changed,
+                                NoteStateDto(isTrashed = true),
+                                message = "${notesLabel(changed.size)} moved to trash",
+                                undo = NoteStateDto(isTrashed = false),
+                            )
+                        },
+                        onRestore = {
+                            val changed = selectedNotes.map { it.id }
+                            changeSelection(
+                                changed,
+                                NoteStateDto(isTrashed = false),
+                                message = "${notesLabel(changed.size)} restored",
+                                undo = NoteStateDto(isTrashed = true),
+                            )
+                        },
+                        onDeleteForever = { purgeTarget = selectedNotes },
+                    ) else TopAppBar(
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.background,
                             titleContentColor = KeepItColors.Text,
@@ -384,15 +515,30 @@ fun NotesScreen(
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(
-                    onClick = onCompose,
-                    containerColor = KeepItColors.Accent,
-                    contentColor = androidx.compose.ui.graphics.Color.Black,
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "New note")
+                AnimatedVisibility(visible = !selecting, enter = scaleIn(), exit = scaleOut()) {
+                    FloatingActionButton(
+                        onClick = onCompose,
+                        containerColor = KeepItColors.Accent,
+                        contentColor = androidx.compose.ui.graphics.Color.Black,
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = "New note")
+                    }
                 }
             },
         ) { padding ->
+            // A tap opens a note, or while selecting picks it; a long press starts the selection.
+            val card: @Composable (NoteDto) -> Unit = { note ->
+                NoteCard(
+                    note = note,
+                    repo = repo,
+                    audio = cardAudio,
+                    pendingMedia = pendingMedia[note.id].orEmpty(),
+                    selected = note.id in selectedIds,
+                    selecting = selecting,
+                    onClick = { if (selecting) toggleSelected(note.id) else onOpenNote(note.id) },
+                    onLongClick = { toggleSelected(note.id) },
+                )
+            }
             val content: @Composable BoxScope.() -> Unit = {
                 when {
                     (loading || syncStatus == SyncStatus.SYNCING) && notes.isEmpty() -> CircularProgressIndicator(
@@ -427,30 +573,15 @@ fun NotesScreen(
                     ) {
                         if (pinned.isNotEmpty()) {
                             item { SectionLabel("PINNED") }
-                            items(pinned, key = { "p-${it.id}" }) { note ->
-                                NoteCard(
-                                    note = note,
-                                    repo = repo,
-                                    audio = cardAudio,
-                                    pendingMedia = pendingMedia[note.id].orEmpty(),
-                                    onOpen = { onOpenNote(note.id) },
-                                )
-                            }
+                            items(pinned, key = { "p-${it.id}" }) { note -> card(note) }
                             item { SectionLabel("OTHERS") }
                         }
-                        items(others, key = { it.id }) { note ->
-                            NoteCard(
-                                note = note,
-                                repo = repo,
-                                audio = cardAudio,
-                                pendingMedia = pendingMedia[note.id].orEmpty(),
-                                onOpen = { onOpenNote(note.id) },
-                            )
-                        }
+                        items(others, key = { it.id }) { note -> card(note) }
                         // Below the last note, as on the web, rather than in the top bar: that is
                         // full already, and emptying the trash is rare enough to earn a scroll.
-                        // Hidden while searching, where "all" would be ambiguous.
-                        if (filter.view == NotesView.TRASHED && q.isEmpty()) {
+                        // Hidden while searching, where "all" would be ambiguous, and while
+                        // selecting, where the bar already offers to delete what is chosen.
+                        if (filter.view == NotesView.TRASHED && q.isEmpty() && !selecting) {
                             item(key = "delete-all") {
                                 Box(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -533,36 +664,89 @@ fun NotesScreen(
     }
 
     emptyTrashTarget?.let { target ->
-        val sharedWithMe = target.count { !it.isOwner }
-        AlertDialog(
-            onDismissRequest = { emptyTrashTarget = null },
-            containerColor = KeepItColors.Surface,
-            title = {
-                Text(if (target.size == 1) "Delete the note forever?" else "Delete all ${target.size} notes forever?")
+        DeleteForeverDialog(
+            notes = target,
+            everything = true,
+            onConfirm = {
+                emptyTrashTarget = null
+                scope.launch { repo.emptyTrash(target.map { it.id }) }
             },
-            text = {
-                Text(
-                    text = "This can't be undone." + if (sharedWithMe == 0) "" else
-                        " Notes others shared with you are only removed from your notes. Their owners keep them.",
-                    color = KeepItColors.TextMuted,
-                )
+            onDismiss = { emptyTrashTarget = null },
+        )
+    }
+
+    // ---- multi-select: delete-forever confirmation, color and list sheets ----
+
+    purgeTarget?.let { target ->
+        DeleteForeverDialog(
+            notes = target,
+            everything = false,
+            onConfirm = {
+                purgeTarget = null
+                clearSelection()
+                // The same op as "Delete all": the user's own notes are deleted, and they leave
+                // the ones shared with them, which a plain delete would be refused.
+                scope.launch { repo.emptyTrash(target.map { it.id }) }
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        emptyTrashTarget = null
-                        scope.launch { repo.emptyTrash(target.map { it.id }) }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text("Delete all")
-                }
+            onDismiss = { purgeTarget = null },
+        )
+    }
+
+    if (colorSheetOpen && selecting) {
+        // A color is the note's content, so a view-only note keeps its own.
+        val editable = selectedNotes.filter { it.canEdit }
+        val colors = editable.map { it.color }.distinct()
+        val viewOnly = selectedNotes.size - editable.size
+        NoteColorSheet(
+            selected = colors.singleOrNull(),
+            mixed = colors.size > 1,
+            footnote = when (viewOnly) {
+                0 -> null
+                1 -> "One of these notes is view-only and keeps its color."
+                else -> "$viewOnly of these notes are view-only and keep their color."
             },
-            dismissButton = {
-                TextButton(onClick = { emptyTrashTarget = null }) {
-                    Text("Cancel", color = KeepItColors.TextMuted)
-                }
+            onPick = { color ->
+                selectionEdited = true
+                val ids = selectedIds
+                scope.launch { repo.recolor(ids, color) }
             },
+            onDismiss = {
+                colorSheetOpen = false
+                endSheet()
+            },
+        )
+    }
+
+    if (listsSheetOpen && selecting) {
+        SelectionListsSheet(
+            lists = lists,
+            notes = selectedNotes,
+            onToggle = { listId, member ->
+                selectionEdited = true
+                val ids = selectedIds
+                scope.launch { repo.setListMembership(ids, listId, member) }
+            },
+            onNewList = { newListForSelection = true },
+            onDismiss = {
+                listsSheetOpen = false
+                endSheet()
+            },
+        )
+    }
+
+    if (newListForSelection) {
+        ListNameDialog(
+            title = "New list",
+            confirmLabel = "Create",
+            initial = "",
+            onConfirm = { name ->
+                newListForSelection = false
+                selectionEdited = true
+                val ids = selectedIds
+                // Filed under the list's temp id; the outbox replays its create first.
+                scope.launch { repo.setListMembership(ids, repo.createList(name), member = true) }
+            },
+            onDismiss = { newListForSelection = false },
         )
     }
 
@@ -602,6 +786,225 @@ fun NotesScreen(
             },
             onDismiss = { confirmSignOut = false },
         )
+    }
+}
+
+/**
+ * Confirms deleting trashed notes for good: [everything] in the trash ("Delete all"), or the ones
+ * selected there. Notes shared with the user can't be deleted by them, only left, so the copy says
+ * what happens to those.
+ */
+@Composable
+private fun DeleteForeverDialog(
+    notes: List<NoteDto>,
+    everything: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sharedWithMe = notes.count { !it.isOwner }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = KeepItColors.Surface,
+        title = {
+            Text(
+                when {
+                    notes.size == 1 -> "Delete the note forever?"
+                    everything -> "Delete all ${notes.size} notes forever?"
+                    else -> "Delete ${notes.size} notes forever?"
+                },
+            )
+        },
+        text = {
+            Text(
+                text = "This can't be undone." + if (sharedWithMe == 0) "" else
+                    " Notes others shared with you are only removed from your notes. Their owners keep them.",
+                color = KeepItColors.TextMuted,
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text(if (everything) "Delete all" else "Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = KeepItColors.TextMuted)
+            }
+        },
+    )
+}
+
+/**
+ * The top bar while notes are selected — Android's contextual action bar: a way out, how many, and
+ * what can be done to all of them at once. In the trash that is restore and delete forever.
+ * Elsewhere pin, color, lists and trash sit in the bar and archive in its menu, the rarest of them
+ * on a phone-width bar. Pin and archive go Keep's way: if any selected note isn't pinned, the
+ * action pins them all, and only when every one is pinned does it unpin.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(
+    notes: List<NoteDto>,
+    view: NotesView,
+    allSelected: Boolean,
+    onClear: () -> Unit,
+    onSelectAll: () -> Unit,
+    onPin: () -> Unit,
+    onColor: () -> Unit,
+    onLists: () -> Unit,
+    onArchive: () -> Unit,
+    onTrash: () -> Unit,
+    onRestore: () -> Unit,
+    onDeleteForever: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = KeepItColors.Elevated,
+            titleContentColor = KeepItColors.Text,
+        ),
+        navigationIcon = {
+            IconButton(onClick = onClear) {
+                Icon(Icons.Filled.Close, contentDescription = "Clear selection", tint = KeepItColors.TextMuted)
+            }
+        },
+        title = {
+            Text(text = "${notes.size}", fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+        },
+        actions = {
+            if (view == NotesView.TRASHED) {
+                IconButton(onClick = onRestore) {
+                    Icon(Icons.Filled.RestoreFromTrash, contentDescription = "Restore", tint = KeepItColors.TextMuted)
+                }
+                IconButton(onClick = onDeleteForever) {
+                    Icon(Icons.Filled.DeleteForever, contentDescription = "Delete forever", tint = KeepItColors.TextMuted)
+                }
+            } else {
+                val unpin = notes.all { it.isPinned }
+                IconButton(onClick = onPin) {
+                    Icon(
+                        imageVector = if (unpin) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                        contentDescription = if (unpin) "Unpin" else "Pin",
+                        tint = if (unpin) KeepItColors.AccentInk else KeepItColors.TextMuted,
+                    )
+                }
+                // Disabled rather than hidden when every selected note is view-only: the bar keeps
+                // its shape, and a color is the one action here a viewer can't take.
+                IconButton(onClick = onColor, enabled = notes.any { it.canEdit }) {
+                    Icon(
+                        Icons.Filled.Palette,
+                        contentDescription = "Background color",
+                        tint = if (notes.any { it.canEdit }) KeepItColors.TextMuted else KeepItColors.TextFaint,
+                    )
+                }
+                IconButton(onClick = onLists) {
+                    Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = "Lists", tint = KeepItColors.TextMuted)
+                }
+                IconButton(onClick = onTrash) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Move to trash", tint = KeepItColors.TextMuted)
+                }
+            }
+            val archive = view != NotesView.TRASHED
+            if (archive || !allSelected) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = KeepItColors.TextMuted)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (archive) {
+                            DropdownMenuItem(
+                                text = { Text(if (notes.all { it.isArchived }) "Unarchive" else "Archive") },
+                                onClick = { menuOpen = false; onArchive() },
+                            )
+                        }
+                        if (!allSelected) {
+                            DropdownMenuItem(
+                                text = { Text("Select all") },
+                                onClick = { menuOpen = false; onSelectAll() },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    )
+}
+
+/**
+ * Files the selection into lists or takes it out of them. Each box shows where the selected notes
+ * stand — checked when all are in the list, unchecked when none is, a dash when only some are —
+ * and a tap applies at once, as the color sheet does: a checked box takes them all out, anything
+ * else puts them all in. "New list" makes one and files the selection straight into it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionListsSheet(
+    lists: List<ListDto>,
+    notes: List<NoteDto>,
+    onToggle: (listId: String, member: Boolean) -> Unit,
+    onNewList: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = KeepItColors.Surface) {
+        Column(modifier = Modifier.padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
+            SheetTitle("Lists")
+            lists.forEach { list ->
+                val state = when (membershipOf(notes, list.id)) {
+                    true -> ToggleableState.On
+                    false -> ToggleableState.Off
+                    null -> ToggleableState.Indeterminate
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .triStateToggleable(
+                            state = state,
+                            role = Role.Checkbox,
+                            onClick = { onToggle(list.id, state != ToggleableState.On) },
+                        )
+                        .padding(horizontal = 24.dp),
+                ) {
+                    TriStateCheckbox(
+                        state = state,
+                        onClick = null,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = KeepItColors.Accent,
+                            checkmarkColor = Color.Black,
+                            uncheckedColor = KeepItColors.BorderStrong,
+                        ),
+                    )
+                    Text(
+                        text = list.name,
+                        color = KeepItColors.Text,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(start = 20.dp),
+                    )
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .clickable(onClick = onNewList)
+                    .padding(horizontal = 24.dp),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, tint = KeepItColors.TextMuted, modifier = Modifier.size(24.dp))
+                Text(
+                    text = "New list",
+                    color = KeepItColors.TextMuted,
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(start = 20.dp),
+                )
+            }
+        }
     }
 }
 
@@ -771,6 +1174,12 @@ private fun emptyCopy(view: NotesView): String = when (view) {
     NotesView.TRASHED -> "Trash is empty."
     NotesView.REMINDERS -> "No notes with reminders."
 }
+
+/** Saves the selection across a rotation: a Bundle holds a list of strings, not a set. */
+private val IdSetSaver = listSaver<Set<String>, String>(save = { it.toList() }, restore = { it.toSet() })
+
+/** "Note" or "3 notes", to start the snackbar that follows a multi-select action. */
+private fun notesLabel(count: Int): String = if (count == 1) "Note" else "$count notes"
 
 /** Client-side search over title, body, and checklist items — same rule as the web grid. */
 private fun NoteDto.matchesSearch(q: String): Boolean =

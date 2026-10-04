@@ -42,9 +42,15 @@ class Outbox(private val store: LocalStore) {
      * Merges an op into the queue and returns the ops coalescing discarded, so a caller can release
      * resources they owned — a dropped [PendingOp.AttachMedia] still has a staged file on disk.
      */
-    suspend fun enqueue(op: PendingOp): List<PendingOp> = mutex.withLock {
+    suspend fun enqueue(op: PendingOp): List<PendingOp> = enqueueAll(listOf(op))
+
+    /**
+     * [enqueue] for several ops at once — one action on many notes. Each coalesces in turn, exactly
+     * as if enqueued one by one, but the queue is written to disk once rather than once per note.
+     */
+    suspend fun enqueueAll(incoming: List<PendingOp>): List<PendingOp> = mutex.withLock {
         val before = ops.toList()
-        ops = coalesce(ops, op).toMutableList()
+        ops = incoming.fold(before, ::coalesce).toMutableList()
         persist()
         before.filter { old -> ops.none { it.opId == old.opId } }
     }
