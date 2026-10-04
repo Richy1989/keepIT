@@ -240,11 +240,17 @@ the API issues tokens.
   refresh tokens; the user signs in fresh. Bad/expired tokens get a generic error; password-
   rule failures are surfaced in detail (the caller has already proven email control).
 - `GET  /me` — the current user (requires a valid access token).
+- `PUT  /me` — renames the current user (`UpdateProfileRequestDto`): trimmed, and null or blank
+  removes the name, stored as null like an account registered without one, so the clients'
+  fallback to the email applies. Answers with the updated `UserDto` and pushes `account` to the
+  caller's own devices only: the name is shown to its owner alone (shares and invites identify
+  people by email). No new token: the access token's `name` claim keeps the old name until its
+  next refresh, which is harmless since nothing reads it.
 
-The credential endpoints (register, login, change-/forgot-/reset-password) carry the tight
-`auth` rate limit; `/refresh`, `/logout`, and `/me` deliberately sit under only the global
-limit — every page reload refreshes, and throttling that signs real users out (see
-**Security & abuse protection**).
+The credential endpoints (register, login, change-/forgot-/reset-password) carry the tight `auth`
+rate limit; `/refresh`, `/logout`, and `/me` (read or rename) deliberately sit under only the global
+limit — every page reload refreshes, and throttling that signs real users out (see **Security &
+abuse protection**).
 
 **Authorization rule (applies everywhere)**
 - Every endpoint requires a valid JWT **except** register, login, refresh, logout,
@@ -344,8 +350,10 @@ REST the single source of data.
 - **Hub:** `keepITCore/SignalR/RealTimeHub.cs`, mapped at **`/api/realtime`** (under `/api`
   so the dev proxy and nginx WebSocket-upgrade rules route it with no extra config).
 - **Contract:** one strongly-typed client method, `Changed(IReadOnlyList<string> resources)`,
-  where each resource is `"notes"`, `"lists"`, `"notification"`, or `"settings"`
-  (`RealtimeResources`). Clients only *receive*; mutations stay on REST, so the hub has **no
+  where each resource is `"notes"`, `"lists"`, `"notification"`, `"settings"`, or `"account"`
+  (`RealtimeResources`; `account` is the signed-in user, renamed via `PUT /api/auth/me`). A
+  client ignores a name it doesn't know, which is what lets a new one ship without breaking
+  older apps. Clients only *receive*; mutations stay on REST, so the hub has **no
   callable server methods**.
 - **Push path:** controllers depend on `IRealtimeNotifier` (a thin wrapper over
   `IHubContext<RealTimeHub, IRealTimeHub>`), and after each successful `SaveChanges` call
@@ -357,21 +365,24 @@ REST the single source of data.
   (our tokens don't emit `NameIdentifier`, which SignalR's default provider expects). The
   originating device also receives its own signal and harmlessly re-validates (TanStack
   dedupes in-flight loads).
-- **Sharing-aware fan-out:** a shared note's content change must reach the owner's devices
-  **and** every collaborator's. This is done by fanning out over the recipient set, not
-  SignalR groups: the controller asks `NoteAccessService.RecipientIdsAsync(noteId)` (owner +
-  all grantees) and calls `NotifyAsync` per user. **Per-user** changes (pin/archive/trash,
-  list membership, reminders, settings) notify only the acting caller, since no one else's
-  view moved. A `notification` signal targets a single user. A group-per-note model remains a
-  future optimization if the recipient loop ever gets expensive.
+- **Sharing-aware fan-out:** a shared note's content change must reach the owner's devices **and**
+  every collaborator's. This is done by fanning out over the recipient set, not SignalR groups: the
+  controller asks `NoteAccessService.RecipientIdsAsync(noteId)` (owner + all grantees) and calls
+  `NotifyAsync` per user. **Per-user** changes (pin/archive/trash, list membership, reminders,
+  settings, the display name) notify only the acting caller, since no one else's view moved. A
+  `notification` signal targets a single user. A group-per-note model remains a future optimization
+  if the recipient loop ever gets expensive.
 - **Clients:** web — `web/src/realtime/RealtimeSync.tsx` holds one authenticated connection
   while signed in, maps each resource to its TanStack Query key and invalidates on `Changed`,
   refreshes the token in `accessTokenFactory`, and re-syncs everything on reconnect
-  (`withAutomaticReconnect` + `onreconnected`). Android — `data/RealtimeClient.kt` (official
-  SignalR Java client) forwards `Changed` to the sync engine / notifications watcher; the Java
-  client has no automatic reconnect, so it retries on a delay and re-syncs on every reconnect.
-  It acts on `notes`/`lists`/`notification` only — **`settings` is deliberately dropped**, since
-  the app has no server-synced appearance to apply (see **Android client** → theming).
+  (`withAutomaticReconnect` + `onreconnected`). `account` is the exception: the signed-in user
+  lives in `AuthProvider`, not a query, so it and every re-sync call its `refreshUser()`.
+  Android — `data/RealtimeClient.kt` (official SignalR Java client) forwards `Changed` to the
+  sync engine / notifications watcher, and `account` to `SessionRepository.refreshUser()`; the
+  Java client has no automatic reconnect, so it retries on a delay and re-syncs (user included)
+  on every reconnect. It acts on `notes`/`lists`/`notification`/`account` only — **`settings` is
+  deliberately dropped**, since the app has no server-synced appearance to apply (see **Android
+  client** → theming).
 - **Scale-out caveat:** `Clients.User` is in-process. A single API instance (the intended
   deploy) reaches all of a user's devices; running multiple instances behind a load balancer
   would need a Redis backplane (`AddSignalR().AddStackExchangeRedis(...)`) — and the reminder
@@ -528,10 +539,10 @@ the server row.
   independent accent colors. Theme + accent are persisted server-side (`UserSettings`) and
   written to `<html>` as `data-theme` / `data-accent` by `SettingsProvider`, with a pre-paint
   script in `index.html` to avoid a flash. See **Look & feel**.
-- **Settings page** also hosts account management (display name/avatar upload, change
-  password), the operator's test-email button, and shows the server version from `/api/meta`.
-  When SMTP is configured without `App__PublicBaseUrl` (so reset emails are switched off), it
-  says so from `GET /api/settings/email-status`: a banner on every section, a marker on the
+- **Settings page** also hosts account management (avatar upload, editing or clearing the display
+  name, change password), the operator's test-email button, and shows the server version from
+  `/api/meta`. When SMTP is configured without `App__PublicBaseUrl` (so reset emails are switched
+  off), it says so from `GET /api/settings/email-status`: a banner on every section, a marker on the
   Email section, and the full explanation there, suggesting the address currently in use. Once
   configured, the Email section shows where reset links point instead. It also keeps
   `Email__AllowUnencrypted` visible while it's on, as a warning in the Email section.
@@ -637,10 +648,10 @@ must see the mode before any session is restored.
   store is marked as the standalone device's own (a non-GUID owner), so a sign-in can tell it
   apart from another account's cache. Entering standalone over an expired session's cache wipes
   that cache — after a confirmation when changes are still unsynced.
-- **What's off.** Sharing, the notification inbox, change password, the server version,
-  refresh and the sync strip are hidden. **Sign out** is replaced by **Erase notes** in Settings
-  (confirmed — there is no server copy). Unlike a sign-out, which leaves the widget showing the
-  last-known notes, an erase empties the widget's snapshot too.
+- **What's off.** Sharing, the notification inbox, display name, change password, the server
+  version, refresh and the sync strip are hidden. **Sign out** is replaced by **Erase notes** in
+  Settings (confirmed — there is no server copy). Unlike a sign-out, which leaves the widget showing
+  the last-known notes, an erase empties the widget's snapshot too.
 - **Images.** A queued attachment *is* the image: the editor shows it plainly (no upload
   spinner), opens it in the viewer, saves it to the gallery, and removes it by withdrawing its
   op (`Outbox.remove`). Cards fall back to the first queued attachment as their hero — which
@@ -692,8 +703,8 @@ Both ways of refreshing it run with **no UI in the process**, which shapes them:
 **Screens** (`ui/`): login/register (with server URL + forgot-password, or standalone), notes grid
 (staggered, with sync-status strip and pending-changes count), editor (Markdown styled live as it
 is typed, checklist editing, color, share sheet, reminder dialog),
-notifications inbox, settings (theme, notification + exact-alarm permissions, change password,
-about/version — a theme for this device only and no accent, see below).
+notifications inbox, settings (theme, notification + exact-alarm permissions, display name,
+change password, about/version — a theme for this device only and no accent, see below).
 
 ### UI & design parity (native, shared design language)
 

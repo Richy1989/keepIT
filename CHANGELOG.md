@@ -3,6 +3,20 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### New
+
+- **Change your display name after sign-up.** It could only be set once, on the sign-up form, and
+  never again. Settings now has a **Display name** field, in the web app's General section and the
+  Android app's Account section: change the name, or clear it to show your email instead. Your
+  other signed-in devices pick up the new name straight away.
+
+### Updating
+
+- Nothing to configure. The name is saved by the server, so update it along with the app: against
+  an older server, saving a name in the Android app shows an error and changes nothing.
+
 ## 0.8.5
 
 A new look. keepIT has a new icon -- a K of soft, rounded strokes, a green stem and a brass chevron
