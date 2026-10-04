@@ -370,6 +370,12 @@ keepIT is free and self-hosted: no accounts, no subscriptions. If it's useful to
 like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/hyperstarit). Much
 appreciated, but never expected.
 
+## Privacy
+
+keepIT collects nothing. The developer runs no keepIT servers, and there are no ads, analytics or
+trackers anywhere in it: your notes stay on your own server or your phone. See the
+[Privacy Policy](PRIVACY.md).
+
 ## License
 
 Released under the [MIT License](LICENSE). © 2026 Richard Leopold. Free to use, modify, and
