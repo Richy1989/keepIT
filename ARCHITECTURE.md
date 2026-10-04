@@ -1292,9 +1292,25 @@ The release notes open with that version's `## X.Y.Z` section of `CHANGELOG.md` 
 links pointed at the files as of the tag, since they'd resolve against the release page),
 then the Docker pull line and GitHub's generated list of changes. A tag without a section
 still releases, with a warning. **Before tagging:** bump `versionCode`/`versionName` in
-`app/app/build.gradle.kts` (F-Droid reads those literals; the code is `X*10000 + Y*100 + Z`,
-the same the workflow derives), add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
-(500 characters at most, for app users) and the `CHANGELOG.md` section (for operators).
+`app/app/build.gradle.kts` (F-Droid reads those literals; the code is
+`X*1000000 + Y*10000 + Z*100 + 99`, the same the workflow derives, and the workflow refuses a tag
+they disagree with before publishing anything, since F-Droid's reproducibility check would
+otherwise fail days later), add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
+(500 characters at most, for app users) and the `CHANGELOG.md` section (for operators). Up to
+0.8.5 the code was `X*10000 + Y*100 + Z` (805); the wider one makes room for betas.
+
+**Betas.** A tag `vX.Y.Z-beta.N` (N from 1 to 98) is a beta of X.Y.Z, for testers, and it runs
+the same workflow with three differences, each so that no one gets a beta without asking. The
+GitHub Release is a **pre-release**: GitHub never marks it latest, and Obtainium skips it unless
+the app's *Include prereleases* is on. The Docker image is tagged `X.Y.Z-beta.N` and `beta`,
+never `latest`. And its notes are CHANGELOG.md's `## Unreleased` section, under a line saying
+what a beta is. F-Droid needs nothing: its recipe follows only tags matching `^v[\d.]+$`, so it
+never sees one. Nothing in the repository is bumped for a beta; the Gradle literals stay at the
+last release, and the workflow builds the APK as `X.Y.Z-beta.N` with versionCode
+`X*1000000 + Y*10000 + Z*100 + N`. That places every beta above the release before it and below
+its own release (`…99`), so each installs over the last and the release over all of them, from
+any source, since every source ships the same signature. The workflow refuses a beta that would
+not be newer than the literals.
 
 ## Dev conveniences
 

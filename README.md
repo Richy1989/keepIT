@@ -302,6 +302,32 @@ The app icon is a Blender model: **[`docs/brand/`](docs/brand/README.md)** holds
 a script that renders every icon file from it, for Android, the web, F-Droid and this README, so
 changing the icon means editing one file and running one command.
 
+### Beta releases
+
+Before a release, betas of it may go out for testing, tagged `vX.Y.Z-beta.N`. A beta is built
+exactly like a release but published only where you have to ask for it, so nobody gets one by
+accident:
+
+- **Android, through Obtainium:** in keepIT's settings in Obtainium, turn on **Include
+  prereleases**. Each beta then arrives as an update, and so does the release that follows it.
+  Turn the setting off only once that release is out: until then Obtainium offers the older
+  release, which Android won't install over the beta. You can also sideload
+  `keepit-vX.Y.Z-beta.N-universal.apk` from its
+  [pre-release](https://github.com/Richy1989/keepIT/releases).
+- **F-Droid** never carries betas. A beta installs over the F-Droid app, since it is the same
+  signed build, and F-Droid takes over again with the next release.
+- **Server:** `richy1989/keepit:beta` is the newest beta, and `richy1989/keepit:X.Y.Z-beta.N` a
+  particular one. `latest` only ever moves to a release. A beta server may already have updated its
+  database for the coming release, so switch it back to `latest` once that release is out, never
+  to an older version.
+
+A beta's release notes are the `## Unreleased` section of [`CHANGELOG.md`](CHANGELOG.md). To
+publish one, tag a commit on `main` and push the tag; there is nothing to bump:
+
+```bash
+git tag v0.9.0-beta.1 && git push origin v0.9.0-beta.1
+```
+
 ## Why I built this
 
 Honestly? I just wanted a simple notes app, and couldn't find one with the three things I
