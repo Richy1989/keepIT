@@ -540,12 +540,14 @@ the server row.
   written to `<html>` as `data-theme` / `data-accent` by `SettingsProvider`, with a pre-paint
   script in `index.html` to avoid a flash. See **Look & feel**.
 - **Settings page** also hosts account management (avatar upload, editing or clearing the display
-  name, change password), the operator's test-email button, and shows the server version from
-  `/api/meta`. When SMTP is configured without `App__PublicBaseUrl` (so reset emails are switched
-  off), it says so from `GET /api/settings/email-status`: a banner on every section, a marker on the
-  Email section, and the full explanation there, suggesting the address currently in use. Once
-  configured, the Email section shows where reset links point instead. It also keeps
-  `Email__AllowUnencrypted` visible while it's on, as a warning in the Email section.
+  name, change password), the operator's test-email button, and an About section
+  (`features/about/`) with the server version from `/api/meta`, the project's links and the
+  open-source projects keepIT is built on. When SMTP is configured without `App__PublicBaseUrl`
+  (so reset emails are switched off), it says so from `GET /api/settings/email-status`: a banner on
+  every section, a marker on the Email section, and the full explanation there, suggesting the
+  address currently in use. Once configured, the Email section shows where reset links point
+  instead. It also keeps `Email__AllowUnencrypted` visible while it's on, as a warning in the Email
+  section.
 
 ## Android client (`app/`)
 
@@ -660,7 +662,8 @@ must see the mode before any session is restored.
   a one-time reminder fired or advances a recurring one. `settleDueReminders` does that in the
   cache — only *after* `ReminderScheduler.syncFrom` has seen it, so an occurrence is always
   posted before it is advanced past; the same UTC arithmetic as the server (`advanceOccurrence`).
-- **Connecting a server later** (Settings → Connect to a server, the sign-in form again). Once
+- **Connecting a server later** (Settings → This phone only → Connect to a server, the sign-in
+  form again). Once
   the credentials are accepted the queue is readied (`readiedForUpload`: one-time reminders
   already in the past are dropped and recurring ones moved to their next occurrence, or the
   server's dispatcher would fire them again), the mode flips, and the ordinary sync replays the
@@ -706,6 +709,29 @@ is typed, checklist editing, color, share sheet, reminder dialog),
 notifications inbox, settings (theme, notification + exact-alarm permissions, display name,
 change password, about/version — a theme for this device only and no accent, see below).
 
+**Settings** (`ui/settings/`) is a short top level that leads to sub-pages, each its own route in
+`SettingsRoutes` (registered in `AppRoot`'s `MainNav`). The top level is the account card (in
+standalone mode the device's), the theme (a dialog: four choices need no page), and rows into
+Notifications, Your data and About, each summarising where it stands. The Notifications row
+re-reads both permissions on every resume and is marked when either is off, so a blocked
+permission is visible without opening the page. A form or a long explanation gets a page:
+Account (display name in a dialog, email, Change password as a page of its own, the server
+address, Sign out), This device (standalone: connect a server, erase), Notifications, Your data,
+About. Every page is built from `SettingsComponents.kt` (page frame, rounded card of rows, row,
+account card), so they read as one screen and follow the theme through `KeepItColors`. Sign out
+appears in the drawer and on the Account page, and both use the same unsynced-changes warning
+(`ui/auth/SignOutDialog.kt`).
+
+**About** is one page in two clients, in the same words: the web's
+`web/src/features/about/about.json` holds the description, links, thanks and credits, and
+`ui/settings/AboutContent.kt` is the Android copy. `AboutContentParityTest` reads the JSON and fails
+when the parts both pages show drift apart (everything but each client's own credits) — the same
+arrangement as the colour tokens below. Both web files that Android tests read (`index.css`,
+`about.json`) are declared inputs of the unit-test task in `app/build.gradle.kts`, so a change on
+the web side alone reruns them instead of the tests being skipped as up to date. The page's icon
+is drawn from the launcher's own layers (Compose can't draw an adaptive icon), so it stays the
+icon `docs/brand/render_icons.py` writes.
+
 ### UI & design parity (native, shared design language)
 
 The Android UI reads as **the same product on a phone** — same tokens, card style, accent
@@ -737,7 +763,7 @@ Compose with a shared *design language*, not shared code and not pixel-cloning**
   all use it as content. A selected state (drawer row, chip, segment, the time picker's field) is
   the web's 15% accent tint with the **theme's text colour** on it, not the web's ink: the bright
   ink on a tint over Dim's surfaces measures 4.0–4.3:1.
-- **Appearance is per device on Android, theme only.** Settings → Appearance offers the web's
+- **Appearance is per device on Android, theme only.** Settings → Theme offers the web's
   four choices with the web's labels (Light, Dim, Dark, Auto); `data/Appearance.kt` keeps the
   choice in app-private prefs (`keepit_appearance`) and never sends it anywhere, so the web's
   per-account theme (`UserSettingsController`, `/api/settings`) does not follow the user to the

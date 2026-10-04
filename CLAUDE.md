@@ -80,8 +80,8 @@ layers guard it, cheapest first:
 
 1. **JVM unit tests** (`app/app/src/test/`) — offline op application, outbox coalescing, checklist
    ordering, the widget's snapshot projection + prefs codec, the note colour palette, the theme
-   tokens (AA contrast, and parity with the web's `index.css`), and the export archive's format
-   (`ArchiveTest`).
+   tokens (AA contrast, and parity with the web's `index.css`), the About page's text (parity with
+   the web's `about.json`), and the export archive's format (`ArchiveTest`).
    `./gradlew.bat :app:testMinifiedUnitTest` (that is the only unit-test task: `testBuildType` scopes
    the test components to the `minified` variant).
 2. **`verifyReleaseKeepRules`** — after R8 runs, reads its own `usage.txt` and fails if anything in

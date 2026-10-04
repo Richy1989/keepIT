@@ -11,6 +11,18 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   never again. Settings now has a **Display name** field, in the web app's General section and the
   Android app's Account section: change the name, or clear it to show your email instead. Your
   other signed-in devices pick up the new name straight away.
+- **A tidier Settings screen on Android.** One long page became a short list that says where each
+  thing stands, with a page for anything that needs room:
+  - **Account:** your display name, email, password and server, and Sign out (it is still in the
+    menu too). In standalone mode this is **This phone only**, with Connect to a server and Erase
+    notes.
+  - **Notifications:** the two permissions reminders depend on. The row on the main list is marked
+    when either is off, so a blocked permission no longer hides further down the page.
+  - **Your data**, as before; the theme is now picked in a small dialog.
+- **A proper About page, on the web and Android.** What keepIT is, the version you are running
+  (and, on Android, your server's), links to the source code, issues, release notes, licence and
+  support, and the open-source projects keepIT is built on, with our thanks. On the web it is the
+  new **About** section in Settings; on Android, **Settings → About**.
 
 ### Updating
 

@@ -86,6 +86,7 @@ import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.UserDto
 import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
+import org.hyperstarit.keepitapp.ui.auth.UnsyncedSignOutDialog
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
@@ -593,35 +594,13 @@ fun NotesScreen(
     }
 
     if (confirmSignOut) {
-        val changes = if (pending == 1) "1 change hasn't" else "$pending changes haven't"
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            containerColor = KeepItColors.Surface,
-            title = { Text("Sign out with unsynced changes?") },
-            text = {
-                Text(
-                    text = "$changes reached the server yet. keepIT tries to send them before signing " +
-                        "out, but anything it can't send — edits, photos and voice notes made on this " +
-                        "phone — is lost.",
-                    color = KeepItColors.TextMuted,
-                )
+        UnsyncedSignOutDialog(
+            pending = pending,
+            onConfirm = {
+                confirmSignOut = false
+                signOut()
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        confirmSignOut = false
-                        signOut()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text("Sign out")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmSignOut = false }) {
-                    Text("Cancel", color = KeepItColors.TextMuted)
-                }
-            },
+            onDismiss = { confirmSignOut = false },
         )
     }
 }

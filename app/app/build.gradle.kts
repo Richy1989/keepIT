@@ -262,3 +262,14 @@ val verifyReleaseKeepRules = tasks.register("verifyReleaseKeepRules") {
 tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
     finalizedBy(verifyReleaseKeepRules)
 }
+
+// Two unit tests read the web app's files to hold this app to it: WebTokenParityTest (the colour
+// tokens in index.css) and AboutContentParityTest (the About page's about.json). Declared as test
+// inputs so that a change on the web side alone reruns them; otherwise Gradle would call the tests
+// up to date, and the drift would only show on a clean build such as CI's.
+tasks.withType<Test>().configureEach {
+    inputs.files(
+        rootProject.file("../web/src/index.css"),
+        rootProject.file("../web/src/features/about/about.json"),
+    ).withPropertyName("webParitySources").withPathSensitivity(PathSensitivity.RELATIVE)
+}
