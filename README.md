@@ -207,12 +207,12 @@ Tap **Use without a server** on the sign-in screen and the app works entirely on
 notes, checklists, lists, images, reminders and the widget, with nothing to install anywhere
 else. Sharing and syncing with other devices need a server, so they're switched off.
 
-When you do set up a server, open **Settings → Connect to a server** and sign in: everything on
-the phone is uploaded into that account (alongside anything already in it) and syncs from then
-on. A photo the server won't take (over 10 MB or 100 megapixels, or HEIC) is saved to your
-gallery instead of being lost. Until then, standalone notes live only on the phone, so save a copy
-now and then with **Settings → Your data → Save my notes** and keep it somewhere else.
-**Settings → Erase notes** deletes them for good.
+When you do set up a server, open **Settings → This phone only → Connect to a server** and sign
+in: everything on the phone is uploaded into that account (alongside anything already in it) and
+syncs from then on. A photo the server won't take (over 10 MB or 100 megapixels, or HEIC) is saved
+to your gallery instead of being lost. Until then, standalone notes live only on the phone, so save
+a copy now and then with **Settings → Your data → Save my notes** and keep it somewhere else.
+**Settings → This phone only → Erase notes** deletes them for good.
 
 ### Get it
 
@@ -249,7 +249,7 @@ On first launch, enter your **server address** on the sign-in screen, or tap **U
 server** to try it standalone. The address is the same URL you open in the browser; from the
 Android emulator, your own machine is `http://10.0.2.2:5025`. For
 reminders that fire on the minute even while your phone sleeps, grant **Alarms & reminders**
-in the app's Settings screen.
+under **Settings → Notifications** in the app.
 
 ## What's next
 
