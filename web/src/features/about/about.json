@@ -33,6 +33,12 @@
       "url": "https://github.com/Richy1989/keepIT/blob/main/LICENSE"
     },
     {
+      "id": "privacy",
+      "label": "Privacy policy",
+      "detail": "How your data is handled",
+      "url": "https://github.com/Richy1989/keepIT/blob/main/PRIVACY.md"
+    },
+    {
       "id": "support",
       "label": "Support keepIT",
       "detail": "Buy the developer a coffee",

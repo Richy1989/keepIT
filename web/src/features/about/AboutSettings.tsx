@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   HeartIcon,
   MessageIcon,
+  ShieldIcon,
   TagIcon,
 } from '../../components/icons';
 import { useServerMeta } from '../settings/queries';
@@ -17,6 +18,7 @@ const LINK_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   issues: MessageIcon,
   releases: TagIcon,
   license: FileTextIcon,
+  privacy: ShieldIcon,
   support: HeartIcon,
 };
 

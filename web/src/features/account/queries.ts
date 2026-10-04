@@ -26,6 +26,20 @@ export function useChangePassword() {
 }
 
 /**
+ * Deletes the signed-in user's account and everything they own. The password goes with it; a
+ * wrong one comes back as a 400 whose message the caller shows. Once it succeeds the server has
+ * ended every session and cleared the refresh cookie, so the caller only drops the local session.
+ */
+export function useDeleteAccount() {
+  return useMutation({
+    mutationFn: async (password: string) => {
+      const { error, response } = await api.POST('/api/auth/delete-account', { body: { password } });
+      if (error || !response.ok) throw error ?? new Error('Could not delete the account.');
+    },
+  });
+}
+
+/**
  * Changes (or, with blank text, removes) the signed-in user's display name. The answer is the
  * updated user, applied straight to the auth context; the server's `account` push brings the
  * user's other devices along. The raw error body is thrown so the caller can surface server messages.
