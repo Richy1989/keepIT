@@ -28,6 +28,13 @@ import org.hyperstarit.keepitapp.ui.auth.LoginScreen
 import org.hyperstarit.keepitapp.ui.notes.EditorScreen
 import org.hyperstarit.keepitapp.ui.notes.NotesScreen
 import org.hyperstarit.keepitapp.ui.notifications.NotificationsScreen
+import org.hyperstarit.keepitapp.ui.settings.AboutSettingsScreen
+import org.hyperstarit.keepitapp.ui.settings.AccountSettingsScreen
+import org.hyperstarit.keepitapp.ui.settings.ChangePasswordScreen
+import org.hyperstarit.keepitapp.ui.settings.DataSettingsScreen
+import org.hyperstarit.keepitapp.ui.settings.DeviceSettingsScreen
+import org.hyperstarit.keepitapp.ui.settings.NotificationSettingsScreen
+import org.hyperstarit.keepitapp.ui.settings.SettingsRoutes
 import org.hyperstarit.keepitapp.ui.settings.SettingsScreen
 
 /** A navigation target requested from outside the app (the widget, a tray notification, a share). */
@@ -135,16 +142,38 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
                 container = container,
                 onOpenNote = { nav.navigate("editor?noteId=$it") },
                 onCompose = { nav.navigate("editor") },
-                onOpenSettings = { nav.navigate("settings") },
+                onOpenSettings = { nav.navigate(SettingsRoutes.MAIN) },
                 onOpenNotifications = { nav.navigate("notifications") },
             )
         }
-        composable("settings") {
-            SettingsScreen(
+        composable(SettingsRoutes.MAIN) {
+            SettingsScreen(container = container, onBack = { nav.popBackStack() }, onOpen = { nav.navigate(it) })
+        }
+        composable(SettingsRoutes.ACCOUNT) {
+            AccountSettingsScreen(
+                container = container,
+                onBack = { nav.popBackStack() },
+                onChangePassword = { nav.navigate(SettingsRoutes.PASSWORD) },
+            )
+        }
+        composable(SettingsRoutes.PASSWORD) {
+            ChangePasswordScreen(container = container, onBack = { nav.popBackStack() })
+        }
+        composable(SettingsRoutes.DEVICE) {
+            DeviceSettingsScreen(
                 container = container,
                 onBack = { nav.popBackStack() },
                 onConnectServer = { nav.navigate("connect") },
             )
+        }
+        composable(SettingsRoutes.NOTIFICATIONS) {
+            NotificationSettingsScreen(onBack = { nav.popBackStack() })
+        }
+        composable(SettingsRoutes.DATA) {
+            DataSettingsScreen(container = container, onBack = { nav.popBackStack() })
+        }
+        composable(SettingsRoutes.ABOUT) {
+            AboutSettingsScreen(container = container, onBack = { nav.popBackStack() })
         }
         // Standalone → server: the sign-in form, handing this device's notes to the account.
         composable("connect") {

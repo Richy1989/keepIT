@@ -26,13 +26,21 @@ import org.hyperstarit.keepitapp.data.portability.ImportOutcome
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
+/** The Your data page: [DataSection] in a card of its own. */
+@Composable
+fun DataSettingsScreen(container: AppContainer, onBack: () -> Unit) {
+    SettingsPage(title = "Your data", onBack = onBack) {
+        SettingsGroup { DataSection(container) }
+    }
+}
+
 /**
  * Export and import, for both modes.
  *
- * Standalone is the reason this screen has the section at all: the mode's own copy a few rows up
- * says the notes live only on this phone with no backup, and until now offered nothing about it.
- * The wording differs by mode for the same reason — a server user is taking a copy of an account,
- * a standalone user is making the only copy that exists.
+ * Standalone is the reason this page exists at all: the mode's own page (This device) says the
+ * notes live only on this phone and sends the user here for the one backup it can have. The
+ * wording differs by mode for the same reason — a server user is taking a copy of an account, a
+ * standalone user is making the only copy that exists.
  *
  * Both halves go through the system file picker rather than writing somewhere chosen for them:
  * an export the app owns would be erased with the app, which is most of what a backup is for.
@@ -84,7 +92,7 @@ fun DataSection(container: AppContainer) {
         }
     }
 
-    Column(modifier = Modifier.padding(vertical = 14.dp)) {
+    Column(modifier = SettingsContentPadding) {
         Text("Save a copy", color = KeepItColors.Text, fontSize = 15.sp)
         Text(
             text = if (standalone) {
