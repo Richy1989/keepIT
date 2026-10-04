@@ -3,6 +3,23 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+A fix for the Android editor, and new screenshots.
+
+### Fixed
+
+- **Opening a note on Android no longer counts as editing it.** Closing a note, or switching away
+  from the app while one was open, saved it even when nothing had changed: it jumped to the top of
+  the list and was sent to everyone it is shared with. On a shared note it could do worse, and send
+  back the copy you opened over a change someone else had made in the meantime. Only real changes
+  are saved now, as on the web.
+
+### Also
+
+- New screenshots of the current app, in all three themes, for the README, F-Droid and the Unraid
+  app listing.
+
 ## 0.9.0
 
 Many notes at once, and more colour. On Android, long-press a note to select several and act on
