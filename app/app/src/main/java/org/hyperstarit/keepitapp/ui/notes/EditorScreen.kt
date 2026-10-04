@@ -179,6 +179,11 @@ fun EditorScreen(
     // The row whose text field should grab focus next (a just-added checklist item).
     var focusTargetLocalId by remember { mutableStateOf<Long?>(null) }
 
+    // The content as it was loaded, or as it was last saved; see [persist]. List membership isn't in
+    // it: that is the caller's own, compared and saved on its own.
+    fun contentSignature() = editSignatureOf(type, title, body.text, color, emptySet(), items)
+    var persistedContent by remember { mutableStateOf<String?>(null) }
+
     // ---- images ----
     val context = LocalContext.current
     // Live view of this note, so an attachment that lands (or replays from the outbox) shows up
@@ -212,6 +217,7 @@ fun EditorScreen(
         items.clear()
         n.checklistItems.sortedBy { it.order }.forEach { items.add(EditableItem(it.id, it.text, it.isChecked)) }
         listIds = n.listIds.toSet()
+        persistedContent = contentSignature()
         loaded = true
     }
 
@@ -286,8 +292,16 @@ fun EditorScreen(
                     listIds = listIds.toList().ifEmpty { null },
                 ),
             )
+            persistedContent = contentSignature()
         } else {
-            if (current.canEdit) {
+            // Only content that differs from what was loaded or last saved goes out, as on the web.
+            // Closing the editor, backgrounding the app and attaching an image all come through here,
+            // and an unconditional update marked a note edited for having merely been opened: it
+            // jumped to the top of every list and was pushed to every collaborator. Worse, the editor
+            // loads a note once, so on a shared note it sent back a stale copy that overwrote whatever
+            // a collaborator had changed in the meantime.
+            val content = contentSignature()
+            if (current.canEdit && content != persistedContent) {
                 repo.update(
                     current.id,
                     UpdateNoteDto(
@@ -298,6 +312,7 @@ fun EditorScreen(
                         checklistItems = buildChecklist(),
                     ),
                 )
+                persistedContent = content
             }
             if (listIds != current.listIds.toSet()) {
                 repo.setLists(current.id, listIds.toList())
