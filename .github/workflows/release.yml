@@ -2,6 +2,11 @@ name: Release
 
 # A git tag `vX.Y.Z` is a release: build & push the multi-arch Docker image, build the signed
 # Android APK (version derived from the tag), and publish a GitHub Release with the APK attached.
+#
+# A tag `vX.Y.Z-beta.N` is a beta of X.Y.Z, for testers: the same build, published where only
+# someone who asks for it looks. The GitHub Release is a pre-release (Obtainium skips those unless
+# "Include prereleases" is on), the Docker image is tagged `X.Y.Z-beta.N` and `beta` but never
+# `latest`, and F-Droid never sees it (its recipe follows `^v[\d.]+$` tags only).
 on:
   push:
     tags:
@@ -16,18 +21,45 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Derive versions from the tag: vX.Y.Z -> VERSION_NAME=X.Y.Z, VERSION_CODE=X*10000+Y*100+Z
-      # (monotonic). Assumes clean semver tags for real releases.
+      # Derive versions from the tag. versionCode = X*1000000 + Y*10000 + Z*100 + S, where S is 99
+      # for the release and N for its beta N, so every beta of X.Y.Z installs over the release
+      # before it and the release X.Y.Z installs over all of them.
       - name: Compute version
         run: |
-          VERSION_NAME="${GITHUB_REF_NAME#v}"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_NAME"
-          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
-            echo "::error::Tag '$GITHUB_REF_NAME' is not a clean vMAJOR.MINOR.PATCH semver tag." >&2
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-beta\.([1-9][0-9]?))?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is neither vX.Y.Z nor vX.Y.Z-beta.N (Y and Z at most 99, N from 1 to 98)." >&2
             exit 1
           fi
-          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))" >> "$GITHUB_ENV"
+          MAJOR=${BASH_REMATCH[1]} MINOR=${BASH_REMATCH[2]} PATCH=${BASH_REMATCH[3]} BETA=${BASH_REMATCH[5]}
+          if [ -n "$BETA" ] && [ "$BETA" -gt 98 ]; then
+            echo "::error::Beta $BETA is out of range: 99 is the release's own slot." >&2
+            exit 1
+          fi
+          echo "VERSION_NAME=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$((MAJOR * 1000000 + MINOR * 10000 + PATCH * 100 + ${BETA:-99}))" >> "$GITHUB_ENV"
+          echo "PRERELEASE=$([ -n "$BETA" ] && echo true || echo false)" >> "$GITHUB_ENV"
+
+      # F-Droid builds a release from the versionCode/versionName literals in build.gradle.kts and
+      # checks its build reproduces our APK, so literals that disagree with the tag fail there,
+      # days later and out of sight. Refuse here, before anything is published. A beta leaves the
+      # literals at the last release (F-Droid never builds it), but must be newer than that.
+      - name: Check the Gradle version
+        run: |
+          GRADLE_CODE=$(sed -nE 's/^ *versionCode = ([0-9]+)$/\1/p' app/app/build.gradle.kts)
+          GRADLE_NAME=$(sed -nE 's/^ *versionName = "([^"]+)"$/\1/p' app/app/build.gradle.kts)
+          if [[ ! "$GRADLE_CODE" =~ ^[0-9]+$ ]] || [ -z "$GRADLE_NAME" ]; then
+            echo "::error::Can't read the versionCode/versionName literals from app/app/build.gradle.kts." >&2
+            exit 1
+          fi
+          if [ "$PRERELEASE" = false ]; then
+            if [ "$GRADLE_CODE" != "$VERSION_CODE" ] || [ "$GRADLE_NAME" != "$VERSION_NAME" ]; then
+              echo "::error::build.gradle.kts says $GRADLE_NAME ($GRADLE_CODE), the tag $VERSION_NAME ($VERSION_CODE). Fix the literals, then move the tag." >&2
+              exit 1
+            fi
+          elif [ "$VERSION_CODE" -le "$GRADLE_CODE" ]; then
+            echo "::error::Beta $VERSION_NAME ($VERSION_CODE) is not newer than $GRADLE_NAME ($GRADLE_CODE), so it would not install over it." >&2
+            exit 1
+          fi
 
       # ---- Docker image (web + API) to Docker Hub ----
       - uses: docker/setup-buildx-action@v4
@@ -39,9 +71,12 @@ jobs:
         id: meta
         with:
           images: richy1989/keepit
+          # `latest` is what everyone pulls, so only a release moves it; a beta moves `beta`.
+          flavor: latest=false
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ env.PRERELEASE == 'false' }}
+            type=raw,value=beta,enable=${{ env.PRERELEASE == 'true' }}
       - uses: docker/build-push-action@v7
         with:
           context: .
@@ -82,11 +117,13 @@ jobs:
       # ---- GitHub Release ----
       - name: Release notes
         # This version's section of CHANGELOG.md heads the release, then how to get it; GitHub's
-        # generated list of changes follows. A tag without a section still releases, with a
+        # generated list of changes follows. A beta takes the `## Unreleased` section instead,
+        # under a line saying what a beta is. A tag without a section still releases, with a
         # warning. Relative links (FAQ.md#…) would resolve against the release page, so they
         # are pointed at the files as of this tag.
         run: |
-          awk -v heading="## ${VERSION_NAME}" '
+          if [ "$PRERELEASE" = true ]; then SECTION=Unreleased; else SECTION="$VERSION_NAME"; fi
+          awk -v heading="## ${SECTION}" '
             $0 == heading { found = 1; next }
             found && /^## / { exit }
             found { print }
@@ -94,17 +131,35 @@ jobs:
             | sed -E "s#\]\(([A-Za-z0-9_./-]+\.md)#](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/\1#g" \
             > "$RUNNER_TEMP/changelog-section.md"
           if [ ! -s "$RUNNER_TEMP/changelog-section.md" ]; then
-            echo "::warning::CHANGELOG.md has no '## ${VERSION_NAME}' section"
+            echo "::warning::CHANGELOG.md has no '## ${SECTION}' section"
           fi
           {
+            if [ "$PRERELEASE" = true ]; then
+              echo "> **This is a beta, for testing.** It is not offered through F-Droid, through Obtainium unless"
+              echo "> you turned on *Include prereleases*, or through Docker's \`latest\` tag. See"
+              echo "> [Beta releases](https://github.com/${GITHUB_REPOSITORY}/blob/main/README.md#beta-releases)."
+              echo
+            fi
             cat "$RUNNER_TEMP/changelog-section.md"
             echo
             echo "**Docker:** \`docker pull richy1989/keepit:${VERSION_NAME}\`"
             echo
             echo "The Android APK is attached below: download and install it directly (sideload)."
           } > "$RUNNER_TEMP/release-notes.md"
+
+      # Left to itself, GitHub may start its list of changes at the last beta. A release's list
+      # should cover everything since the release before it, so name that one.
+      - name: Previous release
+        if: env.PRERELEASE == 'false'
+        run: |
+          PREVIOUS=$(git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -uV | grep -x -B1 "$GITHUB_REF_NAME" | head -n1)
+          [ "$PREVIOUS" = "$GITHUB_REF_NAME" ] && PREVIOUS=
+          echo "PREVIOUS_RELEASE=$PREVIOUS" >> "$GITHUB_ENV"
       - uses: softprops/action-gh-release@v3
         with:
           files: ${{ runner.temp }}/keepit-*.apk
+          prerelease: ${{ env.PRERELEASE }}
           generate_release_notes: true
+          previous_tag: ${{ env.PREVIOUS_RELEASE }}
           body_path: ${{ runner.temp }}/release-notes.md

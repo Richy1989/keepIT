@@ -34,7 +34,10 @@ android {
         targetSdk = 36
         // Static version is the source of truth — F-Droid reads these literals from the tagged
         // source (its checkupdates can't run Gradle or read env). Bump both when cutting a release
-        // so the tag vX.Y.Z matches. CI still overrides them from the tag via env for GitHub builds.
+        // so the tag vX.Y.Z matches: the code is X*1000000 + Y*10000 + Z*100 + 99, and release.yml
+        // refuses a tag they disagree with. CI still overrides them from the tag via env for GitHub
+        // builds, which is all a beta tag vX.Y.Z-beta.N is: it leaves these at the last release,
+        // and CI builds it as X.Y.Z-beta.N with code X*1000000 + Y*10000 + Z*100 + N.
         versionCode = 805
         versionName = "0.8.5"
         System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }

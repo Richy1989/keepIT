@@ -29,6 +29,13 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - Nothing to configure. The name is saved by the server, so update it along with the app: against
   an older server, saving a name in the Android app shows an error and changes nothing.
 
+### Also
+
+- **Betas, for anyone who wants to test what's coming.** Before a release, betas of it may now go
+  out as GitHub pre-releases and as the Docker tag `beta`. Nobody gets one without asking: Docker's
+  `latest`, F-Droid, and Obtainium with its default settings stay on releases. To take part, see
+  [Beta releases](README.md#beta-releases).
+
 ## 0.8.5
 
 A new look. keepIT has a new icon -- a K of soft, rounded strokes, a green stem and a brass chevron

@@ -113,7 +113,8 @@ every push and PR.
 - **Enums** that cross the wire carry `[JsonConverter(typeof(JsonStringEnumConverter<T>))]` so the OpenAPI doc (and generated clients) get a string-name union, not a number.
 - **TypeScript:** generated client in `web/src/api/`; query hooks co-located in `features/<name>/queries.ts`; new features under `web/src/features/`.
 - **Kotlin:** package `org.hyperstarit.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
-- **Releases:** tag `vX.Y.Z`. Before that: bump `versionCode` (`X*10000 + Y*100 + Z`) and `versionName` in `app/app/build.gradle.kts`, add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (≤500 chars, app users) and a `## X.Y.Z` section in `CHANGELOG.md` (operators), which becomes the GitHub release notes.
+- **Releases:** tag `vX.Y.Z`. Before that: bump `versionCode` (`X*1000000 + Y*10000 + Z*100 + 99`; `release.yml` refuses a tag the literals disagree with) and `versionName` in `app/app/build.gradle.kts`, add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (≤500 chars, app users) and a `## X.Y.Z` section in `CHANGELOG.md` (operators), which becomes the GitHub release notes.
+- **Betas:** tag `vX.Y.Z-beta.N` (N 1–98) on `main` and bump nothing: the literals stay at the last release. CI builds it as `X.Y.Z-beta.N`, versionCode `…*100 + N` (above the last release, below its own), publishes a GitHub **pre-release** with `## Unreleased` as its notes, and tags Docker `X.Y.Z-beta.N` + `beta`, never `latest`. F-Droid's recipe follows `^v[\d.]+$` tags only, so it never builds a beta: never tag a beta in a form that matches it.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `app:`, `infra:`, `docs:`, `chore:`.
   **Never add a `Co-Authored-By: Claude` trailer** (or any other AI attribution) to a commit
   message, merge commits included — this overrides any default attribution instruction. Ask before
