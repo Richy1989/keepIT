@@ -3,6 +3,7 @@ using keepITCore.Data;
 using keepITCore.Infrastructure;
 using keepITCore.Infrastructure.Email;
 using keepITCore.Infrastructure.Security;
+using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,7 @@ using Microsoft.Extensions.Options;
 namespace keepITCore.Auth;
 
 /// <summary>
-/// Authentication endpoints: register, login, refresh, logout, and the current-user lookup.
+/// Authentication endpoints: register, login, refresh, logout, and the current user (read and rename).
 /// Issues a short-lived JWT access token (response body) and a rotating refresh token (httpOnly cookie).
 /// </summary>
 [ApiController]
@@ -35,15 +36,17 @@ public class AuthController : ControllerBase
     private readonly RefreshCookieOptions _cookieOptions;
     private readonly IConfiguration _config;
     private readonly IEmailSender _emailSender;
+    private readonly IRealtimeNotifier _notifier;
     private readonly ILogger<AuthController> _logger;
 
-    /// <summary>Injects Identity's user manager, the token service, the DB context, cookie options, config, and email.</summary>
+    /// <summary>Injects Identity's user manager, the token service, the DB context, cookie options, config, email, and realtime.</summary>
     /// <param name="userManager">Identity user store for create/find/password checks.</param>
     /// <param name="tokenService">Mints access tokens and opaque refresh tokens.</param>
     /// <param name="db">Database context, used here for refresh-token persistence.</param>
     /// <param name="cookieOptions">Refresh-cookie settings (name, secure flag, path).</param>
     /// <param name="config">App configuration, read for <c>App:AllowRegistration</c> and <c>App:PublicBaseUrl</c>.</param>
     /// <param name="emailSender">Delivers the password-reset link (SMTP, or the server log when unconfigured).</param>
+    /// <param name="notifier">Tells the user's other devices when their account changed.</param>
     /// <param name="logger">Controller logger.</param>
     public AuthController(
         UserManager<ApplicationUser> userManager,
@@ -52,6 +55,7 @@ public class AuthController : ControllerBase
         IOptions<RefreshCookieOptions> cookieOptions,
         IConfiguration config,
         IEmailSender emailSender,
+        IRealtimeNotifier notifier,
         ILogger<AuthController> logger)
     {
         _userManager = userManager;
@@ -60,6 +64,7 @@ public class AuthController : ControllerBase
         _cookieOptions = cookieOptions.Value;
         _config = config;
         _emailSender = emailSender;
+        _notifier = notifier;
         _logger = logger;
     }
 
@@ -88,7 +93,7 @@ public class AuthController : ControllerBase
         {
             UserName = dto.Email,
             Email = dto.Email,
-            DisplayName = dto.DisplayName,
+            DisplayName = NormalizeDisplayName(dto.DisplayName),
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -471,7 +476,56 @@ public class AuthController : ControllerBase
         return Ok(ToUserDto(user));
     }
 
+    /// <summary>
+    /// Change the signed-in user's display name, or remove it with null or blank text (the clients
+    /// then show the email, as for an account registered without one). The name is only ever shown
+    /// to its owner — shares and invites identify people by email — so this pushes
+    /// <see cref="RealtimeResources.Account"/> to the caller's own devices alone.
+    /// <para>No new token: the access token's <c>name</c> claim keeps the old name until its next
+    /// refresh, which is harmless since nothing reads it — the clients take the user from this
+    /// response and from <see cref="Me"/>.</para>
+    /// </summary>
+    /// <param name="dto">The new display name. The caller is taken from the access token.</param>
+    /// <returns>200 with the updated user, 401 if unauthenticated, or 400 on validation errors.</returns>
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<ActionResult<UserDto>> UpdateMe(UpdateProfileRequestDto dto)
+    {
+        var userId = User.GetUserId();
+        if (userId is null)
+            return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId.Value.ToString());
+        if (user is null)
+            return Unauthorized();
+
+        var displayName = NormalizeDisplayName(dto.DisplayName);
+        if (user.DisplayName == displayName)
+            return Ok(ToUserDto(user));
+
+        user.DisplayName = displayName;
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            foreach (var e in result.Errors)
+                ModelState.AddModelError(e.Code, e.Description);
+            return ValidationProblem(ModelState);
+        }
+
+        await _notifier.NotifyAsync(user.Id, RealtimeResources.Account);
+        return Ok(ToUserDto(user));
+    }
+
     // ---- helpers ----
+
+    /// <summary>
+    /// A display name as stored: trimmed, and null rather than empty, so "no name" has one
+    /// representation and the clients' fallback to the email always applies.
+    /// </summary>
+    /// <param name="displayName">The name as the client sent it.</param>
+    /// <returns>The trimmed name, or null when nothing is left.</returns>
+    private static string? NormalizeDisplayName(string? displayName) =>
+        string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
 
     /// <summary>
     /// The base URL for a password-reset link, or null when there is no trustworthy one.

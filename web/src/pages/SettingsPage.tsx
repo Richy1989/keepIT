@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
+import { DisplayNameForm } from '../features/account/DisplayNameForm';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
 import { DataSettings } from '../features/portability/DataSettings';
@@ -128,14 +129,15 @@ export function SettingsPage() {
           <div className="min-w-0 flex-1">
             {active === 'general' && (
               <SettingCard
-                title="Profile picture"
-                description="Add a user icon shown next to your account."
+                title="Profile"
+                description="Your picture and the name shown next to your account."
               >
                 <UserIconSetting />
                 <div className="mt-6 border-t border-border-subtle pt-4">
+                  <DisplayNameForm />
+                </div>
+                <div className="mt-6 border-t border-border-subtle pt-4">
                   <dl className="grid gap-3 text-sm sm:grid-cols-[8rem_1fr]">
-                    <dt className="text-text-muted">Display name</dt>
-                    <dd className="text-text">{user?.displayName || '—'}</dd>
                     <dt className="text-text-muted">Email</dt>
                     <dd className="text-text">{user?.email}</dd>
                   </dl>

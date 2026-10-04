@@ -111,6 +111,40 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
             client.saveLastUser(response.user)
         }
 
+    /**
+     * Renames the signed-in user, or removes the name with blank text (the app then shows the
+     * email). The server's answer becomes the signed-in user, so the drawer follows at once, and the
+     * last-known user, so an offline launch shows the new name too. Online only, like
+     * [changePassword]: an account setting rather than note data, so it has no place in the outbox.
+     */
+    suspend fun updateDisplayName(displayName: String): Result<Unit> =
+        resultUnlessCancelled {
+            applyUser(client.api.updateMe(UpdateProfileRequestDto(displayName.trim().ifEmpty { null })))
+        }
+
+    /**
+     * Refetches the signed-in user after another device changed the account: the realtime
+     * `account` push, or a reconnect that may have missed one. A failure keeps the user already
+     * shown until the next try.
+     */
+    suspend fun refreshUser() {
+        if (_state.value !is SessionState.SignedIn) return
+        orNullUnlessCancelled { client.api.me() }?.let(::applyUser)
+    }
+
+    /**
+     * Makes [user] the signed-in one, but only while that same account is still signed in: an
+     * answer landing after a sign-out, or a switch to another account, must not bring the old
+     * session back. The new [SessionState.SignedIn] re-runs AppRoot's sign-in effect, which is
+     * idempotent for the same user (and an unchanged user emits nothing at all).
+     */
+    private fun applyUser(user: UserDto) {
+        val current = _state.value as? SessionState.SignedIn ?: return
+        if (current.user.id != user.id) return
+        client.saveLastUser(user)
+        _state.value = SessionState.SignedIn(user)
+    }
+
     /** Enters standalone mode: no server, no account — the notes screen opens straight away. */
     fun startStandalone() {
         mode.setStandalone(true)

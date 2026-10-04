@@ -11,7 +11,9 @@ import { SETTINGS_KEY } from '../features/settings/queries';
 
 /**
  * Resource names the server sends on `Changed`. Must mirror `RealtimeResources` in the backend
- * (keepITCore/SignalR/RealtimeNotifier.cs) — and they're mapped to TanStack Query keys below.
+ * (keepITCore/SignalR/RealtimeNotifier.cs) — and they're mapped to TanStack Query keys below. The
+ * one exception is `account`, the signed-in user, which lives in the auth context rather than a
+ * query and is refetched through it.
  */
 const RESOURCE_QUERY_KEY: Record<string, string> = {
   notes: NOTES_KEY,
@@ -33,8 +35,10 @@ function backoffMs(attempt: number): number {
   return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5)) * (0.75 + Math.random() * 0.5);
 }
 
+const ACCOUNT_RESOURCE = 'account';
+
 export function RealtimeSync() {
-  const { status } = useAuth();
+  const { status, refreshUser } = useAuth();
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -62,10 +66,14 @@ export function RealtimeSync() {
       }
     };
     /** Any gap in the connection may have dropped pushes — refetch everything to catch up. */
-    const resync = () => invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]);
+    const resync = () => {
+      invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]);
+      void refreshUser();
+    };
 
     connection.on('Changed', (resources: string[]) => {
       invalidate(resources.map((r) => RESOURCE_QUERY_KEY[r]).filter(Boolean));
+      if (resources.includes(ACCOUNT_RESOURCE)) void refreshUser();
     });
     connection.onreconnected(resync);
 
@@ -102,7 +110,7 @@ export function RealtimeSync() {
       clearTimeout(timer);
       void connection.stop();
     };
-  }, [status, qc]);
+  }, [status, qc, refreshUser]);
 
   return null;
 }

@@ -1502,7 +1502,34 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateProfileRequestDto"];
+                    "text/json": components["schemas"]["UpdateProfileRequestDto"];
+                    "application/*+json": components["schemas"]["UpdateProfileRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["UserDto"];
+                        "application/json": components["schemas"]["UserDto"];
+                        "text/json": components["schemas"]["UserDto"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -1696,6 +1723,9 @@ export interface components {
             body?: null | string;
             color?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
+        };
+        UpdateProfileRequestDto: {
+            displayName?: null | string;
         };
         UpdateShareRoleDto: {
             role: components["schemas"]["NoteRole"];

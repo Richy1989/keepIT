@@ -8,8 +8,10 @@ import { AuthContext, type AuthState } from './AuthContext';
 
 /**
  * Owns the session: restores it from the httpOnly refresh cookie on load, exposes login/register/
- * logout, and reacts to a global `keepit:unauthorized` event by signing out. The access token
- * itself lives in {@link tokenStore} (memory only), never in React state or storage.
+ * logout and the signed-in user (renamed via {@link AuthState.updateUser}, refetched on another
+ * device's change via {@link AuthState.refreshUser}), and reacts to a global `keepit:unauthorized`
+ * event by signing out. The access token itself lives in {@link tokenStore} (memory only), never
+ * in React state or storage.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDto | null>(null);
@@ -85,6 +87,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyAuth],
   );
 
+  // Ignores a user arriving after sign-out (a refetch that was already in flight), so it can't
+  // resurrect the session it belonged to.
+  const updateUser = useCallback((next: UserDto) => {
+    setUser((current) => (current ? next : current));
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const { data } = await api.GET('/api/auth/me');
+      if (data) updateUser(data);
+    } catch {
+      // Offline or the API restarting: keep the user we have; the next resync tries again.
+    }
+  }, [updateUser]);
+
   const logout = useCallback(async () => {
     await api.POST('/api/auth/logout').catch(() => undefined);
     tokenStore.clear();
@@ -94,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   return (
-    <AuthContext.Provider value={{ user, status, login, register, logout }}>
+    <AuthContext.Provider value={{ user, status, login, register, logout, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
