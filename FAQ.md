@@ -273,3 +273,11 @@ Compose setup the app publishes no port; only keepIT's own containers share its 
 If keepIT is reachable from the internet: yes, once your accounts exist. Set
 `App__AllowRegistration=false`. Existing users keep working. Registration would otherwise also
 tell anyone whether an email address already has an account.
+
+### How is an account deleted?
+
+By its owner, from 0.9.2 on: Settings → Security → Delete account on the web, or Settings → Account
+→ Delete account on Android, confirmed with the account's password. The server removes the account
+and everything it owns, files included; notes other people shared with it stay with them. keepIT
+has no admin page, so an operator can't delete someone else's account from inside keepIT. Your own
+backups of the data folder still hold the account until you replace them.

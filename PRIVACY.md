@@ -122,8 +122,13 @@ collect information about the download under its own policy.
 - **Remove everything from a phone:** sign out, which deletes the notes stored on the phone, or in
   standalone mode use Settings → This phone only → Erase notes. Uninstalling the app also deletes
   everything it stored.
-- **Delete your account:** keepIT has no button for this yet. Ask the operator of your server, who
-  can delete your account and everything stored with it.
+- **Delete your account:** Settings → Security → Delete account on the web, or Settings → Account
+  → Delete account on Android. After you enter your password again, the server deletes your
+  account, your notes with every photo and recording in them, your lists, settings, profile
+  picture and notifications. Notes you shared are gone for everyone you shared them with; notes
+  others shared with you stay with their owners. This cannot be undone, so export first if you
+  want a copy. It needs a server on keepIT 0.9.2 or newer; on an older one, ask the operator.
+  Copies the operator made of the server, such as backups, are up to the operator.
 
 ## Security
 

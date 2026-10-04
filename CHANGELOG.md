@@ -3,6 +3,28 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+Delete your own account, and a privacy policy. Update your server along with the app: the server is
+what deletes the account.
+
+### New
+
+- **Delete your account**, on the web (Settings → Security) and on Android (Settings → Account).
+  After you enter your password again, the server deletes the account and everything it owns: notes
+  with their photos and recordings, lists, settings, profile picture and notifications. Notes you
+  shared are gone for everyone; notes others shared with you stay with their owners, who are told
+  right away, as is everyone who loses one of your notes. It cannot be undone, so export first.
+  Android on an older server says the server needs updating.
+- **A [privacy policy](PRIVACY.md)**, linked from About on the web and on Android. In short: keepIT
+  collects nothing, and your notes stay on your server or your phone.
+
+### Fixed
+
+- **Android shows the server's own error messages.** A refused form, such as a wrong current
+  password, showed the generic "One or more validation errors occurred." instead of what was
+  wrong.
+
 ## 0.9.1
 
 A fix for the Android editor, and new screenshots.
