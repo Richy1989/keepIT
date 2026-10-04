@@ -839,7 +839,9 @@ more modern**, not a pixel clone.
   accent colors** are token overrides (`data-theme` / `data-accent`), a swap not a rewrite. The
   default accent is **forest**, the green of the app icon's K (`docs/brand/`); the API
   gives new accounts the same default, and the Android app uses it as its fixed accent.
-  Note background colors are re-tuned per theme (muted on dark, not Keep's bright pastels).
+  Note background colors are re-tuned per theme: on dark and dim, saturated hues kept dark enough
+  that secondary text still clears AA on them (an earlier, near-grey set read as dreary); on
+  light, pastels.
 - **Everything a theme must restate is a token**, not just the palette: elevation
   (`--shadow-card|panel|raised|overlay`, consumed by the `.elev-*` classes — Tailwind inlines a
   `--shadow-*` theme value into its utility, so it can't be overridden per theme), the modal

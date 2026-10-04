@@ -34,6 +34,10 @@ app: it is what saves the display name.
   delete them for good. Archive, trash and restore offer **Undo**; Back or ✕ ends the selection.
   Notes shared with you as view-only keep their color, as they would one at a time. It works
   offline and in standalone mode, and needs nothing new from the server.
+- **Livelier note colors, on the web and Android.** On the dark and dim themes the nine note
+  colors were so muted they read as shades of grey; they are now about twice as saturated and a
+  little brighter, with text on them as legible as before. The light theme's pastels are a touch
+  richer too. Your notes keep the colors you gave them: only the shades change.
 
 ### Fixed
 
