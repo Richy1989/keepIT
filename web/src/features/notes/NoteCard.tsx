@@ -23,12 +23,16 @@ import {
   UsersIcon,
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
-import type { ChecklistItemDto, NoteDto, UpdateNoteDto } from '../../api/types';
+import type { ChecklistItemDto, NoteDto, NoteField, UpdateNoteDto } from '../../api/types';
 
 
 
-/** Builds an UpdateNoteDto from a note plus overrides (used for inline color / checklist edits). */
-function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>): UpdateNoteDto {
+/**
+ * Builds an UpdateNoteDto from a note plus overrides (used for inline color / checklist edits),
+ * naming only the overridden fields: the rest are sent as cached, which may be behind the server,
+ * and must not overwrite what a collaborator changed meanwhile.
+ */
+function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>, fields: NoteField[]): UpdateNoteDto {
   return {
     type: note.type,
     title: note.title,
@@ -36,6 +40,7 @@ function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>): UpdateNoteD
     color: note.color,
     checklistItems: note.checklistItems,
     ...overrides,
+    fields,
   };
 }
 
@@ -66,7 +71,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
     const items = note.checklistItems.map((i) =>
       i === target ? { ...i, isChecked: !i.isChecked } : i,
     );
-    update.mutate({ id: note.id, body: toUpdate(note, { checklistItems: items }) });
+    update.mutate({ id: note.id, body: toUpdate(note, { checklistItems: items }, ['ChecklistItems']) });
   }
 
   return (
@@ -211,7 +216,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
             onPick={(key) => {
               update.mutate({
                 id: note.id,
-                body: toUpdate(note, { color: key === 'default' ? null : key }),
+                body: toUpdate(note, { color: key === 'default' ? null : key }, ['Color']),
               });
               setShowColors(false);
             }}

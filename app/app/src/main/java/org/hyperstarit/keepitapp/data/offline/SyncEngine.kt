@@ -36,7 +36,9 @@ enum class SyncStatus { IDLE, SYNCING, OFFLINE }
  * Failure policy per op: network/5xx stops the run (the queue keeps its head and a later trigger
  * retries); a 401 defers to the session (queue retained — re-login resumes replay); any other 4xx
  * is permanent for that op, which is dropped with a message on [syncErrors] so the user learns a
- * change didn't stick (e.g. the note was deleted on another device). What stopped a run is handed
+ * change didn't stick (e.g. the note was deleted on another device). Nothing the user made is
+ * dropped with it: a refused image goes to the gallery, a refused note's text to Documents
+ * ([NoteTextRescue]). What stopped a run is handed
  * to [ConnectivityMonitor.markOffline] as a [SyncProblem], so "offline" can say why.
  *
  * In standalone mode ([isStandalone]) there is no server, so every run is a no-op and the outbox is
@@ -51,6 +53,7 @@ class SyncEngine(
     private val scope: CoroutineScope,
     private val updater: CacheUpdater,
     private val staging: MediaStaging,
+    private val textRescue: NoteTextRescue,
     private val isStandalone: () -> Boolean,
 ) {
     /** How synced data lands in the repository's cache — implemented by NotesRepository. */
@@ -171,6 +174,10 @@ class SyncEngine(
                                 rescued = staging.rescueToGallery(op.stagedPath)
                                 staging.delete(op.stagedPath)
                             }
+                            // The same for text: a refused create or edit is dropped, and the
+                            // refetch that follows replaces the phone's copy with the server's. For
+                            // a note written offline or in standalone mode, this op was the only copy.
+                            is PendingOp.Create, is PendingOp.Update -> rescued = textRescue.rescue(op)
                             // Everything still naming the list would be refused in turn.
                             is PendingOp.CreateList -> {
                                 outbox.forgetList(op.tempId)
@@ -275,7 +282,11 @@ class SyncEngine(
             400 -> if (op is PendingOp.AttachMedia) "the file isn't a supported image" else "the server refused it"
             else -> "the server refused it"
         }
-        val kept = if (rescued) " It was saved to Pictures/keepIT instead." else ""
+        val kept = when {
+            !rescued -> ""
+            op is PendingOp.AttachMedia -> " It was saved to Pictures/keepIT instead."
+            else -> " Its text was saved to Documents/keepIT."
+        }
         return "Couldn't sync $what — $why.$kept"
     }
 

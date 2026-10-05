@@ -254,6 +254,88 @@ public sealed class ImportTests
         Assert.Empty((await client.GetFromJsonAsync<JsonElement>("/api/notifications")).EnumerateArray());
     }
 
+    /// <summary>
+    /// An archive is a file from anywhere, and import holds it to the limits every other write is
+    /// held to: over-long content is shortened with a warning, not stored as it is (a note that could
+    /// then never be saved again) and not allowed to fail the whole import on a column's size.
+    /// </summary>
+    [Fact]
+    public async Task Content_over_the_limits_is_shortened_with_a_warning()
+    {
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+
+        var listId = Guid.NewGuid();
+        var manifest = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            exportedAtUtc = DateTime.UtcNow,
+            appVersion = "test",
+            lists = new[] { new { id = listId, name = new string('L', 150), color = (string?)null, createdAtUtc = DateTime.UtcNow } },
+            notes = new object[]
+            {
+                new
+                {
+                    id = Guid.NewGuid(),
+                    type = "Text",
+                    title = new string('T', 5000),
+                    body = new string('B', 200_000),
+                    color = new string('c', 40),
+                    listIds = new[] { listId },
+                },
+                new
+                {
+                    id = Guid.NewGuid(),
+                    type = "Checklist",
+                    title = "many rows",
+                    checklistItems = Enumerable.Range(0, 600)
+                        .Select(i => new { text = i == 0 ? new string('x', 3000) : $"row {i}", isChecked = false, order = i })
+                        .ToArray(),
+                },
+            },
+        });
+
+        var result = await ImportOkAsync(client, BuildArchive(manifest));
+
+        Assert.Equal(2, result.GetProperty("notesImported").GetInt32());
+        var warnings = result.GetProperty("warnings").EnumerateArray().Select(w => w.GetString()!).ToList();
+        Assert.Equal(3, warnings.Count(w => w.Contains("shortened")));
+
+        var grid = await GridAsync(client);
+        var text = Assert.Single(grid, n => n.GetProperty("type").GetString() == "Text");
+        Assert.Equal(1000, text.GetProperty("title").GetString()!.Length);
+        Assert.Equal(100_000, text.GetProperty("body").GetString()!.Length);
+        Assert.Equal(JsonValueKind.Null, text.GetProperty("color").ValueKind);
+        var checklist = NoteWithTitle(grid, "many rows");
+        var rows = checklist.GetProperty("checklistItems").EnumerateArray().ToList();
+        Assert.Equal(500, rows.Count);
+        Assert.Equal(2000, rows.Max(r => r.GetProperty("text").GetString()!.Length));
+        var list = Assert.Single((await client.GetFromJsonAsync<JsonElement>("/api/lists")).EnumerateArray());
+        Assert.Equal(100, list.GetProperty("name").GetString()!.Length);
+
+        // What import stored is something the API takes back unchanged.
+        var save = await client.PutAsJsonAsync($"/api/notes/{text.GetProperty("id").GetString()}", new
+        {
+            type = "Text",
+            title = text.GetProperty("title").GetString(),
+            body = text.GetProperty("body").GetString(),
+        });
+        Assert.Equal(HttpStatusCode.OK, save.StatusCode);
+        var saveChecklist = await client.PutAsJsonAsync($"/api/notes/{checklist.GetProperty("id").GetString()}", new
+        {
+            type = "Checklist",
+            title = "many rows",
+            checklistItems = rows.Select(r => new
+            {
+                id = r.GetProperty("id").GetString(),
+                text = r.GetProperty("text").GetString(),
+                isChecked = false,
+                order = r.GetProperty("order").GetInt32(),
+            }),
+        });
+        Assert.Equal(HttpStatusCode.OK, saveChecklist.StatusCode);
+    }
+
     /// <summary>An image the manifest promises but the archive doesn't contain is a warning, not a failure.</summary>
     [Fact]
     public async Task A_missing_image_is_reported_and_the_note_still_imports()

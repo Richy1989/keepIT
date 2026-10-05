@@ -11,6 +11,7 @@ type S = components['schemas'];
 export type NoteDto = S['NoteDto'];
 export type CreateNoteDto = S['CreateNoteDto'];
 export type UpdateNoteDto = S['UpdateNoteDto'];
+export type NoteField = S['NoteField'];
 export type NoteStateDto = S['NoteStateDto'];
 export type SetNoteReminderDto = S['SetNoteReminderDto'];
 export type ReminderRecurrence = S['ReminderRecurrence'];

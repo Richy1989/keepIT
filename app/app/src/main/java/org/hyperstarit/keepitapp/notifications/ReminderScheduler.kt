@@ -60,8 +60,8 @@ class ReminderScheduler(private val context: Context) {
      */
     fun syncFrom(notes: List<NoteDto>) {
         val pending = notes.mapNotNull { n ->
+            if (!n.hasPendingReminder()) return@mapNotNull null
             val at = n.remindAtUtc ?: return@mapNotNull null
-            if (n.reminderFired || n.isTrashed) return@mapNotNull null
             val ms = runCatching { Instant.parse(ensureUtc(at)).toEpochMilli() }.getOrNull() ?: return@mapNotNull null
             PendingReminder(
                 noteId = n.id,
@@ -217,3 +217,9 @@ class ReminderScheduler(private val context: Context) {
             }
     }
 }
+
+/**
+ * Whether this note has a reminder still to go off — what [ReminderScheduler] arms an alarm for:
+ * fired one-time reminders and trashed notes never nag.
+ */
+fun NoteDto.hasPendingReminder(): Boolean = remindAtUtc != null && !reminderFired && !isTrashed

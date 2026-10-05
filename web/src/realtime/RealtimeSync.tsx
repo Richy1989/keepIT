@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { tokenStore } from '../auth/tokenStore';
 import { refreshAccessToken } from '../api/client';
 import { NOTES_KEY } from '../features/notes/queries';
+import { NOTE_SHARES_KEY } from '../features/notes/shareQueries';
 import { LISTS_KEY } from '../features/lists/queries';
 import { NOTIFICATIONS_KEY } from '../features/notifications/queries';
 import { SETTINGS_KEY } from '../features/settings/queries';
@@ -14,12 +15,16 @@ import { SETTINGS_KEY } from '../features/settings/queries';
  * (keepITCore/SignalR/RealtimeNotifier.cs) — and they're mapped to TanStack Query keys below. The
  * one exception is `account`, the signed-in user, which lives in the auth context rather than a
  * query and is refetched through it.
+ *
+ * `notes` also covers each note's collaborator list: the server announces a membership change
+ * (an invite answered, a role changed, someone leaving) as `notes` to everyone on the note, and
+ * without this an open share dialog kept showing an accepted invite as "Pending".
  */
-const RESOURCE_QUERY_KEY: Record<string, string> = {
-  notes: NOTES_KEY,
-  lists: LISTS_KEY,
-  notification: NOTIFICATIONS_KEY,
-  settings: SETTINGS_KEY,
+const RESOURCE_QUERY_KEYS: Record<string, string[]> = {
+  notes: [NOTES_KEY, NOTE_SHARES_KEY],
+  lists: [LISTS_KEY],
+  notification: [NOTIFICATIONS_KEY],
+  settings: [SETTINGS_KEY],
 };
 
 /**
@@ -67,12 +72,12 @@ export function RealtimeSync() {
     };
     /** Any gap in the connection may have dropped pushes — refetch everything to catch up. */
     const resync = () => {
-      invalidate([NOTES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]);
+      invalidate([NOTES_KEY, NOTE_SHARES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]);
       void refreshUser();
     };
 
     connection.on('Changed', (resources: string[]) => {
-      invalidate(resources.map((r) => RESOURCE_QUERY_KEY[r]).filter(Boolean));
+      invalidate(resources.flatMap((r) => RESOURCE_QUERY_KEYS[r] ?? []));
       if (resources.includes(ACCOUNT_RESOURCE)) void refreshUser();
     });
     connection.onreconnected(resync);

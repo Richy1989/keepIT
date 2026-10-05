@@ -142,6 +142,7 @@ public class NoteSharesController : ControllerBase
         _db.Notifications.Add(invite);
         await _db.SaveChangesAsync();
         await _notifier.NotifyAsync(recipient.Id, RealtimeResources.Notification);
+        await NotifyMembersAsync(noteId);
         return NoContent();
     }
 
@@ -165,8 +166,9 @@ public class NoteSharesController : ControllerBase
 
         share.Role = dto.Role;
         await _db.SaveChangesAsync();
-        // The grantee's edit permission changed — refresh their notes so the UI locks/unlocks editing.
-        await _notifier.NotifyAsync(granteeId, RealtimeResources.Notes);
+        // The grantee's edit permission changed — refresh their notes so the UI locks/unlocks editing
+        // — and everyone else on the note sees the role in "People with access".
+        await NotifyMembersAsync(noteId);
         return NoContent();
     }
 
@@ -202,6 +204,7 @@ public class NoteSharesController : ControllerBase
             await _db.SaveChangesAsync();
             // The invitee's bell should drop the cancelled invite.
             await _notifier.NotifyAsync(granteeId, RealtimeResources.Notification);
+            await NotifyMembersAsync(noteId);
             return NoContent();
         }
 
@@ -218,6 +221,23 @@ public class NoteSharesController : ControllerBase
         await _db.SaveChangesAsync();
         // Access is gone: the grantee's devices must drop the note from their grid.
         await _notifier.NotifyAsync(granteeId, RealtimeResources.Notes, RealtimeResources.Lists);
+        // And whoever is left on the note — the owner too, when a collaborator leaves — sees one
+        // person fewer with access, or the note no longer shared at all.
+        await NotifyMembersAsync(noteId);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Tells the owner and every collaborator of a note that its membership changed. Who has access
+    /// shows on all their devices — "People with access", the shared badge, a collaborator's edit
+    /// rights — so a change made by one person, or on one device, must reach the others; telling
+    /// only the person it was about left the owner looking at a "Pending" invite long after it had
+    /// been accepted, or at a collaborator who had already left.
+    /// </summary>
+    /// <param name="noteId">The note whose members to reach.</param>
+    private async Task NotifyMembersAsync(Guid noteId)
+    {
+        var members = await _access.RecipientIdsAsync(noteId);
+        await Task.WhenAll(members.Select(uid => _notifier.NotifyAsync(uid, RealtimeResources.Notes)));
     }
 }

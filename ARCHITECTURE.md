@@ -192,14 +192,22 @@ the API issues tokens.
 - **Access token** — short-lived JWT (`Jwt__AccessTokenMinutes`, default 15). Returned in the
   response body and held **in memory** on the client (web: `tokenStore.ts`; Android: an
   in-memory `TokenStore`). Sent as `Authorization: Bearer <token>`. Carries the user id in
-  the `sub` claim.
+  the `sub` claim. Validation also checks that the account still exists (`OnTokenValidated`,
+  one primary-key lookup): a token outlives nothing it names, and without the check a deleted
+  account's other devices kept a working token for the rest of its lifetime — reading an empty
+  account, failing every write on a foreign key. Refused instead, they refresh, are refused
+  again, and sign out.
 - **Refresh token** — long-lived (`Jwt__RefreshTokenDays`, default 14), opaque, set as an
   **httpOnly + Secure + SameSite=Strict** cookie so JS can't read it. Stored server-side
   **hashed** (`RefreshToken` entity: token hash, expiry, revocation, replaced-by chain) so a
   DB leak doesn't leak usable tokens and individual tokens can be revoked. A 401 triggers a
   silent refresh; only a **401 from `/refresh` itself** signs the client out — transient
   failures (429/5xx/network) are retried and never treated as a lost session, because the
-  cookie is still valid.
+  cookie is still valid. A 401 refreshes even when the client's clock still calls the token
+  fresh — the server has refused it, and a changed signing key, a deleted account or a phone
+  clock running behind all look like that. Android once trusted the clock here and never
+  refreshed, signing users out on a key change; a client now skips the refresh only when it
+  already holds a newer token than the one refused (another caller refreshed meanwhile).
 - **Rotation + reuse detection.** Every `/refresh` revokes the presented token and issues a
   replacement. Presenting a rotated (not expired) token whose replacement is **already in use**
   is the signature of a stolen cookie being replayed — **all** of the user's active refresh
@@ -471,8 +479,13 @@ just appear in a stranger's grid). Owner-only except where noted:
 Recording a pending invite keyed by email and resolving it on signup is a planned refinement.
 
 **Edge cases honored.**
-- **Concurrent edits:** optimistic updates + SignalR keep editors roughly in sync;
-  last-write-wins on `updatedAt`. Field-level merge/CRDT is out of scope.
+- **Concurrent edits:** optimistic updates + SignalR keep editors roughly in sync. Each edit
+  names the fields it changed (`UpdateNoteDto.fields`: type, title, body, colour, checklist) and the
+  server sets only those, so two people changing different parts of a note both keep their change;
+  within one field, the edit that arrives last wins. Before, an update replaced the whole note, and
+  an edit queued offline on Android silently reverted whatever had changed meanwhile in the parts it
+  never touched. The checklist is one field: merging rows, or text within a field (CRDT), is out of
+  scope.
 - **Revocation is immediate:** the next API call 403s/404s and the realtime push tells the
   revoked user's devices to resync (the note vanishes from their grid).
 - **Deleting a shared note:** owner-only; cascades shares, per-user state, list rows, and
@@ -749,7 +762,11 @@ change password, about/version — a theme for this device only and no accent, s
 standalone mode the device's), the theme (a dialog: four choices need no page), and rows into
 Notifications, Your data and About, each summarising where it stands. The Notifications row
 re-reads both permissions on every resume and is marked when either is off, so a blocked
-permission is visible without opening the page. A form or a long explanation gets a page:
+permission is visible without opening the page. The notes screen asks too, but only when it
+matters: while a reminder is pending and notifications are off, a banner offers to allow them
+(`NotificationsOffBanner`). Android asks for the permission only when an app requests it, and the
+app used to request it only when a reminder was set on the phone — reminders set on the web then
+fired on time and showed nothing. A form or a long explanation gets a page:
 Account (display name in a dialog, email, Change password as a page of its own, the server
 address, Sign out), This device (standalone: connect a server, erase), Notifications, Your data,
 About. Every page is built from `SettingsComponents.kt` (page frame, rounded card of rows, row,
@@ -1211,7 +1228,10 @@ reach the disk (entries are matched by the ids in their path and rewritten under
 names, so there is nothing to traverse with); the manifest's *uncompressed* size is checked before
 it is read and each image's before it is decompressed; and every image goes back through
 `NoteMediaProcessor` — the same signature check, pixel bound, metadata stripping and thumbnailing
-an upload gets. A skipped image is a warning in `ImportResultDto`, never a failed import: one
+an upload gets. Its notes and lists are held to the limits every other write is held to
+(`Data/NoteLimits.cs`, which also sizes the columns and the DTOs' `[MaxLength]`): over-long text is
+shortened with a warning. Unchecked, a title over its column failed the whole import on Postgres, and
+a body or checklist over the API's limit was stored — then refused on every later save. A skipped image is a warning in `ImportResultDto`, never a failed import: one
 unreadable photo must not cost someone the other 400 notes in the file.
 
 **Round-tripping is what the tests pin.** `ExportTests` and `ImportTests` export a real account

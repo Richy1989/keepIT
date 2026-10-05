@@ -190,7 +190,7 @@ public class ImportController : ControllerBase
         {
             foreach (var source in archive.Notes)
             {
-                var note = NewNote(source, ownerId, listIdMap);
+                var note = NewNote(source, ownerId, listIdMap, result);
                 _db.Notes.Add(note);
                 result.NotesImported++;
 
@@ -237,6 +237,11 @@ public class ImportController : ControllerBase
         {
             var name = (source.Name ?? "").Trim();
             if (name.Length == 0) continue;
+            if (name.Length > NoteLimits.ListName)
+            {
+                name = NoteLimits.Cut(name, NoteLimits.ListName).TrimEnd();
+                result.Warnings.Add($"The list \"{Shorten(name)}\": its name was longer than {NoteLimits.ListName} characters and was shortened.");
+            }
 
             if (existing.TryGetValue(name.ToLowerInvariant(), out var existingId))
             {
@@ -250,7 +255,7 @@ public class ImportController : ControllerBase
                 Id = Guid.NewGuid(),
                 OwnerId = ownerId,
                 Name = name,
-                Color = source.Color,
+                Color = ValidColor(source.Color),
                 CreatedAtUtc = source.CreatedAtUtc == default ? DateTime.UtcNow : source.CreatedAtUtc,
             };
             _db.Lists.Add(list);
@@ -270,32 +275,56 @@ public class ImportController : ControllerBase
     /// <param name="source">The archived note.</param>
     /// <param name="ownerId">The importing user, who owns the result.</param>
     /// <param name="listIdMap">Archive list id to the caller's list id.</param>
+    /// <param name="result">Where a note that had to be shortened is reported.</param>
     /// <returns>The new note, not yet added to the context.</returns>
-    private static Note NewNote(NoteDto source, Guid ownerId, Dictionary<Guid, Guid> listIdMap)
+    private static Note NewNote(NoteDto source, Guid ownerId, Dictionary<Guid, Guid> listIdMap, ImportResultDto result)
     {
         var now = DateTime.UtcNow;
+
+        // Held to the limits every other write is held to (see NoteLimits). Shortened rather than
+        // skipped, with a warning: a restore should keep as much of a note as it can. Unchecked, a
+        // title or checklist row over its column's size failed the whole import, and a body or
+        // checklist over the API's limit was stored and then refused on every later save.
+        var shortened = new List<string>();
+        string? Within(string? text, int max, string what)
+        {
+            if (text is null || text.Length <= max) return text;
+            shortened.Add(what);
+            return NoteLimits.Cut(text, max);
+        }
+
         var note = new Note
         {
             Id = Guid.NewGuid(),
             OwnerId = ownerId,
             Type = source.Type,
-            Title = source.Title,
-            Body = source.Body,
-            Color = source.Color,
+            Title = Within(source.Title, NoteLimits.Title, $"the title (over {NoteLimits.Title:N0} characters)"),
+            Body = Within(source.Body, NoteLimits.Body, $"the text (over {NoteLimits.Body:N0} characters)"),
+            Color = ValidColor(source.Color),
             // Kept, not reset: a restored backup that claimed every note was written today would
             // sort the grid into nonsense.
             CreatedAtUtc = source.CreatedAtUtc == default ? now : source.CreatedAtUtc,
             UpdatedAtUtc = source.UpdatedAtUtc == default ? now : source.UpdatedAtUtc,
         };
 
+        var items = source.ChecklistItems.OrderBy(c => c.Order).ToList();
+        if (items.Count > NoteLimits.ChecklistItems)
+        {
+            shortened.Add($"the checklist (only its first {NoteLimits.ChecklistItems} items)");
+            items = items.Take(NoteLimits.ChecklistItems).ToList();
+        }
+        var longRows = items.Count(i => (i.Text ?? "").Length > NoteLimits.ChecklistItemText);
+        if (longRows > 0)
+            shortened.Add($"{(longRows == 1 ? "a checklist item" : $"{longRows} checklist items")} (over {NoteLimits.ChecklistItemText:N0} characters)");
+
         var order = 0;
-        foreach (var item in source.ChecklistItems.OrderBy(c => c.Order))
+        foreach (var item in items)
         {
             note.ChecklistItems.Add(new ChecklistItem
             {
                 Id = Guid.NewGuid(),
                 NoteId = note.Id,
-                Text = item.Text,
+                Text = NoteLimits.Cut(item.Text ?? "", NoteLimits.ChecklistItemText),
                 IsChecked = item.IsChecked,
                 Order = order++,
             });
@@ -336,8 +365,26 @@ public class ImportController : ControllerBase
             note.NoteLists.Add(new NoteList { NoteId = note.Id, ListId = listId, UserId = ownerId });
         }
 
+        if (shortened.Count > 0)
+            result.Warnings.Add($"{Label(source)}: shortened to fit — {string.Join(", ", shortened)}.");
+
         return note;
     }
+
+    /// <summary>How a warning names a note: its title, shortened, or that it has none.</summary>
+    private static string Label(NoteDto source) =>
+        string.IsNullOrWhiteSpace(source.Title) ? "an untitled note" : $"\"{Shorten(source.Title)}\"";
+
+    /// <summary>A name cut to a length a warning can show in full.</summary>
+    private static string Shorten(string text) =>
+        text.Length <= 60 ? text : NoteLimits.Cut(text, 60).TrimEnd() + "…";
+
+    /// <summary>
+    /// A colour key that fits its column, or none. Colours are keys into the clients' palettes,
+    /// which fall back to the plain card for one they don't know — so dropping an oversized one
+    /// loses nothing a client could have shown.
+    /// </summary>
+    private static string? ValidColor(string? color) => color is { Length: <= NoteLimits.Color } ? color : null;
 
     /// <summary>
     /// Re-attaches a note's images, each one re-decoded and re-encoded exactly as an upload would
@@ -357,7 +404,7 @@ public class ImportController : ControllerBase
         ImportResultDto result,
         CancellationToken ct)
     {
-        var label = string.IsNullOrWhiteSpace(source.Title) ? "an untitled note" : $"\"{source.Title}\"";
+        var label = Label(source);
         var order = 0;
 
         foreach (var archived in source.Media.OrderBy(m => m.Order))

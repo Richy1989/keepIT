@@ -8,18 +8,18 @@ public class CreateNoteDto
 {
     public NoteType Type { get; set; } = NoteType.Text;
 
-    [MaxLength(1000)]
+    [MaxLength(NoteLimits.Title)]
     public string? Title { get; set; }
 
     /// <summary>Free-form body. Capped so a public instance can't be used as a blob store.</summary>
-    [MaxLength(100_000)]
+    [MaxLength(NoteLimits.Body)]
     public string? Body { get; set; }
 
-    [MaxLength(32)]
+    [MaxLength(NoteLimits.Color)]
     public string? Color { get; set; }
 
     /// <summary>Initial checklist rows (for checklist notes). MaxLength bounds the item count.</summary>
-    [MaxLength(500)]
+    [MaxLength(NoteLimits.ChecklistItems)]
     public List<ChecklistItemDto>? ChecklistItems { get; set; }
 
     /// <summary>Lists to file the new note into (must be the caller's own lists).</summary>

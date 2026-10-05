@@ -1,6 +1,5 @@
 package org.hyperstarit.keepitapp.ui
 
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +11,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -121,15 +124,25 @@ fun AppRoot(container: AppContainer, pendingDestination: MutableState<Destinatio
 private fun MainNav(container: AppContainer, pendingDestination: MutableState<Destination?>) {
     val nav = rememberNavController()
 
+    // Text shared in from another app waits here for its composer, under a number the route
+    // carries — never in the route itself. A route is a URI: the text went into it URL-encoded, and
+    // somewhere past 80 000 characters Navigation could no longer match it to the editor and the
+    // app crashed. The composer autosaves straight away, so holding the text in memory until then
+    // loses nothing a saved route would have kept.
+    val sharedDrafts = remember { mutableStateMapOf<Int, Destination.Compose>() }
+    var nextDraft by remember { mutableIntStateOf(0) }
+
     // Widget deep links / shared text: consume the pending destination once we're signed in.
     LaunchedEffect(pendingDestination.value) {
         when (val destination = pendingDestination.value) {
             is Destination.Compose -> {
-                val params = buildList {
-                    destination.title?.takeIf { it.isNotBlank() }?.let { add("sharedTitle=${Uri.encode(it)}") }
-                    destination.body?.takeIf { it.isNotBlank() }?.let { add("sharedText=${Uri.encode(it)}") }
+                if (destination.title.isNullOrBlank() && destination.body.isNullOrBlank()) {
+                    nav.navigate("editor")
+                } else {
+                    val draft = nextDraft++
+                    sharedDrafts[draft] = destination
+                    nav.navigate("editor?shared=$draft")
                 }
-                nav.navigate("editor" + if (params.isEmpty()) "" else "?" + params.joinToString("&"))
             }
             Destination.Inbox -> nav.navigate("notifications")
             is Destination.Note -> nav.navigate("editor?noteId=${destination.id}")
@@ -185,31 +198,31 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
             NotificationsScreen(container = container, onBack = { nav.popBackStack() })
         }
         composable(
-            route = "editor?noteId={noteId}&sharedTitle={sharedTitle}&sharedText={sharedText}",
+            route = "editor?noteId={noteId}&shared={shared}",
             arguments = listOf(
                 navArgument("noteId") {
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
                 },
-                navArgument("sharedTitle") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                },
-                navArgument("sharedText") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
+                // Which of [sharedDrafts] seeds this composer; -1 for none.
+                navArgument("shared") {
+                    type = NavType.IntType
+                    defaultValue = -1
                 },
             ),
         ) { backStack ->
+            val draftKey = backStack.arguments?.getInt("shared") ?: -1
+            val draft = sharedDrafts[draftKey]
             EditorScreen(
                 container = container,
                 noteId = backStack.arguments?.getString("noteId"),
-                initialTitle = backStack.arguments?.getString("sharedTitle"),
-                initialBody = backStack.arguments?.getString("sharedText"),
-                onDone = { nav.popBackStack() },
+                initialTitle = draft?.title,
+                initialBody = draft?.body,
+                onDone = {
+                    sharedDrafts.remove(draftKey)
+                    nav.popBackStack()
+                },
             )
         }
     }

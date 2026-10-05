@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using keepITCore.Data;
 
 namespace keepITCore.Notes.Dtos;
 
@@ -8,7 +9,7 @@ public class ChecklistItemDto
     /// <summary>Existing item id. Leave null when adding a new item.</summary>
     public Guid? Id { get; set; }
 
-    [MaxLength(2000)]
+    [MaxLength(NoteLimits.ChecklistItemText)]
     public string Text { get; set; } = "";
 
     public bool IsChecked { get; set; }

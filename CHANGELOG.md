@@ -24,6 +24,41 @@ what deletes the account.
 - **Android shows the server's own error messages.** A refused form, such as a wrong current
   password, showed the generic "One or more validation errors occurred." instead of what was
   wrong.
+- **Android no longer loses a note the server refuses.** The app accepted notes larger than the
+  server takes (a title over 1,000 characters, a body over 100,000, more than 500 checklist items),
+  queued them, and when the server refused one on upload the note vanished from the phone too. The
+  editor now holds a note to the server's limits and says when one is full, and anything the server
+  still refuses has its text saved to Documents/keepIT rather than dropped, as refused photos already
+  go to Pictures/keepIT.
+- **Android stays signed in when the server's signing key changes, and signs out when its account
+  is deleted elsewhere.** The app refreshed its access token only by the clock, so a token the server
+  had stopped accepting early was never replaced: after an operator changed `Jwt__Key` every phone
+  was signed out, a phone whose clock ran behind kept failing to sync, and a phone whose account was
+  deleted on another device stayed signed in showing the deleted notes. A refused token is now always
+  refreshed.
+- **A deleted account's other devices are refused at once.** Until its access token expired, a
+  second device could still read the (empty) account, and every change it sent failed with a server
+  error. The server now treats a token whose account is gone as signed out.
+- **Sharing a long text into the Android app no longer crashes it.** Text shared from another app
+  travelled inside the app's internal navigation address, and from about 90,000 characters that
+  address could no longer be matched, so the app closed. Text longer than a note can hold (100,000
+  characters) now opens shortened, with a note saying so.
+- **"People with access" stays current.** When someone accepted an invite, the owner's share dialog
+  on the web kept showing them as "Pending", without the controls to change their role or remove
+  them, until the page was reloaded; when a collaborator left, the owner and the other collaborators
+  weren't told at all. Every change to who is on a note now reaches everyone on it.
+- **Import keeps to the same limits as everything else.** An archive with a note larger than keepIT
+  allows (a title over 1,000 characters, say) made the whole import fail with a server error on
+  PostgreSQL, and on SQLite such a note was stored but could never be saved again. Over-long notes
+  and list names are now shortened, and the import result says which.
+- **Android asks for notifications when a reminder needs them.** The app asked for the permission
+  only when you set a reminder on the phone, so on a new install with reminders set on the web they
+  went off silently. While a reminder is pending and notifications are off, the notes screen now
+  says so and offers to turn them on.
+- **An edit no longer undoes someone else's.** Saving a note sent all of it, so an edit made offline
+  on Android, synced later, put back the old version of every part it hadn't touched: a title a
+  collaborator had changed in the meantime was quietly reverted. An edit now changes only what it
+  changed, on the web and on Android. Update the server too: an older one still takes the whole note.
 
 ## 0.9.1
 

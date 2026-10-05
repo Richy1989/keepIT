@@ -80,8 +80,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<Note>(e =>
         {
             e.HasKey(n => n.Id);
-            e.Property(n => n.Title).HasMaxLength(1000);
-            e.Property(n => n.Color).HasMaxLength(32);
+            e.Property(n => n.Title).HasMaxLength(NoteLimits.Title);
+            e.Property(n => n.Color).HasMaxLength(NoteLimits.Color);
             // The grid always filters by owner (+ archived/trashed flags), so index the owner.
             e.HasIndex(n => n.OwnerId);
 
@@ -104,7 +104,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<ChecklistItem>(e =>
         {
             e.HasKey(c => c.Id);
-            e.Property(c => c.Text).HasMaxLength(2000);
+            e.Property(c => c.Text).HasMaxLength(NoteLimits.ChecklistItemText);
         });
 
         builder.Entity<NoteMedia>(e =>
@@ -119,8 +119,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         builder.Entity<KeepList>(e =>
         {
             e.HasKey(l => l.Id);
-            e.Property(l => l.Name).HasMaxLength(100).IsRequired();
-            e.Property(l => l.Color).HasMaxLength(32);
+            e.Property(l => l.Name).HasMaxLength(NoteLimits.ListName).IsRequired();
+            e.Property(l => l.Color).HasMaxLength(NoteLimits.Color);
             e.HasIndex(l => l.OwnerId);
 
             e.HasOne(l => l.Owner)

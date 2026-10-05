@@ -1,5 +1,6 @@
 using keepITCore.Auth;
 using keepITCore.Data;
+using keepITCore.Notes;
 using keepITCore.Notifications.Dtos;
 using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
@@ -23,14 +24,17 @@ namespace keepITCore.Notifications
     {
         private readonly AppDbContext _db;
         private readonly IRealtimeNotifier _notifier;
+        private readonly NoteAccessService _access;
 
-        /// <summary>Injects the database context and the realtime change notifier.</summary>
+        /// <summary>Injects the database context, the realtime change notifier and note access.</summary>
         /// <param name="db">The EF Core context.</param>
         /// <param name="notifier">Pushes change signals to the caller's other devices.</param>
-        public UserNotificationController(AppDbContext db, IRealtimeNotifier notifier)
+        /// <param name="access">Finds who is on a note, to tell them an invite was answered.</param>
+        public UserNotificationController(AppDbContext db, IRealtimeNotifier notifier, NoteAccessService access)
         {
             _db = db;
             _notifier = notifier;
+            _access = access;
         }
 
         /// <summary>Lists the caller's notifications, newest first.</summary>
@@ -134,8 +138,11 @@ namespace keepITCore.Notifications
             }
             // Refresh the caller's notifications (invite gone) and, on accept, their grid (new note).
             await _notifier.NotifyAsync(callerId.Value, RealtimeResources.Notification, RealtimeResources.Notes, RealtimeResources.Lists);
-            // Let the owner's collaborators view update too (a share was added/settled).
-            await _notifier.NotifyAsync(invite.SharedByUserId, RealtimeResources.Notes);
+            // Everyone on the note sees the answer in "People with access": the owner's pending row
+            // settles, and other collaborators gain one. The owner is told even if the note has gone.
+            var members = (await _access.RecipientIdsAsync(invite.SharedNoteId))
+                .Append(invite.SharedByUserId).Distinct();
+            await Task.WhenAll(members.Select(uid => _notifier.NotifyAsync(uid, RealtimeResources.Notes)));
 
             return NoContent();
         }

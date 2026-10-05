@@ -142,7 +142,8 @@ class Outbox(private val store: LocalStore) {
  * Merges a new op into the queue, collapsing redundant work per note:
  * - **Update / SetLists** onto a queued [PendingOp.Create] fold into the create's DTO — the note
  *   doesn't exist server-side yet, so one POST carries the final content. Otherwise they replace
- *   any earlier op of the same kind for the note (absolute payloads: only the last matters).
+ *   any earlier op of the same kind for the note (absolute payloads: only the last matters); a
+ *   replaced Update hands on the fields it named, so the merged one names both edits' fields.
  * - **SetState** merges field-wise into an earlier queued SetState (non-null flags overwrite).
  * - **SetReminder / ClearReminder** are a last-wins pair: either replaces any earlier reminder op
  *   for the note. A Clear against a note that only exists locally queues nothing (the server never
@@ -187,7 +188,16 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
                     )
                 }
             } else {
-                ops.filterNot { it is PendingOp.Update && it.noteId == id } + incoming
+                // The earlier edit's fields still have to reach the server, so the merged edit names
+                // both edits' fields: its content is the later one's, which holds the earlier's too.
+                val earlier = ops.filterIsInstance<PendingOp.Update>().firstOrNull { it.noteId == id }
+                val fields = when {
+                    earlier == null -> incoming.dto.fields
+                    earlier.dto.fields == null || incoming.dto.fields == null -> null
+                    else -> (earlier.dto.fields + incoming.dto.fields).distinct()
+                }
+                ops.filterNot { it is PendingOp.Update && it.noteId == id } +
+                    incoming.copy(dto = incoming.dto.copy(fields = fields))
             }
 
         is PendingOp.SetLists -> {

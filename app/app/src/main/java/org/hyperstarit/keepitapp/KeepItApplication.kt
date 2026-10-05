@@ -22,6 +22,7 @@ import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.offline.ConnectivityMonitor
 import org.hyperstarit.keepitapp.data.offline.LocalStore
 import org.hyperstarit.keepitapp.data.offline.MediaStaging
+import org.hyperstarit.keepitapp.data.offline.NoteTextRescue
 import org.hyperstarit.keepitapp.data.offline.Outbox
 import org.hyperstarit.keepitapp.data.portability.PortabilityRepository
 import org.hyperstarit.keepitapp.data.offline.SyncEngine
@@ -75,6 +76,7 @@ class AppContainer(context: Context) {
         NotesRepository(apiClient, context.applicationContext, localStore, outbox, appScope, mediaStaging)
     val syncEngine = SyncEngine(
         apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging,
+        NoteTextRescue(context.applicationContext),
         isStandalone = { appMode.isStandalone },
     )
 

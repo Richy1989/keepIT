@@ -36,6 +36,7 @@ import org.hyperstarit.keepitapp.data.offline.applyListOp
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
 import org.hyperstarit.keepitapp.data.offline.applyPendingLists
+import org.hyperstarit.keepitapp.data.offline.changedFields
 import org.hyperstarit.keepitapp.data.offline.colorOps
 import org.hyperstarit.keepitapp.data.offline.listMembershipOps
 import org.hyperstarit.keepitapp.data.offline.settleDueReminders
@@ -261,19 +262,36 @@ class NotesRepository(
 
     // ---- mutations: instant local apply + persisted outbox + sync kick ----
 
-    /** Creates the note locally under a temp id; the sync replaces it with the server's. */
+    /**
+     * Creates the note locally under a temp id; the sync replaces it with the server's. Content is
+     * held to [NoteLimits] here, before it is queued: the server would refuse more, and a refused
+     * create is a note the outbox can only drop.
+     */
     suspend fun create(dto: CreateNoteDto): NoteDto {
         val op = PendingOp.Create(
             tempId = PendingOp.newTempId(),
-            dto = dto.copy(listIds = dto.listIds?.map(::resolveList)),
+            dto = NoteLimits.clamp(dto).copy(listIds = dto.listIds?.map(::resolveList)),
             enqueuedAtUtc = nowUtc(),
         )
         mutate(op)
         return cache.value.first { it.id == op.tempId }
     }
 
-    suspend fun update(id: String, dto: UpdateNoteDto) =
-        mutate(PendingOp.Update(resolve(id), dto, enqueuedAtUtc = nowUtc()))
+    /**
+     * Edits a note's content, held to [NoteLimits] for the same reason as [create]. Only the fields
+     * the edit changed are named for the server: queued offline, it may replay long after it was
+     * made, and must not undo what changed meanwhile in the parts it never touched. The caller names
+     * them when it knows what the edit started from ([fields], as the editor does); otherwise they
+     * are the ones that differ from the cached note ([changedFields]). An edit that changes nothing
+     * isn't queued at all.
+     */
+    suspend fun update(id: String, dto: UpdateNoteDto, fields: List<String>? = null) {
+        val real = resolve(id)
+        val clamped = NoteLimits.clamp(dto)
+        val fields = fields ?: noteById(real)?.let { changedFields(it, clamped) }
+        if (fields != null && fields.isEmpty()) return
+        mutate(PendingOp.Update(real, clamped.copy(fields = fields), enqueuedAtUtc = nowUtc()))
+    }
 
     suspend fun setState(id: String, state: NoteStateDto) =
         mutate(PendingOp.SetState(resolve(id), state, enqueuedAtUtc = nowUtc()))
@@ -392,7 +410,7 @@ class NotesRepository(
         mutate(
             PendingOp.CreateList(
                 tempId = tempId,
-                dto = CreateListDto(name.trim(), color),
+                dto = CreateListDto(NoteLimits.clampListName(name.trim()), color),
                 enqueuedAtUtc = nowUtc(),
             ),
         )
@@ -401,7 +419,13 @@ class NotesRepository(
 
     /** Renames a list. */
     suspend fun renameList(id: String, name: String) =
-        mutate(PendingOp.UpdateList(resolveList(id), UpdateListDto(name = name.trim()), enqueuedAtUtc = nowUtc()))
+        mutate(
+            PendingOp.UpdateList(
+                resolveList(id),
+                UpdateListDto(name = NoteLimits.clampListName(name.trim())),
+                enqueuedAtUtc = nowUtc(),
+            ),
+        )
 
     /** Deletes a list (notes survive, memberships go), clearing it from the filter if active. */
     suspend fun deleteList(id: String) {

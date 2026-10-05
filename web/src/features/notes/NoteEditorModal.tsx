@@ -31,7 +31,7 @@ import {
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import { useFocusTrap } from '../../lib/useFocusTrap';
-import type { ChecklistItemDto, NoteDto, NoteType } from '../../api/types';
+import type { ChecklistItemDto, NoteDto, NoteField, NoteType } from '../../api/types';
 
 /** Returns true when two id sets differ (order-independent). */
 function listsChanged(a: string[], b: string[]): boolean {
@@ -72,6 +72,10 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
     revoke.mutate(user.id, { onSettled: onClose });
   }
 
+  // The note as it was when the editor opened: what a save compares against to find what this
+  // editor changed. Not `note` itself — realtime keeps that current, so a title a collaborator
+  // changed meanwhile would look like this editor's change and be sent back over theirs.
+  const [opened] = useState(note);
   const [type, setType] = useState<NoteType>(note.type);
   const [title, setTitle] = useState(note.title ?? '');
   const [body, setBody] = useState(note.body ?? '');
@@ -101,16 +105,22 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
     // side (a stray toolbar click used to delete every checklist row, unconfirmed and unrecoverable).
     const nextBody = body.trim() || null;
     const nextColor = color === 'default' ? null : color;
-    const contentChanged =
-      type !== note.type ||
-      (title.trim() || null) !== (note.title ?? null) ||
-      nextBody !== (note.body ?? null) ||
-      nextColor !== (note.color ?? null) ||
+    // What differs from the note as it was opened, and so all the update sets: a collaborator may
+    // have changed another part meanwhile, which sending the whole note would undo.
+    const changed: NoteField[] = [];
+    if (type !== opened.type) changed.push('Type');
+    if ((title.trim() || null) !== (opened.title ?? null)) changed.push('Title');
+    if (nextBody !== (opened.body ?? null)) changed.push('Body');
+    if (nextColor !== (opened.color ?? null)) changed.push('Color');
+    if (
       JSON.stringify(cleanItems.map((i) => [i.text, i.isChecked])) !==
-        JSON.stringify(note.checklistItems.map((i) => [i.text, i.isChecked]));
+      JSON.stringify(opened.checklistItems.map((i) => [i.text, i.isChecked]))
+    ) {
+      changed.push('ChecklistItems');
+    }
 
     // Only owners/editors persist content; viewers can't (the server would 403 anyway).
-    if (canEdit && contentChanged) {
+    if (canEdit && changed.length > 0) {
       update.mutate({
         id: note.id,
         body: {
@@ -119,11 +129,12 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           body: nextBody,
           color: nextColor,
           checklistItems: cleanItems,
+          fields: changed,
         },
       });
     }
     // List membership is per-user — allowed even for viewers.
-    if (listsChanged(listIds, note.listIds)) {
+    if (listsChanged(listIds, opened.listIds)) {
       setLists.mutate({ id: note.id, listIds });
     }
     onClose();

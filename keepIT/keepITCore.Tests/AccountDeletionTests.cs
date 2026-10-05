@@ -69,6 +69,30 @@ public sealed class AccountDeletionTests
     }
 
     [Fact]
+    public async Task Another_device_is_refused_once_the_account_is_gone()
+    {
+        using var api = new KeepItApiFactory();
+        var email = $"user-{Guid.NewGuid():N}@example.com";
+        using var phone = await api.CreateSignedInClientAsync(email);
+        // A second device, signed in with its own access token.
+        using var laptop = api.CreateClient();
+        var login = await laptop.PostAsJsonAsync("/api/auth/login", new { email, password = Password });
+        laptop.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString());
+
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await phone.PostAsJsonAsync("/api/auth/delete-account", new { password = Password })).StatusCode);
+
+        // Its token hasn't expired, but it names an account that is gone: unauthenticated, so the
+        // device refreshes, is refused, and signs out — not an empty account that 500s on writes.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await laptop.GetAsync("/api/notes")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await laptop.PostAsJsonAsync("/api/notes", new { type = "Text", title = "after" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await laptop.GetAsync("/api/settings")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await laptop.PostAsync("/api/auth/refresh", null)).StatusCode);
+    }
+
+    [Fact]
     public async Task A_wrong_password_deletes_nothing()
     {
         using var api = new KeepItApiFactory();

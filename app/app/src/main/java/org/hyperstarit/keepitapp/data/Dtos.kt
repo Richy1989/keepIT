@@ -16,6 +16,15 @@ object NoteTypes {
     const val CHECKLIST = "Checklist"
 }
 
+/** `NoteField` values as sent on the wire: the parts of a note an [UpdateNoteDto] can name. */
+object NoteFields {
+    const val TYPE = "Type"
+    const val TITLE = "Title"
+    const val BODY = "Body"
+    const val COLOR = "Color"
+    const val CHECKLIST_ITEMS = "ChecklistItems"
+}
+
 /** `NoteMediaKind` values as sent on the wire. */
 object MediaKinds {
     const val IMAGE = "Image"
@@ -217,6 +226,12 @@ data class UpdateNoteDto(
     val body: String? = null,
     val color: String? = null,
     val checklistItems: List<ChecklistItemDto>? = null,
+    /**
+     * The [NoteFields] this update sets; the server keeps the rest as they are now. Null sets them
+     * all. An edit queued offline replays long after it was made, and the whole note sent then
+     * undid whatever had changed meanwhile in the parts the edit never touched.
+     */
+    val fields: List<String>? = null,
 )
 
 @Serializable

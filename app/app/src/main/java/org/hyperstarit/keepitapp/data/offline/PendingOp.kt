@@ -17,8 +17,9 @@ import java.util.UUID
  * clear-reminder, delete, attach/delete media, empty trash) and the list ops (create, rename,
  * delete). Ops are
  * persisted in the outbox file and replayed FIFO against the same REST endpoints once the server is
- * reachable — payloads are absolute (full DTOs, not diffs), so replay is idempotent and
- * last-write-wins falls out of the backend's unconditional PUT.
+ * reachable — payloads are absolute (full DTOs, not diffs), so replay is idempotent. An [Update]
+ * names the fields it changed ([org.hyperstarit.keepitapp.data.UpdateNoteDto.fields]) and the
+ * server sets only those, so concurrent edits are last-write-wins per field rather than per note.
  *
  * A note or list created offline is identified by a client-generated temp id ([Create.tempId],
  * [CreateList.tempId], prefixed so it can never collide with a server GUID); ops queued against it
