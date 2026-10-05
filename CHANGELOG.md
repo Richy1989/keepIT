@@ -24,6 +24,12 @@ what deletes the account.
 - **Android shows the server's own error messages.** A refused form, such as a wrong current
   password, showed the generic "One or more validation errors occurred." instead of what was
   wrong.
+- **Android no longer loses a note the server refuses.** The app accepted notes larger than the
+  server takes (a title over 1,000 characters, a body over 100,000, more than 500 checklist items),
+  queued them, and when the server refused one on upload the note vanished from the phone too. The
+  editor now holds a note to the server's limits and says when one is full, and anything the server
+  still refuses has its text saved to Documents/keepIT rather than dropped, as refused photos already
+  go to Pictures/keepIT.
 
 ## 0.9.1
 

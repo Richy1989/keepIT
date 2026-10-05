@@ -93,6 +93,7 @@ import org.hyperstarit.keepitapp.ui.markdown.continueListOnEnter
 import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteLimits
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.AudioRecorder
 import org.hyperstarit.keepitapp.data.MediaKinds
@@ -163,12 +164,17 @@ fun EditorScreen(
 
     var type by remember { mutableStateOf(NoteTypes.TEXT) }
     // Shared-in text seeds the composer; ignored for an existing note (its content loads below).
-    var title by remember { mutableStateOf(if (noteId == null) initialTitle.orEmpty() else "") }
+    var title by remember {
+        mutableStateOf(if (noteId == null) NoteLimits.cut(initialTitle.orEmpty(), NoteLimits.TITLE) else "")
+    }
     // TextFieldValue (not String) so the Markdown toolbar can rewrite the current selection.
     var body by remember {
-        val seed = if (noteId == null) initialBody.orEmpty() else ""
+        val seed = if (noteId == null) NoteLimits.cut(initialBody.orEmpty(), NoteLimits.BODY) else ""
         mutableStateOf(TextFieldValue(text = seed, selection = TextRange(seed.length)))
     }
+    // Shared-in text longer than a note holds was cut above; say so once the screen is up.
+    val sharedTextCut = noteId == null &&
+        (initialTitle.orEmpty().length > NoteLimits.TITLE || initialBody.orEmpty().length > NoteLimits.BODY)
     var color by remember { mutableStateOf<String?>(null) }
     val items = remember { mutableStateListOf<EditableItem>() }
     var listIds by remember { mutableStateOf(setOf<String>()) }
@@ -200,6 +206,11 @@ fun EditorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
         container.syncEngine.syncErrors.collect { snackbarHostState.showSnackbar(it) }
+    }
+    LaunchedEffect(Unit) {
+        if (sharedTextCut) {
+            snackbarHostState.showSnackbar("The shared text was longer than a note can hold, so its end was left out.")
+        }
     }
 
     LaunchedEffect(noteId) {
@@ -241,6 +252,7 @@ fun EditorScreen(
         pending.count { !it.isAudio } >= MAX_IMAGES_PER_NOTE
 
     fun addItemAfter(index: Int) {
+        if (items.size >= NoteLimits.CHECKLIST_ITEMS) return
         val newItem = EditableItem(null, "", false)
         items.add((index + 1).coerceAtMost(items.size), newItem)
         focusTargetLocalId = newItem.localId
@@ -707,8 +719,9 @@ fun EditorScreen(
 
             TextField(
                 value = title,
-                onValueChange = { title = it },
+                onValueChange = { title = NoteLimits.cut(it, NoteLimits.TITLE) },
                 placeholder = { Text("Title", color = KeepItColors.TextFaint) },
+                supportingText = limitNotice(title.length >= NoteLimits.TITLE, "A title holds up to 1,000 characters."),
                 readOnly = !canEdit,
                 colors = transparentFieldColors(),
                 textStyle = androidx.compose.ui.text.TextStyle(
@@ -749,7 +762,7 @@ fun EditorScreen(
                             )
                             TextField(
                                 value = item.text,
-                                onValueChange = { item.text = it },
+                                onValueChange = { item.text = NoteLimits.cut(it, NoteLimits.CHECKLIST_ITEM_TEXT) },
                                 placeholder = { Text("List item", color = KeepItColors.TextFaint) },
                                 readOnly = !canEdit,
                                 singleLine = true,
@@ -778,7 +791,14 @@ fun EditorScreen(
                         }
                     }
                 }
-                if (canEdit) {
+                if (canEdit && items.size >= NoteLimits.CHECKLIST_ITEMS) {
+                    Text(
+                        "A checklist holds up to 500 items.",
+                        color = KeepItColors.TextMuted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                } else if (canEdit) {
                     androidx.compose.material3.TextButton(onClick = { addItemAfter(items.lastIndex) }) {
                         Icon(
                             Icons.Filled.Add,
@@ -801,10 +821,11 @@ fun EditorScreen(
                 TextField(
                     value = body,
                     // Enter inside a list starts the next item (or ends the list on an empty one).
-                    onValueChange = { body = continueListOnEnter(body, it) },
+                    onValueChange = { body = continueListOnEnter(body, it).capped(NoteLimits.BODY) },
                     // The raw Markdown, styled in place: what is being written reads as it will look.
                     visualTransformation = markdownStyling,
                     placeholder = { Text("Take a note…", color = KeepItColors.TextFaint) },
+                    supportingText = limitNotice(body.text.length >= NoteLimits.BODY, "A note holds up to 100,000 characters."),
                     colors = transparentFieldColors(),
                     textStyle = androidx.compose.ui.text.TextStyle(
                         fontSize = 14.sp,
@@ -939,3 +960,20 @@ private fun transparentFieldColors() = TextFieldDefaults.colors(
     disabledIndicatorColor = Color.Transparent,
     cursorColor = KeepItColors.AccentInk,
 )
+
+/**
+ * This value with its text cut to [max] (see [NoteLimits.cut]) and the cursor kept inside it — what
+ * a paste past the limit leaves behind, rather than a note the server would refuse.
+ */
+private fun TextFieldValue.capped(max: Int): TextFieldValue {
+    if (text.length <= max) return this
+    val cut = NoteLimits.cut(text, max)
+    return TextFieldValue(
+        text = cut,
+        selection = TextRange(selection.start.coerceAtMost(cut.length), selection.end.coerceAtMost(cut.length)),
+    )
+}
+
+/** A field's supporting line saying it is full, shown only while [atLimit]. */
+private fun limitNotice(atLimit: Boolean, message: String): (@Composable () -> Unit)? =
+    if (!atLimit) null else { { Text(message, color = KeepItColors.TextMuted, fontSize = 12.sp) } }
