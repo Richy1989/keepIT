@@ -51,6 +51,10 @@ what deletes the account.
   allows (a title over 1,000 characters, say) made the whole import fail with a server error on
   PostgreSQL, and on SQLite such a note was stored but could never be saved again. Over-long notes
   and list names are now shortened, and the import result says which.
+- **Android asks for notifications when a reminder needs them.** The app asked for the permission
+  only when you set a reminder on the phone, so on a new install with reminders set on the web they
+  went off silently. While a reminder is pending and notifications are off, the notes screen now
+  says so and offers to turn them on.
 
 ## 0.9.1
 

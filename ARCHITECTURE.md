@@ -757,7 +757,11 @@ change password, about/version — a theme for this device only and no accent, s
 standalone mode the device's), the theme (a dialog: four choices need no page), and rows into
 Notifications, Your data and About, each summarising where it stands. The Notifications row
 re-reads both permissions on every resume and is marked when either is off, so a blocked
-permission is visible without opening the page. A form or a long explanation gets a page:
+permission is visible without opening the page. The notes screen asks too, but only when it
+matters: while a reminder is pending and notifications are off, a banner offers to allow them
+(`NotificationsOffBanner`). Android asks for the permission only when an app requests it, and the
+app used to request it only when a reminder was set on the phone — reminders set on the web then
+fired on time and showed nothing. A form or a long explanation gets a page:
 Account (display name in a dialog, email, Change password as a page of its own, the server
 address, Sign out), This device (standalone: connect a server, erase), Notifications, Your data,
 About. Every page is built from `SettingsComponents.kt` (page frame, rounded card of rows, row,

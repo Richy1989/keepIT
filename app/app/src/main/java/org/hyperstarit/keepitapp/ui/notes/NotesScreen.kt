@@ -150,6 +150,8 @@ fun NotesScreen(
     DisposableEffect(Unit) { onDispose { cardAudio.release() } }
 
     val notes by repo.notes.collectAsState()
+    // Every note, not just the current view's: whether any reminder is pending (see NotificationsOffBanner).
+    val allNotes by repo.allNotes.collectAsState()
     val lists by repo.lists.collectAsState()
     val filter by repo.filter.collectAsState()
     val loading by repo.loading.collectAsState()
@@ -516,6 +518,7 @@ fun NotesScreen(
                     if (!standalone) {
                         SyncStatusStrip(isOnline = isOnline, problem = syncProblem, pending = pending, syncStatus = syncStatus)
                     }
+                    NotificationsOffBanner(notes = allNotes)
                 }
             },
             floatingActionButton = {
