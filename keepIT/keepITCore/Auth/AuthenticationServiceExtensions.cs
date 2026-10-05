@@ -3,6 +3,7 @@ using System.Text;
 using keepITCore.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 namespace keepITCore.Auth;
@@ -91,6 +92,23 @@ public static class AuthenticationServiceExtensions
                             context.Token = accessToken;
                         }
                         return Task.CompletedTask;
+                    },
+
+                    // A token is signed for a user, not checked against one, so it would outlive the
+                    // account it names: after the account is deleted, another device's token kept
+                    // reading an empty account and failed every write on a foreign key, until it
+                    // expired. Refusing it as unauthenticated instead is what makes that device ask
+                    // for a refresh, be told no, and sign out. One primary-key lookup per request
+                    // (per connection for the hub), which the database answers from its index.
+                    OnTokenValidated = async context =>
+                    {
+                        var sub = context.Principal?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+                        var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                        if (!Guid.TryParse(sub, out var userId) ||
+                            !await db.Users.AnyAsync(u => u.Id == userId, context.HttpContext.RequestAborted))
+                        {
+                            context.Fail("The account this token was issued for no longer exists.");
+                        }
                     },
                 };
             });

@@ -225,11 +225,16 @@ class ApiClient(context: Context) {
     /**
      * [refreshBlocking], with [RefreshResult.NETWORK_ERROR] thrown as a [RefreshFailedException]
      * that says what went wrong. Returns only [RefreshResult.SUCCESS] or [RefreshResult.REJECTED].
+     *
+     * @param rejectedToken the access token a 401 just refused, when this refresh answers one; see
+     *   [needsRefresh] for why that matters.
      */
-    private fun refreshOrThrow(): RefreshResult {
+    private fun refreshOrThrow(rejectedToken: String? = null): RefreshResult {
         val base = baseUrl ?: return RefreshResult.REJECTED
         synchronized(refreshLock) {
-            if (!tokenStore.isExpiringSoon()) return RefreshResult.SUCCESS
+            if (!needsRefresh(rejectedToken, tokenStore.accessToken, tokenStore.isExpiringSoon())) {
+                return RefreshResult.SUCCESS
+            }
             val request = Request.Builder()
                 .url(base + "api/auth/refresh")
                 .post(ByteArray(0).toRequestBody(null))
@@ -309,13 +314,32 @@ class ApiClient(context: Context) {
         override fun authenticate(route: Route?, response: Response): Request? {
             if (isAuthFree(response.request.url)) return null
             if (response.priorResponse != null) return null // already retried once
-            if (refreshOrThrow() == RefreshResult.REJECTED) return null
+            val refused = response.request.header("Authorization")?.removePrefix("Bearer ")
+            if (refreshOrThrow(rejectedToken = refused) == RefreshResult.REJECTED) return null
             val token = tokenStore.accessToken ?: return null
             return response.request.newBuilder().header("Authorization", "Bearer $token").build()
         }
     }
 
     companion object {
+        /**
+         * Whether a refresh has to go to the server, or a token already held will do.
+         *
+         * Ahead of a request ([rejectedToken] null) the clock decides: refresh once the token is
+         * about to expire. That also lets callers queued behind another's refresh take its token
+         * instead of rotating the cookie again.
+         *
+         * After a 401 the server has decided, whatever the clock says: refresh unless the token held
+         * now is a different one from the token it refused — then another caller has refreshed in
+         * the meantime, and the request is simply retried with it. Asking the clock here was the
+         * bug: a token the server stopped accepting early — its signing key changed, its account
+         * deleted, a phone clock running behind — still looked fresh, so no refresh was ever tried
+         * and the 401 ended the session (or, for a deleted account, nothing did) when a refresh
+         * would have restored it or been refused in turn.
+         */
+        fun needsRefresh(rejectedToken: String?, heldToken: String?, expiringSoon: Boolean): Boolean =
+            if (rejectedToken == null) expiringSoon else heldToken == null || heldToken == rejectedToken
+
         /**
          * The prefs file holding the refresh cookie, server URL and last user. Kept out of device
          * backups and transfers by `res/xml/data_extraction_rules.xml`, which names it as a file —

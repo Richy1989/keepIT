@@ -6,6 +6,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 
 /** The app's sign-in state. `Loading` only during the initial cookie-restore on launch. */
 sealed interface SessionState {
@@ -115,12 +116,6 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         }
 
     /**
-     * Renames the signed-in user, or removes the name with blank text (the app then shows the
-     * email). The server's answer becomes the signed-in user, so the drawer follows at once, and the
-     * last-known user, so an offline launch shows the new name too. Online only, like
-     * [changePassword]: an account setting rather than note data, so it has no place in the outbox.
-     */
-    /**
      * Deletes the account on the server, then everything of it on this phone. Online only, like
      * [changePassword]; nothing changes anywhere unless the server has deleted the account.
      *
@@ -142,6 +137,12 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         return result
     }
 
+    /**
+     * Renames the signed-in user, or removes the name with blank text (the app then shows the
+     * email). The server's answer becomes the signed-in user, so the drawer follows at once, and the
+     * last-known user, so an offline launch shows the new name too. Online only, like
+     * [changePassword]: an account setting rather than note data, so it has no place in the outbox.
+     */
     suspend fun updateDisplayName(displayName: String): Result<Unit> =
         resultUnlessCancelled {
             applyUser(client.api.updateMe(UpdateProfileRequestDto(displayName.trim().ifEmpty { null })))
@@ -154,7 +155,11 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
      */
     suspend fun refreshUser() {
         if (_state.value !is SessionState.SignedIn) return
-        orNullUnlessCancelled { client.api.me() }?.let(::applyUser)
+        val result = resultUnlessCancelled { client.api.me() }
+        result.onSuccess(::applyUser)
+        // A 401 gets this far only once the refresh it set off was refused as well: the session is
+        // over. Typically the account was deleted on another device, which is what sent the push.
+        if ((result.exceptionOrNull() as? HttpException)?.code() == 401) sessionExpired()
     }
 
     /**

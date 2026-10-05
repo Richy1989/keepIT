@@ -30,6 +30,15 @@ what deletes the account.
   editor now holds a note to the server's limits and says when one is full, and anything the server
   still refuses has its text saved to Documents/keepIT rather than dropped, as refused photos already
   go to Pictures/keepIT.
+- **Android stays signed in when the server's signing key changes, and signs out when its account
+  is deleted elsewhere.** The app refreshed its access token only by the clock, so a token the server
+  had stopped accepting early was never replaced: after an operator changed `Jwt__Key` every phone
+  was signed out, a phone whose clock ran behind kept failing to sync, and a phone whose account was
+  deleted on another device stayed signed in showing the deleted notes. A refused token is now always
+  refreshed.
+- **A deleted account's other devices are refused at once.** Until its access token expired, a
+  second device could still read the (empty) account, and every change it sent failed with a server
+  error. The server now treats a token whose account is gone as signed out.
 
 ## 0.9.1
 

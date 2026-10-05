@@ -192,14 +192,22 @@ the API issues tokens.
 - **Access token** — short-lived JWT (`Jwt__AccessTokenMinutes`, default 15). Returned in the
   response body and held **in memory** on the client (web: `tokenStore.ts`; Android: an
   in-memory `TokenStore`). Sent as `Authorization: Bearer <token>`. Carries the user id in
-  the `sub` claim.
+  the `sub` claim. Validation also checks that the account still exists (`OnTokenValidated`,
+  one primary-key lookup): a token outlives nothing it names, and without the check a deleted
+  account's other devices kept a working token for the rest of its lifetime — reading an empty
+  account, failing every write on a foreign key. Refused instead, they refresh, are refused
+  again, and sign out.
 - **Refresh token** — long-lived (`Jwt__RefreshTokenDays`, default 14), opaque, set as an
   **httpOnly + Secure + SameSite=Strict** cookie so JS can't read it. Stored server-side
   **hashed** (`RefreshToken` entity: token hash, expiry, revocation, replaced-by chain) so a
   DB leak doesn't leak usable tokens and individual tokens can be revoked. A 401 triggers a
   silent refresh; only a **401 from `/refresh` itself** signs the client out — transient
   failures (429/5xx/network) are retried and never treated as a lost session, because the
-  cookie is still valid.
+  cookie is still valid. A 401 refreshes even when the client's clock still calls the token
+  fresh — the server has refused it, and a changed signing key, a deleted account or a phone
+  clock running behind all look like that. Android once trusted the clock here and never
+  refreshed, signing users out on a key change; a client now skips the refresh only when it
+  already holds a newer token than the one refused (another caller refreshed meanwhile).
 - **Rotation + reuse detection.** Every `/refresh` revokes the presented token and issues a
   replacement. Presenting a rotated (not expired) token whose replacement is **already in use**
   is the signature of a stolen cookie being replayed — **all** of the user's active refresh
