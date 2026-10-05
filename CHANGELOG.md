@@ -43,6 +43,10 @@ what deletes the account.
   travelled inside the app's internal navigation address, and from about 90,000 characters that
   address could no longer be matched, so the app closed. Text longer than a note can hold (100,000
   characters) now opens shortened, with a note saying so.
+- **"People with access" stays current.** When someone accepted an invite, the owner's share dialog
+  on the web kept showing them as "Pending", without the controls to change their role or remove
+  them, until the page was reloaded; when a collaborator left, the owner and the other collaborators
+  weren't told at all. Every change to who is on a note now reaches everyone on it.
 
 ## 0.9.1
 

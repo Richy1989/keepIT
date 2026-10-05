@@ -5,8 +5,11 @@ import { NOTES_KEY } from './queries';
 import { LISTS_KEY } from '../lists/queries';
 import type { NoteRole } from '../../api/types';
 
+/** Prefix of every note's collaborator-list key; realtime invalidates them all on a `notes` push. */
+export const NOTE_SHARES_KEY = 'note-shares';
+
 /** TanStack Query key for one note's collaborator list. */
-export const noteSharesKey = (noteId: string) => ['note-shares', noteId] as const;
+export const noteSharesKey = (noteId: string) => [NOTE_SHARES_KEY, noteId] as const;
 
 /** Loads the collaborators on a note (owner or any collaborator may read this). */
 export function useNoteShares(noteId: string, enabled = true) {
