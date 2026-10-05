@@ -5,10 +5,19 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
-Delete your own account, and a privacy policy. Update your server along with the app: the server is
-what deletes the account.
+Delete your own account, two-factor authentication, and a privacy policy. Update your server along
+with the app: both new features need it.
 
 ### New
+
+- **Two-factor authentication** with an authenticator app (Aegis, 2FAS, Google Authenticator and
+  the like), on the web (Settings → Security) and on Android (Settings → Account). Scan the QR code,
+  or on the phone open the key straight in your authenticator app, and from then on signing in
+  asks for the app's six-digit code as well as your password. Ten recovery codes, shown once, each
+  sign you in once if you lose your phone. Turning it off takes the password and a code. A password
+  reset leaves it on. Someone who lost their phone and their recovery codes can be let back in by
+  the operator with `disable-two-factor <email>` on the server; the [FAQ](FAQ.md#someone-lost-the-phone-with-their-authenticator-app)
+  has the command.
 
 - **Delete your account**, on the web (Settings → Security) and on Android (Settings → Account).
   After you enter your password again, the server deletes the account and everything it owns: notes

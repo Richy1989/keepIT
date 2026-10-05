@@ -43,3 +43,6 @@ export type AuthResponseDto = S['AuthResponseDto'];
 export type UserDto = S['UserDto'];
 export type LoginRequestDto = S['LoginRequestDto'];
 export type RegisterRequestDto = S['RegisterRequestDto'];
+export type LoginFailureDto = S['LoginFailureDto'];
+export type TwoFactorStatusDto = S['TwoFactorStatusDto'];
+export type TwoFactorSetupDto = S['TwoFactorSetupDto'];

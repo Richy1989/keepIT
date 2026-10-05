@@ -47,6 +47,7 @@ object SettingsRoutes {
     const val MAIN = "settings"
     const val ACCOUNT = "settings/account"
     const val PASSWORD = "settings/account/password"
+    const val TWO_FACTOR = "settings/account/two-factor"
     const val DEVICE = "settings/device"
     const val NOTIFICATIONS = "settings/notifications"
     const val DATA = "settings/data"

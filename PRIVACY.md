@@ -37,6 +37,8 @@ developer has no access to any keepIT server.
 
 - **Your account:** your email address, your password (only as a salted hash, never in readable
   form), and, if you choose to add them, a display name and a profile picture.
+- **Two-factor authentication**, if you turn it on: the key your authenticator app makes its codes
+  from, and your recovery codes, only as hashes. Turning it off deletes both.
 - **Your notes and everything in them:** titles, text, checklists, colours, photos, voice
   recordings, lists, pins, archive and trash, reminders and who a note is shared with.
 - **Photos** are re-encoded when you upload them, and all their metadata is removed, including

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ChangePasswordForm } from '../features/account/ChangePasswordForm';
 import { DeleteAccountForm } from '../features/account/DeleteAccountForm';
 import { DisplayNameForm } from '../features/account/DisplayNameForm';
+import { TwoFactorSetting } from '../features/account/TwoFactorSetting';
 import { UserIconSetting } from '../features/account/UserIconSetting';
 import { TestEmailSetting } from '../features/settings/TestEmailSetting';
 import { DataSettings } from '../features/portability/DataSettings';
@@ -156,6 +157,12 @@ export function SettingsPage() {
                   description="Update your password. This signs you out of your other devices."
                 >
                   <ChangePasswordForm />
+                </SettingCard>
+                <SettingCard
+                  title="Two-factor authentication"
+                  description="A code from an app on your phone, asked for at sign-in along with your password."
+                >
+                  <TwoFactorSetting />
                 </SettingCard>
                 <SettingCard
                   title="Delete account"

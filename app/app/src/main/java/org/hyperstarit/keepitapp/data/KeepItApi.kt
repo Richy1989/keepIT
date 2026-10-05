@@ -56,6 +56,27 @@ interface KeepItApi {
     @POST("api/auth/delete-account")
     suspend fun deleteAccount(@Body body: DeleteAccountRequestDto)
 
+    // ---- two-factor authentication (servers from 0.9.2; older ones answer 404) ----
+
+    @GET("api/auth/two-factor")
+    suspend fun twoFactorStatus(): TwoFactorStatusDto
+
+    /** A new authenticator key; 400 for a wrong password, 409 while two-factor is already on. */
+    @POST("api/auth/two-factor/setup")
+    suspend fun twoFactorSetup(@Body body: TwoFactorSetupRequestDto): TwoFactorSetupDto
+
+    /** Turns two-factor on; 400 for a wrong code. */
+    @POST("api/auth/two-factor/enable")
+    suspend fun twoFactorEnable(@Body body: TwoFactorEnableRequestDto): TwoFactorRecoveryCodesDto
+
+    /** Turns two-factor off; 204, or 400 for a wrong password or code. */
+    @POST("api/auth/two-factor/disable")
+    suspend fun twoFactorDisable(@Body body: TwoFactorConfirmRequestDto)
+
+    /** Replaces the recovery codes; 400 for a wrong password or code. */
+    @POST("api/auth/two-factor/recovery-codes")
+    suspend fun twoFactorRecoveryCodes(@Body body: TwoFactorConfirmRequestDto): TwoFactorRecoveryCodesDto
+
     /**
      * Streams a user's profile picture; 404 when they have none (or the caller may not see it).
      * Raw so [ProfileImage] can write it straight to disk.

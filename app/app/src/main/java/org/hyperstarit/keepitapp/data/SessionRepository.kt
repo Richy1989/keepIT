@@ -6,6 +6,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 
 /** The app's sign-in state. `Loading` only during the initial cookie-restore on launch. */
@@ -84,8 +85,19 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         _state.value = restoredState(refresh, user, cached)
     }
 
-    suspend fun login(serverUrl: String, email: String, password: String): Result<Unit> =
-        authenticate(serverUrl) { client.api.login(LoginRequestDto(email, password)) }
+    /**
+     * Signs in. For an account with two-factor authentication on, the right password alone fails
+     * with a [LoginRefusedException] whose [LoginRefusedException.twoFactorRequired] is set: ask for
+     * the code and call again with [twoFactorCode]. Nothing is held between the two calls.
+     */
+    suspend fun login(serverUrl: String, email: String, password: String, twoFactorCode: String? = null): Result<Unit> =
+        authenticate(serverUrl) {
+            try {
+                client.api.login(LoginRequestDto(email, password, twoFactorCode?.trim()?.takeIf { it.isNotEmpty() }))
+            } catch (e: HttpException) {
+                throw loginRefusal(e) ?: e
+            }
+        }
 
     suspend fun register(serverUrl: String, email: String, password: String, displayName: String?): Result<Unit> =
         authenticate(serverUrl) {
@@ -136,6 +148,31 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         }
         return result
     }
+
+    /** Whether the account asks for an authenticator code at sign-in. Online only, like the rest of these. */
+    suspend fun twoFactorStatus(): Result<TwoFactorStatusDto> =
+        resultUnlessCancelled { client.api.twoFactorStatus() }
+
+    /**
+     * Starts setting up an authenticator app: a new key, to scan or type. Sign-in is unchanged until
+     * [enableTwoFactor] confirms a code made from it.
+     */
+    suspend fun startTwoFactorSetup(password: String): Result<TwoFactorSetupDto> =
+        resultUnlessCancelled { client.api.twoFactorSetup(TwoFactorSetupRequestDto(password)) }
+
+    /** Turns two-factor on with a code from the app just set up; the answer is the first recovery codes. */
+    suspend fun enableTwoFactor(code: String): Result<List<String>> =
+        resultUnlessCancelled { client.api.twoFactorEnable(TwoFactorEnableRequestDto(code.trim())).codes }
+
+    /** Turns two-factor off, with the password and a code from the app or a recovery code. */
+    suspend fun disableTwoFactor(password: String, code: String): Result<Unit> =
+        resultUnlessCancelled { client.api.twoFactorDisable(TwoFactorConfirmRequestDto(password, code.trim())) }
+
+    /** A new set of recovery codes, replacing the old one; the password and a code are asked for again. */
+    suspend fun newRecoveryCodes(password: String, code: String): Result<List<String>> =
+        resultUnlessCancelled {
+            client.api.twoFactorRecoveryCodes(TwoFactorConfirmRequestDto(password, code.trim())).codes
+        }
 
     /**
      * Renames the signed-in user, or removes the name with blank text (the app then shows the
@@ -249,6 +286,34 @@ class SessionRepository(private val client: ApiClient, private val mode: AppMode
         client.clearSession()
         _state.value = SessionState.SignedOut
     }
+}
+
+/**
+ * A sign-in the server refused (401), with its message. [twoFactorRequired] means the password was
+ * right and the account also wants its authenticator code: the sign-in screen asks for it and tries
+ * again. Not an [HttpException], since its body has been read here; [apiErrorMessage] shows the
+ * message as it is.
+ */
+class LoginRefusedException(message: String, val twoFactorRequired: Boolean) : Exception(message)
+
+private val loginJson = Json { ignoreUnknownKeys = true }
+
+/** A sign-in's 401 as a [LoginRefusedException]; null for any other failure, which stays as it was. */
+private fun loginRefusal(e: HttpException): LoginRefusedException? {
+    if (e.code() != 401) return null
+    return loginRefusal(runCatching { e.response()?.errorBody()?.string() }.getOrNull())
+}
+
+/**
+ * Reads a sign-in's 401 body ([LoginFailureDto]). A body without one — an older server's, or none
+ * at all — is a plain refusal of the credentials.
+ */
+internal fun loginRefusal(body: String?): LoginRefusedException {
+    val failure = body?.let { runCatching { loginJson.decodeFromString<LoginFailureDto>(it) }.getOrNull() }
+    return LoginRefusedException(
+        failure?.error?.takeIf { it.isNotBlank() } ?: "Invalid email or password.",
+        failure?.twoFactorRequired == true,
+    )
 }
 
 /**

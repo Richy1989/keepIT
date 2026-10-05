@@ -2,8 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { tokenStore } from '../../auth/tokenStore';
 import { useAuth } from '../../auth/AuthContext';
+import { apiErrorMessageFor } from '../../lib/apiError';
 
 export const PROFILE_IMAGE_KEY = 'profileImage';
+/** The signed-in user's two-factor status; the server's `account` push invalidates it. */
+export const TWO_FACTOR_KEY = 'twoFactor';
 
 /**
  * Changes the signed-in user's password. On success the backend revokes the user's other refresh
@@ -99,5 +102,78 @@ export function useUploadProfileImage() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: [PROFILE_IMAGE_KEY] }),
+  });
+}
+
+/**
+ * The two-factor hooks fail with an `Error` whose message is ready to show: the server's own words,
+ * or, for an answer without a body (the sign-in rate limit's 429), one made from the status —
+ * stepping through a setup with a couple of mistyped codes can reach that limit.
+ */
+function failure(response: Response, error: unknown, fallback: string): Error {
+  return new Error(apiErrorMessageFor(response, error, fallback));
+}
+
+/** Whether the signed-in user's account asks for an authenticator code, and how many recovery codes are left. */
+export function useTwoFactorStatus() {
+  return useQuery({
+    queryKey: [TWO_FACTOR_KEY],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/auth/two-factor');
+      if (error || !data) throw failure(response, error, 'Could not load the two-factor status.');
+      return data;
+    },
+  });
+}
+
+/**
+ * Starts setting up an authenticator app: the password goes in, a new key comes back as a QR
+ * code and as text. Sign-in is unchanged until {@link useEnableTwoFactor} confirms a code.
+ */
+export function useStartTwoFactorSetup() {
+  return useMutation({
+    mutationFn: async (password: string) => {
+      const { data, error, response } = await api.POST('/api/auth/two-factor/setup', { body: { password } });
+      if (error || !data) throw failure(response, error, 'Could not start the setup.');
+      return data;
+    },
+  });
+}
+
+/** Turns two-factor on with a code from the app just set up; the answer is the first recovery codes. */
+export function useEnableTwoFactor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const { data, error, response } = await api.POST('/api/auth/two-factor/enable', { body: { code } });
+      if (error || !data) throw failure(response, error, 'Could not turn on two-factor authentication.');
+      return data.codes;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [TWO_FACTOR_KEY] }),
+  });
+}
+
+/** Turns two-factor off, with the password and a code from the app or a recovery code. */
+export function useDisableTwoFactor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { password: string; code: string }) => {
+      const { error, response } = await api.POST('/api/auth/two-factor/disable', { body });
+      if (error || !response.ok) throw failure(response, error, 'Could not turn off two-factor authentication.');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [TWO_FACTOR_KEY] }),
+  });
+}
+
+/** Replaces the recovery codes with a new set, shown once; the old ones stop working. */
+export function useNewRecoveryCodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { password: string; code: string }) => {
+      const { data, error, response } = await api.POST('/api/auth/two-factor/recovery-codes', { body });
+      if (error || !data) throw failure(response, error, 'Could not make new recovery codes.');
+      return data.codes;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [TWO_FACTOR_KEY] }),
   });
 }

@@ -67,8 +67,51 @@ data class AuthResponseDto(
     val user: UserDto,
 )
 
+/**
+ * Signs in. [twoFactorCode] is sent once the first attempt came back with
+ * [LoginFailureDto.twoFactorRequired]: a code from the authenticator app, or a recovery code.
+ */
 @Serializable
-data class LoginRequestDto(val email: String, val password: String)
+data class LoginRequestDto(val email: String, val password: String, val twoFactorCode: String? = null)
+
+/**
+ * Why a sign-in was refused (401). [twoFactorRequired] is only ever set once the password was
+ * right: the app then asks for the authenticator code and sends the sign-in again with it.
+ */
+@Serializable
+data class LoginFailureDto(val error: String = "", val twoFactorRequired: Boolean = false)
+
+/** Whether the account asks for an authenticator code at sign-in, and how many recovery codes are left. */
+@Serializable
+data class TwoFactorStatusDto(val enabled: Boolean = false, val recoveryCodesLeft: Int = 0)
+
+/** Starts setting up an authenticator app; the password is asked for again. */
+@Serializable
+data class TwoFactorSetupRequestDto(val password: String)
+
+/**
+ * A new authenticator key: [qrCode] to scan, one string per row of modules ('1' dark, '0' light,
+ * border included), [sharedKey] to type, and [authenticatorUri] for an authenticator app on this
+ * phone to open directly.
+ */
+@Serializable
+data class TwoFactorSetupDto(
+    val sharedKey: String,
+    val authenticatorUri: String,
+    val qrCode: List<String> = emptyList(),
+)
+
+/** Turns two-factor on with the code the app just set up shows. */
+@Serializable
+data class TwoFactorEnableRequestDto(val code: String)
+
+/** Turning two-factor off, or new recovery codes: the password, and a code or a recovery code. */
+@Serializable
+data class TwoFactorConfirmRequestDto(val password: String, val code: String)
+
+/** Recovery codes, shown once: the server keeps only their hashes. */
+@Serializable
+data class TwoFactorRecoveryCodesDto(val codes: List<String> = emptyList())
 
 @Serializable
 data class RegisterRequestDto(

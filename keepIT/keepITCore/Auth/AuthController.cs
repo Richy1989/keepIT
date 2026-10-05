@@ -209,6 +209,8 @@ public class AuthController : ControllerBase
     /// lockout and revokes <b>all</b> of the user's refresh tokens (the reset was triggered because
     /// the account may be compromised or the password lost — every existing session must die). The
     /// user signs in again with the new password; no tokens are issued here.
+    /// <para>Two-factor authentication stays on: the link proves control of the mailbox, which is
+    /// one factor, so whoever holds it still needs the authenticator to sign in.</para>
     /// </summary>
     /// <param name="dto">The email + reset token from the link, and the new password.</param>
     /// <returns>204 on success, 400 with a generic error for an invalid/expired token (no account
@@ -254,26 +256,61 @@ public class AuthController : ControllerBase
     /// Exchange credentials for an access token + refresh cookie. Failed attempts count toward the
     /// per-account lockout (see <c>AddAppIdentity</c>); a locked account gets the same generic 401 as
     /// bad credentials so the response never reveals whether an email exists or is locked.
+    /// <para><b>Two-factor:</b> for an account with an authenticator app set up, the right password
+    /// alone is answered with a 401 whose <see cref="LoginFailureDto.TwoFactorRequired"/> is set; the
+    /// client asks for the code and sends the whole sign-in again with it. Nothing is held between
+    /// the two attempts. Only the right password reveals that the account uses two-factor, and a
+    /// wrong code counts toward the lockout like a wrong password, which is what stops anyone
+    /// guessing codes.</para>
     /// </summary>
-    /// <param name="dto">The login email and password.</param>
-    /// <returns>200 with the auth payload, or 401 if the credentials are invalid or the account is locked.</returns>
+    /// <param name="dto">The login email and password, and the second factor when the account has one.</param>
+    /// <returns>200 with the auth payload, or 401 if the credentials are invalid, the account is
+    /// locked, or a code is needed or wrong.</returns>
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting(RateLimitPolicies.Auth)]
-    public async Task<ActionResult<AuthResponseDto>> Login(LoginRequestDto dto)
+    [ProducesResponseType<AuthResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<LoginFailureDto>(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AuthResponseDto>> Login(LoginRequestDto dto, [FromServices] TwoFactorService twoFactor)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email);
         if (user is null)
-            return Unauthorized(new { error = "Invalid email or password." });
+            return Unauthorized(new LoginFailureDto { Error = "Invalid email or password." });
 
         if (await _userManager.IsLockedOutAsync(user))
-            return Unauthorized(new { error = "Invalid email or password." });
+            return Unauthorized(new LoginFailureDto { Error = "Invalid email or password." });
 
         if (!await _userManager.CheckPasswordAsync(user, dto.Password))
         {
             // Count the failure; Identity trips the lockout automatically at the configured max.
             await _userManager.AccessFailedAsync(user);
-            return Unauthorized(new { error = "Invalid email or password." });
+            return Unauthorized(new LoginFailureDto { Error = "Invalid email or password." });
+        }
+
+        if (user.TwoFactorEnabled)
+        {
+            // The first attempt, with the password only: not a failure, just the next step.
+            if (string.IsNullOrWhiteSpace(dto.TwoFactorCode))
+                return Unauthorized(new LoginFailureDto
+                {
+                    Error = "Enter the code from your authenticator app.",
+                    TwoFactorRequired = true,
+                });
+
+            var factor = await twoFactor.CheckSecondFactorAsync(user, dto.TwoFactorCode);
+            if (factor == SecondFactor.None)
+            {
+                await _userManager.AccessFailedAsync(user);
+                return Unauthorized(new LoginFailureDto
+                {
+                    Error = "That code didn't work. Enter the one your app shows now, or a recovery code.",
+                    TwoFactorRequired = true,
+                });
+            }
+
+            // One recovery code fewer: devices showing the count refresh it.
+            if (factor == SecondFactor.RecoveryCode)
+                await _notifier.NotifyAsync(user.Id, RealtimeResources.Account);
         }
 
         // Successful sign-in clears the failure counter.

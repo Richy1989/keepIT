@@ -34,6 +34,7 @@ import org.hyperstarit.keepitapp.ui.notifications.NotificationsScreen
 import org.hyperstarit.keepitapp.ui.settings.AboutSettingsScreen
 import org.hyperstarit.keepitapp.ui.settings.AccountSettingsScreen
 import org.hyperstarit.keepitapp.ui.settings.ChangePasswordScreen
+import org.hyperstarit.keepitapp.ui.settings.TwoFactorScreen
 import org.hyperstarit.keepitapp.ui.settings.DataSettingsScreen
 import org.hyperstarit.keepitapp.ui.settings.DeviceSettingsScreen
 import org.hyperstarit.keepitapp.ui.settings.NotificationSettingsScreen
@@ -169,10 +170,14 @@ private fun MainNav(container: AppContainer, pendingDestination: MutableState<De
                 container = container,
                 onBack = { nav.popBackStack() },
                 onChangePassword = { nav.navigate(SettingsRoutes.PASSWORD) },
+                onTwoFactor = { nav.navigate(SettingsRoutes.TWO_FACTOR) },
             )
         }
         composable(SettingsRoutes.PASSWORD) {
             ChangePasswordScreen(container = container, onBack = { nav.popBackStack() })
+        }
+        composable(SettingsRoutes.TWO_FACTOR) {
+            TwoFactorScreen(container = container, onBack = { nav.popBackStack() })
         }
         composable(SettingsRoutes.DEVICE) {
             DeviceSettingsScreen(

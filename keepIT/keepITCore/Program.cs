@@ -95,6 +95,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 // Central "own OR shared" note authorization + realtime recipient resolution (used by note endpoints).
 builder.Services.AddScoped<keepITCore.Notes.NoteAccessService>();
 builder.Services.AddScoped<AccountDeletionService>();
+builder.Services.AddScoped<TwoFactorService>();
 builder.Services
     .AddControllers()
      .ConfigureApiBehaviorOptions(options =>
@@ -164,6 +165,15 @@ using (var scope = app.Services.CreateScope())
         db.Database.EnsureCreated();
         SqliteSchemaReconciler.Reconcile(db, app.Logger);
     }
+}
+
+// An operator command instead of the server: `disable-two-factor <email>`, for someone who lost
+// both their authenticator and their recovery codes. After the database init, so it works on an
+// instance that has never started, and before anything is served.
+if (args is [DisableTwoFactorCommand.Name, var twoFactorEmail])
+{
+    Environment.ExitCode = await DisableTwoFactorCommand.RunAsync(app.Services, twoFactorEmail, Console.Out);
+    return;
 }
 
 // The first line of the log says what is running, on what. The host's own start-up lines ("Now

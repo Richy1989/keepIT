@@ -59,6 +59,7 @@ object AboutContent {
         Credit("SQLitePCLRaw", "SQLite for .NET", "Apache 2.0", "https://github.com/ericsink/SQLitePCL.raw"),
         Credit("ImageSharp", "Image processing", "Six Labors Split License", "https://sixlabors.com/products/imagesharp/"),
         Credit("MailKit", "Email delivery", "MIT", "https://github.com/jstedfast/MailKit"),
+        Credit("QR Code Generator", "QR codes for two-factor setup", "MIT", "https://github.com/manuelbl/QrCodeGenerator"),
         Credit("Serilog", "Logging", "Apache 2.0", "https://serilog.net"),
         Credit("nginx", "Web server in the Docker image", "BSD 2-Clause", "https://nginx.org"),
     )
