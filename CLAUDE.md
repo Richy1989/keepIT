@@ -61,7 +61,7 @@ the Android app generally should too. Key design points:
   format is chosen for playback *and* the planned transcription, so do not "optimise" it down to
   16 kHz. Recording reuses the image attach path end to end (stage → `PendingOp.AttachMedia` →
   upload), which is why it works offline and in standalone mode without new machinery.
-- **DTOs are hand-synced.** `data/Dtos.kt` mirrors the C# DTOs (the source of truth). Change a C# DTO → update `Dtos.kt` to match. There is no codegen step here, so this is the one place drift can creep in — keep field names and nullability exactly aligned.
+- **DTOs are hand-synced.** `data/Dtos.kt` mirrors the C# DTOs (the source of truth). Change a C# DTO → update `Dtos.kt` to match. There is no codegen step here, so this is the one place drift can creep in — keep field names and nullability exactly aligned. The same goes for size limits: `data/NoteLimits.kt` mirrors the server's `Data/NoteLimits.cs`, and the app holds notes to it before queueing (a note the server refuses is one the outbox can only drop).
 - **Session** (`SessionRepository` + `ApiClient`): access token in memory, refresh cookie persisted in app-private `SharedPreferences` via `PersistentCookieJar` (the mobile analogue of the web httpOnly cookie), silent refresh on 401. Base server URL is user-entered at login.
 - **Realtime** (`RealtimeClient`): SignalR against `RealTimeHub`; on `Changed` it triggers a sync/refetch, same contract as the web client.
 - **Reminders** are native: `AlarmManager` (`notifications/ReminderScheduler`, `ReminderAlarmReceiver`) so they fire offline / app-closed, re-armed after reboot by `BootReceiver`. `ServerNotificationsWatcher` surfaces the server inbox as tray notifications.

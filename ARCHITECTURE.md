@@ -1219,7 +1219,10 @@ reach the disk (entries are matched by the ids in their path and rewritten under
 names, so there is nothing to traverse with); the manifest's *uncompressed* size is checked before
 it is read and each image's before it is decompressed; and every image goes back through
 `NoteMediaProcessor` — the same signature check, pixel bound, metadata stripping and thumbnailing
-an upload gets. A skipped image is a warning in `ImportResultDto`, never a failed import: one
+an upload gets. Its notes and lists are held to the limits every other write is held to
+(`Data/NoteLimits.cs`, which also sizes the columns and the DTOs' `[MaxLength]`): over-long text is
+shortened with a warning. Unchecked, a title over its column failed the whole import on Postgres, and
+a body or checklist over the API's limit was stored — then refused on every later save. A skipped image is a warning in `ImportResultDto`, never a failed import: one
 unreadable photo must not cost someone the other 400 notes in the file.
 
 **Round-tripping is what the tests pin.** `ExportTests` and `ImportTests` export a real account

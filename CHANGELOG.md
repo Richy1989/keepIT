@@ -47,6 +47,10 @@ what deletes the account.
   on the web kept showing them as "Pending", without the controls to change their role or remove
   them, until the page was reloaded; when a collaborator left, the owner and the other collaborators
   weren't told at all. Every change to who is on a note now reaches everyone on it.
+- **Import keeps to the same limits as everything else.** An archive with a note larger than keepIT
+  allows (a title over 1,000 characters, say) made the whole import fail with a server error on
+  PostgreSQL, and on SQLite such a note was stored but could never be saved again. Over-long notes
+  and list names are now shortened, and the import result says which.
 
 ## 0.9.1
 
