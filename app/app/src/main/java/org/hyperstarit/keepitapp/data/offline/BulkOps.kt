@@ -1,6 +1,7 @@
 package org.hyperstarit.keepitapp.data.offline
 
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteFields
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
 
@@ -29,14 +30,21 @@ fun stateOps(notes: List<NoteDto>, state: NoteStateDto, enqueuedAtUtc: String = 
 
 /**
  * Recolours each of [notes] the user can edit. A colour is the note's content, not per-user state,
- * and the server only sets it through the full content update — so this sends the note as cached
- * with the new colour, as the web card's colour picker does. A view-only note is skipped: the server
+ * and the server only sets it through the content update — so this sends the note as cached with
+ * the new colour, naming the colour as the one field it sets: anything else changed meanwhile, on
+ * the server or by a collaborator, stays. A view-only note is skipped: the server
  * would refuse it, and that refusal would surface as a sync error about a note nobody edited.
  */
 fun colorOps(notes: List<NoteDto>, color: String?, enqueuedAtUtc: String = ""): List<PendingOp> =
     notes
         .filter { it.canEdit && it.color != color }
-        .map { n -> PendingOp.Update(n.id, n.toUpdateDto().copy(color = color), enqueuedAtUtc = enqueuedAtUtc) }
+        .map { n ->
+            PendingOp.Update(
+                n.id,
+                n.toUpdateDto().copy(color = color, fields = listOf(NoteFields.COLOR)),
+                enqueuedAtUtc = enqueuedAtUtc,
+            )
+        }
 
 /**
  * Files each of [notes] into [listId] when [member], or takes it out. Membership is per-user, like

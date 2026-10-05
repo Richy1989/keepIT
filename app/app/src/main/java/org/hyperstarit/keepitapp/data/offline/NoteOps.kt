@@ -1,11 +1,14 @@
 package org.hyperstarit.keepitapp.data.offline
 
+import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteFields
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
 import org.hyperstarit.keepitapp.data.ReminderRecurrences
+import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import org.hyperstarit.keepitapp.data.ensureUtc
 import java.time.Instant
 import java.time.ZoneOffset
@@ -22,12 +25,15 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
     is PendingOp.Create -> listOf(tempNote(op)) + notes
 
     is PendingOp.Update -> notes.map { n ->
+        // Only the fields the edit names, as the server will apply it: laid over a fresher fetch,
+        // a pending edit to the text mustn't show back a title the server has since moved past.
+        fun sets(field: String) = op.dto.fields?.contains(field) ?: true
         if (n.id != op.noteId) n else n.copy(
-            type = op.dto.type,
-            title = op.dto.title,
-            body = op.dto.body,
-            color = op.dto.color,
-            checklistItems = op.dto.checklistItems ?: emptyList(),
+            type = if (sets(NoteFields.TYPE)) op.dto.type else n.type,
+            title = if (sets(NoteFields.TITLE)) op.dto.title else n.title,
+            body = if (sets(NoteFields.BODY)) op.dto.body else n.body,
+            color = if (sets(NoteFields.COLOR)) op.dto.color else n.color,
+            checklistItems = if (sets(NoteFields.CHECKLIST_ITEMS)) op.dto.checklistItems ?: emptyList() else n.checklistItems,
             updatedAtUtc = op.enqueuedAtUtc,
         )
     }
@@ -240,3 +246,28 @@ private fun epochMs(iso: String): Long = epochMsOrNull(iso) ?: 0L
 
 internal fun epochMsOrNull(iso: String): Long? =
     runCatching { Instant.parse(ensureUtc(iso)).toEpochMilli() }.getOrNull()
+
+/**
+ * The [NoteFields] in which [after] differs from [before]: what an edit actually changed, and so all
+ * it sends ([UpdateNoteDto.fields]). The checklist counts as changed when its rows differ in id, text
+ * or tick, in their stored order — the order a row is shown in is derived from those.
+ *
+ * [before] has to be what the edit started from. The note as cached now is not that while an editor
+ * is open: a sync can bring in a collaborator's change, which would then look like this edit's and
+ * be sent back over theirs.
+ */
+fun changedFields(before: UpdateNoteDto, after: UpdateNoteDto): List<String> = buildList {
+    if (after.type != before.type) add(NoteFields.TYPE)
+    if (after.title != before.title) add(NoteFields.TITLE)
+    if (after.body != before.body) add(NoteFields.BODY)
+    if (after.color != before.color) add(NoteFields.COLOR)
+    if (after.checklistItems.orEmpty().rows() != before.checklistItems.orEmpty().rows()) add(NoteFields.CHECKLIST_ITEMS)
+}
+
+/** [changedFields] against [note] as it stands — for an edit made from the cached note itself. */
+fun changedFields(note: NoteDto, dto: UpdateNoteDto): List<String> = changedFields(
+    UpdateNoteDto(type = note.type, title = note.title, body = note.body, color = note.color, checklistItems = note.checklistItems),
+    dto,
+)
+
+private fun List<ChecklistItemDto>.rows() = sortedBy { it.order }.map { Triple(it.id, it.text, it.isChecked) }

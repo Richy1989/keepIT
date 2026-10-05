@@ -99,6 +99,7 @@ import org.hyperstarit.keepitapp.data.AudioRecorder
 import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
+import org.hyperstarit.keepitapp.data.offline.changedFields
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.LocalKeepItPalette
 import org.hyperstarit.keepitapp.ui.theme.noteSwatch
@@ -189,6 +190,10 @@ fun EditorScreen(
     // it: that is the caller's own, compared and saved on its own.
     fun contentSignature() = editSignatureOf(type, title, body.text, color, emptySet(), items)
     var persistedContent by remember { mutableStateOf<String?>(null) }
+    // The same content as it would be sent: what the next save compares against to name the fields
+    // it changes. Never the note as cached now — a sync while the editor is open brings in other
+    // people's changes, and comparing against those would send this editor's stale copy back.
+    var savedContent by remember { mutableStateOf<UpdateNoteDto?>(null) }
 
     // ---- images ----
     val context = LocalContext.current
@@ -229,6 +234,7 @@ fun EditorScreen(
         n.checklistItems.sortedBy { it.order }.forEach { items.add(EditableItem(it.id, it.text, it.isChecked)) }
         listIds = n.listIds.toSet()
         persistedContent = contentSignature()
+        savedContent = n.asSaved()
         loaded = true
     }
 
@@ -305,6 +311,13 @@ fun EditorScreen(
                 ),
             )
             persistedContent = contentSignature()
+            savedContent = UpdateNoteDto(
+                type = type,
+                title = title.trim().ifBlank { null },
+                body = body.text.trim().ifBlank { null },
+                color = color,
+                checklistItems = checklist,
+            )
         } else {
             // Only content that differs from what was loaded or last saved goes out, as on the web.
             // Closing the editor, backgrounding the app and attaching an image all come through here,
@@ -314,17 +327,16 @@ fun EditorScreen(
             // a collaborator had changed in the meantime.
             val content = contentSignature()
             if (current.canEdit && content != persistedContent) {
-                repo.update(
-                    current.id,
-                    UpdateNoteDto(
-                        type = type,
-                        title = title.trim().ifBlank { null },
-                        body = body.text.trim().ifBlank { null },
-                        color = color,
-                        checklistItems = buildChecklist(),
-                    ),
+                val dto = UpdateNoteDto(
+                    type = type,
+                    title = title.trim().ifBlank { null },
+                    body = body.text.trim().ifBlank { null },
+                    color = color,
+                    checklistItems = buildChecklist(),
                 )
+                repo.update(current.id, dto, fields = savedContent?.let { changedFields(it, dto) })
                 persistedContent = content
+                savedContent = dto
             }
             if (listIds != current.listIds.toSet()) {
                 repo.setLists(current.id, listIds.toList())
@@ -977,3 +989,19 @@ private fun TextFieldValue.capped(max: Int): TextFieldValue {
 /** A field's supporting line saying it is full, shown only while [atLimit]. */
 private fun limitNotice(atLimit: Boolean, message: String): (@Composable () -> Unit)? =
     if (!atLimit) null else { { Text(message, color = KeepItColors.TextMuted, fontSize = 12.sp) } }
+
+/**
+ * This note's content as the editor would send it once loaded: text trimmed, blank as null, the
+ * checklist's blank rows dropped and the rest numbered in stored order — what `persist` builds from
+ * the fields, so that comparing the two shows only what was edited.
+ */
+private fun NoteDto.asSaved() = UpdateNoteDto(
+    type = type,
+    title = title.orEmpty().trim().ifBlank { null },
+    body = body.orEmpty().trim().ifBlank { null },
+    color = color,
+    checklistItems = checklistItems
+        .sortedBy { it.order }
+        .filter { it.text.isNotBlank() }
+        .mapIndexed { index, item -> ChecklistItemDto(id = item.id, text = item.text.trim(), isChecked = item.isChecked, order = index) },
+)

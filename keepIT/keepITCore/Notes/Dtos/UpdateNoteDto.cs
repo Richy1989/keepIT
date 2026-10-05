@@ -24,4 +24,13 @@ public class UpdateNoteDto
     /// <summary>The complete new set of checklist rows (replaces existing). MaxLength bounds the item count.</summary>
     [MaxLength(NoteLimits.ChecklistItems)]
     public List<ChecklistItemDto>? ChecklistItems { get; set; }
+
+    /// <summary>
+    /// Which of the fields above this update sets; the rest keep what the note has now. Null sets
+    /// them all, as an update always did. An edit made offline replays long after it was made, and
+    /// sending the whole note then undid whatever had changed meanwhile in the parts it never
+    /// touched — a collaborator's new title reverted by an old edit to the text. Naming the fields
+    /// makes concurrent edits last-writer-wins per field instead of per note.
+    /// </summary>
+    public List<NoteField>? Fields { get; set; }
 }

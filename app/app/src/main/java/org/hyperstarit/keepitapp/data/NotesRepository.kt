@@ -36,6 +36,7 @@ import org.hyperstarit.keepitapp.data.offline.applyListOp
 import org.hyperstarit.keepitapp.data.offline.applyOp
 import org.hyperstarit.keepitapp.data.offline.applyPending
 import org.hyperstarit.keepitapp.data.offline.applyPendingLists
+import org.hyperstarit.keepitapp.data.offline.changedFields
 import org.hyperstarit.keepitapp.data.offline.colorOps
 import org.hyperstarit.keepitapp.data.offline.listMembershipOps
 import org.hyperstarit.keepitapp.data.offline.settleDueReminders
@@ -276,9 +277,21 @@ class NotesRepository(
         return cache.value.first { it.id == op.tempId }
     }
 
-    /** Edits a note's content, held to [NoteLimits] for the same reason as [create]. */
-    suspend fun update(id: String, dto: UpdateNoteDto) =
-        mutate(PendingOp.Update(resolve(id), NoteLimits.clamp(dto), enqueuedAtUtc = nowUtc()))
+    /**
+     * Edits a note's content, held to [NoteLimits] for the same reason as [create]. Only the fields
+     * the edit changed are named for the server: queued offline, it may replay long after it was
+     * made, and must not undo what changed meanwhile in the parts it never touched. The caller names
+     * them when it knows what the edit started from ([fields], as the editor does); otherwise they
+     * are the ones that differ from the cached note ([changedFields]). An edit that changes nothing
+     * isn't queued at all.
+     */
+    suspend fun update(id: String, dto: UpdateNoteDto, fields: List<String>? = null) {
+        val real = resolve(id)
+        val clamped = NoteLimits.clamp(dto)
+        val fields = fields ?: noteById(real)?.let { changedFields(it, clamped) }
+        if (fields != null && fields.isEmpty()) return
+        mutate(PendingOp.Update(real, clamped.copy(fields = fields), enqueuedAtUtc = nowUtc()))
+    }
 
     suspend fun setState(id: String, state: NoteStateDto) =
         mutate(PendingOp.SetState(resolve(id), state, enqueuedAtUtc = nowUtc()))

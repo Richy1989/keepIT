@@ -479,8 +479,13 @@ just appear in a stranger's grid). Owner-only except where noted:
 Recording a pending invite keyed by email and resolving it on signup is a planned refinement.
 
 **Edge cases honored.**
-- **Concurrent edits:** optimistic updates + SignalR keep editors roughly in sync;
-  last-write-wins on `updatedAt`. Field-level merge/CRDT is out of scope.
+- **Concurrent edits:** optimistic updates + SignalR keep editors roughly in sync. Each edit
+  names the fields it changed (`UpdateNoteDto.fields`: type, title, body, colour, checklist) and the
+  server sets only those, so two people changing different parts of a note both keep their change;
+  within one field, the edit that arrives last wins. Before, an update replaced the whole note, and
+  an edit queued offline on Android silently reverted whatever had changed meanwhile in the parts it
+  never touched. The checklist is one field: merging rows, or text within a field (CRDT), is out of
+  scope.
 - **Revocation is immediate:** the next API call 403s/404s and the realtime push tells the
   revoked user's devices to resync (the note vanishes from their grid).
 - **Deleting a shared note:** owner-only; cascades shares, per-user state, list rows, and

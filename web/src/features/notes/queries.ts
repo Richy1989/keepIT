@@ -9,6 +9,7 @@ import { LISTS_KEY } from '../lists/queries';
 import type {
   CreateNoteDto,
   NoteDto,
+  NoteField,
   NoteStateDto,
   SetNoteReminderDto,
   UpdateNoteDto,
@@ -197,13 +198,15 @@ export function useUpdateNote() {
       const snapshot = snapshotNotes(qc);
       const current = findCachedNote(qc, id);
       if (current) {
+        // Only the fields the update names (all when it names none), as the server applies it.
+        const sets = (field: NoteField) => !body.fields || body.fields.includes(field);
         reconcileNote(qc, id, {
           ...current,
-          type: body.type,
-          title: body.title ?? null,
-          body: body.body ?? null,
-          color: body.color ?? null,
-          checklistItems: body.checklistItems ?? [],
+          type: sets('Type') ? body.type : current.type,
+          title: sets('Title') ? (body.title ?? null) : current.title,
+          body: sets('Body') ? (body.body ?? null) : current.body,
+          color: sets('Color') ? (body.color ?? null) : current.color,
+          checklistItems: sets('ChecklistItems') ? (body.checklistItems ?? []) : current.checklistItems,
           updatedAtUtc: new Date().toISOString(),
         });
       }

@@ -55,6 +55,10 @@ what deletes the account.
   only when you set a reminder on the phone, so on a new install with reminders set on the web they
   went off silently. While a reminder is pending and notifications are off, the notes screen now
   says so and offers to turn them on.
+- **An edit no longer undoes someone else's.** Saving a note sent all of it, so an edit made offline
+  on Android, synced later, put back the old version of every part it hadn't touched: a title a
+  collaborator had changed in the meantime was quietly reverted. An edit now changes only what it
+  changed, on the web and on Android. Update the server too: an older one still takes the whole note.
 
 ## 0.9.1
 

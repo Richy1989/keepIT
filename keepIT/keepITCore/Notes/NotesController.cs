@@ -154,7 +154,10 @@ public class NotesController : ControllerBase
         return CreatedAtAction(nameof(GetNote), new { id = note.Id }, created);
     }
 
-    /// <summary>Replaces a note's editable content (title, body, color, type, checklist items).</summary>
+    /// <summary>
+    /// Replaces a note's editable content (title, body, color, type, checklist items) — all of it, or
+    /// only the fields the update names in <see cref="UpdateNoteDto.Fields"/>.
+    /// </summary>
     /// <param name="id">The note id.</param>
     /// <param name="dto">The new content. Checklist items are replaced wholesale.</param>
     /// <returns>200 with the updated note, 403 if the caller is a viewer, or 404 if they have no access.</returns>
@@ -174,17 +177,34 @@ public class NotesController : ControllerBase
             .FirstOrDefaultAsync();
         if (note is null) return NotFound();
 
-        note.Type = dto.Type;
-        note.Title = dto.Title;
-        note.Body = dto.Body;
-        note.Color = dto.Color;
+        // Only the fields the update names (all of them when it names none; see UpdateNoteDto.Fields).
+        // Naming none at all changes nothing, so nothing is written and nobody is told.
+        if (dto.Fields is { Count: 0 }) return Ok((await LoadDtoAsync(id, callerId.Value))!);
+        bool Sets(NoteField field) => dto.Fields is null || dto.Fields.Contains(field);
+
+        if (Sets(NoteField.Type)) note.Type = dto.Type;
+        if (Sets(NoteField.Title)) note.Title = dto.Title;
+        if (Sets(NoteField.Body)) note.Body = dto.Body;
+        if (Sets(NoteField.Color)) note.Color = dto.Color;
         note.UpdatedAtUtc = DateTime.UtcNow;
 
-        // Reconcile checklist items in place (match by id): update existing rows, insert genuinely
-        // new ones, delete the rest. Deleting every row and re-inserting confuses EF's change tracker
-        // (it emits a stray UPDATE against an already-deleted row → DbUpdateConcurrencyException) and
-        // would also churn item ids on every save.
-        var incoming = dto.ChecklistItems ?? new List<ChecklistItemDto>();
+        if (Sets(NoteField.ChecklistItems)) ReconcileChecklist(note, dto.ChecklistItems);
+
+        await _db.SaveChangesAsync();
+        // Content is shared: fan the change out to the owner and every collaborator.
+        await NotifyRecipientsAsync(id, RealtimeResources.Notes);
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
+    }
+
+    /// <summary>
+    /// Makes <paramref name="note"/>'s checklist the <paramref name="items"/> given, in place (matched
+    /// by id): existing rows updated, genuinely new ones inserted, the rest deleted. Deleting every
+    /// row and re-inserting confuses EF's change tracker (it emits a stray UPDATE against an
+    /// already-deleted row → DbUpdateConcurrencyException) and would also churn item ids on every save.
+    /// </summary>
+    private void ReconcileChecklist(Note note, List<ChecklistItemDto>? items)
+    {
+        var incoming = items ?? new List<ChecklistItemDto>();
         var existingById = note.ChecklistItems.ToDictionary(c => c.Id);
         var keptIds = new HashSet<Guid>();
 
@@ -207,11 +227,6 @@ public class NotesController : ControllerBase
 
         foreach (var stale in existingById.Values.Where(c => !keptIds.Contains(c.Id)))
             _db.ChecklistItems.Remove(stale);
-
-        await _db.SaveChangesAsync();
-        // Content is shared: fan the change out to the owner and every collaborator.
-        await NotifyRecipientsAsync(id, RealtimeResources.Notes);
-        return Ok((await LoadDtoAsync(id, callerId.Value))!);
     }
 
     /// <summary>

@@ -1687,6 +1687,8 @@ export interface components {
             media: components["schemas"]["NoteMediaDto"][];
             listIds: string[];
         };
+        /** @enum {unknown} */
+        NoteField: "Type" | "Title" | "Body" | "Color" | "ChecklistItems";
         NoteMediaDto: {
             /** Format: uuid */
             id: string;
@@ -1765,6 +1767,7 @@ export interface components {
             body?: null | string;
             color?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
+            fields?: null | components["schemas"]["NoteField"][];
         };
         UpdateProfileRequestDto: {
             displayName?: null | string;
