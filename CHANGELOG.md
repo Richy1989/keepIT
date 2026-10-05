@@ -39,6 +39,10 @@ what deletes the account.
 - **A deleted account's other devices are refused at once.** Until its access token expired, a
   second device could still read the (empty) account, and every change it sent failed with a server
   error. The server now treats a token whose account is gone as signed out.
+- **Sharing a long text into the Android app no longer crashes it.** Text shared from another app
+  travelled inside the app's internal navigation address, and from about 90,000 characters that
+  address could no longer be matched, so the app closed. Text longer than a note can hold (100,000
+  characters) now opens shortened, with a note saying so.
 
 ## 0.9.1
 
