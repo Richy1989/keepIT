@@ -64,7 +64,8 @@ also works entirely on its own, with no server at all.
   Android, standalone phones included, so a phone with no server still has a real backup. Your
   data, readable without keepIT, and no lock-in.
 - 🔒 **Your notes stay yours:** everything lives on **your** server, or only on your phone. No
-  third-party cloud, no account with anyone but yourself.
+  third-party cloud, no account with anyone but yourself. Turn on two-factor authentication and
+  signing in takes a code from an authenticator app too.
 
 ## A closer look
 

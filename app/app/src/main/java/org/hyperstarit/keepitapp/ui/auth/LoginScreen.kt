@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -22,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,12 +32,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import org.hyperstarit.keepitapp.data.LoginRefusedException
 import org.hyperstarit.keepitapp.data.SessionRepository
 import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
@@ -53,6 +60,10 @@ import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
  * [unsyncedChanges] counts changes still queued for a server whose session expired. Standalone
  * starts from an empty device, so choosing it asks first — those changes exist nowhere else, and
  * signing back in is how to keep them.
+ *
+ * An account with two-factor authentication on signs in in two steps, as on the web: the password,
+ * then — once the server has said it was right — the code from the authenticator app, sent with
+ * the whole sign-in again.
  */
 @Composable
 fun LoginScreen(
@@ -73,11 +84,23 @@ fun LoginScreen(
     // emailed link (there is no native reset screen on purpose — the link targets the web app).
     var forgotMode by rememberSaveable { mutableStateOf(false) }
     var resetRequested by rememberSaveable { mutableStateOf(false) }
+    // The password was right and the account wants its authenticator code too.
+    var codeStep by rememberSaveable { mutableStateOf(false) }
+    var code by rememberSaveable { mutableStateOf("") }
+    // A recovery code has letters in it, so it gets the full keyboard; an app's code, the number pad.
+    var recoveryCode by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    fun leaveCodeStep() {
+        codeStep = false
+        code = ""
+        recoveryCode = false
+    }
+
     fun submit() {
         if (busy || serverUrl.isBlank() || email.isBlank() || (!forgotMode && password.isBlank())) return
+        if (codeStep && code.isBlank()) return
         busy = true
         error = null
         scope.launch {
@@ -89,13 +112,20 @@ fun LoginScreen(
                 val result = if (registerMode) {
                     session.register(serverUrl, email.trim(), password, displayName)
                 } else {
-                    session.login(serverUrl, email.trim(), password)
+                    session.login(serverUrl, email.trim(), password, code.takeIf { codeStep })
                 }
                 result.onFailure {
-                    error = apiErrorMessage(
-                        it,
-                        if (registerMode) "Could not create the account." else "Invalid email or password.",
-                    )
+                    if (it is LoginRefusedException && it.twoFactorRequired) {
+                        // The first answer is the next step, not a failure; on the code step it is a wrong code.
+                        if (codeStep) error = it.message else codeStep = true
+                    } else {
+                        // Anything else on the code step (the account locked by wrong codes, say) starts over.
+                        if (codeStep) leaveCodeStep()
+                        error = apiErrorMessage(
+                            it,
+                            if (registerMode) "Could not create the account." else "Invalid email or password.",
+                        )
+                    }
                 }
             }
             busy = false
@@ -133,11 +163,25 @@ fun LoginScreen(
                     text = when {
                         forgotMode -> "Reset your password"
                         registerMode -> "Create your account"
+                        codeStep -> "Two-factor authentication"
                         connecting -> "Connect to a server"
                         else -> "Welcome back"
                     },
                     color = KeepItColors.TextMuted,
                 )
+                if (codeStep) {
+                    TwoFactorCodeStep(
+                        code = code,
+                        onCodeChange = { code = it },
+                        recoveryCode = recoveryCode,
+                        onToggleRecoveryCode = { recoveryCode = !recoveryCode; code = "" },
+                        error = error,
+                        busy = busy,
+                        onSubmit = ::submit,
+                        onBack = { leaveCodeStep(); error = null },
+                    )
+                    return@Column
+                }
                 if (connecting && !forgotMode) {
                     Text(
                         text = "The notes, lists, reminders and images on this device are uploaded " +
@@ -297,5 +341,78 @@ fun LoginScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * The second step of a two-factor sign-in: the code from the authenticator app, or — for a lost
+ * phone — one of the recovery codes, which gets the full keyboard since it has letters in it. Both
+ * are password keyboards, shown in clear: a keyboard neither suggests nor learns what is typed into
+ * one, and a recovery code is a secret it has no business keeping.
+ */
+@Composable
+private fun TwoFactorCodeStep(
+    code: String,
+    onCodeChange: (String) -> Unit,
+    recoveryCode: Boolean,
+    onToggleRecoveryCode: () -> Unit,
+    error: String?,
+    busy: Boolean,
+    onSubmit: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(recoveryCode) { focus.requestFocus() }
+
+    Text(
+        text = if (recoveryCode) {
+            "Enter one of the recovery codes you saved when you turned two-factor authentication on."
+        } else {
+            "Enter the code your authenticator app shows for keepIT."
+        },
+        color = KeepItColors.TextFaint,
+        fontSize = 13.sp,
+    )
+    OutlinedTextField(
+        value = code,
+        onValueChange = onCodeChange,
+        label = { Text(if (recoveryCode) "Recovery code" else "Code") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (recoveryCode) KeyboardType.Password else KeyboardType.NumberPassword,
+            capitalization = KeyboardCapitalization.None,
+            autoCorrectEnabled = false,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+    )
+    error?.let {
+        Text(text = it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+    }
+    Button(
+        onClick = onSubmit,
+        enabled = !busy && code.isNotBlank(),
+        modifier = Modifier.fillMaxWidth(),
+        colors = accentButtonColors(),
+    ) {
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(2.dp),
+                strokeWidth = 2.dp,
+                color = LocalContentColor.current,
+            )
+        } else {
+            Text("Verify")
+        }
+    }
+    TextButton(onClick = onToggleRecoveryCode, enabled = !busy) {
+        Text(
+            text = if (recoveryCode) "Use the code from my app" else "Lost your phone? Use a recovery code",
+            color = KeepItColors.TextMuted,
+        )
+    }
+    TextButton(onClick = onBack, enabled = !busy) {
+        Text(text = "Back", color = KeepItColors.TextMuted)
     }
 }

@@ -4,7 +4,7 @@ import { api, refreshAccessToken, UNAUTHORIZED_EVENT } from '../api/client';
 import { tokenStore } from './tokenStore';
 import { apiErrorMessageFor } from '../lib/apiError';
 import type { AuthResponseDto, UserDto } from '../api/types';
-import { AuthContext, type AuthState } from './AuthContext';
+import { AuthContext, TwoFactorRequiredError, type AuthState } from './AuthContext';
 
 /**
  * Owns the session: restores it from the httpOnly refresh cookie on load, exposes login/register/
@@ -62,12 +62,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, twoFactorCode?: string) => {
       const { data, error, response } = await api.POST('/api/auth/login', {
-        body: { email, password },
+        body: { email, password, twoFactorCode: twoFactorCode || null },
       });
       if (error || !data) {
-        throw new Error(apiErrorMessageFor(response, error, 'Invalid email or password.'));
+        const message = apiErrorMessageFor(response, error, 'Invalid email or password.');
+        // The password was right; the account wants its authenticator code as well.
+        if (response.status === 401 && error?.twoFactorRequired) throw new TwoFactorRequiredError(message);
+        throw new Error(message);
       }
       applyAuth(data);
     },

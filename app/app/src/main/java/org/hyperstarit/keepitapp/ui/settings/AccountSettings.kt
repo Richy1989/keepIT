@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -53,18 +55,29 @@ private const val DISPLAY_NAME_MAX_LENGTH = 100
 /**
  * The account, mirroring the web Settings page's General and Security sections: the profile
  * (display name, edited in a dialog, and the email it falls back to), the way to change the
- * password, the server this phone talks to, and Sign out — the drawer's, with the same warning
- * when changes are still queued. Last and set apart, Delete account, behind its own dialog.
+ * password and to two-factor authentication, the server this phone talks to, and Sign out — the
+ * drawer's, with the same warning when changes are still queued. Last and set apart, Delete
+ * account, behind its own dialog.
  *
  * Server mode only: standalone has no account, and its top-level card opens
  * [DeviceSettingsScreen] instead.
  */
 @Composable
-fun AccountSettingsScreen(container: AppContainer, onBack: () -> Unit, onChangePassword: () -> Unit) {
+fun AccountSettingsScreen(
+    container: AppContainer,
+    onBack: () -> Unit,
+    onChangePassword: () -> Unit,
+    onTwoFactor: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val session by container.session.state.collectAsState()
     val pending by container.pendingChanges.collectAsState()
     val user = (session as? SessionState.SignedIn)?.user
+    // Read each time the page opens, so it is right after a change on the two-factor page. Null
+    // while loading, or when the server can't be asked (offline, or one without two-factor).
+    val twoFactorOn by produceState<Boolean?>(null) {
+        value = container.session.twoFactorStatus().getOrNull()?.enabled
+    }
 
     var editingName by remember { mutableStateOf(false) }
     var deletingAccount by remember { mutableStateOf(false) }
@@ -101,6 +114,19 @@ fun AccountSettingsScreen(container: AppContainer, onBack: () -> Unit, onChangeP
                 summary = "Signs you out of your other devices",
                 chevron = true,
                 onClick = onChangePassword,
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = Icons.Outlined.Security,
+                title = "Two-factor authentication",
+                summary = when (twoFactorOn) {
+                    true -> "On"
+                    false -> "Off"
+                    null -> "A code from an app on your phone at sign-in"
+                },
+                summaryColor = if (twoFactorOn == true) KeepItColors.AccentInk else KeepItColors.TextMuted,
+                chevron = true,
+                onClick = onTwoFactor,
             )
         }
 

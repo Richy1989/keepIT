@@ -274,6 +274,32 @@ If keepIT is reachable from the internet: yes, once your accounts exist. Set
 `App__AllowRegistration=false`. Existing users keep working. Registration would otherwise also
 tell anyone whether an email address already has an account.
 
+### Someone lost the phone with their authenticator app
+
+If they still have a recovery code, they sign in with it (on the code step: *Lost your phone? Use a
+recovery code*), then set up their new phone under Settings → Security on the web or Settings →
+Account → Two-factor authentication on Android. Each recovery code works once.
+
+Without a recovery code, you, the operator, turn two-factor off for them on the server. It also
+lifts the 15-minute lockout they may have run into:
+
+```bash
+# Single container (Unraid, docker run). -u app matters: run it as the user keepIT runs as.
+docker exec -u app keepit dotnet /app/keepITCore.dll disable-two-factor anna@example.com
+# Docker Compose
+docker compose exec api dotnet keepITCore.dll disable-two-factor anna@example.com
+```
+
+Use your container's name in place of `keepit`. They can then sign in with their password, and
+should set up two-factor again. A password reset doesn't turn it off: the reset link only proves
+access to the mailbox.
+
+### The authenticator code is never accepted
+
+The codes depend on the time. Check that the phone sets its clock automatically, and that the
+server's clock is right (`date` on the host). keepIT accepts a code up to about a minute either
+side of the right time.
+
 ### How is an account deleted?
 
 By its owner, from 0.9.2 on: Settings → Security → Delete account on the web, or Settings → Account

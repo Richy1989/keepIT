@@ -89,6 +89,7 @@ const SERVER_PACKAGES: Record<string, string | NotCredited> = {
   'SQLitePCLRaw.provider.e_sqlite3': 'SQLitePCLRaw',
   'SixLabors.ImageSharp': 'ImageSharp',
   MailKit: 'MailKit',
+  'Net.Codecrete.QrCodeGenerator': 'QR Code Generator',
   'Serilog.AspNetCore': 'Serilog',
   nginx: 'nginx',
   'Microsoft.OpenApi': { notCredited: 'builds the API description, served only in development' },

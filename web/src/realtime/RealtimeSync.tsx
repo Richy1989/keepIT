@@ -9,12 +9,13 @@ import { NOTE_SHARES_KEY } from '../features/notes/shareQueries';
 import { LISTS_KEY } from '../features/lists/queries';
 import { NOTIFICATIONS_KEY } from '../features/notifications/queries';
 import { SETTINGS_KEY } from '../features/settings/queries';
+import { TWO_FACTOR_KEY } from '../features/account/queries';
 
 /**
  * Resource names the server sends on `Changed`. Must mirror `RealtimeResources` in the backend
- * (keepITCore/SignalR/RealtimeNotifier.cs) — and they're mapped to TanStack Query keys below. The
- * one exception is `account`, the signed-in user, which lives in the auth context rather than a
- * query and is refetched through it.
+ * (keepITCore/SignalR/RealtimeNotifier.cs) — and they're mapped to TanStack Query keys below.
+ * `account` is half an exception: the signed-in user lives in the auth context rather than a query
+ * and is refetched through it, while the account's two-factor status is a query like the others.
  *
  * `notes` also covers each note's collaborator list: the server announces a membership change
  * (an invite answered, a role changed, someone leaving) as `notes` to everyone on the note, and
@@ -25,6 +26,7 @@ const RESOURCE_QUERY_KEYS: Record<string, string[]> = {
   lists: [LISTS_KEY],
   notification: [NOTIFICATIONS_KEY],
   settings: [SETTINGS_KEY],
+  account: [TWO_FACTOR_KEY],
 };
 
 /**
@@ -72,7 +74,7 @@ export function RealtimeSync() {
     };
     /** Any gap in the connection may have dropped pushes — refetch everything to catch up. */
     const resync = () => {
-      invalidate([NOTES_KEY, NOTE_SHARES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY]);
+      invalidate([NOTES_KEY, NOTE_SHARES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY, TWO_FACTOR_KEY]);
       void refreshUser();
     };
 

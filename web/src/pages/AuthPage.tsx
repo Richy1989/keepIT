@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type InputHTMLAttributes } from 'react';
-import { useAuth } from '../auth/AuthContext';
+import { TwoFactorRequiredError, useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { apiErrorMessage } from '../lib/apiError';
 import { BrandMark } from '../components/BrandMark';
@@ -7,7 +7,11 @@ import { BrandMark } from '../components/BrandMark';
 type Mode = 'login' | 'register' | 'forgot';
 
 /** Sign-in / sign-up / forgot-password screen. Toggles between the modes; login and register
- * submit via the auth context, forgot posts directly (no session involved). */
+ * submit via the auth context, forgot posts directly (no session involved).
+ *
+ * An account with two-factor authentication on signs in in two steps: the password, then — once the
+ * server has said it was right — the code from the authenticator app. The second step sends the
+ * whole sign-in again with the code, so nothing is held on the server in between. */
 export function AuthPage() {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
@@ -18,11 +22,20 @@ export function AuthPage() {
   const [busy, setBusy] = useState(false);
   // Forgot mode: true once the request went through — the form is replaced by the confirmation.
   const [resetRequested, setResetRequested] = useState(false);
+  // Login mode: the password was right and the account wants its authenticator code too.
+  const [codeStep, setCodeStep] = useState(false);
+  const [code, setCode] = useState('');
 
   function switchMode(next: Mode) {
     setMode(next);
     setError(null);
     setResetRequested(false);
+    leaveCodeStep();
+  }
+
+  function leaveCodeStep() {
+    setCodeStep(false);
+    setCode('');
   }
 
   async function onSubmit(e: FormEvent) {
@@ -30,7 +43,7 @@ export function AuthPage() {
     setError(null);
     setBusy(true);
     try {
-      if (mode === 'login') await login(email, password);
+      if (mode === 'login') await login(email, password, codeStep ? code : undefined);
       else if (mode === 'register') await register(email, password, displayName);
       else {
         const { error: apiError, response } = await api.POST('/api/auth/forgot-password', {
@@ -41,6 +54,14 @@ export function AuthPage() {
         setResetRequested(true);
       }
     } catch (err) {
+      if (err instanceof TwoFactorRequiredError) {
+        // The first answer is the next step, not a failure; on the code step it is a wrong code.
+        if (codeStep) setError(err.message);
+        else setCodeStep(true);
+        return;
+      }
+      // Anything else on the code step (the account locked by wrong codes, say) starts over.
+      if (codeStep) leaveCodeStep();
       setError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
       setBusy(false);
@@ -57,12 +78,13 @@ export function AuthPage() {
 
         <div className="rounded-2xl border border-border-subtle bg-surface p-6 elev-raised">
           <h1 className="text-lg font-medium">
-            {mode === 'login' && 'Welcome back'}
+            {mode === 'login' && (codeStep ? 'Two-factor authentication' : 'Welcome back')}
             {mode === 'register' && 'Create your account'}
             {mode === 'forgot' && 'Reset your password'}
           </h1>
           <p className="mt-1 text-sm text-text-muted">
-            {mode === 'login' && 'Sign in to your notes.'}
+            {mode === 'login' &&
+              (codeStep ? 'Enter the code your authenticator app shows for keepIT.' : 'Sign in to your notes.')}
             {mode === 'register' && 'Start capturing notes in seconds.'}
             {mode === 'forgot' && "Enter your account email and we'll send you a reset link."}
           </p>
@@ -81,6 +103,49 @@ export function AuthPage() {
                 Back to sign in
               </button>
             </div>
+          ) : codeStep ? (
+            <form onSubmit={onSubmit} className="mt-6 space-y-3">
+              <Field
+                label="Code"
+                type="text"
+                value={code}
+                onChange={setCode}
+                placeholder="123 456"
+                autoComplete="one-time-code"
+                autoCapitalize="none"
+                spellCheck={false}
+                autoFocus
+                required
+              />
+              <p className="text-xs text-text-muted">
+                Lost your phone? Enter one of your recovery codes instead.
+              </p>
+
+              {error && (
+                <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
+                  {error}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={busy}
+                aria-busy={busy}
+                className="focus-ring mt-2 w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-accent-strong disabled:opacity-60"
+              >
+                {busy ? 'Please wait…' : 'Verify'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  leaveCodeStep();
+                  setError(null);
+                }}
+                className="w-full text-center text-xs font-medium text-text-muted hover:text-accent-ink hover:underline"
+              >
+                Back
+              </button>
+            </form>
           ) : (
             <form onSubmit={onSubmit} className="mt-6 space-y-3">
               {mode === 'register' && (

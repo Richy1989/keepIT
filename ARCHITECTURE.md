@@ -235,7 +235,10 @@ the API issues tokens.
   instance: create your accounts, then close the door (existing users are unaffected).
 - `POST /login` — credentials → access token + refresh cookie. Failed attempts count toward
   Identity's per-account **lockout**; a locked account gets the same generic 401 as bad
-  credentials (no account/lock-state enumeration).
+  credentials (no account/lock-state enumeration). Every 401 is a `LoginFailureDto`; for an
+  account with **two-factor** on, the right password alone gets one with `twoFactorRequired`
+  set, and the client sends the sign-in again with `twoFactorCode` (see **Two-factor
+  authentication** below).
 - `POST /refresh` — rotates the cookie, returns a new access token. No access token required.
 - `POST /logout` — revokes the current refresh token and clears the cookie. Idempotent.
 - `POST /changepassword` — verifies the current password, sets the new one, then **revokes
@@ -279,11 +282,51 @@ the API issues tokens.
   devices, whose next request finds no account and signs them out. Answers 204 and clears the
   refresh cookie. Web: Settings → Security; Android: Settings → Account, which on success wipes
   the device like sign-out does (cache, outbox, widget, reminders, profile picture).
+- `GET /two-factor`, `POST /two-factor/setup | enable | disable | recovery-codes` — the caller's
+  two-factor authentication; see below.
 
-The credential endpoints (register, login, change-/forgot-/reset-password, delete-account) carry
-the tight `auth` rate limit; `/refresh`, `/logout`, and `/me` (read or rename) deliberately sit under only the global
+The credential endpoints (register, login, change-/forgot-/reset-password, delete-account, and
+the two-factor ones that change something) carry the tight `auth` rate limit; `/refresh`, `/logout`, and `/me` (read or rename) deliberately sit under only the global
 limit — every page reload refreshes, and throttling that signs real users out (see **Security &
 abuse protection**).
+
+**Two-factor authentication** (`Auth/TwoFactorService.cs`, `TwoFactorController`)
+- **What it is:** a six-digit code from an authenticator app (TOTP, RFC 6238: 30-second steps,
+  HMAC-SHA1), optional per user. It is Identity's own: `AuthenticatorTokenProvider` checks the
+  code, the key and the recovery codes live in Identity's `AspNetUserTokens`, the switch is
+  `TwoFactorEnabled`. So there is no schema of ours and no migration, and the SQLite reconciler
+  has nothing to add: both tables have been there since the first schema. Text messages and email
+  codes were left out on purpose (a paid provider; mail is optional for an operator).
+- **Sign-in is stateless.** The client sends email + password; with the right password the 401
+  says `twoFactorRequired`, and the client sends all three. Nothing is held between the
+  attempts, so there is no half-signed-in token to steal or expire. Only the right password
+  reveals that an account uses two-factor; a wrong code counts toward the lockout like a wrong
+  password (that, with the rate limit, is what stops code guessing: five tries per 15 minutes
+  against a million codes).
+- **Setting it up:** `setup` takes the password (a device left signed in mustn't be able to tie
+  the account to someone else's phone) and returns a new key three ways: the `otpauth://` URI, the
+  key in groups of four, and the URI as a QR code — `TwoFactorSetupDto.qrCode`, rows of `'1'`/`'0'`
+  modules with the light border, encoded on the server (Net.Codecrete.QrCodeGenerator, a port of
+  Nayuki's generator with no dependencies) and *drawn* by each client, so neither needs a QR
+  library and the code is sharp at any size. Always black on white, whatever the theme: scanners
+  want dark on light. `enable` takes a code from the app, so a mistyped key can't lock anyone
+  out, and returns the first ten recovery codes. `setup` refuses (409) while two-factor is on:
+  a new key would silently end the authenticator in use.
+- **Recovery codes** sign in once each in place of a code. Identity stores them readable; ours
+  are stored as SHA-256 hashes (`TwoFactorService.HashRecoveryCode`), so a copy of the database is
+  not a copy of every way past the second factor. Ten codes of ten characters from an alphabet
+  without 0/O/1/l/i (about 50 bits each); a plain hash suffices because a code only replaces the
+  second factor, never the password. Shown once, when made.
+- **Turning it off, or new codes,** take the password *and* a code (or a recovery code): a session
+  alone, or a password alone, is not enough to remove the second factor. Off also replaces the
+  key and drops the codes, so turning it back on starts afresh. Changes push `account`, and so
+  does a sign-in that uses up a recovery code, so a device showing the count stays right; the web
+  invalidates its two-factor query on it.
+- **A password reset leaves it on:** the emailed link proves control of the mailbox, one factor.
+- **The way back in** for someone who lost both the phone and the codes is the operator's:
+  `dotnet keepITCore.dll disable-two-factor <email>` on the server (`DisableTwoFactorCommand`,
+  run from `Program.cs` after the database init, instead of serving). It also lifts a lockout.
+  There is no admin page to do it from, and no email route, deliberately; see FAQ.md.
 
 **Authorization rule (applies everywhere)**
 - Every endpoint requires a valid JWT **except** register, login, refresh, logout,
