@@ -1817,6 +1817,7 @@ export interface components {
         CreateListDto: {
             name: string;
             color?: null | string;
+            icon?: null | string;
         };
         CreateNoteDto: {
             type: components["schemas"]["NoteType"];
@@ -1865,6 +1866,7 @@ export interface components {
             id: string;
             name: string;
             color?: null | string;
+            icon?: null | string;
             /** Format: int32 */
             noteCount: number;
             /** Format: date-time */
@@ -2004,6 +2006,7 @@ export interface components {
         UpdateListDto: {
             name?: null | string;
             color?: null | string;
+            icon?: null | string;
         };
         UpdateNoteDto: {
             type: components["schemas"]["NoteType"];

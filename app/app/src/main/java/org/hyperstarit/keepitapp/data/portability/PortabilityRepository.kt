@@ -193,7 +193,7 @@ class PortabilityRepository(
                     listIdByArchiveId[list.id] = match.id
                     listsReused++
                 } else {
-                    listIdByArchiveId[list.id] = notesRepo.createList(name, list.color)
+                    listIdByArchiveId[list.id] = notesRepo.createList(name, list.color, list.icon)
                     listsCreated++
                 }
             }

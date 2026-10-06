@@ -1016,7 +1016,8 @@ everything else is scoped to):
   appears. Nothing enforces
   this contract, so a client that writes display order back into `order` breaks the other clients:
   the rule lives in `web/src/features/notes/checklist.ts` and `app/…/data/Checklist.kt`.
-- `KeepList` (the `List` resource) — id, ownerId, name, color. Always private to its owner.
+- `KeepList` (the `List` resource) — id, ownerId, name, color, optional icon. Always private to
+  its owner.
 - `NoteList` — the per-user join (noteId, listId, **userId**): a collaborator files a shared
   note into their own lists without the owner seeing it.
 - `NoteShare` — noteId, granteeId, **role** (`Viewer` | `Editor`), created-by/at; one row per
@@ -1053,11 +1054,18 @@ user-curated named collections with their own sidebar section.
 - Lists are **per user and private** (`NoteList.userId`). On a shared note, each collaborator
   files it into their *own* lists; the owner's lists don't travel with the share.
 - Renaming/deleting a list never deletes notes — deleting drops its join rows only.
+- A list may have an **icon**: one emoji or other single symbol, i.e. one grapheme cluster, so a
+  flag or a ZWJ family counts as one (`Lists/ListIcon.cs`; Android applies the same rule before
+  queueing, `NoteLimits.listIconOrNull`). Both clients offer the same curated grid
+  (`web/src/features/lists/listIcons.json`, hand-copied to Android's `ui/notes/ListIcons.kt` and
+  held to it by `ListIconsParityTest`), but the server checks only the shape, never the grid, so
+  the grid can grow without an API change. A list without one shows the generic list icon.
 
 **Endpoints** (all caller-scoped):
 - `GET    /api/lists` — the caller's lists (with note counts for the sidebar).
-- `POST   /api/lists` — create (name, optional color).
-- `PATCH  /api/lists/{id}` — rename / recolor.
+- `POST   /api/lists` — create (name, optional color and icon).
+- `PATCH  /api/lists/{id}` — rename / recolor / re-icon. A null field is left alone, so an empty
+  `icon` is how one is removed.
 - `DELETE /api/lists/{id}` — delete (notes survive, unfiled).
 - `PUT    /api/notes/{id}/lists` — replace the set of the caller's lists a note is in.
 - Filtering: `GET /api/notes?listId=…` (repeatable for a union).
@@ -1065,7 +1073,7 @@ user-curated named collections with their own sidebar section.
 **Frontend.** TanStack Query keys include the active filter, so switching lists is a cache
 key change, not a refetch hack. The selected-filter UI state itself is client state.
 
-**Android.** List create / rename / delete are queued ops like every note mutation, so they
+**Android.** List create / edit / delete are queued ops like every note mutation, so they
 work offline (and in standalone mode) and replay later; a list created offline can be filed
 into straight away under its temp id. Counts are computed locally from the cache.
 

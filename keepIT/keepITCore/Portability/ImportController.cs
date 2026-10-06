@@ -5,6 +5,7 @@ using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Infrastructure;
 using keepITCore.Infrastructure.Security;
+using keepITCore.Lists;
 using keepITCore.Notes.Dtos;
 using keepITCore.Portability.Dtos;
 using keepITCore.Service;
@@ -256,6 +257,7 @@ public class ImportController : ControllerBase
                 OwnerId = ownerId,
                 Name = name,
                 Color = ValidColor(source.Color),
+                Icon = ValidIcon(source.Icon),
                 CreatedAtUtc = source.CreatedAtUtc == default ? DateTime.UtcNow : source.CreatedAtUtc,
             };
             _db.Lists.Add(list);
@@ -385,6 +387,13 @@ public class ImportController : ControllerBase
     /// loses nothing a client could have shown.
     /// </summary>
     private static string? ValidColor(string? color) => color is { Length: <= NoteLimits.Color } ? color : null;
+
+    /// <summary>
+    /// A list icon the API would have accepted, or none. An archive written by hand, or by a later
+    /// release with a looser rule, can't put anything in the sidebar that no request could.
+    /// </summary>
+    private static string? ValidIcon(string? icon) =>
+        icon?.Trim() is { Length: > 0 } trimmed && ListIcon.IsValid(trimmed) ? trimmed : null;
 
     /// <summary>
     /// Re-attaches a note's images, each one re-decoded and re-encoded exactly as an upload would

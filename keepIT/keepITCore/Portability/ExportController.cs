@@ -129,6 +129,7 @@ public class ExportController : ControllerBase
                 Id = l.Id,
                 Name = l.Name,
                 Color = l.Color,
+                Icon = l.Icon,
                 CreatedAtUtc = l.CreatedAtUtc,
                 // A snapshot of the sidebar count at export time, on the same "active view" basis
                 // as ListsController. Informational only — import recomputes it.

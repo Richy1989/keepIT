@@ -5,8 +5,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
-Delete your own account, two-factor authentication, and a privacy policy. Update your server along
-with the app: both new features need it.
+Delete your own account, two-factor authentication, icons for lists, and a privacy policy. Update
+your server along with the app: the new features need it.
 
 ### New
 
@@ -25,6 +25,11 @@ with the app: both new features need it.
   shared are gone for everyone; notes others shared with you stay with their owners, who are told
   right away, as is everyone who loses one of your notes. It cannot be undone, so export first.
   Android on an older server says the server needs updating.
+- **Lists can have an icon**, on the web and on Android. When you create or edit a list, pick one
+  of 48 emoji to show beside its name in the sidebar and wherever you file a note into it; without
+  one, a list keeps the plain list icon. The pencil beside a list on the web, and Edit in its menu
+  on Android (it was Rename), now change both the name and the icon. An older server ignores the
+  icon, so the list is created without one.
 - **A [privacy policy](PRIVACY.md)**, linked from About on the web and on Android. In short: keepIT
   collects nothing, and your notes stay on your server or your phone.
 

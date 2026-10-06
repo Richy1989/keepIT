@@ -266,15 +266,17 @@ tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.co
     finalizedBy(verifyReleaseKeepRules)
 }
 
-// Two unit tests read the web app's files to hold this app to it: WebTokenParityTest (the colour
-// tokens in index.css) and AboutContentParityTest (the About page's about.json). Declared as test
-// inputs so that a change on the web side alone reruns them; otherwise Gradle would call the tests
-// up to date, and the drift would only show on a clean build such as CI's. AboutCreditsTest reads
-// this script's dependencies the same way, so the script is an input too.
+// Three unit tests read the web app's files to hold this app to it: WebTokenParityTest (the colour
+// tokens in index.css), AboutContentParityTest (the About page's about.json) and ListIconsParityTest
+// (the list icon picker's listIcons.json). Declared as test inputs so that a change on the web side
+// alone reruns them; otherwise Gradle would call the tests up to date, and the drift would only show
+// on a clean build such as CI's. AboutCreditsTest reads this script's dependencies the same way, so
+// the script is an input too.
 tasks.withType<Test>().configureEach {
     inputs.files(
         rootProject.file("../web/src/index.css"),
         rootProject.file("../web/src/features/about/about.json"),
+        rootProject.file("../web/src/features/lists/listIcons.json"),
     ).withPropertyName("webParitySources").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file("build.gradle.kts").withPropertyName("dependencyList").withPathSensitivity(PathSensitivity.RELATIVE)
 }

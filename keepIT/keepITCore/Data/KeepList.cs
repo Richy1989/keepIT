@@ -23,6 +23,12 @@ public class KeepList
     /// <summary>Optional chip color for the sidebar.</summary>
     public string? Color { get; set; }
 
+    /// <summary>
+    /// Optional icon shown beside the name: one emoji or other single symbol (see
+    /// <see cref="Lists.ListIcon"/>). Null shows the clients' generic list icon.
+    /// </summary>
+    public string? Icon { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     /// <summary>Note memberships in this list.</summary>

@@ -187,7 +187,7 @@ fun NotesScreen(
     // List management — offline-first like notes; a change the server later refuses surfaces
     // through syncErrors above. The dialog being shown, if any.
     var newListOpen by remember { mutableStateOf(false) }
-    var renameTarget by remember { mutableStateOf<ListDto?>(null) }
+    var editTarget by remember { mutableStateOf<ListDto?>(null) }
     var deleteTarget by remember { mutableStateOf<ListDto?>(null) }
     // "Delete all" in the trash: the notes it was pressed for, while the confirmation is up.
     var emptyTrashTarget by remember { mutableStateOf<List<NoteDto>?>(null) }
@@ -325,6 +325,7 @@ fun NotesScreen(
                         val selected = filter.view == NotesView.ACTIVE && list.id in filter.listIds
                         var listMenuOpen by remember(list.id) { mutableStateOf(false) }
                         NavigationDrawerItem(
+                            icon = { ListGlyph(list.icon) },
                             label = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -349,8 +350,8 @@ fun NotesScreen(
                                         onDismissRequest = { listMenuOpen = false },
                                     ) {
                                         DropdownMenuItem(
-                                            text = { Text("Rename") },
-                                            onClick = { listMenuOpen = false; renameTarget = list },
+                                            text = { Text("Edit") },
+                                            onClick = { listMenuOpen = false; editTarget = list },
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Delete") },
@@ -642,31 +643,40 @@ fun NotesScreen(
         }
     }
 
-    // ---- list management dialogs (create / rename / delete-confirm) ----
+    // ---- list management dialogs (create / edit / delete-confirm) ----
 
     if (newListOpen) {
-        ListNameDialog(
+        ListDialog(
             title = "New list",
             confirmLabel = "Create",
-            initial = "",
-            onConfirm = { name ->
+            initialName = "",
+            initialIcon = null,
+            onConfirm = { name, icon ->
                 newListOpen = false
-                scope.launch { repo.createList(name) }
+                scope.launch { repo.createList(name, icon = icon) }
             },
             onDismiss = { newListOpen = false },
         )
     }
 
-    renameTarget?.let { target ->
-        ListNameDialog(
-            title = "Rename list",
-            confirmLabel = "Rename",
-            initial = target.name,
-            onConfirm = { name ->
-                renameTarget = null
-                scope.launch { repo.renameList(target.id, name) }
+    editTarget?.let { target ->
+        ListDialog(
+            title = "Edit list",
+            confirmLabel = "Save",
+            initialName = target.name,
+            initialIcon = target.icon,
+            onConfirm = { name, icon ->
+                editTarget = null
+                // Only what changed is queued; "" is how the server is told to remove an icon.
+                scope.launch {
+                    repo.editList(
+                        target.id,
+                        name = name.takeIf { it != target.name },
+                        icon = if (icon == target.icon) null else icon ?: "",
+                    )
+                }
             },
-            onDismiss = { renameTarget = null },
+            onDismiss = { editTarget = null },
         )
     }
 
@@ -742,16 +752,17 @@ fun NotesScreen(
     }
 
     if (newListForSelection) {
-        ListNameDialog(
+        ListDialog(
             title = "New list",
             confirmLabel = "Create",
-            initial = "",
-            onConfirm = { name ->
+            initialName = "",
+            initialIcon = null,
+            onConfirm = { name, icon ->
                 newListForSelection = false
                 selectionEdited = true
                 val ids = selectedIds
                 // Filed under the list's temp id; the outbox replays its create first.
-                scope.launch { repo.setListMembership(ids, repo.createList(name), member = true) }
+                scope.launch { repo.setListMembership(ids, repo.createList(name, icon = icon), member = true) }
             },
             onDismiss = { newListForSelection = false },
         )
@@ -985,13 +996,14 @@ private fun SelectionListsSheet(
                             uncheckedColor = KeepItColors.BorderStrong,
                         ),
                     )
+                    ListGlyph(list.icon, modifier = Modifier.padding(start = 20.dp))
                     Text(
                         text = list.name,
                         color = KeepItColors.Text,
                         fontSize = 16.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(start = 20.dp),
+                        modifier = Modifier.weight(1f).padding(start = 12.dp),
                     )
                 }
             }
@@ -1015,31 +1027,42 @@ private fun SelectionListsSheet(
     }
 }
 
-/** Name prompt shared by create and rename. Confirm is disabled while the name is blank. */
+/**
+ * Name and icon prompt shared by create and edit. Confirm is disabled while the name is blank; the
+ * icon is optional, and the name field leads with the one chosen so far. The emoji grid is the web
+ * picker's ([ListIcons]); the dialog scrolls when a short or landscape screen can't fit it.
+ */
 @Composable
-private fun ListNameDialog(
+private fun ListDialog(
     title: String,
     confirmLabel: String,
-    initial: String,
-    onConfirm: (String) -> Unit,
+    initialName: String,
+    initialIcon: String?,
+    onConfirm: (name: String, icon: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var name by remember { mutableStateOf(initial) }
+    var name by remember { mutableStateOf(initialName) }
+    var icon by remember { mutableStateOf(initialIcon) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = KeepItColors.Surface,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    leadingIcon = { ListGlyph(icon) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                ListIconGrid(selected = icon, onPick = { icon = it })
+            }
         },
         confirmButton = {
-            Button(enabled = name.isNotBlank(), colors = accentButtonColors(), onClick = { onConfirm(name.trim()) }) {
+            Button(enabled = name.isNotBlank(), colors = accentButtonColors(), onClick = { onConfirm(name.trim(), icon) }) {
                 Text(confirmLabel)
             }
         },

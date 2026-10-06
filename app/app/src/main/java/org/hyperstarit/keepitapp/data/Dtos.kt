@@ -329,16 +329,21 @@ data class ListDto(
     val id: String,
     val name: String = "",
     val color: String? = null,
+    /** One emoji or other single symbol; null shows the generic list icon. */
+    val icon: String? = null,
     val noteCount: Int = 0,
     val createdAtUtc: String = "",
 )
 
 @Serializable
-data class CreateListDto(val name: String, val color: String? = null)
+data class CreateListDto(val name: String, val color: String? = null, val icon: String? = null)
 
-/** Renames and/or recolors a list; a null field is left unchanged. */
+/**
+ * Renames, recolors and/or re-icons a list; a null field is left unchanged, so an [icon] of `""` is
+ * how one is removed.
+ */
 @Serializable
-data class UpdateListDto(val name: String? = null, val color: String? = null)
+data class UpdateListDto(val name: String? = null, val color: String? = null, val icon: String? = null)
 
 /**
  * One collaborator on a note (from `GET api/notes/{id}/shares`): who and at what [NoteRoles] role.

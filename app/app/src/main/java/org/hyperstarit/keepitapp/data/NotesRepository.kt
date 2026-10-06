@@ -399,33 +399,43 @@ class NotesRepository(
     // ---- lists: offline-first like notes — applied locally at once, queued for the server ----
 
     /**
-     * Creates a list under a temp id; notes can be filed into it before the server has seen it.
+     * Creates a list under a temp id; notes can be filed into it before the server has seen it. An
+     * [icon] the server would refuse (see [NoteLimits.listIconOrNull]) is left off rather than
+     * queued, since the refusal would take the whole list out of the outbox.
      *
      * @return the new list's id — the temp one until the create replays. Callers that must file
      *   notes into the list they just made need it (an import restoring a note into a restored
      *   list); the rest can ignore it, and [resolveList] swaps in the server's id either way.
      */
-    suspend fun createList(name: String, color: String? = null): String {
+    suspend fun createList(name: String, color: String? = null, icon: String? = null): String {
         val tempId = PendingOp.newTempId()
         mutate(
             PendingOp.CreateList(
                 tempId = tempId,
-                dto = CreateListDto(NoteLimits.clampListName(name.trim()), color),
+                dto = CreateListDto(NoteLimits.clampListName(name.trim()), color, NoteLimits.listIconOrNull(icon)),
                 enqueuedAtUtc = nowUtc(),
             ),
         )
         return tempId
     }
 
-    /** Renames a list. */
-    suspend fun renameList(id: String, name: String) =
+    /**
+     * Renames a list and/or changes its icon. A null field is left as it is (so is a blank name),
+     * and an empty [icon] removes the icon — the server's PATCH rules. Nothing is queued when
+     * nothing changes.
+     */
+    suspend fun editList(id: String, name: String? = null, icon: String? = null) {
+        val newName = name?.trim()?.takeIf { it.isNotEmpty() }?.let(NoteLimits::clampListName)
+        val newIcon = if (icon.isNullOrEmpty()) icon else NoteLimits.listIconOrNull(icon)
+        if (newName == null && newIcon == null) return
         mutate(
             PendingOp.UpdateList(
                 resolveList(id),
-                UpdateListDto(name = NoteLimits.clampListName(name.trim())),
+                UpdateListDto(name = newName, icon = newIcon),
                 enqueuedAtUtc = nowUtc(),
             ),
         )
+    }
 
     /** Deletes a list (notes survive, memberships go), clearing it from the filter if active. */
     suspend fun deleteList(id: String) {

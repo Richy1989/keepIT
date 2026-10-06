@@ -1,5 +1,7 @@
 package org.hyperstarit.keepitapp.data
 
+import java.text.BreakIterator
+
 /**
  * The server's size limits for notes and lists, mirrored from the `[MaxLength]` attributes on the C#
  * write DTOs (`CreateNoteDto`, `UpdateNoteDto`, `ChecklistItemDto`, `CreateListDto`), which are the
@@ -21,6 +23,9 @@ object NoteLimits {
     const val CHECKLIST_ITEMS = 500
     const val CHECKLIST_ITEM_TEXT = 2_000
     const val LIST_NAME = 100
+
+    /** A list icon, in UTF-16 units: one symbol, but a ZWJ emoji can be 11 units and a flag 14. */
+    const val LIST_ICON = 16
 
     /** [text] cut to at most [max] UTF-16 units, without ending on half a surrogate pair. */
     fun cut(text: String, max: Int): String {
@@ -54,4 +59,33 @@ object NoteLimits {
     )
 
     fun clampListName(name: String): String = cut(name, LIST_NAME)
+
+    /**
+     * [icon] trimmed when it is an icon the server accepts, else null. The server's rule
+     * (`Lists/ListIcon.cs`): exactly one user-perceived character — so a flag or a ZWJ family is
+     * one — that draws something, i.e. not whitespace, a control or a format character.
+     *
+     * The picker only offers icons that pass, so this guards the path that doesn't go through it:
+     * a list from an imported archive, which a server refusing would take out of the outbox along
+     * with every note filed in it.
+     *
+     * [BreakIterator] is ICU on Android, and on the JVM the unit tests run on (JDK 20+) it follows
+     * the same extended grapheme cluster rules.
+     */
+    fun listIconOrNull(icon: String?): String? {
+        val trimmed = icon?.trim()
+        if (trimmed.isNullOrEmpty() || trimmed.length > LIST_ICON) return null
+
+        val breaks = BreakIterator.getCharacterInstance().apply { setText(trimmed) }
+        breaks.first()
+        if (breaks.next() != trimmed.length) return null
+
+        // A lone surrogate reads back as itself, typed SURROGATE.
+        val first = trimmed.codePointAt(0)
+        val draws = !Character.isWhitespace(first) && !Character.isSpaceChar(first) &&
+            Character.getType(first) !in NON_DRAWING
+        return trimmed.takeIf { draws }
+    }
+
+    private val NON_DRAWING = setOf(Character.CONTROL, Character.FORMAT, Character.SURROGATE).map { it.toInt() }
 }

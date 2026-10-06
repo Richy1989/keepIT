@@ -71,6 +71,21 @@ class NoteLimitsTest {
     }
 
     @Test
+    fun `a list icon is any one symbol, trimmed`() {
+        for (icon in listOf("🛒", "🇦🇹", "👍🏽", "👨‍👩‍👧‍👦", "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "❤️", "K")) {
+            assertEquals(icon, NoteLimits.listIconOrNull(icon))
+        }
+        assertEquals("🛒", NoteLimits.listIconOrNull(" 🛒 "))
+    }
+
+    @Test
+    fun `anything the server would refuse as a list icon becomes none`() {
+        for (icon in listOf(null, "", "  ", "ab", "🛒🛒", "\u200D", "\u0007", "\uD83D", "🛒".repeat(9))) {
+            assertNull(icon, NoteLimits.listIconOrNull(icon))
+        }
+    }
+
+    @Test
     fun `list names are cut to the list limit`() {
         assertEquals(NoteLimits.LIST_NAME, NoteLimits.clampListName("l".repeat(300)).length)
         val short = "Groceries"

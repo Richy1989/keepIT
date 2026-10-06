@@ -97,7 +97,7 @@ public sealed class ImportTests
         using var source = await api.CreateSignedInClientAsync();
         using var target = await api.CreateSignedInClientAsync();
 
-        var listResponse = await source.PostAsJsonAsync("/api/lists", new { name = "Trip", color = "teal" });
+        var listResponse = await source.PostAsJsonAsync("/api/lists", new { name = "Trip", color = "teal", icon = "🧳" });
         listResponse.EnsureSuccessStatusCode();
         var listId = (await listResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
 
@@ -166,6 +166,7 @@ public sealed class ImportTests
         var lists = (await target.GetFromJsonAsync<JsonElement>("/api/lists")).EnumerateArray().ToArray();
         var trip = Assert.Single(lists);
         Assert.Equal("Trip", trip.GetProperty("name").GetString());
+        Assert.Equal("🧳", trip.GetProperty("icon").GetString());
         Assert.Equal(trip.GetProperty("id").GetString(), Assert.Single(packing.GetProperty("listIds").EnumerateArray()).GetString());
 
         // The image was re-attached under the new note, and really serves bytes.
@@ -252,6 +253,39 @@ public sealed class ImportTests
 
         // Nothing was raised into the inbox for it.
         Assert.Empty((await client.GetFromJsonAsync<JsonElement>("/api/notifications")).EnumerateArray());
+    }
+
+    /// <summary>
+    /// A list icon in an archive is held to the rule a request is: one that no request could have
+    /// set is dropped, and the list arrives with the generic icon instead of failing the import.
+    /// </summary>
+    [Fact]
+    public async Task A_list_icon_the_API_would_refuse_is_dropped()
+    {
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+
+        var manifest = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            exportedAtUtc = DateTime.UtcNow,
+            appVersion = "test",
+            lists = new[]
+            {
+                new { id = Guid.NewGuid(), name = "Kept", icon = (string?)" 🛒 ", createdAtUtc = DateTime.UtcNow },
+                new { id = Guid.NewGuid(), name = "Two", icon = (string?)"ab", createdAtUtc = DateTime.UtcNow },
+                new { id = Guid.NewGuid(), name = "None", icon = (string?)null, createdAtUtc = DateTime.UtcNow },
+            },
+            notes = Array.Empty<object>(),
+        });
+
+        await ImportOkAsync(client, BuildArchive(manifest));
+
+        var lists = (await client.GetFromJsonAsync<JsonElement>("/api/lists")).EnumerateArray()
+            .ToDictionary(l => l.GetProperty("name").GetString()!, l => l.GetProperty("icon"));
+        Assert.Equal("🛒", lists["Kept"].GetString());
+        Assert.Equal(JsonValueKind.Null, lists["Two"].ValueKind);
+        Assert.Equal(JsonValueKind.Null, lists["None"].ValueKind);
     }
 
     /// <summary>

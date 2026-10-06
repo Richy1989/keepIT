@@ -181,7 +181,7 @@ class ArchiveTest {
         )
         val ops = listOf(PendingOp.AttachMedia("n1", staged.absolutePath, "m1"))
         val content = buildStandaloneArchive(
-            notes, listOf(ListDto(id = "l1", name = "Trip")), ops, "0.7.6", "now", probe,
+            notes, listOf(ListDto(id = "l1", name = "Trip", icon = "🧳")), ops, "0.7.6", "now", probe,
         )
 
         val zipFile = temp.newFile("out.zip")
@@ -198,6 +198,7 @@ class ArchiveTest {
             assertTrue(note.isPinned)
             assertEquals(listOf("l1"), note.listIds)
             assertEquals("Trip", archive.manifest.lists.single().name)
+            assertEquals("🧳", archive.manifest.lists.single().icon)
 
             val restored = archive.openImage("n1", "m1")!!.use { it.readBytes() }
             assertTrue(bytes.contentEquals(restored))
