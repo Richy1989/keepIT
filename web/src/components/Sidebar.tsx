@@ -1,4 +1,7 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import type { ListDto, UpdateListDto } from '../api/types';
+import { ListEditor } from '../features/lists/ListEditor';
+import { ListGlyph } from '../features/lists/ListIconPicker';
 import {
   useCreateList,
   useDeleteList,
@@ -10,7 +13,6 @@ import { useServerMeta } from '../features/settings/queries';
 import {
   ArchiveIcon,
   ClockIcon,
-  ListIcon,
   NoteIcon,
   PencilIcon,
   PlusIcon,
@@ -28,7 +30,8 @@ export interface Selection {
 }
 
 /**
- * Left navigation: Notes / Archive / Trash plus the user's lists (filter, create, rename, delete).
+ * Left navigation: Notes / Archive / Trash plus the user's lists (filter, create, edit, delete). A
+ * list's name and icon are edited in place (`ListEditor`).
  * On `md+` it's a static column; on small screens it's an off-canvas drawer toggled via `open`
  * (slides in over the content with a tap-to-dismiss backdrop), so phones get the full width back.
  */
@@ -53,23 +56,22 @@ export function Sidebar({
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
   // The list awaiting a delete confirmation. Held by value, not by id: the row can vanish from
   // `lists` the moment the mutation lands, and the dialog still needs the name for its prompt.
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
 
-  function commitNew() {
-    const name = draft.trim();
-    if (name) createList.mutate({ name, color: null });
-    setDraft('');
+  function commitNew(name: string, icon: string | null) {
+    if (name) createList.mutate({ name, color: null, icon });
     setAdding(false);
   }
 
-  function commitRename(id: string) {
-    const name = editDraft.trim();
-    if (name) updateList.mutate({ id, body: { name } });
+  /** Sends only what changed. A blank name keeps the old one; "" is how the API removes an icon. */
+  function commitEdit(list: ListDto, name: string, icon: string | null) {
+    const body: UpdateListDto = {};
+    if (name && name !== list.name) body.name = name;
+    if (icon !== (list.icon ?? null)) body.icon = icon ?? '';
+    if (body.name !== undefined || body.icon !== undefined) updateList.mutate({ id: list.id, body });
     setEditingId(null);
   }
 
@@ -135,37 +137,28 @@ export function Sidebar({
 
       {lists?.map((l) =>
         editingId === l.id ? (
-          <input
+          <ListEditor
             key={l.id}
-            autoFocus
-            value={editDraft}
-            onChange={(e) => setEditDraft(e.target.value)}
-            onBlur={() => commitRename(l.id)}
-            onKeyDown={(e: KeyboardEvent) => {
-              if (e.key === 'Enter') commitRename(l.id);
-              if (e.key === 'Escape') setEditingId(null);
-            }}
-            className="focus-ring mx-1 rounded-lg border border-border-strong bg-canvas px-2 py-1.5 text-sm"
+            initialName={l.name}
+            initialIcon={l.icon ?? null}
+            onCommit={(name, icon) => commitEdit(l, name, icon)}
+            onCancel={() => setEditingId(null)}
           />
         ) : (
           <div key={l.id} className="group/list relative">
             <NavItem
-              icon={<ListIcon className="text-lg" />}
+              icon={<ListGlyph icon={l.icon} className="text-lg" />}
               label={l.name}
               count={l.noteCount}
               active={selection.view === 'active' && selection.listId === l.id}
               onClick={() => onSelect({ view: 'active', listId: l.id })}
-              onDoubleClick={() => {
-                setEditingId(l.id);
-                setEditDraft(l.name);
-              }}
+              onDoubleClick={() => setEditingId(l.id)}
               // F2 is the conventional rename key, and the only one available here — double-click
               // has no keyboard equivalent.
               onKeyDown={(e: KeyboardEvent) => {
                 if (e.key === 'F2') {
                   e.preventDefault();
                   setEditingId(l.id);
-                  setEditDraft(l.name);
                 }
               }}
             />
@@ -177,12 +170,9 @@ export function Sidebar({
             <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center opacity-0 transition focus-within:opacity-100 group-hover/list:opacity-100 touch:opacity-100">
               <button
                 type="button"
-                title="Rename list"
-                aria-label={`Rename list ${l.name}`}
-                onClick={() => {
-                  setEditingId(l.id);
-                  setEditDraft(l.name);
-                }}
+                title="Edit list"
+                aria-label={`Edit list ${l.name}`}
+                onClick={() => setEditingId(l.id)}
                 className="focus-ring grid place-items-center rounded p-1 text-text-faint transition hover:text-text"
               >
                 <PencilIcon className="text-sm" />
@@ -202,20 +192,12 @@ export function Sidebar({
       )}
 
       {adding && (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitNew}
-          onKeyDown={(e: KeyboardEvent) => {
-            if (e.key === 'Enter') commitNew();
-            if (e.key === 'Escape') {
-              setDraft('');
-              setAdding(false);
-            }
-          }}
+        <ListEditor
+          initialName=""
+          initialIcon={null}
           placeholder="List name"
-          className="focus-ring mx-1 rounded-lg border border-border-strong bg-canvas px-2 py-1.5 text-sm placeholder:text-text-faint"
+          onCommit={commitNew}
+          onCancel={() => setAdding(false)}
         />
       )}
 
@@ -291,7 +273,7 @@ function NavItem({
           : 'text-text-muted hover:bg-surface-hover hover:text-text',
       )}
     >
-      <span className={cn(active ? 'text-accent-ink' : 'text-text-faint')}>{icon}</span>
+      <span className={cn('flex', active ? 'text-accent-ink' : 'text-text-faint')}>{icon}</span>
       <span className="flex-1 truncate text-left">{label}</span>
       {count !== undefined && count > 0 && (
         // Fade out on hover/focus so the row's action buttons (absolute, same spot) don't overlap.

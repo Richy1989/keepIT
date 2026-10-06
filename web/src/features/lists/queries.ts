@@ -29,7 +29,7 @@ export function useCreateList() {
   });
 }
 
-/** Renames / recolors a list. */
+/** Renames / recolors / re-icons a list. */
 export function useUpdateList() {
   const qc = useQueryClient();
   return useMutation({
@@ -48,7 +48,15 @@ export function useUpdateList() {
         qc.setQueryData<ListDto[]>(
           [LISTS_KEY],
           prev.map((l) =>
-            l.id === id ? { ...l, name: body.name ?? l.name, color: body.color ?? l.color } : l,
+            l.id === id
+              ? {
+                  ...l,
+                  name: body.name ?? l.name,
+                  color: body.color ?? l.color,
+                  // As on the server: null leaves the icon alone, "" removes it.
+                  icon: body.icon == null ? l.icon : body.icon || null,
+                }
+              : l,
           ),
         );
       }

@@ -876,6 +876,7 @@ fun EditorScreen(
                             selected = selected,
                             onClick = { listIds = if (selected) listIds - list.id else listIds + list.id },
                             label = { Text(list.name) },
+                            leadingIcon = list.icon?.let { icon -> { Text(icon) } },
                         )
                     }
                 }

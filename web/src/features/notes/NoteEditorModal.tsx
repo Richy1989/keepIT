@@ -300,6 +300,11 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                         : 'border-border-strong text-text-muted hover:text-text',
                     )}
                   >
+                    {l.icon && (
+                      <span aria-hidden="true" className="mr-1">
+                        {l.icon}
+                      </span>
+                    )}
                     {l.name}
                   </button>
                 );

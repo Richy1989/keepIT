@@ -31,6 +31,12 @@ public static class NoteLimits
     public const int ListName = 100;
 
     /// <summary>
+    /// A list's icon, in UTF-16 code units. An icon is one symbol (see <c>Lists/ListIcon.cs</c>), but
+    /// one emoji can be many code units: a family is 11, a subdivision flag 14.
+    /// </summary>
+    public const int ListIcon = 16;
+
+    /// <summary>
     /// <paramref name="text"/> cut to at most <paramref name="max"/> code units, never ending on half
     /// a surrogate pair.
     /// </summary>

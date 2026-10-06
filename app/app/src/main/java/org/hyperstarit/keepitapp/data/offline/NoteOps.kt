@@ -96,14 +96,19 @@ fun applyListOp(lists: List<ListDto>, op: PendingOp): List<ListDto> = when (op) 
             id = op.tempId,
             name = op.dto.name,
             color = op.dto.color,
+            icon = op.dto.icon?.ifEmpty { null },
             createdAtUtc = op.enqueuedAtUtc,
         ),
     )
 
-    // Null fields are left unchanged, mirroring the server's PATCH.
+    // Null fields are left unchanged, mirroring the server's PATCH; an empty icon removes it.
     is PendingOp.UpdateList -> sortedLists(
         lists.map { l ->
-            if (l.id != op.listId) l else l.copy(name = op.dto.name ?: l.name, color = op.dto.color ?: l.color)
+            if (l.id != op.listId) l else l.copy(
+                name = op.dto.name ?: l.name,
+                color = op.dto.color ?: l.color,
+                icon = op.dto.icon.let { if (it == null) l.icon else it.ifEmpty { null } },
+            )
         },
     )
 

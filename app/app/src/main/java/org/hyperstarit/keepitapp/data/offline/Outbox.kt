@@ -261,7 +261,7 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
         is PendingOp.CreateList -> ops + incoming
 
         is PendingOp.UpdateList -> {
-            // Fold into whatever already carries this list's name and color — its queued create,
+            // Fold into whatever already carries this list's name, color and icon — its queued create,
             // else an earlier rename. Only a list with neither gets an op of its own.
             val earlier = pendingListCreate
                 ?: ops.filterIsInstance<PendingOp.UpdateList>().firstOrNull { it.listId == id }
@@ -276,13 +276,25 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
     }
 }
 
-/** A queued list create or rename with [changes] merged in; null fields in [changes] keep the old value. */
+/**
+ * A queued list create or rename with [changes] merged in; null fields in [changes] keep the old
+ * value. An empty icon (remove it) stays empty in a rename, which the server needs to see, and
+ * becomes no icon at all in a create.
+ */
 private fun PendingOp.withListChanges(changes: UpdateListDto): PendingOp = when (this) {
     is PendingOp.CreateList -> copy(
-        dto = dto.copy(name = changes.name ?: dto.name, color = changes.color ?: dto.color),
+        dto = dto.copy(
+            name = changes.name ?: dto.name,
+            color = changes.color ?: dto.color,
+            icon = changes.icon.let { if (it == null) dto.icon else it.ifEmpty { null } },
+        ),
     )
     is PendingOp.UpdateList -> copy(
-        dto = dto.copy(name = changes.name ?: dto.name, color = changes.color ?: dto.color),
+        dto = dto.copy(
+            name = changes.name ?: dto.name,
+            color = changes.color ?: dto.color,
+            icon = changes.icon ?: dto.icon,
+        ),
     )
     else -> this
 }

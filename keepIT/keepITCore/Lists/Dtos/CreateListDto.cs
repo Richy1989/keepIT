@@ -11,4 +11,8 @@ public class CreateListDto
 
     [MaxLength(NoteLimits.Color)]
     public string? Color { get; set; }
+
+    /// <summary>One emoji or other single symbol (see <see cref="ListIcon"/>); null or "" for none.</summary>
+    [MaxLength(NoteLimits.ListIcon)]
+    public string? Icon { get; set; }
 }

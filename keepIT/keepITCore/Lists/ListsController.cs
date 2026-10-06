@@ -46,6 +46,7 @@ public class ListsController : ControllerBase
                 Id = l.Id,
                 Name = l.Name,
                 Color = l.Color,
+                Icon = l.Icon,
                 CreatedAtUtc = l.CreatedAtUtc,
                 // Pin/archive/trash are per-user: count only what the caller actually sees when they
                 // click this list — i.e. the active view, which excludes both archived and trashed.
@@ -59,13 +60,20 @@ public class ListsController : ControllerBase
     }
 
     /// <summary>Creates a list for the caller.</summary>
-    /// <param name="dto">The list name and optional color.</param>
-    /// <returns>201 with the created list.</returns>
+    /// <param name="dto">The list name, and optional color and icon.</param>
+    /// <returns>201 with the created list, or 400 when the icon isn't a single symbol.</returns>
     [HttpPost]
     public async Task<ActionResult<ListDto>> Create(CreateListDto dto)
     {
         var ownerId = User.GetUserId();
         if (ownerId is null) return Unauthorized();
+
+        var icon = dto.Icon?.Trim();
+        if (!string.IsNullOrEmpty(icon) && !ListIcon.IsValid(icon))
+        {
+            ModelState.AddModelError(nameof(dto.Icon), ListIcon.Rule);
+            return ValidationProblem(ModelState);
+        }
 
         var list = new KeepList
         {
@@ -73,6 +81,7 @@ public class ListsController : ControllerBase
             OwnerId = ownerId.Value,
             Name = dto.Name.Trim(),
             Color = dto.Color,
+            Icon = string.IsNullOrEmpty(icon) ? null : icon,
             CreatedAtUtc = DateTime.UtcNow,
         };
 
@@ -83,21 +92,33 @@ public class ListsController : ControllerBase
         return CreatedAtAction(nameof(GetLists), new { id = list.Id }, ToDto(list, 0));
     }
 
-    /// <summary>Renames and/or recolors a list.</summary>
+    /// <summary>Renames, recolors and/or re-icons a list.</summary>
     /// <param name="id">The list id.</param>
-    /// <param name="dto">The fields to change; nulls are left unchanged.</param>
-    /// <returns>200 with the updated list, or 404 if it isn't the caller's.</returns>
+    /// <param name="dto">The fields to change; nulls are left unchanged, and an empty icon removes it.</param>
+    /// <returns>
+    /// 200 with the updated list, 400 when the icon isn't a single symbol, or 404 if it isn't the
+    /// caller's.
+    /// </returns>
     [HttpPatch("{id:guid}")]
     public async Task<ActionResult<ListDto>> Update(Guid id, UpdateListDto dto)
     {
         var ownerId = User.GetUserId();
         if (ownerId is null) return Unauthorized();
 
+        // Null leaves the icon alone, so "" is how a client removes it.
+        var icon = dto.Icon?.Trim();
+        if (!string.IsNullOrEmpty(icon) && !ListIcon.IsValid(icon))
+        {
+            ModelState.AddModelError(nameof(dto.Icon), ListIcon.Rule);
+            return ValidationProblem(ModelState);
+        }
+
         var list = await _db.Lists.FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == ownerId);
         if (list is null) return NotFound();
 
         if (dto.Name is not null) list.Name = dto.Name.Trim();
         if (dto.Color is not null) list.Color = dto.Color;
+        if (icon is not null) list.Icon = icon.Length == 0 ? null : icon;
 
         await _db.SaveChangesAsync();
         await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists);
@@ -136,6 +157,7 @@ public class ListsController : ControllerBase
         Id = l.Id,
         Name = l.Name,
         Color = l.Color,
+        Icon = l.Icon,
         NoteCount = noteCount,
         CreatedAtUtc = l.CreatedAtUtc,
     };

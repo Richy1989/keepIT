@@ -50,6 +50,20 @@ class ListOpsTest {
     }
 
     @Test
+    fun `an icon shows at once, survives a rename, and an empty one removes it`() {
+        val created = applyListOp(emptyList(), PendingOp.CreateList("local-1", CreateListDto("Groceries", icon = "🛒")))
+        assertEquals("🛒", created.single().icon)
+
+        val renamed = applyListOp(created, PendingOp.UpdateList("local-1", UpdateListDto(name = "Shopping")))
+        assertEquals("🛒", renamed.single().icon) // null icon in the rename: unchanged
+
+        val changed = applyListOp(renamed, PendingOp.UpdateList("local-1", UpdateListDto(icon = "🧺")))
+        assertEquals("🧺", changed.single().icon)
+
+        assertNull(applyListOp(changed, PendingOp.UpdateList("local-1", UpdateListDto(icon = ""))).single().icon)
+    }
+
+    @Test
     fun `deleting a list removes it and every note's membership, but not the notes`() {
         val op = PendingOp.DeleteList("a")
         val notes = listOf(
@@ -78,6 +92,28 @@ class ListOpsTest {
         val ops = coalesce(listOf(createList("local-1", "Draft")), PendingOp.UpdateList("local-1", UpdateListDto(name = "Final")))
 
         assertEquals("Final", (ops.single() as PendingOp.CreateList).dto.name)
+    }
+
+    @Test
+    fun `removing the icon of a list created offline leaves its create without one`() {
+        val queued = listOf(PendingOp.CreateList("local-1", CreateListDto("Trip", icon = "🧳")))
+
+        val ops = coalesce(queued, PendingOp.UpdateList("local-1", UpdateListDto(icon = "")))
+
+        // No icon, not "": the create never had one as far as the server will know.
+        assertNull((ops.single() as PendingOp.CreateList).dto.icon)
+    }
+
+    @Test
+    fun `an icon removal is kept when a later rename merges into it`() {
+        val ops = coalesce(
+            listOf(PendingOp.UpdateList("a", UpdateListDto(icon = ""))),
+            PendingOp.UpdateList("a", UpdateListDto(name = "Renamed")),
+        )
+
+        val merged = (ops.single() as PendingOp.UpdateList).dto
+        assertEquals("Renamed", merged.name)
+        assertEquals("", merged.icon)
     }
 
     @Test
@@ -187,7 +223,9 @@ class ListOpsTest {
         val json = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
         val ops: List<PendingOp> = listOf(
             createList("local-L", "Groceries"),
-            PendingOp.UpdateList("a", UpdateListDto(name = "Renamed", color = "sky")),
+            PendingOp.CreateList("local-M", CreateListDto("Trip", icon = "🧳")),
+            PendingOp.UpdateList("a", UpdateListDto(name = "Renamed", color = "sky", icon = "🏠")),
+            PendingOp.UpdateList("c", UpdateListDto(icon = "")),
             PendingOp.DeleteList("b"),
         )
 

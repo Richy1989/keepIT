@@ -121,6 +121,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasKey(l => l.Id);
             e.Property(l => l.Name).HasMaxLength(NoteLimits.ListName).IsRequired();
             e.Property(l => l.Color).HasMaxLength(NoteLimits.Color);
+            e.Property(l => l.Icon).HasMaxLength(NoteLimits.ListIcon);
             e.HasIndex(l => l.OwnerId);
 
             e.HasOne(l => l.Owner)

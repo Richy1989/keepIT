@@ -129,4 +129,21 @@ public sealed class SqliteSchemaReconcilerTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, notes.StatusCode);
     }
+
+    [Fact]
+    public async Task The_API_starts_on_a_database_from_before_list_icons_and_stores_one()
+    {
+        _db.Execute("ALTER TABLE Lists DROP COLUMN Icon");
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        using var api = new KeepItApiFactory(_db.Folder);
+        var client = await api.CreateSignedInClientAsync();
+        (await client.PostAsJsonAsync("/api/lists", new { name = "after upgrade", icon = "🧺" }))
+            .EnsureSuccessStatusCode();
+
+        // Without the reconciler both the insert above and this read are "no such column".
+        var lists = await client.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/lists");
+
+        Assert.Equal("🧺", Assert.Single(lists.EnumerateArray()).GetProperty("icon").GetString());
+    }
 }
