@@ -31,7 +31,7 @@
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
     <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="3.2.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.17.10" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.13" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <!-- Pinned to the 3.1 line deliberately: 4.x requires a Six Labors licence key at build time
          (it fails the build target and downgrades to a warning), while 3.1 stays under the Split
