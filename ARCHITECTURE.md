@@ -1011,7 +1011,9 @@ everything else is scoped to):
   box is ticked**. Each client then renders unchecked rows first and checked ones at the bottom
   (a stable partition), which is what makes a ticked row sink, an unticked row return to exactly
   the slot it came from, and a new row land above the checked block — identically on every device,
-  because it's derived from persisted state rather than remembered client-side. Nothing enforces
+  because it's derived from persisted state rather than remembered client-side. The editors' "Add
+  item" sits in that gap, between the unchecked rows and the checked ones, right where the new row
+  appears. Nothing enforces
   this contract, so a client that writes display order back into `order` breaks the other clients:
   the rule lives in `web/src/features/notes/checklist.ts` and `app/…/data/Checklist.kt`.
 - `KeepList` (the `List` resource) — id, ownerId, name, color. Always private to its owner.

@@ -13,6 +13,10 @@ import type { ChecklistItemDto } from '../../api/types';
  * it to the slot it came from. Every edit therefore addresses an item by its **stored** index while
  * drag-and-drop works in **display** positions; the two are kept apart carefully below.
  *
+ * "Add item" sits between the two groups, under the last unchecked row: that is where a new row
+ * lands, and in a list with ticked items it was otherwise below all of them, away from the rows
+ * still being written.
+ *
  * Rows are dragged by the grip handle (so the text inputs stay usable); on drop the home order is
  * permuted and each item's `order` renumbered. Dragging across the checked/unchecked boundary is
  * refused (see `move`). The order persists with the rest of the note when the composer/editor saves
@@ -46,6 +50,9 @@ export function ChecklistEditor({
   }, [items]);
 
   const rows = checklistRows(items);
+  // Display position of the first checked row: "Add item" goes right before it.
+  const firstChecked = rows.findIndex((r) => r.item.isChecked);
+  const addAt = firstChecked === -1 ? rows.length : firstChecked;
 
   const update = (stored: number, patch: Partial<ChecklistItemDto>) =>
     onChange(items.map((it, idx) => (idx === stored ? { ...it, ...patch } : it)));
@@ -110,9 +117,21 @@ export function ChecklistEditor({
     setOverIndex(null);
   }
 
+  const addButton = (
+    <button
+      key="add-item"
+      type="button"
+      onClick={add}
+      className="flex items-center gap-2 py-0.5 text-sm text-text-muted transition hover:text-text"
+    >
+      <PlusIcon className="text-base" /> Add item
+    </button>
+  );
+
   return (
     <div className="space-y-1">
-      {rows.map(({ item: it, index: stored }, i) => (
+      {rows.flatMap(({ item: it, index: stored }, i) => [
+        ...(i === addAt ? [addButton] : []),
         <div
           key={it.id ?? `new-${stored}`}
           onDragOver={(e) => {
@@ -187,15 +206,9 @@ export function ChecklistEditor({
           >
             <XIcon className="text-sm" />
           </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={add}
-        className="mt-1 flex items-center gap-2 text-sm text-text-muted transition hover:text-text"
-      >
-        <PlusIcon className="text-base" /> Add item
-      </button>
+        </div>,
+      ])}
+      {addAt === rows.length && addButton}
     </div>
   );
 }

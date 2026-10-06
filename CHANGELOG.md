@@ -30,6 +30,10 @@ with the app: both new features need it.
 
 ### Fixed
 
+- **"Add item" in a checklist sits under the unticked items**, on the web and on Android, above the
+  ticked ones, which is where the new item appears. It was below every ticked item, so in a list
+  with many of them the button was far from the items still to do, and a new item showed up well
+  above the button that added it.
 - **Android shows the server's own error messages.** A refused form, such as a wrong current
   password, showed the generic "One or more validation errors occurred." instead of what was
   wrong.

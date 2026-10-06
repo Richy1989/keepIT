@@ -745,9 +745,35 @@ fun EditorScreen(
             )
 
             if (type == NoteTypes.CHECKLIST) {
+                // "Add item" sits between the unchecked rows and the checked ones, as on the web:
+                // a new row lands at the end of the unchecked block, so the button goes right
+                // under it, not below every ticked item.
+                val addItem: @Composable () -> Unit = {
+                    if (canEdit && items.size >= NoteLimits.CHECKLIST_ITEMS) {
+                        Text(
+                            "A checklist holds up to 500 items.",
+                            color = KeepItColors.TextMuted,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    } else if (canEdit) {
+                        androidx.compose.material3.TextButton(onClick = { addItemAfter(items.lastIndex) }) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = KeepItColors.TextMuted,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text("  Add item", color = KeepItColors.TextMuted)
+                        }
+                    }
+                }
                 // Rendered in display order; `index` is the row's index in `items` (home order),
                 // which every edit below addresses.
-                items.displayRows().forEach { (index, item) ->
+                val rows = items.displayRows()
+                val addAt = rows.indexOfFirst { it.value.isChecked }.let { if (it == -1) rows.size else it }
+                rows.forEachIndexed { position, (index, item) ->
+                    if (position == addAt) key("add-item") { addItem() }
                     // Keyed by the row's stable local id so a row that moves (ticking sinks it to
                     // the bottom) carries its composable state — and its focus — along with it.
                     key(item.localId) {
@@ -803,24 +829,7 @@ fun EditorScreen(
                         }
                     }
                 }
-                if (canEdit && items.size >= NoteLimits.CHECKLIST_ITEMS) {
-                    Text(
-                        "A checklist holds up to 500 items.",
-                        color = KeepItColors.TextMuted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                } else if (canEdit) {
-                    androidx.compose.material3.TextButton(onClick = { addItemAfter(items.lastIndex) }) {
-                        Icon(
-                            Icons.Filled.Add,
-                            contentDescription = null,
-                            tint = KeepItColors.TextMuted,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text("  Add item", color = KeepItColors.TextMuted)
-                    }
-                }
+                if (addAt == rows.size) key("add-item") { addItem() }
             } else if (!canEdit) {
                 // Viewers get the rendered note, not raw Markdown in a disabled field.
                 MarkdownText(
