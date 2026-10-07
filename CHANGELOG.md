@@ -3,7 +3,7 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 0.9.2
 
 Delete your own account, two-factor authentication, icons for lists, and a privacy policy. Update
 your server along with the app: the new features need it.
@@ -77,6 +77,16 @@ your server along with the app: the new features need it.
   on Android, synced later, put back the old version of every part it hadn't touched: a title a
   collaborator had changed in the meantime was quietly reverted. An edit now changes only what it
   changed, on the web and on Android. Update the server too: an older one still takes the whole note.
+
+### Updating
+
+- Nothing to configure. Lists get one new column, for the icon: on PostgreSQL the migration applies
+  at startup; on SQLite the schema reconciler adds it to the database file you already have.
+
+### Also
+
+- The About page thanks QR Code Generator, which the server uses to draw the two-factor QR code.
+- Routine library updates: Scalar on the server; TanStack Query and Vite in the web app.
 
 ## 0.9.1
 

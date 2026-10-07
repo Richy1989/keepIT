@@ -1,0 +1,7 @@
+Two-factor sign-in with an authenticator app, and deleting your account, both in Settings → Account.
+
+Lists can have an emoji icon. A privacy policy, linked from About.
+
+Fixed: a note too big for the server is no longer lost, an offline edit no longer undoes a collaborator's change, "Add item" sits under the unticked items, and sharing long text into the app no longer crashes it.
+
+Running your own server? Update it to 0.9.2 too: the new features need it.
