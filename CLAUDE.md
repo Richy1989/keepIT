@@ -124,6 +124,21 @@ every push and PR.
 
 - **Release:** tag `vX.Y.Z` on `main` once CI is green there. Before that, in one `chore: prepare X.Y.Z` commit: set `versionCode` (`X*1000000 + Y*10000 + Z*100 + 99`; `release.yml` refuses a tag the literals disagree with) and `versionName` in `app/app/build.gradle.kts`, rename `CHANGELOG.md`'s `## Unreleased` to `## X.Y.Z` (operators; it becomes the GitHub release notes), and add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (≤500 chars, app users). Up to 0.8.5 the code was `X*10000 + Y*100 + Z` (805).
 - **Beta:** tag `vX.Y.Z-beta.N` (N 1–98) on `main` and bump nothing: the literals stay at the last release. CI builds it as `X.Y.Z-beta.N`, versionCode `…*100 + N` (above the last release, below its own), publishes a GitHub **pre-release** with `## Unreleased` as its notes, and tags Docker `X.Y.Z-beta.N` + `beta`, never `latest`. F-Droid's recipe follows `^v[\d.]+$` tags only, so it never builds a beta: never tag a beta in a form that matches it.
+- **Release notes look like calendarIT's**
+  ([v0.9.0](https://github.com/Richy1989/calendarIT/releases/tag/v0.9.0)): same structure, keepIT's
+  logo and facts. `release.yml` writes the frame: `# keepIT X.Y.Z`, the centred `docs/logo.png`,
+  the beta notice (betas only), `_Changes since \`vA.B.C\`._` (the last release), then the
+  `CHANGELOG.md` section, then the Buy Me A Coffee button (`buymeacoffee.com/spaceelephant`, the
+  same page as calendarIT's), the Docker line and the APK line. GitHub appends its PR list and the Full
+  Changelog link. So the section holds only these headings, in this order, and leaves out any
+  that would be empty: `### ✨ New Features`, `### 🔧 Improvements`, `### 🔒 Security`,
+  `### 🐛 Fixes`, `### 📦 Deployment & Docs`. A feature is `- Name — what it does`; every other
+  item is a plain sentence, and a fix says what went wrong, then "— fixed" or what happens now. Keep
+  each item to a sentence or two, written for users, and say where it applies (web, Android or
+  both). Add `(#N)` when an issue exists. 📦 holds what an operator must do or may set (new
+  settings, migrations, "update the server with the app"), and also library updates and About
+  credits. Don't put an intro paragraph, a title or a Docker line in the section: the workflow
+  adds the frame. Sections up to 0.9.2 use the older layout; leave them as they are.
 
 **Where the current state is read.** Look these up rather than rely on what an earlier session saw.
 

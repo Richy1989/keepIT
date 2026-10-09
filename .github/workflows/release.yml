@@ -115,12 +115,24 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/keepit-${GITHUB_REF_NAME}-universal.apk"
 
       # ---- GitHub Release ----
+      # The release this one follows: the notes say what changed since it, and a release's list
+      # of changes should cover everything since it too (left to itself, GitHub may start at the
+      # last beta). A beta follows the last release, as its `## Unreleased` notes do.
+      - name: Previous release
+        run: |
+          PREVIOUS=$({ git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'; echo "$GITHUB_REF_NAME"; } \
+            | sort -uV | grep -xF -B1 "$GITHUB_REF_NAME" | head -n1)
+          [ "$PREVIOUS" = "$GITHUB_REF_NAME" ] && PREVIOUS=
+          echo "PREVIOUS_RELEASE=$PREVIOUS" >> "$GITHUB_ENV"
       - name: Release notes
-        # This version's section of CHANGELOG.md heads the release, then how to get it; GitHub's
-        # generated list of changes follows. A beta takes the `## Unreleased` section instead,
-        # under a line saying what a beta is. A tag without a section still releases, with a
-        # warning. Relative links (FAQ.md#…) would resolve against the release page, so they
-        # are pointed at the files as of this tag.
+        # Laid out like calendarIT's releases: title, logo, what it follows, then this version's
+        # section of CHANGELOG.md (whose ✨/🔧/🔒/🐛/📦 headings are written there, see CLAUDE.md →
+        # Releases), the coffee button and how to get it; GitHub's generated list of changes
+        # follows. A beta takes the `## Unreleased` section instead, under a line saying what a
+        # beta is. A tag without a section still releases, with a warning. Relative links
+        # (FAQ.md#…) would resolve against the release page, so they are pointed at the files as
+        # of this tag; GitHub resolves relative images at the tag itself (the logo and button).
         run: |
           if [ "$PRERELEASE" = true ]; then SECTION=Unreleased; else SECTION="$VERSION_NAME"; fi
           awk -v heading="## ${SECTION}" '
@@ -134,32 +146,37 @@ jobs:
             echo "::warning::CHANGELOG.md has no '## ${SECTION}' section"
           fi
           {
+            echo "# keepIT ${VERSION_NAME}"
+            echo
+            echo '<div align="center">'
+            echo '<img src="docs/logo.png" alt="keepIT logo" width="96" height="96">'
+            echo '</div>'
+            echo
             if [ "$PRERELEASE" = true ]; then
               echo "> **This is a beta, for testing.** It is not offered through F-Droid, through Obtainium unless"
               echo "> you turned on *Include prereleases*, or through Docker's \`latest\` tag. See"
               echo "> [Beta releases](https://github.com/${GITHUB_REPOSITORY}/blob/main/README.md#beta-releases)."
               echo
             fi
+            if [ -n "$PREVIOUS_RELEASE" ]; then
+              echo "_Changes since \`${PREVIOUS_RELEASE}\`._"
+              echo
+            fi
             cat "$RUNNER_TEMP/changelog-section.md"
             echo
-            echo "**Docker:** \`docker pull richy1989/keepit:${VERSION_NAME}\`"
+            echo '[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/spaceelephant)'
             echo
-            echo "The Android APK is attached below: download and install it directly (sideload)."
+            echo "**Docker:** \`docker pull richy1989/keepit:${VERSION_NAME}\`"
+            echo "Single-container image (SPA + API + nginx on :80). Mount \`/data\` to persist the"
+            echo "SQLite database, photos and recordings — see \`deploy/keepit.unraid.xml\` for an Unraid template."
+            echo
+            echo "**Android:** the APK is attached below: download and install it directly (sideload)."
           } > "$RUNNER_TEMP/release-notes.md"
-
-      # Left to itself, GitHub may start its list of changes at the last beta. A release's list
-      # should cover everything since the release before it, so name that one.
-      - name: Previous release
-        if: env.PRERELEASE == 'false'
-        run: |
-          PREVIOUS=$(git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -uV | grep -x -B1 "$GITHUB_REF_NAME" | head -n1)
-          [ "$PREVIOUS" = "$GITHUB_REF_NAME" ] && PREVIOUS=
-          echo "PREVIOUS_RELEASE=$PREVIOUS" >> "$GITHUB_ENV"
       - uses: softprops/action-gh-release@v3
         with:
           files: ${{ runner.temp }}/keepit-*.apk
           prerelease: ${{ env.PRERELEASE }}
           generate_release_notes: true
-          previous_tag: ${{ env.PREVIOUS_RELEASE }}
+          # A beta's list starts wherever GitHub chooses, as it always has.
+          previous_tag: ${{ env.PRERELEASE == 'false' && env.PREVIOUS_RELEASE || '' }}
           body_path: ${{ runner.temp }}/release-notes.md

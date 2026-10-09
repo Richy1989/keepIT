@@ -29,7 +29,7 @@ also works entirely on its own, with no server at all.
 
 <div align="center">
 
-[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/hyperstarit)
+[<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/spaceelephant)
 
 </div>
 
@@ -368,7 +368,7 @@ Running into a problem? Check the **[FAQ](FAQ.md)** first, or
 [open an issue](https://github.com/Richy1989/keepIT/issues).
 
 keepIT is free and self-hosted: no accounts, no subscriptions. If it's useful to you and you'd
-like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/hyperstarit). Much
+like to say thanks, you can [**buy me a coffee** ☕](https://buymeacoffee.com/spaceelephant). Much
 appreciated, but never expected.
 
 ## Privacy

@@ -1409,10 +1409,12 @@ mirrored locally by a gitignored `app/keystore.properties`), and publishes a Git
 with the APK attached. Sideloading the APK is the current distribution channel; the Play
 Store is not (yet) used.
 
-The release notes open with that version's `## X.Y.Z` section of `CHANGELOG.md` (its relative
-links pointed at the files as of the tag, since they'd resolve against the release page),
-then the Docker pull line and GitHub's generated list of changes. A tag without a section
-still releases, with a warning. **Before tagging:** bump `versionCode`/`versionName` in
+The release notes are laid out like calendarIT's (the structure is in CLAUDE.md → Releases).
+The workflow writes the frame: the `# keepIT X.Y.Z` title, the logo, and "Changes since" the
+last release. Then comes that version's `## X.Y.Z` section of `CHANGELOG.md`, its relative links
+pointed at the files as of the tag, since they'd resolve against the release page (relative
+images already resolve there). The coffee button, the Docker pull line and the APK line follow,
+then GitHub's generated list of changes. A tag without a section still releases, with a warning. **Before tagging:** bump `versionCode`/`versionName` in
 `app/app/build.gradle.kts` (F-Droid reads those literals; the code is
 `X*1000000 + Y*10000 + Z*100 + 99`, the same the workflow derives, and the workflow refuses a tag
 they disagree with before publishing anything, since F-Droid's reproducibility check would

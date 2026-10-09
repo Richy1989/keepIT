@@ -37,7 +37,7 @@ object AboutContent {
         AboutLink("releases", "What's new", "Release notes on GitHub", "https://github.com/Richy1989/keepIT/releases"),
         AboutLink("license", "License", "MIT License", "https://github.com/Richy1989/keepIT/blob/main/LICENSE"),
         AboutLink("privacy", "Privacy policy", "How your data is handled", "https://github.com/Richy1989/keepIT/blob/main/PRIVACY.md"),
-        AboutLink("support", "Support keepIT", "Buy the developer a coffee", "https://buymeacoffee.com/hyperstarit"),
+        AboutLink("support", "Support keepIT", "Buy the developer a coffee", "https://buymeacoffee.com/spaceelephant"),
     )
 
     val androidCredits = listOf(

@@ -3,6 +3,12 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### 🐛 Fixes
+
+- "Support keepIT" in About, on the web and on Android, led to the wrong Buy Me A Coffee page — fixed.
+
 ## 0.9.2
 
 Delete your own account, two-factor authentication, icons for lists, and a privacy policy. Update
