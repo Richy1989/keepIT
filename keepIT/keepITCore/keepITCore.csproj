@@ -31,7 +31,7 @@
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
     <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="3.2.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.17.13" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.17.14" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <!-- A Release build needs a Six Labors license key (a Debug one only warns): keepIT has a
          free community key, under the Split License's open-source terms (Apache 2.0). It must
