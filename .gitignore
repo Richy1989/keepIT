@@ -42,6 +42,11 @@ appsettings.*.local.json
 .env.*
 !.env.example
 secrets.json
+# Six Labors license key for ImageSharp's build. Six Labors forbids publishing it: CI reads it from
+# a repository secret (ARCHITECTURE.md → Processing). The first line is where it lives on each
+# machine; the second catches a copy anywhere else.
+keepIT/keepITCore/sixlabors.lic
+sixlabors.lic
 
 # ---- Visual Studio / Rider / VS Code ----
 .vs/

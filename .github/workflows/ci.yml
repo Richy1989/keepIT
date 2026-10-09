@@ -30,7 +30,11 @@ jobs:
       - name: Restore
         run: dotnet restore keepIT/keepITCore.slnx
       - name: Build
-        # --no-restore so a restore failure above is reported as its own step.
+        # --no-restore so a restore failure above is reported as its own step. ImageSharp refuses a
+        # Release build without the Six Labors license key, which MSBuild reads from this variable.
+        # It is a repository secret and a Dependabot secret, so a PR from a fork can't build.
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build keepIT/keepITCore.slnx --configuration Release --no-restore
       - name: Test
         # The API in-process on throwaway SQLite data roots: upgrading an older database's schema,
@@ -62,6 +66,7 @@ jobs:
           file: deploy/Dockerfile
           load: true
           tags: keepit:ci
+          secrets: sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Start it

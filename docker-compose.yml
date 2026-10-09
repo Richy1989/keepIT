@@ -11,6 +11,8 @@
 x-api-build: &api-build
   context: ./keepIT
   dockerfile: keepITCore/Dockerfile
+  # ImageSharp's build needs a Six Labors license key (README → Build the image yourself).
+  secrets: [sixlabors_license]
 
 services:
   # Runs once before the API and exits: hands the data volume to the API's unprivileged user
@@ -97,6 +99,11 @@ services:
 volumes:
   db-data:
   app-data:
+
+# Read at build time only, never part of the image.
+secrets:
+  sixlabors_license:
+    file: ./keepIT/keepITCore/sixlabors.lic
 
 networks:
   keepit:

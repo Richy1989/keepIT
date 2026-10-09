@@ -20,9 +20,13 @@ COPY . .
 WORKDIR "/src/keepITCore"
 
 # Publish a framework-dependent build (no native apphost — the entrypoint runs the DLL directly).
+# ImageSharp's build refuses a Release build without a Six Labors license key (a Debug one only
+# warns). docker-compose.yml hands it in as a BuildKit secret, so no layer holds it.
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "keepITCore.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN --mount=type=secret,id=sixlabors_license,target=/run/secrets/sixlabors.lic \
+    dotnet publish "keepITCore.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false \
+      /p:SixLaborsLicenseFile=/run/secrets/sixlabors.lic
 
 # Final runtime image: just the published output on the non-root base. /data is created owned by
 # that user, so a new named volume mounted there starts out writable (Docker copies the mount

@@ -33,11 +33,11 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.17.13" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
-    <!-- Pinned to the 3.1 line deliberately: 4.x requires a Six Labors licence key at build time
-         (it fails the build target and downgrades to a warning), while 3.1 stays under the Split
-         License that covers open-source/personal use. 3.1.12 is the last of that line, so it has
-         its security patches. Moving to 4.x is a licensing decision, not a version bump. -->
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- A Release build needs a Six Labors license key (a Debug one only warns): keepIT has a
+         free community key, under the Split License's open-source terms (Apache 2.0). It must
+         never be committed: locally it is the gitignored sixlabors.lic next to this file, in CI
+         the SIXLABORS_LICENSE_KEY secret, and in Docker a build secret (ARCHITECTURE.md). -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.3" />
     <PackageReference Include="SourceGear.sqlite3" Version="3.53.4" />
     <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.5" />
   </ItemGroup>

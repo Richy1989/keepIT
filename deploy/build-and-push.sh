@@ -8,6 +8,7 @@
 # Prerequisites (one-time):
 #   docker login                 # log in as richy1989
 #   docker buildx version        # buildx ships with Docker Desktop / modern Docker Engine
+#   keepIT/keepITCore/sixlabors.lic  # the Six Labors license key ImageSharp's build needs (gitignored)
 #
 # Usage:
 #   ./deploy/build-and-push.sh                 # builds & pushes richy1989/keepit:dev
@@ -37,10 +38,17 @@ fi
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
+license="keepIT/keepITCore/sixlabors.lic"
+if [[ ! -s "$license" ]]; then
+    echo "No Six Labors license key at $license: ImageSharp's build needs it (README → Build the image yourself)." >&2
+    exit 1
+fi
+
 tags=(-t "${IMAGE}:dev")
 [[ "$TAG" != "dev" ]] && tags+=(-t "${IMAGE}:${TAG}")
 
 echo "Building and pushing ${IMAGE}:${TAG} for linux/amd64 (Unraid)..."
-docker buildx build --platform linux/amd64 -f deploy/Dockerfile "${tags[@]}" --push .
+docker buildx build --platform linux/amd64 -f deploy/Dockerfile "${tags[@]}" \
+    --secret id=sixlabors_license,src="$license" --push .
 
 echo "Done. On Unraid, pull/refresh: ${IMAGE}:${TAG}"

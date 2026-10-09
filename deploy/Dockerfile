@@ -31,9 +31,18 @@ COPY keepIT/keepITCore/keepITCore.csproj keepITCore/
 RUN dotnet restore keepITCore/keepITCore.csproj
 COPY keepIT/ ./
 WORKDIR /src/keepITCore
-RUN INFOVERSION="$VERSION"; [ -n "$COMMIT" ] && INFOVERSION="$VERSION+$COMMIT"; \
+# ImageSharp's build refuses a Release build without a Six Labors license key, which must never be
+# published. It comes in as a BuildKit secret, so no layer holds it:
+#   docker build --secret id=sixlabors_license,src=keepIT/keepITCore/sixlabors.lic -f deploy/Dockerfile .
+RUN --mount=type=secret,id=sixlabors_license,target=/run/secrets/sixlabors.lic \
+    if [ ! -s /run/secrets/sixlabors.lic ]; then \
+      echo "No Six Labors license key: pass one with --secret id=sixlabors_license (README → Build the image yourself)." >&2; \
+      exit 1; \
+    fi; \
+    INFOVERSION="$VERSION"; [ -n "$COMMIT" ] && INFOVERSION="$VERSION+$COMMIT"; \
     dotnet publish keepITCore.csproj -c Release -o /app/publish /p:UseAppHost=false \
-      /p:Version="$VERSION" /p:InformationalVersion="$INFOVERSION"
+      /p:Version="$VERSION" /p:InformationalVersion="$INFOVERSION" \
+      /p:SixLaborsLicenseFile=/run/secrets/sixlabors.lic
 
 # ---- 3. Runtime: API + nginx in one image ----
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
