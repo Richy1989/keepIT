@@ -5,9 +5,21 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
+### 🔒 Security
+
+- The server processes photos with ImageSharp 4.1.3, which fixes five advisories published on
+  7 October. The three rated high are in parts of ImageSharp keepIT doesn't use.
+
 ### 🐛 Fixes
 
 - "Support keepIT" in About, on the web and on Android, led to the wrong Buy Me A Coffee page — fixed.
+
+### 📦 Deployment & Docs
+
+- Building the server image yourself, with `docker build` or `docker compose up --build`, now needs a
+  free Six Labors license key for ImageSharp; the README says how to get one and where it goes.
+  Pulling the image from Docker Hub needs nothing new.
+- The About page credits ImageSharp under Apache 2.0, the license it grants open-source projects.
 
 ## 0.9.2
 

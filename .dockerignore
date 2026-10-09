@@ -16,3 +16,6 @@
 **/.env.*
 **/*.user
 **/npm-debug.log
+# The Six Labors license key reaches the build as a secret, never through the context, or it would
+# be copied into a layer (and into the CI cache).
+**/sixlabors.lic

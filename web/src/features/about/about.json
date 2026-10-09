@@ -65,7 +65,7 @@
       { "name": "Npgsql", "role": "PostgreSQL driver", "license": "PostgreSQL License", "url": "https://www.npgsql.org" },
       { "name": "SQLite", "role": "Built-in database", "license": "Public domain", "url": "https://sqlite.org" },
       { "name": "SQLitePCLRaw", "role": "SQLite for .NET", "license": "Apache 2.0", "url": "https://github.com/ericsink/SQLitePCL.raw" },
-      { "name": "ImageSharp", "role": "Image processing", "license": "Six Labors Split License", "url": "https://sixlabors.com/products/imagesharp/" },
+      { "name": "ImageSharp", "role": "Image processing", "license": "Apache 2.0", "url": "https://sixlabors.com/products/imagesharp/" },
       { "name": "MailKit", "role": "Email delivery", "license": "MIT", "url": "https://github.com/jstedfast/MailKit" },
       { "name": "QR Code Generator", "role": "QR codes for two-factor setup", "license": "MIT", "url": "https://github.com/manuelbl/QrCodeGenerator" },
       { "name": "Serilog", "role": "Logging", "license": "Apache 2.0", "url": "https://serilog.net" },

@@ -1129,8 +1129,18 @@ the photographer's home. The trade-off is that pixel-exact originals are not pre
 GIFs pass through untouched and thumbnail from their first frame. HEIC gets its own ISO-BMFF brand
 check so it can be refused *by name*, since iPhone-on-Safari users hit it constantly.
 
-ImageSharp is pinned to the **3.1** line on purpose: 4.x requires a Six Labors licence key at build
-time, while 3.1 stays under the Split License covering open-source use.
+ImageSharp is licensed to keepIT under the Six Labors Split License's open-source terms, which make
+it Apache 2.0. Its builds since 4.x, and 3.2 on the 3.x line, also check for a **license key**
+before compiling: a Release build without one fails, a Debug build only warns. keepIT has a free
+community key (2026-10, valid two years), and Six Labors forbids publishing it, so it is never
+committed. Locally it is `keepIT/keepITCore/sixlabors.lic` (gitignored and kept out of every
+Docker build context), which `dotnet build -c Release` finds by itself. CI reads the
+`SIXLABORS_LICENSE_KEY` secret, which must exist both as an Actions secret and as a Dependabot
+secret, since Dependabot's PRs see only the latter. A Docker build gets it as a BuildKit secret
+(`--secret id=sixlabors_license`), mounted for the publish step only, so no image layer holds it.
+Anyone else who builds the image needs a key of their own (free, from licensing.sixlabors.com);
+pulling it from Docker Hub needs none. When the key expires, every Release build fails until it is
+renewed and the secret replaced.
 
 **Limits:** 10 MB per image, 100 megapixels per image and 10 images per note, all configurable
 under `App:Media`. There is no per-user quota — registration is gated, and `ByteSize` is stored so
@@ -1464,8 +1474,8 @@ not be newer than the literals.
   libraries the Android app ships with (`releaseRuntimeClasspath`) to GitHub's dependency graph,
   the only way Dependabot alerts see them. Only those: the Android Gradle plugin's own tooling
   runs on build machines only, and its dozens of advisories would bury the app's. Dependabot (`.github/dependabot.yml`) opens grouped weekly version updates for
-  all five ecosystems; it never proposes ImageSharp 4.x, the next .NET major, or a new major base
-  image, which are deliberate upgrades.
+  all five ecosystems; it never proposes the next .NET major or a new major base image, which are
+  deliberate upgrades.
 - No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
 
 ## Status & roadmap

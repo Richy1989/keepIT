@@ -31,10 +31,6 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     ignore:
-      # 4.x needs a Six Labors licence key at build time; 3.1 stays under the Split License that
-      # covers open-source use (ARCHITECTURE.md).
-      - dependency-name: SixLabors.ImageSharp
-        update-types: [version-update:semver-major]
       # These follow the .NET version: their next major means moving the app to the next .NET,
       # a deliberate upgrade rather than a weekly PR.
       - dependency-name: Microsoft.AspNetCore.*

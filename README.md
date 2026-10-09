@@ -133,7 +133,8 @@ version is in the **[CHANGELOG](CHANGELOG.md)**.
 <summary><strong>Prefer Docker Compose, Postgres, or building the image yourself?</strong></summary>
 
 **Docker Compose** (three containers: app, web server, and a PostgreSQL database), from a clone
-of this repo:
+of this repo. It builds the images itself, which needs a license key for ImageSharp (see
+**Build the image yourself** below):
 
 ```bash
 cp .env.example .env          # set JWT_KEY (32+ chars), optionally POSTGRES_PASSWORD
@@ -168,10 +169,16 @@ docker run -d \
   richy1989/keepit:latest
 ```
 
-**Build the image yourself** (no Docker Hub needed):
+**Build the image yourself** (no Docker Hub needed). keepIT processes photos with
+[ImageSharp](https://sixlabors.com/products/imagesharp/), whose build asks for a Six Labors license
+key. It is free for hobbyists and open-source projects: apply at
+[licensing.sixlabors.com](https://licensing.sixlabors.com) and save the key as
+`keepIT/keepITCore/sixlabors.lic`. Git and Docker both leave that file out, and Six Labors asks
+that it never be published. Pulling the ready-made image needs no key.
 
 ```bash
-docker build -f deploy/Dockerfile -t keepit:local .
+docker build -f deploy/Dockerfile --secret id=sixlabors_license,src=keepIT/keepITCore/sixlabors.lic \
+  -t keepit:local .
 docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
   -e Jwt__Key="your-random-secret-at-least-32-chars" keepit:local
 ```
@@ -295,6 +302,8 @@ bash deploy/run-dev.sh        # Windows: ./deploy/run-dev.ps1
 
 That serves the web app on **http://localhost:5173** and the API on **http://localhost:5025**
 (API explorer at `/scalar/v1`), signed in as `test@test.com` / `Test1234#1234`. Ctrl+C stops both.
+The build warns that no Six Labors license was found: that's expected, since only a Release build
+needs the key (see **Build the image yourself** above).
 
 <details>
 <summary><strong>Prefer to start the two halves yourself?</strong></summary>

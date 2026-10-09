@@ -8,6 +8,7 @@
 # Prerequisites (one-time):
 #   docker login                 # log in as richy1989
 #   docker buildx version        # buildx ships with Docker Desktop
+#   keepIT/keepITCore/sixlabors.lic  # the Six Labors license key ImageSharp's build needs (gitignored)
 #
 # Usage:
 #   ./deploy/build-and-push.ps1                  # builds & pushes richy1989/keepit:dev
@@ -28,12 +29,18 @@ if ($Tag -eq 'latest') {
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Push-Location $root
 try {
+    $license = 'keepIT/keepITCore/sixlabors.lic'
+    if (-not (Test-Path $license) -or (Get-Item $license).Length -eq 0) {
+        throw "No Six Labors license key at ${license}: ImageSharp's build needs it (README → Build the image yourself)."
+    }
+
     $tags = @("${Image}:dev")
     if ($Tag -ne 'dev') { $tags += "${Image}:$Tag" }
     $tagArgs = $tags | ForEach-Object { @('-t', $_) } | ForEach-Object { $_ }
 
     Write-Host "Building and pushing $($tags -join ', ') for linux/amd64 (Unraid)..." -ForegroundColor Cyan
-    docker buildx build --platform linux/amd64 -f deploy/Dockerfile @tagArgs --push .
+    docker buildx build --platform linux/amd64 -f deploy/Dockerfile @tagArgs `
+        --secret "id=sixlabors_license,src=$license" --push .
     if ($LASTEXITCODE -ne 0) { throw "docker buildx build failed with exit code $LASTEXITCODE" }
 
     Write-Host "Done. On Unraid, pull/refresh: ${Image}:$Tag" -ForegroundColor Green

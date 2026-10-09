@@ -89,6 +89,8 @@ jobs:
           build-args: |
             VERSION=${{ env.VERSION_NAME }}
             COMMIT=${{ github.sha }}
+          # ImageSharp's license key, mounted for the API's build only: no layer holds it.
+          secrets: sixlabors_license=${{ secrets.SIXLABORS_LICENSE_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
