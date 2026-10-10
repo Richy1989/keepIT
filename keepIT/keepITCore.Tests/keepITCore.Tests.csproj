@@ -23,4 +23,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Shared with the Android app's tests, which read it from here (see ReminderScheduleTests). -->
+    <None Include="ReminderOccurrences.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -30,6 +30,19 @@ export function formatReminderTime(iso: string): string {
   return d.toLocaleString(undefined, opts);
 }
 
+/**
+ * This browser's IANA time zone (`Europe/Vienna`), sent with a reminder: a repeating reminder keeps
+ * its clock time there, so 08:00 stays 08:00 when the clocks change. Undefined when the browser
+ * won't say, and the server then counts in its own zone.
+ */
+export function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Formats a Date as a `datetime-local` input value (local time, minute precision). */
 export function toLocalInputValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

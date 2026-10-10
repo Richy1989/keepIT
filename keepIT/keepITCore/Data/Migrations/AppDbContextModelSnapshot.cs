@@ -406,11 +406,18 @@ namespace keepITCore.Data.Migrations
                     b.Property<DateTime?>("FiredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("FirstAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Recurrence")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("RemindAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TimeZone")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("NoteId", "UserId");
 

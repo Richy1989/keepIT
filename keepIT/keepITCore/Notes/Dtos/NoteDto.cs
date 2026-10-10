@@ -27,6 +27,16 @@ public class NoteDto
     /// <summary>The reminder's recurrence; null when no reminder is set.</summary>
     public ReminderRecurrence? ReminderRecurrence { get; set; }
 
+    /// <summary>
+    /// The IANA time zone whose wall clock the reminder's repeats keep; null when no reminder is set.
+    /// Never null for a reminder: one set without a zone reports the server's, which is the zone the
+    /// server counts it in.
+    /// </summary>
+    public string? ReminderTimeZone { get; set; }
+
+    /// <summary>The occurrence the reminder was set for, which its repeats count from; null when no reminder is set.</summary>
+    public DateTime? ReminderFirstAtUtc { get; set; }
+
     /// <summary>True when a one-time reminder has already fired (renders as past until cleared or rescheduled).</summary>
     public bool ReminderFired { get; set; }
 

@@ -12,8 +12,9 @@ import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.ensureUtc
-import org.hyperstarit.keepitapp.data.offline.advanceOccurrence
-import org.hyperstarit.keepitapp.data.offline.settleDueReminders
+import org.hyperstarit.keepitapp.data.offline.epochMsOrNull
+import org.hyperstarit.keepitapp.data.offline.nextOccurrenceAfter
+import org.hyperstarit.keepitapp.data.offline.reminderZone
 import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import java.time.Instant
 
@@ -49,6 +50,10 @@ class ReminderScheduler(private val context: Context) {
         val recurrence: String = ReminderRecurrences.NONE,
         /** A plain-text content excerpt for the notification's big-text body. */
         val preview: String = "",
+        /** The zone whose clock a recurring reminder keeps (see [nextOccurrenceAfter]); null is UTC. */
+        val timeZone: String? = null,
+        /** The occurrence a recurring reminder counts from; null on a snapshot written before it was kept. */
+        val firstAtUtcMs: Long? = null,
     )
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -69,6 +74,8 @@ class ReminderScheduler(private val context: Context) {
                 atUtcMs = ms,
                 recurrence = n.reminderRecurrence ?: ReminderRecurrences.NONE,
                 preview = previewOf(n),
+                timeZone = n.reminderTimeZone,
+                firstAtUtcMs = n.reminderFirstAtUtc?.let(::epochMsOrNull),
             )
         }
         synchronized(this) {
@@ -118,9 +125,9 @@ class ReminderScheduler(private val context: Context) {
             }
             postOnce(entry, posted)
             if (entry.recurrence != ReminderRecurrences.NONE) {
-                var next = entry.atUtcMs
-                while (next <= now) next = advance(next, entry.recurrence)
-                remainingPending.add(entry.copy(atUtcMs = next))
+                val first = entry.firstAtUtcMs ?: entry.atUtcMs
+                val next = nextOccurrenceAfter(first, reminderZone(entry.timeZone), entry.recurrence, now)
+                remainingPending.add(entry.copy(atUtcMs = next, firstAtUtcMs = first))
             }
         }
 
@@ -197,12 +204,6 @@ class ReminderScheduler(private val context: Context) {
         private const val PREVIEW_CHARS = 160
         private const val PREVIEW_ITEMS = 3
         private val SnapshotJson = Json { ignoreUnknownKeys = true }
-
-        /**
-         * The next occurrence after [fromMs] — same UTC arithmetic as the server's `Advance`, and
-         * shared with the standalone cache's own settling ([settleDueReminders]) so the two agree.
-         */
-        fun advance(fromMs: Long, recurrence: String): Long = advanceOccurrence(fromMs, recurrence)
 
         /** A plain-text excerpt for the notification body: open checklist items, or the stripped body. */
         fun previewOf(n: NoteDto): String =

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useSetNoteReminder } from './queries';
-import { parseUtc } from './reminderTime';
+import { browserTimeZone, parseUtc } from './reminderTime';
 import { ClockIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { NoteDto, ReminderRecurrence } from '../../api/types';
@@ -101,10 +101,10 @@ export function ReminderMenu({ note, onClose }: { note: NoteDto; onClose: () => 
 
   function save() {
     if (!selected) return;
-    // Inputs parse as local time; the wire wants UTC.
+    // Inputs parse as local time; the wire wants UTC, plus the zone whose clock repeats keep.
     setReminder.mutate({
       id: note.id,
-      reminder: { remindAtUtc: selected.toISOString(), recurrence },
+      reminder: { remindAtUtc: selected.toISOString(), recurrence, timeZone: browserTimeZone() },
     });
     onClose();
   }

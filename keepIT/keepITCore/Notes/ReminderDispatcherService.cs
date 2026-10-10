@@ -12,10 +12,9 @@ namespace keepITCore.Notes;
 /// advanced to their next future occurrence (a long outage produces <em>one</em> catch-up
 /// notification, not one per missed occurrence).
 /// <para>Single-instance assumption: like the SignalR fan-out (see ARCHITECTURE.md's backplane
-/// caveat), this does no cross-instance locking — running multiple API instances would double-fire.
-/// Recurrence arithmetic is in UTC, so a daily reminder's local wall-clock time drifts an hour
-/// across DST changes, and AddMonths' end-of-month clamping compounds (Jan 31 → Feb 28 → Mar 28);
-/// both accepted for now (fixing them means storing the user's timezone).</para>
+/// caveat), this does no cross-instance locking — running multiple API instances would double-fire.</para>
+/// <para>Recurring reminders move on by <see cref="ReminderSchedule"/>: on the wall clock of the
+/// zone they were set in, counted from the occurrence the user picked.</para>
 /// </summary>
 public sealed class ReminderDispatcherService : BackgroundService
 {
@@ -101,19 +100,7 @@ public sealed class ReminderDispatcherService : BackgroundService
                     ReminderNoteTitle = reminder.Note.Title,
                 });
 
-                if (reminder.Recurrence == ReminderRecurrence.None)
-                {
-                    reminder.FiredAtUtc = now;
-                }
-                else
-                {
-                    // Skip occurrences missed while the server was down: one notification, then
-                    // land on the first occurrence that's still in the future.
-                    do
-                    {
-                        reminder.RemindAtUtc = Advance(reminder.RemindAtUtc, reminder.Recurrence);
-                    } while (reminder.RemindAtUtc <= now);
-                }
+                MoveOn(reminder, now);
 
                 // Save per reminder so one poison row can't roll back the whole batch.
                 await db.SaveChangesAsync(ct);
@@ -136,16 +123,28 @@ public sealed class ReminderDispatcherService : BackgroundService
             await _notifier.NotifyAsync(userId, RealtimeResources.Notification, RealtimeResources.Notes);
     }
 
-    /// <summary>The next occurrence after <paramref name="from"/> for a recurrence.</summary>
-    /// <param name="from">The occurrence to advance from (UTC).</param>
-    /// <param name="recurrence">The repeat cadence (never <see cref="ReminderRecurrence.None"/> here).</param>
-    /// <returns>The advanced timestamp.</returns>
-    private static DateTime Advance(DateTime from, ReminderRecurrence recurrence) => recurrence switch
+    /// <summary>
+    /// What becomes of a reminder once it has gone off: a one-time reminder is marked fired, and a
+    /// recurring one moves to its first occurrence after <paramref name="now"/>. Occurrences missed
+    /// while the server was down are skipped, so a long outage brings one notification, not one per
+    /// missed occurrence.
+    /// </summary>
+    /// <param name="reminder">The reminder that has just fired.</param>
+    /// <param name="now">The time of this tick (UTC).</param>
+    public static void MoveOn(NoteReminder reminder, DateTime now)
     {
-        ReminderRecurrence.Daily => from.AddDays(1),
-        ReminderRecurrence.Weekly => from.AddDays(7),
-        ReminderRecurrence.Monthly => from.AddMonths(1),
-        ReminderRecurrence.Yearly => from.AddYears(1),
-        _ => throw new ArgumentOutOfRangeException(nameof(recurrence), recurrence, null),
-    };
+        if (reminder.Recurrence == ReminderRecurrence.None)
+        {
+            reminder.FiredAtUtc = now;
+            return;
+        }
+
+        // A reminder set before the first occurrence was kept counts from this one.
+        reminder.FirstAtUtc ??= ReminderSchedule.AsUtc(reminder.RemindAtUtc);
+        reminder.RemindAtUtc = ReminderSchedule.NextAfter(
+            reminder.FirstAtUtc.Value,
+            ReminderSchedule.ZoneOf(reminder.TimeZone),
+            reminder.Recurrence,
+            now);
+    }
 }

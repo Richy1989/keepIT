@@ -34,6 +34,8 @@ public static class NoteProjection
             IsTrashed = state?.IsTrashed ?? false,
             RemindAtUtc = reminder?.RemindAtUtc,
             ReminderRecurrence = reminder?.Recurrence,
+            ReminderTimeZone = reminder is null ? null : ReminderSchedule.ZoneIdOf(reminder.TimeZone),
+            ReminderFirstAtUtc = reminder is null ? null : reminder.FirstAtUtc ?? reminder.RemindAtUtc,
             ReminderFired = reminder?.FiredAtUtc is not null,
             CreatedAtUtc = n.CreatedAtUtc,
             UpdatedAtUtc = n.UpdatedAtUtc,

@@ -20,6 +20,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 🐛 Fixes
 
+- Repeating reminders moved by an hour when the clocks changed, and monthly ones set for the 29th
+  to the 31st slipped to the 28th after February and stayed there. Now each reminder keeps the
+  time zone of the device that set it: 08:00 stays 08:00, and the 31st comes back. Web and Android.
 - "Support keepIT" in About, on the web and on Android, led to the wrong Buy Me A Coffee page — fixed.
 
 ### 📦 Deployment & Docs
@@ -28,6 +31,11 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   free Six Labors license key for ImageSharp; the README says how to get one and where it goes.
   Pulling the image from Docker Hub needs nothing new.
 - The About page credits ImageSharp under Apache 2.0, the license it grants open-source projects.
+- Set `TZ` to your time zone (with Compose, in `.env`; Unraid already sets it). Reminders set
+  before this update have no zone of their own and repeat on that clock; without `TZ` they stay on
+  UTC and still move when the clocks change. Update the Android app along with the server, since
+  the app works out repeating reminders itself while it is offline.
+- The server adds two columns to the reminders table when it starts. Nothing to do.
 
 ## 0.9.2
 

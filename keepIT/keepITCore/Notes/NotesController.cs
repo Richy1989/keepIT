@@ -269,7 +269,7 @@ public class NotesController : ControllerBase
     /// sees it. Rescheduling always resets the fired state.
     /// </summary>
     /// <param name="id">The note id.</param>
-    /// <param name="dto">When to remind (UTC) and how often to repeat.</param>
+    /// <param name="dto">When to remind (UTC), how often to repeat, and on which clock.</param>
     /// <returns>200 with the updated note, or 404 if the caller has no access.</returns>
     [HttpPut("{id:guid}/reminder")]
     public async Task<ActionResult<NoteDto>> SetReminder(Guid id, SetNoteReminderDto dto)
@@ -287,14 +287,13 @@ public class NotesController : ControllerBase
             _db.NoteReminders.Add(reminder);
         }
 
-        // JSON binding can yield a Local or Unspecified Kind; Npgsql requires Utc for timestamptz.
-        reminder.RemindAtUtc = dto.RemindAtUtc.Kind switch
-        {
-            DateTimeKind.Utc => dto.RemindAtUtc,
-            DateTimeKind.Local => dto.RemindAtUtc.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(dto.RemindAtUtc, DateTimeKind.Utc),
-        };
+        reminder.RemindAtUtc = ReminderSchedule.AsUtc(dto.RemindAtUtc);
         reminder.Recurrence = dto.Recurrence;
+        reminder.TimeZone = ReminderSchedule.KnownZoneId(dto.TimeZone);
+        // A series can start before the occurrence being set (a restore, a replay), never after it.
+        reminder.FirstAtUtc = dto.FirstAtUtc is { } first && ReminderSchedule.AsUtc(first) <= reminder.RemindAtUtc
+            ? ReminderSchedule.AsUtc(first)
+            : reminder.RemindAtUtc;
         reminder.FiredAtUtc = null;
 
         await _db.SaveChangesAsync();

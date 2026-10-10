@@ -195,6 +195,8 @@ fun ReminderDialog(
             SetNoteReminderDto(
                 remindAtUtc = LocalDateTime.of(date, time).atZone(zone).toInstant().toString(),
                 recurrence = recurrence,
+                // The clock its repeats keep: 08:00 stays 08:00 when summer time ends.
+                timeZone = zone.id,
             ),
         )
         closeAnimated()

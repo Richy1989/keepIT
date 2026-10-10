@@ -129,7 +129,7 @@ public sealed class ImportTests
         // Far enough out that the reminder dispatcher cannot fire it mid-test.
         var remindAt = DateTime.UtcNow.AddDays(30);
         (await source.PutAsJsonAsync($"/api/notes/{textId}/reminder",
-                new { remindAtUtc = remindAt, recurrence = "Weekly" }))
+                new { remindAtUtc = remindAt, recurrence = "Weekly", timeZone = "America/New_York" }))
             .EnsureSuccessStatusCode();
 
         var upload = await NoteMediaTests.UploadAsync(source, textId, TestImages.Png(40, 30), "p.png", "image/png");
@@ -154,6 +154,9 @@ public sealed class ImportTests
         Assert.True(packing.GetProperty("isOwner").GetBoolean());
         Assert.Equal("Weekly", packing.GetProperty("reminderRecurrence").GetString());
         Assert.Equal(remindAt, packing.GetProperty("remindAtUtc").GetDateTime(), TimeSpan.FromSeconds(1));
+        // The clock its repeats keep, and the occurrence they count from, survive the trip.
+        Assert.Equal("America/New_York", packing.GetProperty("reminderTimeZone").GetString());
+        Assert.Equal(remindAt, packing.GetProperty("reminderFirstAtUtc").GetDateTime(), TimeSpan.FromSeconds(1));
 
         var todo = NoteWithTitle(grid, "todo");
         var items = todo.GetProperty("checklistItems").EnumerateArray().ToArray();

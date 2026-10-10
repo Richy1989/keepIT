@@ -6,6 +6,7 @@ using keepITCore.Data;
 using keepITCore.Infrastructure;
 using keepITCore.Infrastructure.Security;
 using keepITCore.Lists;
+using keepITCore.Notes;
 using keepITCore.Notes.Dtos;
 using keepITCore.Portability.Dtos;
 using keepITCore.Service;
@@ -341,8 +342,9 @@ public class ImportController : ControllerBase
             IsTrashed = source.IsTrashed,
         });
 
-        if (source.RemindAtUtc is { } remindAt)
+        if (source.RemindAtUtc is { } archivedAt)
         {
+            var remindAt = ReminderSchedule.AsUtc(archivedAt);
             var recurrence = source.ReminderRecurrence ?? ReminderRecurrence.None;
 
             // A one-time reminder whose moment has passed is imported already fired. Otherwise
@@ -357,6 +359,13 @@ public class ImportController : ControllerBase
                 UserId = ownerId,
                 RemindAtUtc = remindAt,
                 Recurrence = recurrence,
+                // Restored as set, so a repeat keeps its clock and day. An archive from before
+                // reminders carried these has neither; then the reminder counts from its next
+                // occurrence on this server's clock, as it did on the old one.
+                TimeZone = ReminderSchedule.KnownZoneId(source.ReminderTimeZone),
+                FirstAtUtc = source.ReminderFirstAtUtc is { } first && ReminderSchedule.AsUtc(first) <= remindAt
+                    ? ReminderSchedule.AsUtc(first)
+                    : remindAt,
                 FiredAtUtc = fired ? DateTime.UtcNow : null,
             });
         }

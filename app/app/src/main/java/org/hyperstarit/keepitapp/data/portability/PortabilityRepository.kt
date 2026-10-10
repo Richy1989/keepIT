@@ -275,7 +275,10 @@ class PortabilityRepository(
             warnings += "${label(source)}: a reminder that had already passed was not restored."
             return
         }
-        notesRepo.setReminder(noteId, SetNoteReminderDto(remindAt, recurrence))
+        notesRepo.setReminder(
+            noteId,
+            SetNoteReminderDto(remindAt, recurrence, source.reminderTimeZone, source.reminderFirstAtUtc),
+        )
     }
 
     // ---- helpers ----

@@ -155,6 +155,8 @@ export function useCreateNote() {
         isTrashed: false,
         remindAtUtc: null,
         reminderRecurrence: null,
+        reminderTimeZone: null,
+        reminderFirstAtUtc: null,
         reminderFired: false,
         createdAtUtc: now,
         updatedAtUtc: now,
@@ -274,6 +276,9 @@ export function useSetNoteReminder() {
           ...current,
           remindAtUtc: reminder?.remindAtUtc ?? null,
           reminderRecurrence: reminder ? (reminder.recurrence ?? 'None') : null,
+          // The server fills in its own zone when there is none; the refetch brings it.
+          reminderTimeZone: reminder?.timeZone ?? null,
+          reminderFirstAtUtc: reminder ? (reminder.firstAtUtc ?? reminder.remindAtUtc) : null,
           reminderFired: false, // set/reschedule resets the fired state; cleared has none
         });
       }

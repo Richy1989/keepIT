@@ -73,6 +73,10 @@ services:
       # register your accounts first, then set ALLOW_REGISTRATION=false in .env to close sign-up
       # (existing users keep working; only /api/auth/register is refused).
       App__AllowRegistration: ${ALLOW_REGISTRATION:-true}
+      # Your time zone (e.g. Europe/Vienna). Reminders set before 0.9.3, or from an app that
+      # doesn't send its own zone, repeat on this clock, so 08:00 stays 08:00 when the clocks
+      # change. Newer reminders carry their own zone. Set TZ in .env; the default is UTC.
+      TZ: ${TZ:-UTC}
     volumes:
       - app-data:/data
     depends_on:

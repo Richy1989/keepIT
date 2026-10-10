@@ -40,6 +40,7 @@ import org.hyperstarit.keepitapp.data.offline.changedFields
 import org.hyperstarit.keepitapp.data.offline.colorOps
 import org.hyperstarit.keepitapp.data.offline.listMembershipOps
 import org.hyperstarit.keepitapp.data.offline.settleDueReminders
+import org.hyperstarit.keepitapp.data.offline.zoneAdoptions
 import org.hyperstarit.keepitapp.data.offline.stateOps
 import org.hyperstarit.keepitapp.data.offline.visibleNotes
 import org.hyperstarit.keepitapp.data.offline.withUploadedMedia
@@ -47,6 +48,7 @@ import org.hyperstarit.keepitapp.ui.markdown.stripMarkdown
 import org.hyperstarit.keepitapp.widget.KeepItWidget
 import java.io.File
 import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -450,10 +452,22 @@ class NotesRepository(
      * scheduler posts an occurrence, and this may then advance past it, never the other way round.
      */
     suspend fun settleReminders() {
+        adoptPhoneZone()
         val now = System.currentTimeMillis()
         var changed = false
         cache.update { notes -> settleDueReminders(notes, now).also { changed = it != notes } }
         if (changed) persistCache()
+    }
+
+    /**
+     * Standalone mode only: gives a repeating reminder set before reminders kept a time zone this
+     * phone's, so that from now on it keeps its clock time when the clocks change. With no server,
+     * the phone's zone is the one its owner meant; a server-backed app is told the zone by its
+     * server instead. Queued like any reminder change, so the zone also reaches a server connected
+     * later. Runs once per reminder: afterwards it has a zone.
+     */
+    private suspend fun adoptPhoneZone() {
+        for ((id, dto) in zoneAdoptions(cache.value, ZoneId.systemDefault().id)) setReminder(id, dto)
     }
 
     // ---- several notes at once: the note list's multi-select ----
