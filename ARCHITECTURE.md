@@ -568,11 +568,13 @@ anyone else seeing it.
 
 **Model.** `NoteReminder` — composite key `(noteId, userId)`, so at most one reminder per
 user per note; row existence means "a reminder is set". Fields: `RemindAtUtc` (for recurring
-reminders, always the *next* occurrence), `Recurrence`, `FiredAtUtc` (set when a one-time
+reminders, always the *next* occurrence), `Recurrence`, `TimeZone` (the IANA zone of the device
+that set it), `FirstAtUtc` (the occurrence the user picked), `FiredAtUtc` (set when a one-time
 reminder fires; null = pending; rescheduling resets it).
 
 **Endpoints** (on the notes resource; read access suffices, per-user realtime only):
-- `PUT    /api/notes/{id}/reminder` — set/replace the caller's reminder (`{ remindAtUtc, recurrence }`).
+- `PUT    /api/notes/{id}/reminder` — set/replace the caller's reminder
+  (`{ remindAtUtc, recurrence, timeZone?, firstAtUtc? }`).
 - `DELETE /api/notes/{id}/reminder` — clear it (idempotent).
 - `GET    /api/notes?reminders=true` — the caller's notes with a reminder set, soonest first.
   Spans active **and** archived (like Keep) but never trash.
@@ -583,9 +585,28 @@ reminder fires after restore), raises a `ReminderNotification`, and pushes realt
 (`notification` for the bell + `notes` for the chip). One-time reminders are marked fired;
 recurring ones advance to the next *future* occurrence — a long outage produces **one**
 catch-up notification, not one per missed slot. Each reminder saves individually so a poison
-row can't roll back the batch. Known accepted limitations (documented in the service):
-recurrence arithmetic is UTC (wall-clock drift across DST; `AddMonths` end-of-month clamping
-compounds), and firing is single-instance (no cross-instance locking).
+row can't roll back the batch. Firing is single-instance (no cross-instance locking), a known
+accepted limitation.
+
+**When a repeat goes off** (`Notes/ReminderSchedule.cs`). A reminder is set for a time on
+someone's clock, not for an instant, so repeats are counted on the wall clock of its `TimeZone`:
+a weekly 08:00 reminder stays at 08:00 when the clocks change. Every occurrence is counted from
+`FirstAtUtc`, never from the previous one, so a monthly reminder on the 31st falls on February's
+28th and comes back to March's 31st. In the hour the clocks skip, a time moves on by the gap;
+in the hour they repeat, it goes off the first time round (java.time's rules, which the server
+copies). Both clients send their zone (`Intl` on the web, `ZoneId.systemDefault()` on Android).
+A reminder without one, set before 0.9.3 or by an older app, repeats on the server's own zone,
+`TZ` (Unraid sets it; Compose defaults it to UTC, which is what every reminder used before).
+An unknown zone is stored as none rather than refused, because an outbox can only drop what the
+server turns down. `NoteDto.reminderTimeZone` always reports the zone the server actually counts
+in, so a phone moving a reminder on by itself never uses a different one.
+
+The Android app holds a copy of these rules (`nextOccurrenceAfter` in `data/offline/NoteOps.kt`),
+because it moves reminders on itself: between syncs, with the app closed, and always in
+standalone mode. If the copies disagree, one reminder is posted twice, an hour apart. So both are
+tested against the same cases, `keepIT/keepITCore.Tests/ReminderOccurrences.json`; add a case
+there, not to one side. A standalone phone gives reminders set before zones were kept its own zone
+once (`zoneAdoptions`), queued like any reminder change so a server connected later gets it too.
 
 **Android-side firing.** The server push only helps while a socket is open, so the phone
 mirrors pending reminders from its offline cache into a SharedPreferences snapshot and arms

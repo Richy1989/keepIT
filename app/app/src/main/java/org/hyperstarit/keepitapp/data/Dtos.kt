@@ -194,6 +194,13 @@ data class NoteDto(
     val remindAtUtc: String? = null,
     /** The reminder's recurrence ([ReminderRecurrences]); null when no reminder is set. */
     val reminderRecurrence: String? = null,
+    /**
+     * The IANA time zone whose wall clock the reminder's repeats keep (`Europe/Vienna`); null when
+     * no reminder is set, or from a server too old to say, which counted repeats in UTC.
+     */
+    val reminderTimeZone: String? = null,
+    /** The occurrence the reminder was set for, which its repeats count from; null as above. */
+    val reminderFirstAtUtc: String? = null,
     /** True when a one-time reminder has already fired (renders as past until cleared or rescheduled). */
     val reminderFired: Boolean = false,
     val createdAtUtc: String = "",
@@ -294,11 +301,19 @@ data class EmptyTrashDto(val noteIds: List<String>)
 /**
  * Sets (or replaces) the caller's reminder on a note. `remindAtUtc` is an ISO-8601 UTC instant; a
  * past value is allowed — the server's dispatcher fires it on its next tick.
+ *
+ * [timeZone] is the IANA zone of the phone setting it, whose wall clock a repeating reminder keeps
+ * when the clocks change; a server that doesn't know it uses its own. [firstAtUtc] is where a
+ * repeating series starts when that is earlier than `remindAtUtc` (a restore, or a replay of a
+ * reminder this phone has already moved on); left out, the series starts at `remindAtUtc`. An older
+ * server ignores both.
  */
 @Serializable
 data class SetNoteReminderDto(
     val remindAtUtc: String,
     val recurrence: String = ReminderRecurrences.NONE,
+    val timeZone: String? = null,
+    val firstAtUtc: String? = null,
 )
 
 /**

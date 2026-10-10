@@ -213,10 +213,12 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Whether the sign-in cookie is HTTPS-only even on plain HTTP. Over HTTPS (directly or through a TLS proxy) it always is. `false` lets a plain-HTTP address such as a LAN IP stay signed in; `true` refuses that, for an instance only ever reached over HTTPS. |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |
+| `TZ` | no | `UTC` | Your time zone, e.g. `Europe/Vienna`. Each reminder repeats on the clock of the device that set it; reminders set before 0.9.3 have none, and repeat on this one. Unraid sets it for you. |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the API explorer at `/scalar/v1`. |
 
-The Compose stack sets most of these itself and reads only five values from `.env`: `JWT_KEY`,
-`POSTGRES_PASSWORD`, `REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, and `ALLOW_REGISTRATION`.
+The Compose stack sets most of these itself and reads only six values from `.env`: `JWT_KEY`,
+`POSTGRES_PASSWORD`, `REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION` and
+`TZ`.
 
 </details>
 

@@ -181,6 +181,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             // The dispatcher's due-scan filters on RemindAtUtc. Plain (unfiltered) index: a filtered
             // one would need provider-specific SQL, and the SQLite dev DB renders this same model.
             e.HasIndex(r => r.RemindAtUtc);
+            e.Property(r => r.TimeZone).HasMaxLength(NoteReminder.TimeZoneMaxLength);
 
             e.HasOne(r => r.Note)
                 .WithMany(n => n.Reminders)

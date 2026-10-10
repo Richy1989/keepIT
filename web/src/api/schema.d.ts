@@ -1897,6 +1897,9 @@ export interface components {
             /** Format: date-time */
             remindAtUtc?: null | string;
             reminderRecurrence: null | components["schemas"]["ReminderRecurrence"];
+            reminderTimeZone?: null | string;
+            /** Format: date-time */
+            reminderFirstAtUtc?: null | string;
             reminderFired: boolean;
             /** Format: date-time */
             createdAtUtc: string;
@@ -1970,6 +1973,9 @@ export interface components {
             /** Format: date-time */
             remindAtUtc: string;
             recurrence: components["schemas"]["ReminderRecurrence"];
+            timeZone?: null | string;
+            /** Format: date-time */
+            firstAtUtc?: null | string;
         };
         ShareResponseDto: {
             accept: boolean;

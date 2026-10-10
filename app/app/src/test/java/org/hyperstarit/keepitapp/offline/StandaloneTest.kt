@@ -8,6 +8,7 @@ import org.hyperstarit.keepitapp.data.SetNoteReminderDto
 import org.hyperstarit.keepitapp.data.offline.PendingOp
 import org.hyperstarit.keepitapp.data.offline.readiedForUpload
 import org.hyperstarit.keepitapp.data.offline.settleDueReminders
+import org.hyperstarit.keepitapp.data.offline.zoneAdoptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -60,6 +61,46 @@ class StandaloneTest {
     }
 
     @Test
+    fun `a due recurring reminder keeps its clock time when summer time ends`() {
+        // Monday 08:00 in Vienna, in summer time; the clocks go back on Sunday 25 October.
+        val monday = NoteDto(
+            id = "n1",
+            remindAtUtc = "2026-10-19T06:00:00Z",
+            reminderRecurrence = ReminderRecurrences.WEEKLY,
+            reminderTimeZone = "Europe/Vienna",
+            reminderFirstAtUtc = "2026-10-19T06:00:00Z",
+        )
+        val settled = settleDueReminders(listOf(monday), Instant.parse("2026-10-19T06:00:30Z").toEpochMilli()).single()
+
+        assertEquals("2026-10-26T07:00:00Z", settled.remindAtUtc) // 08:00 in winter time
+    }
+
+    @Test
+    fun `a monthly reminder counts from its first occurrence, so the 31st comes back`() {
+        val february = NoteDto(
+            id = "n1",
+            remindAtUtc = "2026-02-28T07:00:00Z",
+            reminderRecurrence = ReminderRecurrences.MONTHLY,
+            reminderTimeZone = "Europe/Vienna",
+            reminderFirstAtUtc = "2026-01-31T07:00:00Z",
+        )
+        val settled = settleDueReminders(listOf(february), Instant.parse("2026-03-01T00:00:00Z").toEpochMilli()).single()
+
+        assertEquals("2026-03-31T06:00:00Z", settled.remindAtUtc)
+        assertEquals("2026-01-31T07:00:00Z", settled.reminderFirstAtUtc)
+    }
+
+    @Test
+    fun `a reminder from before the first occurrence was kept starts counting from this one`() {
+        val settled = settleDueReminders(
+            listOf(reminding("n1", "2026-09-18T08:00:00Z", ReminderRecurrences.DAILY)),
+            now,
+        ).single()
+
+        assertEquals("2026-09-18T08:00:00Z", settled.reminderFirstAtUtc)
+    }
+
+    @Test
     fun `future, already fired and trashed reminders are left alone`() {
         val notes = listOf(
             reminding("future", "2026-09-22T08:00:00Z"),
@@ -96,6 +137,59 @@ class StandaloneTest {
 
         assertEquals("2026-09-22T08:00:00Z", op.dto.remindAtUtc)
         assertEquals(ReminderRecurrences.WEEKLY, op.dto.recurrence)
+    }
+
+    @Test
+    fun `a recurring reminder goes up with where its series started, and its clock`() {
+        val op = readiedForUpload(
+            listOf(
+                PendingOp.SetReminder(
+                    "local-1",
+                    SetNoteReminderDto("2026-02-28T07:00:00Z", ReminderRecurrences.MONTHLY, "Europe/Vienna", "2026-01-31T07:00:00Z"),
+                ),
+            ),
+            Instant.parse("2026-03-01T00:00:00Z").toEpochMilli(),
+        ).single() as PendingOp.SetReminder
+
+        assertEquals("2026-03-31T06:00:00Z", op.dto.remindAtUtc)
+        assertEquals("2026-01-31T07:00:00Z", op.dto.firstAtUtc)
+        assertEquals("Europe/Vienna", op.dto.timeZone)
+    }
+
+    // ---- reminders set before reminders kept a time zone ----
+
+    @Test
+    fun `a repeating reminder without a zone takes the phone's, keeping where it started`() {
+        val notes = listOf(
+            NoteDto(
+                id = "weekly",
+                remindAtUtc = "2026-10-19T06:00:00Z",
+                reminderRecurrence = ReminderRecurrences.WEEKLY,
+            ),
+            NoteDto(
+                id = "monthly",
+                remindAtUtc = "2026-02-28T07:00:00Z",
+                reminderRecurrence = ReminderRecurrences.MONTHLY,
+                reminderFirstAtUtc = "2026-01-31T07:00:00Z",
+            ),
+        )
+
+        val adoptions = zoneAdoptions(notes, "Europe/Vienna").toMap()
+
+        assertEquals(SetNoteReminderDto("2026-10-19T06:00:00Z", ReminderRecurrences.WEEKLY, "Europe/Vienna"), adoptions["weekly"])
+        assertEquals("2026-01-31T07:00:00Z", adoptions["monthly"]?.firstAtUtc)
+    }
+
+    @Test
+    fun `reminders with a zone, one-time ones and fired ones are left alone`() {
+        val notes = listOf(
+            NoteDto(id = "zoned", remindAtUtc = "2026-10-19T06:00:00Z", reminderRecurrence = ReminderRecurrences.DAILY, reminderTimeZone = "UTC"),
+            reminding("once", "2026-10-19T06:00:00Z"),
+            reminding("fired", "2026-10-19T06:00:00Z", fired = true),
+            NoteDto(id = "none"),
+        )
+
+        assertEquals(emptyList<Pair<String, SetNoteReminderDto>>(), zoneAdoptions(notes, "Europe/Vienna"))
     }
 
     @Test

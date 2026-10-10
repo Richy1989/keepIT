@@ -101,13 +101,34 @@ class OfflineOpsTest {
         val fired = note("n1").copy(remindAtUtc = "2026-07-01T08:00:00Z", reminderFired = true)
         val op = PendingOp.SetReminder(
             "n1",
-            SetNoteReminderDto(remindAtUtc = "2026-07-20T08:00:00Z", recurrence = ReminderRecurrences.WEEKLY),
+            SetNoteReminderDto(
+                remindAtUtc = "2026-07-20T08:00:00Z",
+                recurrence = ReminderRecurrences.WEEKLY,
+                timeZone = "Europe/Vienna",
+            ),
         )
         val result = applyOp(listOf(fired), op).single()
 
         assertEquals("2026-07-20T08:00:00Z", result.remindAtUtc)
         assertEquals(ReminderRecurrences.WEEKLY, result.reminderRecurrence)
+        assertEquals("Europe/Vienna", result.reminderTimeZone)
+        // The series starts at the occurrence being set, as the server would have it.
+        assertEquals("2026-07-20T08:00:00Z", result.reminderFirstAtUtc)
         assertFalse(result.reminderFired)
+    }
+
+    @Test
+    fun `setReminder keeps an earlier series start, and ignores a later one, as the server does`() {
+        fun firstAfter(firstAtUtc: String) = applyOp(
+            listOf(note("n1")),
+            PendingOp.SetReminder(
+                "n1",
+                SetNoteReminderDto("2026-02-28T07:00:00Z", ReminderRecurrences.MONTHLY, "UTC", firstAtUtc),
+            ),
+        ).single().reminderFirstAtUtc
+
+        assertEquals("2026-01-31T07:00:00Z", firstAfter("2026-01-31T07:00:00Z"))
+        assertEquals("2026-02-28T07:00:00Z", firstAfter("2026-03-31T07:00:00Z"))
     }
 
     @Test
@@ -115,12 +136,16 @@ class OfflineOpsTest {
         val withReminder = note("n1").copy(
             remindAtUtc = "2026-07-20T08:00:00Z",
             reminderRecurrence = ReminderRecurrences.DAILY,
+            reminderTimeZone = "Europe/Vienna",
+            reminderFirstAtUtc = "2026-07-20T08:00:00Z",
             reminderFired = true,
         )
         val result = applyOp(listOf(withReminder), PendingOp.ClearReminder("n1")).single()
 
         assertNull(result.remindAtUtc)
         assertNull(result.reminderRecurrence)
+        assertNull(result.reminderTimeZone)
+        assertNull(result.reminderFirstAtUtc)
         assertFalse(result.reminderFired)
     }
 
@@ -283,6 +308,10 @@ class OfflineOpsTest {
             PendingOp.SetState("n1", NoteStateDto(isTrashed = true)),
             PendingOp.SetLists("n1", listOf("a", "b")),
             PendingOp.SetReminder("n1", SetNoteReminderDto("2026-07-20T08:00:00Z", ReminderRecurrences.DAILY)),
+            PendingOp.SetReminder(
+                "n4",
+                SetNoteReminderDto("2026-07-20T08:00:00Z", ReminderRecurrences.MONTHLY, "Europe/Vienna", "2026-05-31T08:00:00Z"),
+            ),
             PendingOp.ClearReminder("n3"),
             PendingOp.Delete("n2"),
         )

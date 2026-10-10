@@ -361,7 +361,16 @@ fun readiedForUpload(ops: List<PendingOp>, nowMs: Long): List<PendingOp> = ops.m
         op.dto.recurrence == ReminderRecurrences.NONE -> null
         else -> op.copy(
             dto = op.dto.copy(
-                remindAtUtc = Instant.ofEpochMilli(nextOccurrenceAfter(atMs, op.dto.recurrence, nowMs)).toString(),
+                remindAtUtc = Instant.ofEpochMilli(
+                    nextOccurrenceAfter(
+                        epochMsOrNull(firstAtOf(op.dto)) ?: atMs,
+                        reminderZone(op.dto.timeZone),
+                        op.dto.recurrence,
+                        nowMs,
+                    ),
+                ).toString(),
+                // So the server carries the series on from where it started, not from here.
+                firstAtUtc = firstAtOf(op.dto),
             ),
         )
     }

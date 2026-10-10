@@ -9,10 +9,13 @@ import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
 import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
+import org.hyperstarit.keepitapp.data.SetNoteReminderDto
 import org.hyperstarit.keepitapp.data.ensureUtc
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 
 /**
  * Pure functions over the merged note cache — the single source of truth for how a [PendingOp]
@@ -53,12 +56,20 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
         if (n.id != op.noteId) n else n.copy(
             remindAtUtc = op.dto.remindAtUtc,
             reminderRecurrence = op.dto.recurrence,
+            reminderTimeZone = op.dto.timeZone,
+            reminderFirstAtUtc = firstAtOf(op.dto),
             reminderFired = false,
         )
     }
 
     is PendingOp.ClearReminder -> notes.map { n ->
-        if (n.id != op.noteId) n else n.copy(remindAtUtc = null, reminderRecurrence = null, reminderFired = false)
+        if (n.id != op.noteId) n else n.copy(
+            remindAtUtc = null,
+            reminderRecurrence = null,
+            reminderTimeZone = null,
+            reminderFirstAtUtc = null,
+            reminderFired = false,
+        )
     }
 
     is PendingOp.Delete -> notes.filter { it.id != op.noteId }
@@ -220,31 +231,92 @@ fun settleDueReminders(notes: List<NoteDto>, nowMs: Long): List<NoteDto> = notes
     if (recurrence == ReminderRecurrences.NONE) {
         n.copy(reminderFired = true)
     } else {
-        n.copy(remindAtUtc = Instant.ofEpochMilli(nextOccurrenceAfter(atMs, recurrence, nowMs)).toString())
+        // As the server does, a reminder set before the first occurrence was kept counts from this one.
+        val first = n.reminderFirstAtUtc ?: at
+        val next = nextOccurrenceAfter(epochMsOrNull(first) ?: atMs, reminderZone(n.reminderTimeZone), recurrence, nowMs)
+        n.copy(remindAtUtc = Instant.ofEpochMilli(next).toString(), reminderFirstAtUtc = first)
     }
 }
 
 /**
- * The next occurrence after [fromMs] — the same UTC arithmetic as the server's `Advance`, so an
- * occurrence computed on the device and one computed by the server agree.
+ * The reminder changes that give each repeating reminder without a time zone [zone]: what a
+ * standalone phone does once with reminders set before reminders kept a zone (see
+ * `NotesRepository.adoptPhoneZone`). Fired and one-time reminders have no repeats to keep a clock
+ * for, and are left alone.
  */
-fun advanceOccurrence(fromMs: Long, recurrence: String): Long {
-    val from = ZonedDateTime.ofInstant(Instant.ofEpochMilli(fromMs), ZoneOffset.UTC)
-    val next = when (recurrence) {
-        ReminderRecurrences.DAILY -> from.plusDays(1)
-        ReminderRecurrences.WEEKLY -> from.plusWeeks(1)
-        ReminderRecurrences.MONTHLY -> from.plusMonths(1)
-        ReminderRecurrences.YEARLY -> from.plusYears(1)
-        else -> from.plusDays(1) // unknown cadence: fail safe, never loop forever
+fun zoneAdoptions(notes: List<NoteDto>, zone: String): List<Pair<String, SetNoteReminderDto>> =
+    notes.mapNotNull { n ->
+        val at = n.remindAtUtc ?: return@mapNotNull null
+        val recurrence = n.reminderRecurrence ?: ReminderRecurrences.NONE
+        if (n.reminderTimeZone != null || n.reminderFired || recurrence == ReminderRecurrences.NONE) {
+            return@mapNotNull null
+        }
+        n.id to SetNoteReminderDto(at, recurrence, zone, n.reminderFirstAtUtc)
     }
-    return next.toInstant().toEpochMilli()
+
+/**
+ * When a recurring reminder goes off next: the first occurrence strictly after [afterMs] of one
+ * first set for [firstAtMs], repeating every [recurrence] on [zone]'s wall clock.
+ *
+ * This is the server's `ReminderSchedule.NextAfter`, rule for rule, and the two must agree to the
+ * millisecond: the phone moves reminders on by itself while it is offline or has no server, and a
+ * phone and a server that disagree post one reminder twice, at two different times. Both are held
+ * to the same cases, `keepIT/keepITCore.Tests/ReminderOccurrences.json`. The rules:
+ * - Repeats keep the wall-clock time, so 08:00 stays 08:00 when the clocks change.
+ * - Each occurrence is counted from the first, never from the one before it: a monthly reminder on
+ *   the 31st falls on February's 28th, then comes back to March's 31st.
+ * - A time the clocks skip moves on by the gap (02:30 becomes 03:30), and a time they repeat goes
+ *   off the first time round: `LocalDateTime.atZone`'s own rules, which the server copies.
+ */
+fun nextOccurrenceAfter(firstAtMs: Long, zone: ZoneId, recurrence: String, afterMs: Long): Long {
+    val first = LocalDateTime.ofInstant(Instant.ofEpochMilli(firstAtMs), zone)
+    val after = LocalDateTime.ofInstant(Instant.ofEpochMilli(afterMs), zone)
+
+    // Jump to just before `after` rather than step from the first occurrence: a daily reminder set
+    // three years ago is a thousand steps otherwise. Two short of the estimate, because an
+    // occurrence moved on by a gap in the clock can land later than its date says.
+    var n = maxOf(0L, elapsed(first, after, recurrence) - 2)
+    while (true) {
+        val next = occurrence(first, recurrence, n).atZone(zone).toInstant().toEpochMilli()
+        if (next > afterMs) return next
+        n++
+    }
 }
 
-/** The first occurrence of a recurring reminder strictly after [nowMs], starting from [fromMs]. */
-internal fun nextOccurrenceAfter(fromMs: Long, recurrence: String, nowMs: Long): Long {
-    var next = fromMs
-    while (next <= nowMs) next = advanceOccurrence(next, recurrence)
-    return next
+/** The [n]th occurrence after [first], on the wall clock. `plusMonths` clamps as .NET's `AddMonths` does. */
+private fun occurrence(first: LocalDateTime, recurrence: String, n: Long): LocalDateTime = when (recurrence) {
+    ReminderRecurrences.DAILY -> first.plusDays(n)
+    ReminderRecurrences.WEEKLY -> first.plusWeeks(n)
+    ReminderRecurrences.MONTHLY -> first.plusMonths(n)
+    ReminderRecurrences.YEARLY -> first.plusYears(n)
+    else -> first.plusDays(n) // unknown cadence: fail safe, never loop forever
+}
+
+/** Roughly how many repeats lie between two wall-clock times; never more than there are. */
+private fun elapsed(first: LocalDateTime, after: LocalDateTime, recurrence: String): Long = when (recurrence) {
+    ReminderRecurrences.WEEKLY -> ChronoUnit.DAYS.between(first.toLocalDate(), after.toLocalDate()) / 7
+    ReminderRecurrences.MONTHLY -> (after.year - first.year) * 12L + after.monthValue - first.monthValue
+    ReminderRecurrences.YEARLY -> (after.year - first.year).toLong()
+    else -> ChronoUnit.DAYS.between(first.toLocalDate(), after.toLocalDate())
+}
+
+/**
+ * The zone a reminder's repeats keep. A server reports one for every reminder; null means one from
+ * before reminders carried a zone, and such a server counted repeats in UTC, so the phone must too
+ * or the two would go off an hour apart. An id this phone can't resolve is treated the same way.
+ */
+fun reminderZone(id: String?): ZoneId =
+    id?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneOffset.UTC
+
+/**
+ * Where a reminder being set starts its series, as the server works it out: [SetNoteReminderDto.firstAtUtc]
+ * when it is no later than the occurrence being set, else that occurrence.
+ */
+internal fun firstAtOf(dto: SetNoteReminderDto): String {
+    val first = dto.firstAtUtc ?: return dto.remindAtUtc
+    val firstMs = epochMsOrNull(first) ?: return dto.remindAtUtc
+    val atMs = epochMsOrNull(dto.remindAtUtc) ?: return dto.remindAtUtc
+    return if (firstMs <= atMs) first else dto.remindAtUtc
 }
 
 private fun epochMs(iso: String): Long = epochMsOrNull(iso) ?: 0L

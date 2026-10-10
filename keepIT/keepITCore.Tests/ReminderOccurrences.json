@@ -1,0 +1,90 @@
+{
+  "about": "When a recurring reminder goes off next. Read by ReminderScheduleTests (the server's ReminderSchedule) and by the Android app's ReminderOccurrenceTest (data/offline/NoteOps.kt), which must agree to the millisecond. Each case: a reminder first set for firstAtUtc, repeating in zone; nextUtc is its first occurrence strictly after afterUtc. Europe/Vienna's clocks go forward on 29 March 2026 and back on 25 October 2026.",
+  "cases": [
+    {
+      "name": "a weekly 08:00 reminder stays at 08:00 when summer time ends",
+      "zone": "Europe/Vienna", "recurrence": "Weekly",
+      "firstAtUtc": "2026-10-19T06:00:00Z", "afterUtc": "2026-10-19T06:00:00Z", "nextUtc": "2026-10-26T07:00:00Z"
+    },
+    {
+      "name": "a daily 08:00 reminder stays at 08:00 when summer time starts",
+      "zone": "Europe/Vienna", "recurrence": "Daily",
+      "firstAtUtc": "2026-03-28T07:00:00Z", "afterUtc": "2026-03-28T07:00:00Z", "nextUtc": "2026-03-29T06:00:00Z"
+    },
+    {
+      "name": "a monthly reminder on the 31st falls on February's last day",
+      "zone": "Europe/Vienna", "recurrence": "Monthly",
+      "firstAtUtc": "2026-01-31T07:00:00Z", "afterUtc": "2026-01-31T07:00:00Z", "nextUtc": "2026-02-28T07:00:00Z"
+    },
+    {
+      "name": "and comes back to the 31st in March",
+      "zone": "Europe/Vienna", "recurrence": "Monthly",
+      "firstAtUtc": "2026-01-31T07:00:00Z", "afterUtc": "2026-02-28T07:00:00Z", "nextUtc": "2026-03-31T06:00:00Z"
+    },
+    {
+      "name": "and falls on the 30th in April",
+      "zone": "Europe/Vienna", "recurrence": "Monthly",
+      "firstAtUtc": "2026-01-31T07:00:00Z", "afterUtc": "2026-03-31T06:00:00Z", "nextUtc": "2026-04-30T06:00:00Z"
+    },
+    {
+      "name": "a yearly reminder on 29 February falls on the 28th in other years",
+      "zone": "UTC", "recurrence": "Yearly",
+      "firstAtUtc": "2028-02-29T09:00:00Z", "afterUtc": "2028-02-29T09:00:00Z", "nextUtc": "2029-02-28T09:00:00Z"
+    },
+    {
+      "name": "and comes back to the 29th in the next leap year",
+      "zone": "UTC", "recurrence": "Yearly",
+      "firstAtUtc": "2028-02-29T09:00:00Z", "afterUtc": "2031-03-01T00:00:00Z", "nextUtc": "2032-02-29T09:00:00Z"
+    },
+    {
+      "name": "a time the clocks skip moves on by the gap",
+      "zone": "Europe/Vienna", "recurrence": "Daily",
+      "firstAtUtc": "2026-03-28T01:30:00Z", "afterUtc": "2026-03-28T01:30:00Z", "nextUtc": "2026-03-29T01:30:00Z"
+    },
+    {
+      "name": "and is back at its own time the day after",
+      "zone": "Europe/Vienna", "recurrence": "Daily",
+      "firstAtUtc": "2026-03-28T01:30:00Z", "afterUtc": "2026-03-29T01:30:00Z", "nextUtc": "2026-03-30T00:30:00Z"
+    },
+    {
+      "name": "a time the clocks repeat goes off the first time round",
+      "zone": "Europe/Vienna", "recurrence": "Daily",
+      "firstAtUtc": "2026-10-24T00:30:00Z", "afterUtc": "2026-10-24T00:30:00Z", "nextUtc": "2026-10-25T00:30:00Z"
+    },
+    {
+      "name": "and not the second",
+      "zone": "Europe/Vienna", "recurrence": "Daily",
+      "firstAtUtc": "2026-10-24T00:30:00Z", "afterUtc": "2026-10-25T00:30:00Z", "nextUtc": "2026-10-26T01:30:00Z"
+    },
+    {
+      "name": "a long outage catches up to the next occurrence",
+      "zone": "Europe/Vienna", "recurrence": "Daily",
+      "firstAtUtc": "2025-01-01T07:00:00Z", "afterUtc": "2026-10-10T12:00:00Z", "nextUtc": "2026-10-11T06:00:00Z"
+    },
+    {
+      "name": "New York keeps 09:00 when its summer time ends a week later",
+      "zone": "America/New_York", "recurrence": "Weekly",
+      "firstAtUtc": "2026-10-26T13:00:00Z", "afterUtc": "2026-10-26T13:00:00Z", "nextUtc": "2026-11-02T14:00:00Z"
+    },
+    {
+      "name": "Sydney keeps 08:00 when its summer time starts in October",
+      "zone": "Australia/Sydney", "recurrence": "Daily",
+      "firstAtUtc": "2026-10-02T22:00:00Z", "afterUtc": "2026-10-02T22:00:00Z", "nextUtc": "2026-10-03T21:00:00Z"
+    },
+    {
+      "name": "a half-hour zone without summer time",
+      "zone": "Asia/Kolkata", "recurrence": "Monthly",
+      "firstAtUtc": "2026-01-30T03:30:00Z", "afterUtc": "2026-01-30T03:30:00Z", "nextUtc": "2026-02-28T03:30:00Z"
+    },
+    {
+      "name": "UTC is plain arithmetic",
+      "zone": "UTC", "recurrence": "Weekly",
+      "firstAtUtc": "2026-10-19T06:00:00Z", "afterUtc": "2026-10-19T06:00:00Z", "nextUtc": "2026-10-26T06:00:00Z"
+    },
+    {
+      "name": "a first occurrence still to come is the next one",
+      "zone": "Europe/Vienna", "recurrence": "Weekly",
+      "firstAtUtc": "2026-11-02T07:00:00Z", "afterUtc": "2026-10-01T00:00:00Z", "nextUtc": "2026-11-02T07:00:00Z"
+    }
+  ]
+}
