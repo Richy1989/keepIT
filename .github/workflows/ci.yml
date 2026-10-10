@@ -4,6 +4,8 @@ name: CI
 # `git tag v*` (release.yml) — which is the only workflow that used to compile anything.
 # One job per deployable: they're independent by design (HTTP + WebSocket only), so they run in
 # parallel and a red check names the culprit without reading the log.
+# Every workflow names its runner image by version (ubuntu-26.04), never ubuntu-latest, so a new
+# image arrives as a commit this workflow has run rather than on whatever day GitHub moves the label.
 on:
   push:
     branches: [main]
@@ -21,7 +23,7 @@ concurrency:
 jobs:
   api:
     name: API (.NET 10)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -48,9 +50,49 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  api-postgres:
+    name: API on PostgreSQL
+    runs-on: ubuntu-26.04
+    # The same tests on the database Docker Compose runs. SQLite builds its schema from the model,
+    # so a migration can be wrong or missing and every test above still passes; here each test host
+    # gets an empty database, and the API builds it from the migrations as a new install does.
+    services:
+      postgres:
+        image: postgres:17-alpine   # the version docker-compose.yml runs
+        env:
+          POSTGRES_PASSWORD: keepit-tests
+        ports: ['5432:5432']
+        options: >-
+          --tmpfs /var/lib/postgresql/data
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      KEEPIT_TEST_POSTGRES: Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=keepit-tests
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore keepIT/keepITCore.slnx
+      - name: Build
+        env:
+          SixLaborsLicenseKey: ${{ secrets.SIXLABORS_LICENSE_KEY }}
+        run: dotnet build keepIT/keepITCore.slnx --configuration Release --no-restore
+      - name: Test
+        # DatabaseTests fails the run if a host ends up on SQLite after all.
+        run: dotnet test keepIT/keepITCore.slnx --configuration Release --no-build --logger trx --results-directory test-results
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-postgres-test-results
+          path: test-results/
+          retention-days: 7
+
   image:
     name: Docker image smoke test (nginx + API)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # The one check on the image as it ships: nginx in front of the API, in one container. Every
     # other test talks to the API directly, so a proxy refusing what the API accepts is invisible to
     # them — which is how nginx's 1 MB default body limit turned away most phone photos while all of
@@ -103,7 +145,7 @@ jobs:
 
   web:
     name: Web (React + TypeScript)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: web
@@ -132,7 +174,7 @@ jobs:
 
   android:
     name: Android (Kotlin + Compose)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: app
@@ -172,7 +214,7 @@ jobs:
 
   android-instrumented:
     name: Android smoke tests (emulator, minified build)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # The one check that proves the shipped build actually runs. Everything else compiles code or
     # reads reports; this installs a fully R8'd APK on a device and starts it. It's the slowest job
     # here (~10 min) and runs in parallel with the fast ones, so it never gates them.

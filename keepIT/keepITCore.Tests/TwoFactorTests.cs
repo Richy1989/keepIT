@@ -7,7 +7,6 @@ using keepITCore.Auth;
 using keepITCore.Data;
 using keepITCore.Tests.TestHost;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -96,13 +95,13 @@ public sealed class TwoFactorTests
     public async Task A_recovery_code_signs_in_once_and_is_stored_only_as_a_hash()
     {
         var realtime = new CapturingRealtimeNotifier();
-        using var api = new KeepItApiFactory { Services = s => s.AddSingleton<keepITCore.SignalR.IRealtimeNotifier>(realtime) };
+        using var api = new KeepItApiFactory { ServiceOverrides = s => s.AddSingleton<keepITCore.SignalR.IRealtimeNotifier>(realtime) };
         var email = $"user-{Guid.NewGuid():N}@example.com";
         using var client = await api.CreateSignedInClientAsync(email);
         var (_, codes) = await TurnOnAsync(client);
 
         // The database holds none of the codes as text.
-        using (var scope = ((WebApplicationFactory<Program>)api).Services.CreateScope())
+        using (var scope = api.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var stored = string.Concat(await db.UserTokens.Select(t => t.Value).ToListAsync());
@@ -193,7 +192,7 @@ public sealed class TwoFactorTests
         var mail = new CapturingEmailSender(deliversToRecipient: true);
         using var api = new KeepItApiFactory
         {
-            Services = s => s.AddSingleton<keepITCore.Infrastructure.Email.IEmailSender>(mail),
+            ServiceOverrides = s => s.AddSingleton<keepITCore.Infrastructure.Email.IEmailSender>(mail),
         };
         api.Settings["App:PublicBaseUrl"] = "https://notes.example.com";
         var email = $"user-{Guid.NewGuid():N}@example.com";
@@ -220,7 +219,7 @@ public sealed class TwoFactorTests
         var email = $"user-{Guid.NewGuid():N}@example.com";
         using var client = await api.CreateSignedInClientAsync(email);
         await TurnOnAsync(client);
-        var host = ((WebApplicationFactory<Program>)api).Services;
+        var host = api.Services;
 
         // Locked out after losing the phone, too.
         using (var scope = host.CreateScope())

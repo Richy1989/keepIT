@@ -19,7 +19,7 @@ public sealed class ShareMembershipRealtimeTests
     [Fact]
     public async Task Every_membership_change_reaches_everyone_on_the_note()
     {
-        using var api = new KeepItApiFactory { Services = s => s.AddSingleton<IRealtimeNotifier>(_realtime) };
+        using var api = new KeepItApiFactory { ServiceOverrides = s => s.AddSingleton<IRealtimeNotifier>(_realtime) };
         var (anna, annaId) = await SignInAsync(api);
         var (ben, benId) = await SignInAsync(api);
         var (cleo, cleoId) = await SignInAsync(api);

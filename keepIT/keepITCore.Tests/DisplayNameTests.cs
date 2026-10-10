@@ -21,7 +21,7 @@ public sealed class DisplayNameHost : IAsyncLifetime
 
     public DisplayNameHost()
     {
-        Api = new KeepItApiFactory { Services = s => s.AddSingleton<IRealtimeNotifier>(Realtime) };
+        Api = new KeepItApiFactory { ServiceOverrides = s => s.AddSingleton<IRealtimeNotifier>(Realtime) };
     }
 
     public async Task InitializeAsync()

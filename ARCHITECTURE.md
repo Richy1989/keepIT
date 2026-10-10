@@ -156,6 +156,14 @@ setup, while Compose/prod just set the env vars.
   Migrations can't be retrofitted here instead: they're Postgres-authoritative (Npgsql column
   types), and an `EnsureCreated` database has no `__EFMigrationsHistory`, so `Migrate()` would
   try to replay every migration over populated tables.
+- **Both paths are tested, because each hides the other's mistakes.** SQLite builds its schema
+  from the model, so a migration that is wrong or missing passes every SQLite test, and
+  Postgres enforces what SQLite ignores (column lengths, `timestamptz` taking only UTC times).
+  The API tests therefore run twice in CI: on SQLite, and on Postgres 17 (`API on PostgreSQL`),
+  where each test host gets an empty database and the API's own `Migrate()` builds it from the
+  first migration up, as on a new Compose install. `DatabaseTests` fails a Postgres run that
+  quietly got SQLite, and fails both when the model has changed without a migration.
+  `scripts/test-postgres.sh` (and `.ps1`) runs the suite locally on a throwaway container.
 
 ### One common data folder
 
@@ -1434,8 +1442,8 @@ starts, a one-shot **`data-owner`** service (the same image, run as root, with n
 hands the data volume to that user with the same `chown -h` rule as the single container,
 which is what upgrades a volume from the root-run versions; the image also creates `/data`
 owned by that user, so a new volume starts out writable.
-Compose reads five values from `.env` (`JWT_KEY`, `POSTGRES_PASSWORD`,
-`REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION`).
+Compose reads six values from `.env` (`JWT_KEY`, `POSTGRES_PASSWORD`,
+`REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION`, `TZ`).
 
 For real TLS, terminate HTTPS at a proxy in front (e.g. Traefik), keep
 `Auth__RefreshCookie__Secure=true`, and bump `App__ForwardedProxyHops` to match the extra hop
@@ -1464,6 +1472,10 @@ otherwise fail days later), add `fastlane/metadata/android/en-US/changelogs/<ver
 (500 characters at most, for app users) and the `CHANGELOG.md` section (for operators). Up to
 0.8.5 the code was `X*10000 + Y*100 + Z` (805); the wider one makes room for betas.
 
+Every workflow names its runner image by version (`ubuntu-26.04`), never `ubuntu-latest`. A
+release is then built on the image CI last tested, and a new image arrives as a commit CI runs,
+not on whatever day GitHub moves the label.
+
 **Betas.** A tag `vX.Y.Z-beta.N` (N from 1 to 98) is a beta of X.Y.Z, for testers, and it runs
 the same workflow with three differences, each so that no one gets a beta without asking. The
 GitHub Release is a **pre-release**: GitHub never marks it latest, and Obtainium skips it unless
@@ -1484,7 +1496,8 @@ not be newer than the literals.
   `Test1234#1234` with lists and a variety of notes against a locally running API.
 - **`keepITCore.http`** — request collection for manual endpoint poking.
 - **API tests** (`keepIT/keepITCore.Tests/`, xUnit, run in CI) host the real API in-process on a
-  throwaway SQLite data root per host: the schema reconciler bringing an older database up to date
+  throwaway SQLite data root per host, and in a second CI job on an empty Postgres database per
+  host (see **Database initialization**): the schema reconciler bringing an older database up to date
   without data loss, note media end to end (renditions, the lazily built preview, upload
   limits, an image bomb refused from its header, and only an animation's first frame decoded,
   witnessed by a GIF whose second frame can't be), and where password-reset links point (forged `Origin`/`Host` headers are ignored,

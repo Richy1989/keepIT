@@ -23,7 +23,7 @@ concurrency:
 jobs:
   advisories:
     name: Advisories (npm + NuGet)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -50,7 +50,7 @@ jobs:
     # other way to see them, so Dependabot alerts cover them too. A submission needs write
     # access, so not from PRs.
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
