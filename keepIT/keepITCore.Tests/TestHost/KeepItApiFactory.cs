@@ -12,12 +12,17 @@ namespace keepITCore.Tests.TestHost;
 /// <summary>
 /// The real API, in-process, on a throwaway data root of its own — SQLite file, media and keys —
 /// deleted again on dispose. Runs as Development, which supplies a JWT key and a refresh cookie
-/// that works over the test server's plain HTTP.
+/// that works over the test server's plain HTTP. When <c>KEEPIT_TEST_POSTGRES</c> names a server,
+/// the database is an empty Postgres database of its own instead, dropped on dispose (see
+/// <see cref="TestPostgres"/>).
 /// </summary>
 public sealed class KeepItApiFactory : WebApplicationFactory<Program>
 {
     /// <summary>The data root this host reads and writes.</summary>
     public string DataRoot { get; }
+
+    /// <summary>This host's own Postgres database, or null when it runs on SQLite.</summary>
+    public string? PostgresDatabase { get; }
 
     /// <summary>
     /// Extra configuration for this host (e.g. <c>App:PublicBaseUrl</c>), applied before it starts —
@@ -26,12 +31,17 @@ public sealed class KeepItApiFactory : WebApplicationFactory<Program>
     public Dictionary<string, string?> Settings { get; } = new();
 
     /// <summary>Service replacements for this host, applied after the API's own registrations.</summary>
-    public Action<IServiceCollection>? Services { get; init; }
+    public Action<IServiceCollection>? ServiceOverrides { get; init; }
 
-    /// <param name="dataRoot">An existing data root to start on (e.g. one holding an old database), or null for a fresh one.</param>
+    /// <param name="dataRoot">
+    /// An existing data root to start on (e.g. one holding an old SQLite database), or null for a
+    /// fresh one. A host given one runs on SQLite, since that is where its database is.
+    /// </param>
     public KeepItApiFactory(string? dataRoot = null)
     {
         DataRoot = dataRoot ?? Directory.CreateTempSubdirectory("keepit-tests-").FullName;
+        if (dataRoot is null && TestPostgres.Server is not null)
+            PostgresDatabase = TestPostgres.CreateDatabase();
     }
 
     /// <inheritdoc />
@@ -39,14 +49,15 @@ public sealed class KeepItApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("App:DataRoot", DataRoot);
-        // Never pick up a developer's Postgres: these tests are about the SQLite path.
-        builder.UseSetting("ConnectionStrings:Postgres", "");
+        // This host's own database, never a developer's Postgres: SQLite in the data root unless
+        // the run asked for Postgres.
+        builder.UseSetting("ConnectionStrings:Postgres", PostgresDatabase ?? "");
         builder.UseSetting("POSTGRES_HOST", "");
 
         foreach (var (key, value) in Settings)
             builder.UseSetting(key, value);
-        if (Services is not null)
-            builder.ConfigureTestServices(Services);
+        if (ServiceOverrides is not null)
+            builder.ConfigureTestServices(ServiceOverrides);
     }
 
     /// <summary>Registers a fresh account and returns its email (the client stays signed out).</summary>
@@ -83,6 +94,9 @@ public sealed class KeepItApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (!disposing) return;
+
+        if (PostgresDatabase is not null)
+            TestPostgres.DropDatabase(PostgresDatabase);
 
         // Pooled connections keep the SQLite file open, and Windows won't delete an open file.
         SqliteConnection.ClearAllPools();

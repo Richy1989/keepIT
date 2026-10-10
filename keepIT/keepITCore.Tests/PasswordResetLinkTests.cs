@@ -22,7 +22,7 @@ public sealed class PasswordResetLinkTests
     private static (KeepItApiFactory Api, CapturingEmailSender Mail) Host(bool viaSmtp, string? publicBaseUrl = null)
     {
         var mail = new CapturingEmailSender(viaSmtp);
-        var api = new KeepItApiFactory { Services = services => services.AddSingleton<IEmailSender>(mail) };
+        var api = new KeepItApiFactory { ServiceOverrides = services => services.AddSingleton<IEmailSender>(mail) };
         if (publicBaseUrl is not null) api.Settings["App:PublicBaseUrl"] = publicBaseUrl;
         return (api, mail);
     }
