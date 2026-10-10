@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -105,16 +107,23 @@ fun ReminderChip(note: NoteDto, onClick: () -> Unit, modifier: Modifier = Modifi
     val at = reminderInstant(note) ?: return
     val past = note.reminderFired || at.isBefore(Instant.now())
     val recurring = note.reminderRecurrence != null && note.reminderRecurrence != ReminderRecurrences.NONE
-    val tint = if (past) KeepItColors.AccentInk else KeepItColors.TextFaint
+    // Filled rather than outlined, and muted rather than faint: on the lift a faint label falls
+    // under 3:1 on the darker note colours (ThemeContrastTest). A passed one keeps its outline.
+    val tint = if (past) KeepItColors.AccentInk else KeepItColors.TextMuted
+    val shape = RoundedCornerShape(50)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier
-            .border(
-                border = BorderStroke(1.dp, if (past) KeepItColors.AccentInk.copy(alpha = 0.4f) else KeepItColors.BorderStrong),
-                shape = RoundedCornerShape(50),
+            .then(
+                if (past) {
+                    Modifier.border(BorderStroke(1.dp, KeepItColors.AccentInk.copy(alpha = 0.4f)), shape)
+                } else {
+                    Modifier.background(KeepItColors.OverlayLift, shape)
+                },
             )
+            .clip(shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {

@@ -93,6 +93,30 @@ function rgb(value: string): [number, number, number] {
   throw new Error(`not an opaque colour: ${value}`);
 }
 
+/** Like {@link rgb}, but takes a translucent colour too: [r, g, b, alpha]. */
+function rgba(value: string): [number, number, number, number] {
+  const fn = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[/,]\s*([\d.]+)\s*)?\)$/.exec(value);
+  if (fn) return [+fn[1], +fn[2], +fn[3], fn[4] === undefined ? 1 : +fn[4]];
+  return [...rgb(value), 1];
+}
+
+function hex(channels: number[]): string {
+  return `#${channels.map((c) => Math.round(c).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** `color-mix(in srgb, base, other pct)`: what the browser paints for a card's sheen. */
+function mix(base: string, other: string, pct: string): string {
+  const p = parseFloat(pct) / 100;
+  const [a, b] = [rgb(base), rgb(other)];
+  return hex(a.map((c, i) => c + (b[i] - c) * p));
+}
+
+/** A (possibly translucent) colour painted over an opaque one. */
+function over(top: string, under: string): string {
+  const [r, g, b, alpha] = rgba(top);
+  return hex(rgb(under).map((c, i) => [r, g, b][i] * alpha + c * (1 - alpha)));
+}
+
 /** WCAG 2.1 relative luminance. */
 function luminance(value: string): number {
   const [r, g, b] = rgb(value).map((c) => {
@@ -169,6 +193,55 @@ describe.each(THEMES)('theme: %s', (theme) => {
         expect(ratio, `${color} border (${theme})`).toBeGreaterThan(1.05);
       }
     });
+
+    // A card is painted as a gradient (`.note-card`), so its text lands on more than the flat
+    // colour: the top and bottom of the sheen are measured as well. The fill's middle is the plain
+    // colour, which the test above covers.
+    it.each(['default', ...NOTE_COLORS])('note content reads across a %s card\'s sheen', (color) => {
+      const bg = t[`--note-${color}-bg`];
+      const ends = {
+        top: mix(bg, '#ffffff', t['--note-lift']),
+        bottom: mix(bg, '#000000', t['--note-sink']),
+      };
+      for (const [end, fill] of Object.entries(ends)) {
+        for (const token of ['--color-text', '--color-text-muted']) {
+          expect(contrast(t[token], fill), `${token} at the ${end} of ${color}`).toBeGreaterThanOrEqual(
+            AA_TEXT,
+          );
+        }
+        for (const token of ['--color-text-faint', '--color-accent-ink']) {
+          expect(contrast(t[token], fill), `${token} at the ${end} of ${color}`).toBeGreaterThanOrEqual(
+            AA_LARGE,
+          );
+        }
+        // An unticked checkbox's outline is a control boundary: 3:1 (WCAG 1.4.11).
+        expect(
+          contrast(over(t['--color-border-control'], fill), fill),
+          `checkbox outline at the ${end} of ${color}`,
+        ).toBeGreaterThanOrEqual(AA_LARGE);
+      }
+    });
+
+    it.each(['default', ...NOTE_COLORS])('the reminder chip reads on a %s card', (color) => {
+      // The chip carries a time, the same class of text as the faint timestamps: AA_LARGE.
+      const chip = over(t['--color-overlay-lift'], t[`--note-${color}-bg`]);
+      expect(contrast(t['--color-text-muted'], chip), `chip on ${color}`).toBeGreaterThanOrEqual(AA_LARGE);
+    });
+  });
+
+  it('a photo card reads whatever the photo is', () => {
+    // The scrim is the only thing between the text and an unknown photo, so it is measured over
+    // the two extremes: if the text clears AA over pure white and pure black, it clears it over
+    // anything in between. Faint text on a photo card is drawn in --photo-text-muted.
+    const t = resolveTheme(theme, 'forest');
+    for (const photo of ['#ffffff', '#000000']) {
+      const fill = over(t['--photo-scrim'], photo);
+      for (const token of ['--photo-text', '--photo-text-muted']) {
+        expect(contrast(t[token], fill), `${token} over a ${photo} photo (${theme})`).toBeGreaterThanOrEqual(
+          AA_TEXT,
+        );
+      }
+    }
   });
 });
 
@@ -212,9 +285,20 @@ describe('token structure', () => {
     // Tailwind inlines a --shadow-* theme value into the utility it generates instead of emitting
     // a var() reference, so a per-theme override silently never applies. They live in :root and
     // are applied through the .elev-* classes.
-    for (const name of ['card', 'card-hover', 'panel', 'raised', 'overlay']) {
+    for (const name of ['card', 'card-hover', 'panel', 'raised', 'overlay', 'note', 'note-hover']) {
       expect(block('@theme'), '@theme').not.toHaveProperty(`--shadow-${name}`);
       expect(block(':root'), ':root').toHaveProperty(`--shadow-${name}`);
+    }
+  });
+
+  it('the photo text tokens are literal colours', () => {
+    // `.note-card-photo` sets --color-text to var(--photo-text). If --photo-text were itself
+    // var(--color-text), the card would resolve it against its own redefinition: a cycle, which
+    // the browser treats as unset, and the card's text would fall back to black.
+    for (const selector of [':root', `html[data-theme='light']`]) {
+      for (const token of ['--photo-text', '--photo-text-muted']) {
+        expect(block(selector)[token], `${token} in ${selector}`).toMatch(/^#[0-9a-f]{6}$/i);
+      }
     }
   });
 });

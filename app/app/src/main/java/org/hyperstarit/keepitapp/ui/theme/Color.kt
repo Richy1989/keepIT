@@ -49,6 +49,17 @@ class KeepItPalette(
     val error: Color,
     /** The wash painted over a surface: code spans and blocks in a note body. */
     val overlayHover: Color,
+    /**
+     * The outline of an unticked checklist box on a note card. Translucent, so it reaches the 3:1 a
+     * control's outline needs on all ten note colours; [borderStrong] was ~1.3:1 on dark sage.
+     */
+    val borderControl: Color,
+    /** A wash that raises what sits on a card: the reminder chip's fill. */
+    val overlayLift: Color,
+    /** A wash that sinks it: the voice-note player's well. */
+    val overlayWell: Color,
+    /** How a note card is painted in this theme. */
+    val card: NoteCardStyle,
     /** Per-note backgrounds, keyed like the web palette; [NoteSwatch.key] is what `Note.color` stores. */
     val notes: List<NoteSwatch>,
 ) {
@@ -56,6 +67,36 @@ class KeepItPalette(
 
     /** Resolves a stored color key to its swatch, falling back to the default surface (like the web). */
     fun swatch(key: String?): NoteSwatch = key?.let { swatchByKey[it] } ?: notes[0]
+
+    /**
+     * This palette as a photo card reads it — the web's `.note-card-photo`. A photo card is painted
+     * on its own photo, so its text takes the photo pair, which [NoteCardStyle.photoScrim] holds to
+     * AA over any photo at all. The accent ink goes the same way: a link or a ticked box in it would
+     * sit on whatever the user photographed.
+     */
+    fun onPhoto(): KeepItPalette = KeepItPalette(
+        name = "$name on a photo",
+        isLight = isLight,
+        canvas = canvas,
+        surface = surface,
+        surfaceHover = surfaceHover,
+        elevated = elevated,
+        borderSubtle = borderSubtle,
+        borderStrong = borderStrong,
+        text = card.photoText,
+        textMuted = card.photoTextMuted,
+        textFaint = card.photoTextMuted,
+        accent = accent,
+        accentStrong = accentStrong,
+        accentInk = card.photoText,
+        error = error,
+        overlayHover = overlayHover,
+        borderControl = borderControl,
+        overlayLift = overlayLift,
+        overlayWell = overlayWell,
+        card = card,
+        notes = notes,
+    )
 
     override fun toString(): String = "KeepItPalette($name)"
 
@@ -81,6 +122,10 @@ class KeepItPalette(
             accentInk = Forest,
             error = DarkError,
             overlayHover = Color(0x33000000),
+            borderControl = DarkBorderControl,
+            overlayLift = DarkOverlayLift,
+            overlayWell = DarkOverlayWell,
+            card = DarkCard,
             notes = listOf(
                 NoteSwatch("default", "Default", Color(0xFF18181B), Color(0xFF27272A)),
                 NoteSwatch("rose", "Rose", Color(0xFF531A27), Color(0xFF6A2938)),
@@ -120,6 +165,10 @@ class KeepItPalette(
             accentInk = Forest,
             error = DarkError,
             overlayHover = Color(0x33000000),
+            borderControl = DarkBorderControl,
+            overlayLift = DarkOverlayLift,
+            overlayWell = DarkOverlayWell,
+            card = DarkCard,
             notes = listOf(
                 NoteSwatch("default", "Default", Color(0xFF232327), Color(0xFF323238)),
                 NoteSwatch("rose", "Rose", Color(0xFF652635), Color(0xFF7B3444)),
@@ -158,6 +207,23 @@ class KeepItPalette(
             // The web's light `--color-danger`: the dark themes' red is 2.8:1 on white.
             error = Color(0xFF9F1239),
             overlayHover = Color(0x1218181B),
+            borderControl = Color(0x8C18181B),
+            overlayLift = Color(0x0F18181B),
+            overlayWell = Color(0x8CFFFFFF),
+            card = NoteCardStyle(
+                lift = 0.5f,
+                sink = 0f,
+                ring = 0.6f,
+                shadow = listOf(
+                    BoxShadow(inset = true, x = 0f, y = 1f, blur = 0f, spread = 0f, color = Color(0xB3FFFFFF)),
+                    BoxShadow(inset = false, x = 0f, y = 1f, blur = 2f, spread = 0f, color = Color(0x0D18181B)),
+                    BoxShadow(inset = false, x = 0f, y = 10f, blur = 24f, spread = -14f, color = Color(0x3318181B)),
+                ),
+                // Milky rather than dark: the photo shows through as a pale wash under dark text.
+                photoScrim = Color(0xCCFFFFFF),
+                photoText = Color(0xFF18181B),
+                photoTextMuted = Color(0xFF52525B),
+            ),
             notes = listOf(
                 NoteSwatch("default", "Default", Color(0xFFFFFFFF), Color(0xFFE4E4E7)),
                 NoteSwatch("rose", "Rose", Color(0xFFFBCBD2), Color(0xFFF9A2B1)),
@@ -187,6 +253,78 @@ private val ForestStrong = Color(0xFF33996A)
  */
 private val DarkError = Color(0xFFF87171)
 
+/** Dark and Dim share these, as Dim inherits them from the web's dark baseline. */
+private val DarkBorderControl = Color(0x73FFFFFF)
+private val DarkOverlayLift = Color(0x14FFFFFF)
+private val DarkOverlayWell = Color(0x2E000000)
+private val DarkCard = NoteCardStyle(
+    // Dark sinks the bottom and never lifts the top: lifting it 5% took textMuted to 4.1:1 on amber.
+    lift = 0f,
+    sink = 0.1f,
+    ring = 1f,
+    shadow = listOf(
+        BoxShadow(inset = true, x = 0f, y = 1f, blur = 0f, spread = 0f, color = Color(0x0FFFFFFF)),
+        BoxShadow(inset = false, x = 0f, y = 1f, blur = 2f, spread = 0f, color = Color(0x4D000000)),
+        BoxShadow(inset = false, x = 0f, y = 12f, blur = 28f, spread = -14f, color = Color(0x99000000)),
+    ),
+    photoScrim = Color(0xB30C0C12),
+    photoText = Color(0xFFF4F4F6),
+    photoTextMuted = Color(0xFFCFCFD8),
+)
+
+/**
+ * How a note card is painted in one theme: the web's `.note-card` recipe, from the `--note-*`,
+ * `--shadow-note` and `--photo-*` tokens in `index.css` (held to them by `WebTokenParityTest`).
+ *
+ * The fill is a gradient, lit from above: the note's colour mixed toward white by [lift] at the top,
+ * plain at 55%, mixed toward black by [sink] at the bottom. A theme only ever moves the colour away
+ * from its text, so the gradient never costs contrast: the dark themes sink, light lifts. [ring] is
+ * how much of the note's border colour its outline keeps.
+ *
+ * A card with a photo is painted on a blurred copy of the photo instead, under [photoScrim], and
+ * its text takes [photoText] and [photoTextMuted] (see [KeepItPalette.onPhoto]). `ThemeContrastTest`
+ * measures the pair over an all-white and an all-black photo, so it reads whatever the photo is.
+ */
+@Immutable
+class NoteCardStyle(
+    val lift: Float,
+    val sink: Float,
+    val ring: Float,
+    /** The card's shadow, front layer first, as `--shadow-note` lists it. The inset one is the lit edge. */
+    val shadow: List<BoxShadow>,
+    val photoScrim: Color,
+    val photoText: Color,
+    val photoTextMuted: Color,
+) {
+    /** The top of a card whose colour is [bg]. */
+    fun top(bg: Color): Color = bg.mixSrgb(Color.White, lift)
+
+    /** The bottom of a card whose colour is [bg]. */
+    fun bottom(bg: Color): Color = bg.mixSrgb(Color.Black, sink)
+}
+
+/** One layer of a CSS `box-shadow`; lengths in dp, which the web's CSS px correspond to. */
+@Immutable
+data class BoxShadow(
+    val inset: Boolean,
+    val x: Float,
+    val y: Float,
+    val blur: Float,
+    val spread: Float,
+    val color: Color,
+)
+
+/**
+ * The web's `color-mix(in srgb, this, other <fraction>)`. Not Compose's `lerp`, which mixes in
+ * Oklab and would land on a slightly different colour than the browser's.
+ */
+fun Color.mixSrgb(other: Color, fraction: Float): Color = Color(
+    red = red + (other.red - red) * fraction,
+    green = green + (other.green - green) * fraction,
+    blue = blue + (other.blue - blue) * fraction,
+    alpha = alpha + (other.alpha - alpha) * fraction,
+)
+
 /** The palette in effect, provided by [KeepITAppTheme]. Dim outside one, as the app looked before themes. */
 val LocalKeepItPalette = staticCompositionLocalOf { KeepItPalette.Dim }
 
@@ -213,6 +351,9 @@ object KeepItColors {
     /** The accent as text, an icon tint, a border or the cursor. See [KeepItPalette.accentInk]. */
     val AccentInk: Color @Composable @ReadOnlyComposable get() = LocalKeepItPalette.current.accentInk
     val OverlayHover: Color @Composable @ReadOnlyComposable get() = LocalKeepItPalette.current.overlayHover
+    val BorderControl: Color @Composable @ReadOnlyComposable get() = LocalKeepItPalette.current.borderControl
+    val OverlayLift: Color @Composable @ReadOnlyComposable get() = LocalKeepItPalette.current.overlayLift
+    val OverlayWell: Color @Composable @ReadOnlyComposable get() = LocalKeepItPalette.current.overlayWell
 }
 
 /** One per-note background swatch (background + border), keyed like the web palette. */

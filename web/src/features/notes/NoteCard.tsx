@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
 import { checklistForDisplay } from './checklist';
 import { NoteImage } from './media/NoteImage';
 import { CardAudio } from './media/CardAudio';
+import { PhotoBackdrop } from './media/PhotoBackdrop';
 import { splitMedia } from './media/queries';
 import { noteColor } from './palette';
 import { MAX_CARD_RECORDINGS, MAX_PREVIEW_ITEMS } from './masonry';
@@ -59,6 +60,8 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
   // A note's attachments are one list of both kinds; the hero is a picture, and a recording has
   // nothing to show, so they are separated before anything renders.
   const { images, recordings } = splitMedia(note.media);
+  // A card with a picture is a photo card: painted on the photo rather than on its colour.
+  const hero = images.at(0);
 
   const checkedItems = note.checklistItems.filter((i) => i.isChecked).length;
 
@@ -89,10 +92,17 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           onOpen(note);
         }
       }}
-      // overflow-hidden so a full-bleed hero image follows the card's rounded corners.
-      className="focus-ring group relative block w-full overflow-hidden rounded-card border p-4 text-left elev-card transition"
-      style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
+      // `.note-card` (index.css) paints the colour, outline and shadow from the two variables, so no
+      // utility here may set a background, border or shadow. overflow-hidden so a full-bleed hero
+      // follows the rounded corners; isolate so the photo backdrop's -z-10 stays inside the card.
+      className={cn(
+        'note-card focus-ring group relative isolate block w-full overflow-hidden p-4 text-left transition hover:-translate-y-0.5',
+        hero && 'note-card-photo',
+      )}
+      style={{ '--card-bg': swatch.bg, '--card-border': swatch.border } as CSSProperties}
     >
+      {hero && <PhotoBackdrop noteId={note.id} media={hero} />}
+
       {/* Pin — visible on hover, or always when pinned. */}
       <button
         type="button"
@@ -104,37 +114,33 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         className={cn(
           'focus-ring absolute right-2 top-2 z-10 grid size-8 place-items-center rounded-full text-text-muted transition hover:bg-overlay-hover hover:text-text',
           note.isPinned ? 'opacity-100 text-text' : 'opacity-0 group-hover:opacity-100 touch:opacity-100',
-          // Over a photo the muted pin all but disappears, so it gets its own backdrop.
-          images.length > 0 && 'bg-black/50 text-white hover:bg-black/70 hover:text-white',
+          // Over a photo the muted pin all but disappears, so it gets a pane of dark glass.
+          hero && 'border border-white/25 bg-black/40 text-white backdrop-blur-md hover:bg-black/60 hover:text-white',
         )}
       >
         <PinIcon className="text-base" />
       </button>
 
       {/* Full-bleed hero: negative margins cancel the card's p-4 so the image reaches the edges.
-          Only the title sits on the photo — body and checklist rows stay below on the note's own
-          colour, where contrast is a known quantity rather than whatever the user photographed. */}
-      {images.length > 0 && (
-        <div className="relative -mx-4 -mt-4 mb-3">
-          <NoteImage noteId={note.id} media={images[0]} size="preview" />
+          Its lower part fades out into PhotoBackdrop, the same photo blurred, so the title, body
+          and checklist below sit on the photo's colours. They read whatever the photo is: the
+          backdrop's scrim and the card's --photo-text tokens are what hold them to AA. */}
+      {hero && (
+        <div className="relative -mx-4 -mt-4 mb-1 [mask-image:linear-gradient(to_bottom,#000_60%,transparent)]">
+          <NoteImage noteId={note.id} media={hero} size="preview" />
           {images.length > 1 && (
             // Top-left, because the pin owns the top-right corner.
-            <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-sm">
+            <span className="absolute left-2 top-2 rounded-full border border-white/25 bg-black/40 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-md">
               +{images.length - 1}
             </span>
-          )}
-          {note.title && (
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent px-4 pb-2 pt-8">
-              <h3 className="line-clamp-2 pr-8 font-medium leading-snug text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.65)]">
-                {note.title}
-              </h3>
-            </div>
           )}
         </div>
       )}
 
-      {note.title && images.length === 0 && (
-        <h3 className="mb-1.5 pr-8 font-medium leading-snug text-text">{note.title}</h3>
+      {note.title && (
+        <h3 className={cn('mb-1.5 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-text', !hero && 'pr-8')}>
+          {note.title}
+        </h3>
       )}
 
       {/* A voice note plays from the card itself — it has nothing to show, and making someone open
@@ -170,10 +176,10 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
                     toggleItem(it);
                   }}
                   className={cn(
-                    'mt-0.5 grid size-4 shrink-0 place-items-center rounded border transition',
+                    'mt-px grid size-4.5 shrink-0 place-items-center rounded-md border-[1.5px] transition',
                     it.isChecked
                       ? 'border-accent bg-accent text-black'
-                      : 'border-border-strong hover:border-text-muted',
+                      : 'border-border-control hover:border-text-muted',
                     !note.canEdit && 'cursor-default',
                   )}
                 >

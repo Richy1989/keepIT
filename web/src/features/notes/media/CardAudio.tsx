@@ -86,7 +86,7 @@ export function CardAudio({ noteId, media }: { noteId: string; media: NoteMediaD
     // recording is not asking to open the note.
     <div
       onClick={(e) => e.stopPropagation()}
-      className="flex items-center gap-2 rounded-lg border border-border-subtle bg-canvas/40 px-2 py-1.5"
+      className="flex items-center gap-2 rounded-[10px] bg-overlay-well px-2 py-1.5"
     >
       <button
         type="button"

@@ -5,6 +5,14 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
+### 🔧 Improvements
+
+- Note cards have a new look on the web and on Android: rounder corners, a fill that is lit from
+  above, and a soft shadow. Checkboxes, the reminder chip and the voice-note player match it.
+- A note with a photo is now painted on the photo itself: the picture fades into a blurred copy of
+  itself, and the title and text sit on it, readable whatever the photo shows. The note's colour
+  stays visible as the card's outline. Web and Android.
+
 ### 🔒 Security
 
 - The server processes photos with ImageSharp 4.1.3, which fixes five advisories published on

@@ -946,6 +946,17 @@ more modern**, not a pixel clone.
   `--color-accent(-strong)` and an `--accent-ink` input: they come after the theme blocks at equal
   specificity, so setting `--color-accent-ink` there would beat the theme and put the unreadable
   shade back.
+- **Note cards are lit from above, and photo cards are painted on their photo.** A card's fill
+  (`.note-card` in `index.css`, `NoteCardStyle` on Android) is a gradient of the note's colour:
+  light lifts the top toward white, the dark themes sink the bottom toward black. Each theme only
+  ever moves the colour away from its text, so the gradient can't cost contrast; lifting the
+  dark tops instead, as first designed, took muted text to 4.1:1 on amber. A card with a picture
+  is a *photo card*: its hero fades into a blurred copy of the same photo under the theme's
+  `--photo-scrim`, and the card swaps its text tokens (and the accent ink) for the `--photo-text`
+  pair. The scrim is measured over an all-white and an all-black photo in both token tests, which
+  is what lets a photo card promise AA without knowing the photo. The blur is a `filter` on one
+  layer (a RenderEffect on Android), never a `backdrop-filter`: there is nothing behind a card
+  worth sampling, and re-sampling on every scroll frame is the cost glass usually brings.
 - **Modern, restrained styling.** Generous spacing, soft rounded corners, subtle elevation,
   smooth micro-interactions, good empty/loading states. Menus and dialogs animate in
   (`.pop-in` / `.fade-in`, neutralized by the global reduced-motion rule). Confirmations use

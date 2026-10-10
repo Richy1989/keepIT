@@ -63,7 +63,19 @@
      lightbox keeps its own near-opaque backdrop — there the point is to show nothing but the photo. */
   --color-scrim: rgb(0 0 0 / 0.6);
 
+  /* The outline of an unticked checkbox on a note card. Translucent, so it reads on all ten note
+     colours: --color-border-strong, which it replaced there, was ~1.3:1 on a dark sage card, and
+     a control's outline needs 3:1. index.css.test.ts holds it to that on every colour. */
+  --color-border-control: rgb(255 255 255 / 0.45);
+
+  /* Two washes for things sitting *on* a note card: `lift` raises (the reminder chip's fill),
+     `well` sinks (the voice-note player). Dark-tuned here, flipped on light. */
+  --color-overlay-lift: rgb(255 255 255 / 0.08);
+  --color-overlay-well: rgb(0 0 0 / 0.18);
+
   --radius-card: 0.875rem;
+  /* Note cards are rounder than the other cards (dialogs, settings panels). */
+  --radius-note: 1.125rem;
 }
 
 /* Per-note background palette — dark baseline. Saturated hues held dark enough for light text:
@@ -97,6 +109,33 @@
   --shadow-panel: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
   --shadow-raised: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
   --shadow-overlay: 0 25px 50px -12px rgb(0 0 0 / 0.6);
+
+  /*
+    A note card (`.note-card`): its colour, lit from above. The fill runs from the top, mixed
+    toward white by --note-lift, through the plain colour, to the bottom, mixed toward black by
+    --note-sink. Each theme only ever moves the colour *away* from its text: dark sinks the bottom
+    and never lifts the top, because lifting it 5% took --color-text-muted to 4.1:1 on amber.
+    Light lifts the top. --note-ring is how much of the note's border colour the outline keeps.
+    The shadow's inset line is the edge catching the light.
+  */
+  --note-lift: 0%;
+  --note-sink: 10%;
+  --note-ring: 100%;
+  --shadow-note: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 12px 28px -14px rgb(0 0 0 / 0.6);
+  --shadow-note-hover: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 22px 40px -16px rgb(0 0 0 / 0.75);
+
+  /*
+    A card with a photo is painted on a blurred copy of the photo instead of its colour, under a
+    scrim that holds the text to AA whatever the photo is: these values are checked against an
+    all-white and an all-black photo (index.css.test.ts). The card swaps its text tokens for the
+    --photo-text pair, so they must be literal colours: a var(--color-text) here would point back
+    at the token the card has just redefined.
+  */
+  --photo-scrim: rgb(12 12 18 / 0.7);
+  --photo-text: #f4f4f6;
+  --photo-text-muted: #cfcfd8;
 }
 
 /* ---- Theme overrides ---------------------------------------------------- */
@@ -135,6 +174,23 @@ html[data-theme='light'] {
   --shadow-panel: 0 4px 12px -2px rgb(24 24 27 / 0.12), 0 2px 4px -2px rgb(24 24 27 / 0.06);
   --shadow-raised: 0 8px 20px -4px rgb(24 24 27 / 0.14), 0 4px 8px -4px rgb(24 24 27 / 0.08);
   --shadow-overlay: 0 24px 48px -12px rgb(24 24 27 / 0.25);
+
+  --color-border-control: rgb(24 24 27 / 0.55);
+  --color-overlay-lift: rgb(24 24 27 / 0.06);
+  --color-overlay-well: rgb(255 255 255 / 0.55);
+
+  --note-lift: 50%;
+  --note-sink: 0%;
+  --note-ring: 60%;
+  --shadow-note: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(24 24 27 / 0.05),
+    0 10px 24px -14px rgb(24 24 27 / 0.2);
+  --shadow-note-hover: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(24 24 27 / 0.05),
+    0 18px 32px -14px rgb(24 24 27 / 0.28);
+
+  /* Milky rather than dark: the photo shows through as a pale wash under dark text. */
+  --photo-scrim: rgb(255 255 255 / 0.8);
+  --photo-text: #18181b;
+  --photo-text-muted: #52525b;
 
   --note-default-bg: #ffffff;  --note-default-border: #e4e4e7;
   --note-rose-bg: #fbcbd2;     --note-rose-border: #f9a2b1;
@@ -277,6 +333,38 @@ html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22
 
   .elev-overlay {
     box-shadow: var(--shadow-overlay);
+  }
+
+  /*
+    A note card. The element sets --card-bg and --card-border to its note colour's tokens (see
+    features/notes/palette.ts); the rest is the theme's --note-* recipe above. No Tailwind
+    utility on the card may set a background, border or shadow: utilities outrank this layer.
+  */
+  .note-card {
+    border-radius: var(--radius-note);
+    border: 1px solid color-mix(in srgb, var(--card-border) var(--note-ring), transparent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card-bg), white var(--note-lift)) 0%,
+      var(--card-bg) 55%,
+      color-mix(in srgb, var(--card-bg), black var(--note-sink)) 100%
+    );
+    box-shadow: var(--shadow-note);
+  }
+
+  .note-card:hover {
+    box-shadow: var(--shadow-note-hover);
+  }
+
+  /* A card with a photo: PhotoBackdrop paints it, this flat colour only shows until the photo
+     loads, and everything on the card reads the photo's text tokens. The accent ink goes too —
+     a link or focus ring in it would sit on whatever the photo is. */
+  .note-card-photo {
+    background: var(--card-bg);
+    --color-text: var(--photo-text);
+    --color-text-muted: var(--photo-text-muted);
+    --color-text-faint: var(--photo-text-muted);
+    --color-accent-ink: var(--photo-text);
   }
 
   .pop-in {
