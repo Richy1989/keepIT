@@ -135,6 +135,53 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun `note content reads across a card's sheen`() {
+        // A card is painted as a gradient (NoteCardStyle), so its text lands on more than the flat
+        // colour: the top and the bottom are measured too. Lifting the dark themes' tops 5% toward
+        // white took textMuted to 4.1:1 on amber, which is why they sink the bottom instead.
+        for (p in KeepItPalette.All) {
+            for (swatch in p.notes) {
+                for ((end, fill) in listOf("top" to p.card.top(swatch.bg), "bottom" to p.card.bottom(swatch.bg))) {
+                    val where = "at the $end of $p ${swatch.key}"
+                    assertContrast(p.text, fill, aaText, "text $where")
+                    assertContrast(p.textMuted, fill, aaText, "textMuted $where")
+                    assertContrast(p.textFaint, fill, aaLarge, "textFaint $where")
+                    assertContrast(p.accentInk, fill, aaLarge, "accentInk $where")
+                    // An unticked box's outline is a control boundary: 3:1 (WCAG 1.4.11).
+                    assertContrast(p.borderControl.compositeOver(fill), fill, aaLarge, "checkbox outline $where")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `the reminder chip reads on every per-note background`() {
+        // The chip carries a time, like the faint timestamps beside it: aaLarge.
+        for (p in KeepItPalette.All) {
+            for (swatch in p.notes) {
+                assertContrast(p.textMuted, p.overlayLift, aaLarge, "$p chip on ${swatch.key}", over = swatch.bg)
+            }
+        }
+    }
+
+    @Test
+    fun `a photo card reads whatever the photo is`() {
+        // The scrim is all that stands between the text and an unknown photo, so it is measured over
+        // the two extremes: text that clears AA over pure white and over pure black clears it over
+        // anything between them.
+        for (p in KeepItPalette.All) {
+            val onPhoto = p.onPhoto()
+            for ((name, photo) in listOf("white" to Color.White, "black" to Color.Black)) {
+                val fill = p.card.photoScrim.compositeOver(photo)
+                val text = listOf("text" to onPhoto.text, "textMuted" to onPhoto.textMuted, "textFaint" to onPhoto.textFaint)
+                for ((token, fg) in text) {
+                    assertContrast(fg, fill, aaText, "$p photo card $token over a $name photo")
+                }
+            }
+        }
+    }
+
+    @Test
     fun `a note border is visible against its own fill`() {
         for (p in KeepItPalette.All) {
             for (swatch in p.notes) {

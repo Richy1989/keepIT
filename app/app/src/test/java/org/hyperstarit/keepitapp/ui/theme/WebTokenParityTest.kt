@@ -117,6 +117,46 @@ class WebTokenParityTest {
     }
 
     @Test
+    fun `the note card recipe matches the web in every theme`() {
+        for ((theme, p) in themes) {
+            val web = resolve(theme)
+            assertToken(p, "--color-border-control", p.borderControl, web)
+            assertToken(p, "--color-overlay-lift", p.overlayLift, web)
+            assertToken(p, "--color-overlay-well", p.overlayWell, web)
+            assertPercent(p, "--note-lift", p.card.lift, web)
+            assertPercent(p, "--note-sink", p.card.sink, web)
+            assertPercent(p, "--note-ring", p.card.ring, web)
+            assertEquals("$p: --shadow-note", shadow(web.getValue("--shadow-note")), p.card.shadow)
+            assertToken(p, "--photo-scrim", p.card.photoScrim, web)
+            assertToken(p, "--photo-text", p.card.photoText, web)
+            assertToken(p, "--photo-text-muted", p.card.photoTextMuted, web)
+        }
+    }
+
+    /** A `color-mix()` percentage such as `--note-lift: 50%`, as the fraction [NoteCardStyle] holds. */
+    private fun assertPercent(palette: KeepItPalette, token: String, actual: Float, web: Map<String, String>) {
+        val value = checkNotNull(web[token]) { "index.css has no $token for $palette" }
+        assertEquals("$palette: $token is $value on the web", value.removeSuffix("%").toFloat() / 100f, actual, 1e-6f)
+    }
+
+    /** A CSS `box-shadow` list, layer by layer in the order written; lengths in px, read as dp. */
+    private fun shadow(value: String): List<BoxShadow> =
+        // Split on the commas between layers, not the ones inside rgb().
+        value.replace(Regex("""\s+"""), " ").split(Regex(""",\s*(?![^()]*\))""")).map { layer ->
+            val m = Regex("""^(inset )?((?:-?[\d.]+(?:px)? ){2,4})(rgba?\(.*\))$""").find(layer.trim())
+                ?: error("not a shadow layer this test reads: $layer")
+            val lengths = m.groupValues[2].trim().split(' ').map { it.removeSuffix("px").toFloat() }
+            BoxShadow(
+                inset = m.groupValues[1].isNotEmpty(),
+                x = lengths[0],
+                y = lengths[1],
+                blur = lengths.getOrElse(2) { 0f },
+                spread = lengths.getOrElse(3) { 0f },
+                color = parse(m.groupValues[3]),
+            )
+        }
+
+    @Test
     fun `light's error colour is the web's danger token`() {
         // Only light: the dark themes keep the red the app had before the web named a danger
         // token (see DarkError in Color.kt), and it passes AA there; on white it would not.

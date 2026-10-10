@@ -63,11 +63,9 @@ export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
     // Mirrors NoteImage: the box is sized from the stored dimensions, portrait capped at 1.4.
     const ratio = hero.width > 0 && hero.height > 0 ? hero.height / hero.width : 1;
     height += columnWidth * Math.min(ratio, MAX_HERO_ASPECT);
-    // A title over a hero is an overlay, so it costs nothing extra.
-    if (note.title) height += 0;
-  } else if (note.title) {
-    height += TITLE_HEIGHT;
   }
+  // Below the photo too: a photo card's title sits on the blurred copy under it, not on the photo.
+  if (note.title) height += TITLE_HEIGHT;
 
   const recordings = note.media.filter((m) => m.kind === 'Audio').length;
   if (recordings > 0) {

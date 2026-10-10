@@ -70,7 +70,7 @@ export function NotesGrid({
             {Array.from({ length: 2 }).map((_, row) => (
               <div
                 key={row}
-                className="animate-pulse rounded-card border border-border-subtle bg-surface"
+                className="animate-pulse rounded-note border border-border-subtle bg-surface"
                 style={{ height: 90 + (((col * 2 + row) * 37) % 120) }}
               />
             ))}

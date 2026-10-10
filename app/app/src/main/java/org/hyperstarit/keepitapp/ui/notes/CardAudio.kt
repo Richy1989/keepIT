@@ -201,7 +201,8 @@ fun CardVoiceNoteRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(KeepItColors.Canvas.copy(alpha = 0.35f))
+            // A well sunk into the card, as on the web: darker on the dark themes, milky on light.
+            .background(KeepItColors.OverlayWell)
             .padding(horizontal = 6.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

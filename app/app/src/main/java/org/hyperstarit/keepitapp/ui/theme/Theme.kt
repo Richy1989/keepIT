@@ -104,6 +104,9 @@ fun accentButtonColors(): ButtonColors =
 /** Card corner radius from the web's `--radius-card` (0.875rem ≈ 14dp). */
 val CardShape = RoundedCornerShape(14.dp)
 
+/** A note card's corners, from the web's `--radius-note` (1.125rem ≈ 18dp): rounder than [CardShape]. */
+val NoteCardShape = RoundedCornerShape(18.dp)
+
 private val KeepItShapes = Shapes(
     small = RoundedCornerShape(8.dp),
     medium = CardShape,

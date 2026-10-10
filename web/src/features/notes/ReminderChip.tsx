@@ -24,9 +24,11 @@ export function ReminderChip({ note, onClick }: { note: NoteDto; onClick: () => 
       }}
       className={cn(
         'focus-ring flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition hover:bg-overlay-hover',
+        // Filled rather than outlined, and muted rather than faint: on the lift a faint label
+        // falls under 3:1 on the darker note colours (index.css.test.ts).
         past
           ? 'border-warning/40 text-warning'
-          : 'border-border-strong text-text-faint hover:text-text',
+          : 'border-transparent bg-overlay-lift text-text-muted hover:text-text',
       )}
     >
       <ClockIcon className="text-sm" />
