@@ -104,7 +104,8 @@ A few things worth knowing:
 
 - **`Jwt__Key`** is a secret that keeps your sign-ins secure. Replace it with any random string
   of at least 32 characters, and keep it the same across restarts.
-- **Your data** lives in the `keepit-data` volume. Back that up and you've backed up your notes.
+- **Your data** lives in the `keepit-data` volume. Back that up and you've backed up your notes
+  ([how](FAQ.md#how-do-i-back-up-the-whole-server)).
 - **Once your accounts are created**, you can close public sign-up by adding
   `-e App__AllowRegistration=false` (recommended if your server is reachable from the internet).
 - **Forgot password** works without any mail server: the reset link is written to the server

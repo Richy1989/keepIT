@@ -65,6 +65,15 @@ services:
       TZ: ${TZ:-UTC}
     volumes:
       - app-data:/data
+    # Healthy while /api/health answers 200: the database and the data folder work. The image has
+    # no curl or wget, so bash opens the connection itself.
+    healthcheck:
+      test: ["CMD", "bash", "-c", 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /api/health HTTP/1.0\r\n\r\n" >&3 && read -r -t 10 _ s _ <&3 && [ "$$s" = 200 ]']
+      interval: 30s
+      timeout: 10s
+      start_period: 1m
+      start_interval: 5s
+      retries: 3
     depends_on:
       db:
         condition: service_healthy

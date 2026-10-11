@@ -55,7 +55,8 @@ COPY --from=api /app/publish ./
 COPY --from=web /web/dist /usr/share/nginx/html
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY deploy/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh \
+COPY deploy/healthcheck.sh /healthcheck.sh
+RUN chmod +x /entrypoint.sh /healthcheck.sh \
  && mkdir -p /data && chown app:app /data
 
 # The API listens on loopback:8080 only, so nothing but this container's nginx can reach it:
@@ -73,4 +74,8 @@ ENV ASPNETCORE_HTTP_PORTS= \
 
 EXPOSE 80
 VOLUME ["/data"]
+# Running isn't working: asks /api/health through nginx every 30 seconds, and every 5 while it
+# starts, so `docker ps` (and anything watching it) can tell the difference.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=1m --start-interval=5s --retries=3 \
+  CMD ["/healthcheck.sh"]
 ENTRYPOINT ["/entrypoint.sh"]

@@ -70,6 +70,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataRoot, "keys")));
 
+// /api/health: the database and the data folder, for Docker's HEALTHCHECK and uptime monitors.
+builder.Services.AddKeepItHealthChecks(dataRoot);
+
 // ---- Authentication (who the caller is): Identity for users/passwords, JWT bearer for requests ----
 builder.Services.AddAppIdentity();
 builder.Services.AddJwtBearerAuthentication(jwtOptions);
@@ -227,12 +230,14 @@ if (app.Environment.IsDevelopment())
 app.UseForwardedHeaders();
 // One line per request, laid out by ConsoleLogFormatter. The path only, never the query string,
 // which can carry a token (the hub's access_token). After forwarded headers, so the client IP is real.
-app.UseSerilogRequestLogging();
+// A healthy answer to Docker's health check, every 30 seconds, is left out.
+app.UseSerilogRequestLogging(options => options.GetLevel = HealthEndpoint.RequestLogLevel);
 app.UseCors("frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks(HealthEndpoint.Path);
 
 // Mapped under /api so the existing reverse-proxy + WebSocket-upgrade rules (vite dev proxy and
 // nginx) route it without extra config. The browser's SignalR client connects to /api/realtime.
