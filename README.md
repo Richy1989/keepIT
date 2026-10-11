@@ -201,7 +201,7 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `POSTGRES_PORT` | no | `5432` | Postgres port (discrete setup only). |
 | `POSTGRES_DB` | no | `keepit` | Postgres database name (discrete setup only). |
 | `POSTGRES_USER` | no | `keepit` | Postgres username (discrete setup only). |
-| `POSTGRES_PASSWORD` | no | `keepit` | Postgres password. Read by the API for the discrete setup, and by the Compose stack for both the `db` service and the connection string it hands the API. |
+| `POSTGRES_PASSWORD` | no | `keepit` | Postgres password. Read by the API for the discrete setup, and by the Compose stack for both the `db` service and the API. |
 | `App__AllowRegistration` | no | `true` | Whether new accounts may be created. On an internet-exposed instance: register your own accounts first, then set `false` to close public sign-up. |
 | `App__DataRoot` | no | `./App_Data` | Directory for the database, security keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the app: `1` for the plain setups above, `2` if you put another proxy (e.g. Traefik) in front. |

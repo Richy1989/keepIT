@@ -94,6 +94,12 @@ Docker's log handling can cap it:
   the same under `logging:` in a Compose file, or once for all containers in Docker's
   `daemon.json`. Without it, Docker keeps every line.
 
+### The first start on PostgreSQL logs "Failed executing DbCommand"
+
+That's expected, once. On a new database, keepIT looks for its list of applied updates before
+it has created it, and the database library logs the miss as an error. keepIT then sets up the
+database and starts as usual ("keepIT is ready"). Later starts don't show it.
+
 ### What does "healthy" mean?
 
 keepIT checks itself every 30 seconds, and `docker ps` shows the result: `healthy` while it can

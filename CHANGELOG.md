@@ -46,6 +46,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   server — fixed for copies saved with this version or later.
 - On PostgreSQL, the server log showed `Error: libgssapi_krb5.so.2: cannot open shared object file`
   at every start. It was harmless (a kind of encryption keepIT never uses) and is gone now.
+- A PostgreSQL password containing `;` stopped keepIT from starting, with Compose or with the
+  `POSTGRES_*` settings — fixed. Any password now works as typed.
 
 ### 📦 Deployment & Docs
 

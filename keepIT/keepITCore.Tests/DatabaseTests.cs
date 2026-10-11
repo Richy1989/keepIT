@@ -72,4 +72,32 @@ public sealed class DatabaseTests
     [Fact]
     public void Without_PostgreSQL_settings_it_is_SQLite() =>
         Assert.Null(DatabaseSetup.ResolvePostgresConnectionString(new ConfigurationBuilder().Build()));
+
+    /// <summary>
+    /// The POSTGRES_* settings reach PostgreSQL exactly as typed. A password used to be pasted into
+    /// the connection string, where a <c>;</c> ended it and the rest read as another setting.
+    /// </summary>
+    [Theory]
+    [InlineData("abc;def")]
+    [InlineData("a=b;Host=elsewhere")]
+    [InlineData("\"quoted\" and 'single'")]
+    [InlineData(" spaces ")]
+    public void A_password_reaches_PostgreSQL_exactly_as_typed(string password)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["POSTGRES_HOST"] = "db",
+                ["POSTGRES_PASSWORD"] = password,
+            })
+            .Build();
+
+        var connection = new NpgsqlConnectionStringBuilder(DatabaseSetup.ResolvePostgresConnectionString(config));
+
+        Assert.Equal(password, connection.Password);
+        Assert.Equal("db", connection.Host);
+        Assert.Equal(5432, connection.Port);
+        Assert.Equal("keepit", connection.Database);
+        Assert.Equal("keepit", connection.Username);
+    }
 }
