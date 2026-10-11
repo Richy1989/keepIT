@@ -1461,6 +1461,27 @@ For real TLS, terminate HTTPS at a proxy in front (e.g. Traefik), keep
 (see **Security & abuse protection**). A `redis` service is sketched in the compose file for
 a future SignalR backplane but not enabled — single API instance is the deployed model.
 
+### Health check and backups
+
+`GET /api/health` (`Infrastructure/HealthEndpoint.cs`) answers 200 `Healthy` while the database
+answers (`CanConnectAsync`) and the data folder exists, 503 `Unhealthy` otherwise. It is
+anonymous and says only that word; which check failed goes to the log. The single image's
+`HEALTHCHECK` asks it through nginx (`deploy/healthcheck.sh`), so it covers nginx too; Compose's
+`api` service asks the API directly. Neither image has curl or wget, and bash's `/dev/tcp` needs
+nothing installed, so neither gains a package for it. The check only reads: a test write every
+30 seconds would wake a NAS's sleeping disk for nothing. A healthy answer stays out of the request
+log (`HealthEndpoint.RequestLogLevel`), since Docker asks every 30 seconds and the line would say
+nothing; an unhealthy one is a 503 and logged like any other. CI's image job waits for Docker to
+call the container healthy, then checks the log holds no health line.
+
+**Backups** are the operator's, and the FAQ has the steps for Unraid, the single container and
+Compose, each run once end to end before it was written down. They rest on two facts. All state
+is the data folder plus, with PostgreSQL, the database. And SQLite must be copied with keepIT
+stopped, since the image has no `sqlite3` to take a live copy. Compose's `pg_dump` would be
+consistent while running, but the steps stop `api` anyway, so the rows and the files match. A
+backup restores onto the same version or a newer one, which the migrations or the SQLite
+reconciler bring up to date.
+
 ### Releases (CI)
 
 `.github/workflows/release.yml`: pushing a git tag `vX.Y.Z` builds and pushes the Docker

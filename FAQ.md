@@ -94,6 +94,13 @@ Docker's log handling can cap it:
   the same under `logging:` in a Compose file, or once for all containers in Docker's
   `daemon.json`. Without it, Docker keeps every line.
 
+### What does "healthy" mean?
+
+keepIT checks itself every 30 seconds, and `docker ps` shows the result: `healthy` while it can
+reach its database and its data folder, `unhealthy` when it can't, and the log then says which.
+An uptime monitor (Uptime Kuma and the like) can ask the same: `/api/health` answers `Healthy`, or
+`Unhealthy` with a 503. The checks that pass stay out of the log.
+
 ## Password reset and email
 
 ### Password-reset emails don't arrive
@@ -211,9 +218,68 @@ so animations still play.
 Two ways, and they answer different questions. **Settings → Your data** — in the web app and in
 the Android app, standalone phones included — gives you a `.zip` of everything you own — notes, checklists, lists, reminders and the images attached
 to them — which you can read without keepIT and restore into any keepIT account. That is the one
-to keep off the server. Backing up the **data folder** (`App_Data`, or your Unraid appdata share)
-is the operator's version: it captures every user at once, plus accounts and settings, but only
-restores onto a keepIT server.
+to keep off the server. Backing up the **whole server** is the operator's version: it captures
+every user at once, accounts and settings included, but only restores onto a keepIT server.
+[How](#how-do-i-back-up-the-whole-server).
+
+### How do I back up the whole server?
+
+Everything keepIT keeps is in its data folder (`/data` in the container): the built-in database,
+photos, voice notes and keepIT's keys. With PostgreSQL the notes are in the database instead, so
+you back up both. Stop keepIT while you copy: a database copied while keepIT writes to it may not
+open again.
+
+- **Unraid:** the Appdata Backup plugin backs up `appdata/keepit` and stops the container while
+  it copies. Nothing else to do.
+- **Single container**, in the folder that should hold the backup:
+
+  ```bash
+  docker stop keepit
+  docker run --rm -v keepit-data:/data -v "$PWD":/backup alpine tar czf /backup/keepit-backup.tar.gz -C /data .
+  docker start keepit
+  ```
+
+- **Docker Compose**, in the folder with `docker-compose.yml`:
+
+  ```bash
+  docker compose stop api
+  docker compose exec -T db pg_dump -U keepit keepit > keepit-db.sql
+  docker compose run --rm --no-deps --user root -v "$PWD":/backup --entrypoint tar api czf /backup/keepit-files.tar.gz -C /data .
+  docker compose start api
+  ```
+
+- **Single container with your own PostgreSQL:** the single-container steps, plus a `pg_dump` of
+  the `keepit` database while keepIT is stopped.
+
+Keep your settings with it too: your `docker run` line, the Unraid template, or Compose's `.env`.
+
+### How do I restore a backup?
+
+Onto the same keepIT version or a newer one. A restore replaces everything the server holds now.
+
+- **Unraid:** stop keepIT, put the backed-up `appdata/keepit` back (Appdata Backup can restore
+  it), and start keepIT.
+- **Single container**, in the folder with `keepit-backup.tar.gz`. Then start keepIT with your
+  usual `docker run` line:
+
+  ```bash
+  docker rm -f keepit && docker volume rm keepit-data
+  docker run --rm -v keepit-data:/data -v "$PWD":/backup alpine tar xzf /backup/keepit-backup.tar.gz -C /data
+  ```
+
+- **Docker Compose**, in the folder with `docker-compose.yml` and both backup files:
+
+  ```bash
+  docker compose down -v
+  docker compose up -d --wait db
+  docker compose exec -T db psql -q -o /dev/null -U keepit -d keepit < keepit-db.sql
+  docker compose run --rm --no-deps --user root -v "$PWD":/backup --entrypoint tar api xzf /backup/keepit-files.tar.gz -C /data
+  docker compose up -d
+  ```
+
+  `down -v` deletes the stack's data, so run it only with both files at hand.
+- **Single container with your own PostgreSQL:** load the dump into an empty `keepit` database
+  with `psql` before you start keepIT.
 
 ### Importing adds my notes twice
 

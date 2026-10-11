@@ -13,6 +13,12 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 > **Settings → Your data** first; then install 1.0 fresh and import them. From 1.0 on, every
 > update keeps your data. Step by step: [Updating to 1.0](FAQ.md#updating-to-10).
 
+### ✨ New Features
+
+- Health check — Docker now knows whether keepIT works, not only whether it runs: `docker ps`
+  shows the container as healthy while keepIT can reach its database and its data folder, and as
+  unhealthy when it can't. An uptime monitor can ask `/api/health` too.
+
 ### 🔧 Improvements
 
 - Note cards have a new look on the web and on Android: rounder corners, a fill that is lit from
@@ -47,6 +53,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - The About page credits ImageSharp under Apache 2.0, the license it grants open-source projects.
 - Set `TZ` to your time zone (with Compose, in `.env`; Unraid already sets it). Repeating
   reminders you import from before 1.0 keep that clock.
+- The FAQ explains how to [back up and restore a whole server](FAQ.md#how-do-i-back-up-the-whole-server),
+  on Unraid, as a single container and with Compose.
 
 ## 0.9.2
 
