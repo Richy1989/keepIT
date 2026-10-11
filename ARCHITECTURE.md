@@ -156,14 +156,14 @@ setup, while Compose/prod just set the env vars.
   Migrations can't be retrofitted here instead: they're Postgres-authoritative (Npgsql column
   types), and an `EnsureCreated` database has no `__EFMigrationsHistory`, so `Migrate()` would
   try to replay every migration over populated tables.
-- **The migrations start just before 1.0.** The ones written up to 0.9.3-beta.2 were folded into
-  one, `Initial`, once nothing before 1.0 was to be supported. So a database from those versions
+- **The migrations start at 1.0.** Everything before was folded into one, `Initial`: a
+  deliberate breaking change, so 1.0 starts from one clean schema. A database from before 1.0
   isn't upgraded. On Postgres its `__EFMigrationsHistory` names migrations that no longer exist,
   and `Migrate()` stops at the first `CREATE TABLE` (`42P07`) without changing anything. On
   SQLite the reconciler adds `NoteReminders.FirstAtUtc` as `0001-01-01`, so old repeating
-  reminders count from year 1. Operators move over by export and import (FAQ → *Updating from
-  0.9.2 or older*). From here on a migration that has shipped is never edited, folded or deleted:
-  every 1.x server must bring any older 1.x database up to date.
+  reminders count from year 1. Operators export, start clean and import (FAQ → *Updating to
+  1.0*). From 1.0 on, a migration that has shipped is never edited, folded or deleted: every 1.x
+  server must bring any older 1.x database up to date.
 - **Both paths are tested, because each hides the other's mistakes.** SQLite builds its schema
   from the model, so a migration that is wrong or missing passes every SQLite test, and
   Postgres enforces what SQLite ignores (column lengths, `timestamptz` taking only UTC times).

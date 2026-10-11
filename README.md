@@ -126,9 +126,8 @@ A few things worth knowing:
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
 > [!CAUTION]
-> **On keepIT 0.9.2 or older, or 0.9.3-beta.1 or beta.2? Export your notes before you update.**
-> The versions after them start on a new, empty database.
-> [How to move over](FAQ.md#updating-from-092-or-older).
+> **Running a version before 1.0? Export your notes before you update.** keepIT 1.0 starts with
+> a clean database; from then on, every update keeps your data. [How to move over](FAQ.md#updating-to-10).
 
 Updating, or something not working? The **[FAQ](FAQ.md)** covers updates, reverse proxies and
 HTTPS, email, and images. What's new in each version is in the **[CHANGELOG](CHANGELOG.md)**.
