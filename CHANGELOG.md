@@ -44,6 +44,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   note — fixed.
 - On Android without a server, a saved copy of your notes couldn't be imported into a keepIT
   server — fixed for copies saved with this version or later.
+- On PostgreSQL, the server log showed `Error: libgssapi_krb5.so.2: cannot open shared object file`
+  at every start. It was harmless (a kind of encryption keepIT never uses) and is gone now.
 
 ### 📦 Deployment & Docs
 
