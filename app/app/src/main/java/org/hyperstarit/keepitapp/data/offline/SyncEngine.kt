@@ -117,7 +117,7 @@ class SyncEngine(
                     is PendingOp.SetReminder -> client.api.setReminder(op.noteId, op.dto)
                     is PendingOp.ClearReminder -> client.api.clearReminder(op.noteId)
                     is PendingOp.Delete -> client.api.deleteNote(op.noteId)
-                    is PendingOp.EmptyTrash -> emptyTrash(op.noteIds)
+                    is PendingOp.EmptyTrash -> client.api.emptyTrash(EmptyTrashDto(op.noteIds))
 
                     is PendingOp.AttachMedia -> {
                         val file = java.io.File(op.stagedPath)
@@ -193,28 +193,6 @@ class SyncEngine(
                         stopped(t)
                         return false
                     }
-                }
-            }
-        }
-    }
-
-    /**
-     * Replays a [PendingOp.EmptyTrash]. A server from before 0.7.5 has no endpoint for it and
-     * answers 404; there the notes go one by one instead, which is as far as such a server can go:
-     * the user's own notes still in its trash are deleted, and the ones shared with them stay.
-     */
-    private suspend fun emptyTrash(noteIds: List<String>) {
-        try {
-            client.api.emptyTrash(EmptyTrashDto(noteIds))
-        } catch (e: HttpException) {
-            if (e.code() != 404) throw e
-            // Same rule as the endpoint: never a note restored on another device in the meantime.
-            val deletable = client.api.notes(trashed = true).filter { it.isOwner }.mapTo(HashSet()) { it.id }
-            for (id in noteIds.filter { it in deletable }) {
-                try {
-                    client.api.deleteNote(id)
-                } catch (gone: HttpException) {
-                    if (gone.code() != 404) throw gone
                 }
             }
         }

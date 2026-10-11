@@ -85,28 +85,6 @@ public sealed class ReminderScheduleTests
         Assert.Equal(first, reminder.FirstAtUtc);
     }
 
-    /// <summary>
-    /// A reminder from before reminders kept a zone and a first occurrence: it starts counting from
-    /// the occurrence that just went off, on the server's clock.
-    /// </summary>
-    [Fact]
-    public void A_reminder_set_before_zones_were_kept_counts_from_its_last_occurrence()
-    {
-        // Unspecified, as SQLite reads it back.
-        var last = new DateTime(2026, 1, 31, 7, 0, 0, DateTimeKind.Unspecified);
-        var reminder = new NoteReminder { RemindAtUtc = last, Recurrence = ReminderRecurrence.Monthly };
-        var now = new DateTime(2026, 1, 31, 7, 0, 20, DateTimeKind.Utc);
-
-        ReminderDispatcherService.MoveOn(reminder, now);
-
-        Assert.Equal(DateTime.SpecifyKind(last, DateTimeKind.Utc), reminder.FirstAtUtc);
-        Assert.Equal(DateTimeKind.Utc, reminder.FirstAtUtc!.Value.Kind);
-        Assert.Equal(
-            ReminderSchedule.NextAfter(reminder.FirstAtUtc.Value, ReminderSchedule.Default.Zone, ReminderRecurrence.Monthly, now),
-            reminder.RemindAtUtc);
-        Assert.Null(reminder.TimeZone);
-    }
-
     [Fact]
     public void A_zone_this_server_does_not_know_falls_back_to_its_own()
     {

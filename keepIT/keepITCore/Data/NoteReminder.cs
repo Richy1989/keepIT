@@ -29,18 +29,16 @@ public class NoteReminder
 
     /// <summary>
     /// The IANA time zone of the device that set the reminder (<c>Europe/Vienna</c>), whose wall
-    /// clock its repeats keep across daylight-saving changes. Null for a reminder set before
-    /// reminders carried a zone, or by a client too old to send one; the server's own zone stands
-    /// in (see <see cref="Notes.ReminderSchedule.Default"/>).
+    /// clock its repeats keep across daylight-saving changes. Null when the device named none this
+    /// server knows; the server's own zone stands in (see <see cref="Notes.ReminderSchedule.Default"/>).
     /// </summary>
     public string? TimeZone { get; set; }
 
     /// <summary>
     /// The occurrence the user picked. A recurring reminder's later occurrences are all counted from
-    /// it (see <see cref="Notes.ReminderSchedule"/>). Null on a reminder set before this was kept:
-    /// its next occurrence fills it in from <see cref="RemindAtUtc"/>.
+    /// it (see <see cref="Notes.ReminderSchedule"/>).
     /// </summary>
-    public DateTime? FirstAtUtc { get; set; }
+    public DateTime FirstAtUtc { get; set; }
 
     /// <summary>
     /// Set when a one-time reminder has fired; null = still pending. Recurring reminders stay null

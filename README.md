@@ -114,9 +114,9 @@ A few things worth knowing:
   it's missing, the server log says so at startup and the web app's Settings page shows a
   warning.
 - **keepIT doesn't run as root.** The app runs as the unprivileged user `app` (uid 1654). On
-  start, the container makes the data folder that user's, so after updating from an older
-  version your data (on Unraid, the `appdata/keepit` folder) shows 1654 as its owner. Start the
-  container as usual, without `--user`. If that folder is on storage that can't change owners
+  start, the container makes the data folder that user's, so your data (on Unraid, the
+  `appdata/keepit` folder) shows 1654 as its owner. Start the container as usual, without
+  `--user`. If that folder is on storage that can't change owners
   (a network share, for instance), make it writable for uid 1654.
 - **Behind your own reverse proxy** (Traefik, Nginx Proxy Manager, SWAG…)? If it keeps access
   logs, have it leave out query strings, or at least `token` and `access_token`: the web app's
@@ -213,7 +213,7 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `Auth__RefreshCookie__Secure` | no | `true` (Compose) / `false` (single container) | Whether the sign-in cookie is HTTPS-only even on plain HTTP. Over HTTPS (directly or through a TLS proxy) it always is. `false` lets a plain-HTTP address such as a LAN IP stay signed in; `true` refuses that, for an instance only ever reached over HTTPS. |
 | `Jwt__Issuer` / `Jwt__Audience` | no | `keepITCore` / `keepIT.api` | Advanced: token claims. |
 | `Jwt__AccessTokenMinutes` / `Jwt__RefreshTokenDays` | no | `15` / `14` | Advanced: how long sign-in tokens last. |
-| `TZ` | no | `UTC` | Your time zone, e.g. `Europe/Vienna`. Each reminder repeats on the clock of the device that set it; reminders set before 0.9.3 have none, and repeat on this one. Unraid sets it for you. |
+| `TZ` | no | `UTC` | Your time zone, e.g. `Europe/Vienna`. Each reminder repeats on the clock of the device that set it; this one stands in when a device doesn't name its zone. Unraid sets it for you. |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` for verbose logging and the API explorer at `/scalar/v1`. |
 
 The Compose stack sets most of these itself and reads only six values from `.env`: `JWT_KEY`,
@@ -261,6 +261,10 @@ Prefer to do it by hand? Grab `keepit-vX.Y.Z-universal.apk` from the
 > from this repository and then publishes that developer-signed APK rather than one of its own. So
 > you can move between F-Droid, Obtainium and a hand-downloaded APK by updating, with nothing to
 > uninstall.
+
+The app updates on its own and your server updates when you update it, so the two will often be
+on different versions. That's fine: **any 1.x app works with any 1.x server.** Something new that
+needs a newer server than yours stays hidden until you update the server.
 
 ### Build it yourself
 

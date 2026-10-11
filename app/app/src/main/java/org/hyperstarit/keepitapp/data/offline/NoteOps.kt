@@ -231,28 +231,11 @@ fun settleDueReminders(notes: List<NoteDto>, nowMs: Long): List<NoteDto> = notes
     if (recurrence == ReminderRecurrences.NONE) {
         n.copy(reminderFired = true)
     } else {
-        // As the server does, a reminder set before the first occurrence was kept counts from this one.
-        val first = n.reminderFirstAtUtc ?: at
-        val next = nextOccurrenceAfter(epochMsOrNull(first) ?: atMs, reminderZone(n.reminderTimeZone), recurrence, nowMs)
-        n.copy(remindAtUtc = Instant.ofEpochMilli(next).toString(), reminderFirstAtUtc = first)
+        val first = epochMsOrNull(n.reminderFirstAtUtc ?: at) ?: atMs
+        val next = nextOccurrenceAfter(first, reminderZone(n.reminderTimeZone), recurrence, nowMs)
+        n.copy(remindAtUtc = Instant.ofEpochMilli(next).toString())
     }
 }
-
-/**
- * The reminder changes that give each repeating reminder without a time zone [zone]: what a
- * standalone phone does once with reminders set before reminders kept a zone (see
- * `NotesRepository.adoptPhoneZone`). Fired and one-time reminders have no repeats to keep a clock
- * for, and are left alone.
- */
-fun zoneAdoptions(notes: List<NoteDto>, zone: String): List<Pair<String, SetNoteReminderDto>> =
-    notes.mapNotNull { n ->
-        val at = n.remindAtUtc ?: return@mapNotNull null
-        val recurrence = n.reminderRecurrence ?: ReminderRecurrences.NONE
-        if (n.reminderTimeZone != null || n.reminderFired || recurrence == ReminderRecurrences.NONE) {
-            return@mapNotNull null
-        }
-        n.id to SetNoteReminderDto(at, recurrence, zone, n.reminderFirstAtUtc)
-    }
 
 /**
  * When a recurring reminder goes off next: the first occurrence strictly after [afterMs] of one
@@ -301,9 +284,8 @@ private fun elapsed(first: LocalDateTime, after: LocalDateTime, recurrence: Stri
 }
 
 /**
- * The zone a reminder's repeats keep. A server reports one for every reminder; null means one from
- * before reminders carried a zone, and such a server counted repeats in UTC, so the phone must too
- * or the two would go off an hour apart. An id this phone can't resolve is treated the same way.
+ * The zone a reminder's repeats keep: the one it was set in, which the server reports for every
+ * reminder. An id this phone's time-zone data doesn't have (the server's can be newer) is UTC.
  */
 fun reminderZone(id: String?): ZoneId =
     id?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneOffset.UTC

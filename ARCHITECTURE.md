@@ -603,8 +603,8 @@ a weekly 08:00 reminder stays at 08:00 when the clocks change. Every occurrence 
 28th and comes back to March's 31st. In the hour the clocks skip, a time moves on by the gap;
 in the hour they repeat, it goes off the first time round (java.time's rules, which the server
 copies). Both clients send their zone (`Intl` on the web, `ZoneId.systemDefault()` on Android).
-A reminder without one, set before 0.9.3 or by an older app, repeats on the server's own zone,
-`TZ` (Unraid sets it; Compose defaults it to UTC, which is what every reminder used before).
+A reminder whose device names no zone this server knows repeats on the server's own zone, `TZ`
+(Unraid sets it; Compose defaults it to UTC).
 An unknown zone is stored as none rather than refused, because an outbox can only drop what the
 server turns down. `NoteDto.reminderTimeZone` always reports the zone the server actually counts
 in, so a phone moving a reminder on by itself never uses a different one.
@@ -613,8 +613,7 @@ The Android app holds a copy of these rules (`nextOccurrenceAfter` in `data/offl
 because it moves reminders on itself: between syncs, with the app closed, and always in
 standalone mode. If the copies disagree, one reminder is posted twice, an hour apart. So both are
 tested against the same cases, `keepIT/keepITCore.Tests/ReminderOccurrences.json`; add a case
-there, not to one side. A standalone phone gives reminders set before zones were kept its own zone
-once (`zoneAdoptions`), queued like any reminder change so a server connected later gets it too.
+there, not to one side.
 
 **Android-side firing.** The server push only helps while a socket is open, so the phone
 mirrors pending reminders from its offline cache into a SharedPreferences snapshot and arms
@@ -1202,9 +1201,9 @@ which ASP.NET Core keeps on disk.
 
 A note's attachments are **one ordered list of two kinds**, discriminated by `NoteMedia.Kind`
 (`Image` / `Audio`) rather than split across a second table — so ordering, per-note limits,
-deletion, the realtime fan-out and the export archive all carry over untouched. `Image` is
-deliberately `0`: the column is appended to existing databases with the store type's zero value,
-so every row that predates the enum reads back as what it actually is.
+deletion, the realtime fan-out and the export archive all carry over untouched. The column holds
+the kind's number, so the numbers never change: a renumbered kind would read every stored row
+back as the other one.
 
 **Recording is Android-only, playback is everywhere.** Browsers can only capture audio in a secure
 context — `navigator.mediaDevices` does not exist over plain http, which keepIT supports on a LAN —
@@ -1411,8 +1410,8 @@ app's own `versionName`/`versionCode` are derived from the same tag by CI.
 **Who runs as what:** the API runs as the base image's unprivileged `app` user (uid 1654). It
 parses every request body and decodes uploaded images, so a flaw there shouldn't come with
 root. The entrypoint starts as root only to hand `/data` to `app` (`find … ! -user app -exec
-chown -h`): earlier versions ran the API as root, so existing volumes and Unraid folders are
-root-owned, and this makes the upgrade need no manual step. `-h` matters: the API can write
+chown -h`): a host folder Docker creates for a bind mount, such as Unraid's `appdata/keepit`, is
+root-owned, and this makes it usable with no manual step. `-h` matters: the API can write
 under `/data`, and without it a symlink planted there would aim the next start's root-run
 chown at a file outside the folder. Storage that can't change owners (a network share with
 root squashing, say) only gets a warning, since such a folder may already be writable for
@@ -1437,11 +1436,9 @@ switches it to an external Postgres. An **Unraid Community Apps template** ships
 `keepIT/keepITCore/Dockerfile`, data on a named volume at `/data`), **`web`** (nginx serving
 the SPA and proxying `/api` — the single entrypoint on `:8080`). One origin → no CORS in the
 stack and a same-origin refresh cookie. The API is not published to the host; only nginx is.
-The API container runs as the image's unprivileged user (uid 1654), never root. Before it
-starts, a one-shot **`data-owner`** service (the same image, run as root, with no network)
-hands the data volume to that user with the same `chown -h` rule as the single container,
-which is what upgrades a volume from the root-run versions; the image also creates `/data`
-owned by that user, so a new volume starts out writable.
+The API container runs as the image's unprivileged user (uid 1654), never root. The image
+creates `/data` owned by that user, and Docker copies that owner into a new named volume, so
+the data volume starts out writable.
 Compose reads six values from `.env` (`JWT_KEY`, `POSTGRES_PASSWORD`,
 `REFRESH_COOKIE_SECURE`, `FORWARDED_PROXY_HOPS`, `ALLOW_REGISTRATION`, `TZ`).
 

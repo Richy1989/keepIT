@@ -163,10 +163,7 @@ data class ChecklistItemDto(
 @Serializable
 data class NoteMediaDto(
     val id: String,
-    /**
-     * [MediaKinds] - a picture or a voice note. Defaulted to an image so a cache written by an
-     * older build, or a server that predates voice notes, still decodes to what it actually held.
-     */
+    /** [MediaKinds] - a picture or a voice note. */
     val kind: String = MediaKinds.IMAGE,
     val width: Int = 0,
     val height: Int = 0,
@@ -305,8 +302,7 @@ data class EmptyTrashDto(val noteIds: List<String>)
  * [timeZone] is the IANA zone of the phone setting it, whose wall clock a repeating reminder keeps
  * when the clocks change; a server that doesn't know it uses its own. [firstAtUtc] is where a
  * repeating series starts when that is earlier than `remindAtUtc` (a restore, or a replay of a
- * reminder this phone has already moved on); left out, the series starts at `remindAtUtc`. An older
- * server ignores both.
+ * reminder this phone has already moved on); left out, the series starts at `remindAtUtc`.
  */
 @Serializable
 data class SetNoteReminderDto(

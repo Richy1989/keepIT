@@ -63,7 +63,6 @@ import org.hyperstarit.keepitapp.data.TwoFactorStatusDto
 import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
-import retrofit2.HttpException
 import java.io.IOException
 import kotlin.math.floor
 
@@ -511,10 +510,8 @@ private fun BusyLabel(busy: Boolean, label: String) {
     }
 }
 
-/** A failure as the user should read it: an older server, no connection, or the server's own words. */
+/** A failure as the user should read it: no connection, or the server's own words. */
 private fun twoFactorFailure(e: Throwable, fallback: String): String = when {
-    e is HttpException && e.code() == 404 ->
-        "This server doesn't offer two-factor authentication yet. It needs keepIT 0.9.2 or newer."
     e is IOException -> "Can't reach your server. Two-factor settings need a connection."
     else -> apiErrorMessage(e, fallback)
 }

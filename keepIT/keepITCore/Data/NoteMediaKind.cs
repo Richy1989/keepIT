@@ -7,9 +7,8 @@ namespace keepITCore.Data;
 /// list whatever they are, so this is a discriminator on the existing row rather than a second
 /// table: ordering, per-note limits, deletion, the realtime fan-out and the export archive all
 /// carry over unchanged.
-/// <para><b>Image must stay 0.</b> The column is appended to existing databases with the store
-/// type's zero value (see <c>SqliteSchemaReconciler</c>), so every row that predates this enum has
-/// to read back as what it actually is — an image.</para>
+/// <para><b>Never renumber these.</b> The column holds the number, so a renumbered kind would read
+/// every stored row back as the other kind.</para>
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<NoteMediaKind>))]
 public enum NoteMediaKind

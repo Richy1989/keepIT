@@ -12,15 +12,15 @@ using keepITCore.Data;
 namespace keepITCore.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260712191943_NoteReminders")]
-    partial class NoteReminders
+    [Migration("20261011093227_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -270,6 +270,10 @@ namespace keepITCore.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Icon")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -344,6 +348,53 @@ namespace keepITCore.Data.Migrations
                     b.ToTable("NoteLists");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteMedia", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ThumbFileName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NoteId");
+
+                    b.ToTable("NoteMedia");
+                });
+
             modelBuilder.Entity("keepITCore.Data.NoteReminder", b =>
                 {
                     b.Property<Guid>("NoteId")
@@ -358,11 +409,18 @@ namespace keepITCore.Data.Migrations
                     b.Property<DateTime?>("FiredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime>("FirstAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("Recurrence")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("RemindAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TimeZone")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("NoteId", "UserId");
 
@@ -685,6 +743,17 @@ namespace keepITCore.Data.Migrations
                     b.Navigation("Note");
                 });
 
+            modelBuilder.Entity("keepITCore.Data.NoteMedia", b =>
+                {
+                    b.HasOne("keepITCore.Data.Note", "Note")
+                        .WithMany("Media")
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Note");
+                });
+
             modelBuilder.Entity("keepITCore.Data.NoteReminder", b =>
                 {
                     b.HasOne("keepITCore.Data.Note", "Note")
@@ -784,6 +853,8 @@ namespace keepITCore.Data.Migrations
             modelBuilder.Entity("keepITCore.Data.Note", b =>
                 {
                     b.Navigation("ChecklistItems");
+
+                    b.Navigation("Media");
 
                     b.Navigation("NoteLists");
 

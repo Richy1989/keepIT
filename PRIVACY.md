@@ -129,8 +129,7 @@ collect information about the download under its own policy.
   account, your notes with every photo and recording in them, your lists, settings, profile
   picture and notifications. Notes you shared are gone for everyone you shared them with; notes
   others shared with you stay with their owners. This cannot be undone, so export first if you
-  want a copy. It needs a server on keepIT 0.9.2 or newer; on an older one, ask the operator.
-  Copies the operator made of the server, such as backups, are up to the operator.
+  want a copy. Copies the operator made of the server, such as backups, are up to the operator.
 
 ## Security
 

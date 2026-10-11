@@ -359,9 +359,8 @@ public class ImportController : ControllerBase
                 UserId = ownerId,
                 RemindAtUtc = remindAt,
                 Recurrence = recurrence,
-                // Restored as set, so a repeat keeps its clock and day. An archive from before
-                // reminders carried these has neither; then the reminder counts from its next
-                // occurrence on this server's clock, as it did on the old one.
+                // Restored as set, so a repeat keeps its clock and day. A zone this server doesn't
+                // know, or a start after the occurrence, is dropped as when a client sets one.
                 TimeZone = ReminderSchedule.KnownZoneId(source.ReminderTimeZone),
                 FirstAtUtc = source.ReminderFirstAtUtc is { } first && ReminderSchedule.AsUtc(first) <= remindAt
                     ? ReminderSchedule.AsUtc(first)

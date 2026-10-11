@@ -139,10 +139,8 @@ public sealed class ReminderDispatcherService : BackgroundService
             return;
         }
 
-        // A reminder set before the first occurrence was kept counts from this one.
-        reminder.FirstAtUtc ??= ReminderSchedule.AsUtc(reminder.RemindAtUtc);
         reminder.RemindAtUtc = ReminderSchedule.NextAfter(
-            reminder.FirstAtUtc.Value,
+            reminder.FirstAtUtc,
             ReminderSchedule.ZoneOf(reminder.TimeZone),
             reminder.Recurrence,
             now);

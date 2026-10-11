@@ -51,9 +51,7 @@ class ReminderOccurrenceTest {
     }
 
     @Test
-    fun `a zone the server didn't name, or the phone can't find, counts in UTC`() {
-        // A server from before reminders carried a zone counted repeats in UTC.
-        assertEquals(ZoneOffset.UTC, reminderZone(null))
+    fun `a zone this phone's time-zone data doesn't have counts in UTC`() {
         assertEquals(ZoneOffset.UTC, reminderZone("Mars/Olympus_Mons"))
         assertEquals(ZoneId.of("Europe/Vienna"), reminderZone("Europe/Vienna"))
     }
