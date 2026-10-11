@@ -1558,7 +1558,21 @@ not be newer than the literals.
   runs on build machines only, and its dozens of advisories would bury the app's. Dependabot (`.github/dependabot.yml`) opens grouped weekly version updates for
   all five ecosystems; it never proposes the next .NET major or a new major base image, which are
   deliberate upgrades.
-- No web tests yet; the Android module is tested in three layers (see CLAUDE.md).
+- **Web unit tests** (`web/src/**/*.test.ts`, Vitest, run in CI): pure logic in node, with no DOM.
+  The contrast of every design token on the surfaces it lands on, the masonry packing, Markdown
+  rendering and editing, and the About credits against the libraries in use.
+- **Browser smoke test** (`web/e2e/smoke.spec.ts`, Playwright; CI runs it in headless Chromium
+  on the built image, after `deploy/smoke-test.sh`): sign up, add a note with a photo and see its card
+  painted, open a second tab that signs in from the refresh cookie alone and receives a new note
+  over the hub, then sign out and in again. It is the only test that runs the built bundle, so
+  the only one that holds the CSP to what the page really does (a photo is an `<img>` on a
+  `blob:` URL: a policy without `blob:` leaves an empty box and every API test green), and the
+  proxy to passing the hub's WebSocket upgrade, where SignalR would otherwise fall back to a
+  slower transport and nothing would notice. It also fails on anything the page throws. It starts no
+  server (`KEEPIT_URL` says where one runs), finds everything by label, button name or
+  placeholder, and is one flow on purpose: logic is tested where it lives, in the unit tests and
+  the API tests.
+- The Android module is tested in three layers (see CLAUDE.md).
 
 ## Status & roadmap
 

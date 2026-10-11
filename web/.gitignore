@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Playwright: the trace of a failed browser smoke test (npm run test:e2e)
+test-results
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
