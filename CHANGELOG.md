@@ -8,13 +8,10 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 > [!CAUTION]
 > ### ⚠️ Export your notes before you update
 >
-> This version starts on a new, empty database. It can't use one from 0.9.2 or older, or from
-> 0.9.3-beta.1 or beta.2: on PostgreSQL it won't start, and on the built-in database old repeating
-> reminders go off at the wrong time. So every user exports their notes under **Settings → Your
-> data** first. Then start this version on an empty database and data folder, create the accounts
-> again, and everyone imports their file. Shared notes, two-factor sign-in and profile pictures
-> are set up again. Step by step, for Docker, Unraid, Compose and your own PostgreSQL:
-> [Updating from 0.9.2 or older](FAQ.md#updating-from-092-or-older).
+> keepIT 1.0 starts with a clean database. Getting there took one breaking change, so data from
+> an earlier version can't come along by itself. Every user exports their notes under
+> **Settings → Your data** first; then install 1.0 fresh and import them. From 1.0 on, every
+> update keeps your data. Step by step: [Updating to 1.0](FAQ.md#updating-to-10).
 
 ### 🔧 Improvements
 
@@ -42,10 +39,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   free Six Labors license key for ImageSharp; the README says how to get one and where it goes.
   Pulling the image from Docker Hub needs nothing new.
 - The About page credits ImageSharp under Apache 2.0, the license it grants open-source projects.
-- Set `TZ` to your time zone (with Compose, in `.env`; Unraid already sets it). Reminders imported
-  from an export made before this version have no zone of their own and repeat on that clock;
-  without `TZ` they stay on UTC and move when the clocks change. Update the Android app along with
-  the server, since the app works out repeating reminders itself while it is offline.
+- Set `TZ` to your time zone (with Compose, in `.env`; Unraid already sets it). Repeating
+  reminders you import from before 1.0 keep that clock.
 
 ## 0.9.2
 

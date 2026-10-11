@@ -17,47 +17,40 @@ add any other one as a variable.
 
 ### Do I need to change anything when I update?
 
-Usually not. keepIT brings its database up to date when it starts, and any 1.x app works with any
-1.x server, so phones can update before or after the server. What's new, and anything new you may
-set, is in the [CHANGELOG](CHANGELOG.md).
+From 1.0 on, no. Every update keeps your data, and any 1.x app works with any 1.x server, so
+phones can update before or after the server. What's new is in the [CHANGELOG](CHANGELOG.md).
 
-The exception is updating from 0.9.2 or older, or from the first two 0.9.3 betas: the versions
-after them start on a new database, so [export first](#updating-from-092-or-older).
+Coming from a version before 1.0? Then [start clean](#updating-to-10).
 
-### Updating from 0.9.2 or older
+### Updating to 1.0
 
 > [!CAUTION]
-> **Export your notes before you update.** Versions after 0.9.3-beta.2 start on a new, empty
-> database. They can't use one from 0.9.2 or older, or from 0.9.3-beta.1 or beta.2, so moving
-> over means exporting, starting afresh and importing.
+> **Export your notes before you update.** keepIT 1.0 starts with a clean database. Getting
+> there took one breaking change, so data from an earlier version can't come along by itself.
+> From 1.0 on, every update keeps your data.
 
 1. **Every user exports their notes** under **Settings → Your data**, in the web app or the
-   Android app, while the old version still runs. Open the app on each phone first, online, so
-   changes made offline reach the server: the export is what the server holds. It has the user's
-   notes, checklists, lists, reminders, photos and voice notes.
-2. **Stop keepIT and empty both its database and its data folder:**
+   Android app, while the old version still runs. Open the app on each phone online first, so
+   its latest changes reach the server.
+2. **Stop keepIT and delete its data:**
    - Single container: `docker rm -f keepit && docker volume rm keepit-data`.
    - Unraid: stop the container and delete everything in `/mnt/user/appdata/keepit`.
-   - Docker Compose: `docker compose down -v`, which removes both volumes.
-   - Your own PostgreSQL: drop the `keepit` database and create it again, empty. Empty the data
-     folder too.
-3. **Start the new version**, create the accounts again, and **every user imports their file**
-   under **Settings → Your data**. Phones and browsers sign in again.
+   - Docker Compose: `docker compose down -v`.
+   - Your own PostgreSQL: drop the `keepit` database and create it again, empty, and empty the
+     data folder too.
+3. **Install 1.0**, create the accounts again, and **every user imports their file** under
+   **Settings → Your data**.
 
-An export holds a user's notes, not their account, so a few things are set up again: notes shared
-with each other (their owner shares them again), two-factor sign-in, profile pictures, and the web
-app's theme and accent colour. The Android app without a server isn't affected.
+The export brings back notes, checklists, lists, reminders, photos and voice notes. Shared notes,
+two-factor sign-in and profile pictures are set up again. The Android app without a server isn't
+affected.
 
 ### I updated without exporting first
 
-Your notes are still there. Go back to the version you came from (`richy1989/keepit:0.9.2`, or
-`0.9.3-beta.2`), export, and follow the steps above. What you'll have seen:
-
-- **On PostgreSQL** (Compose, or a database of your own), keepIT didn't start, and its log ends in
-  `relation "AspNetRoles" already exists`. It changed nothing.
-- **On the built-in database** (the single container's default), keepIT started and your notes
-  are all there, but repeating reminders set on 0.9.2 or older go off at the wrong time. One that
-  has already gone off keeps its wrong time through the export: set it again after importing.
+Your notes are still there. Go back to the version you had (for example
+`richy1989/keepit:0.9.2`), export, and follow the steps above. With PostgreSQL, 1.0 won't start on
+the old data (the log says `relation "AspNetRoles" already exists`); with the built-in database it
+starts, but repeating reminders may go off at the wrong time, so set those again after importing.
 
 ## Starting up
 
