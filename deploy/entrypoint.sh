@@ -19,9 +19,9 @@ export Auth__RefreshCookie__Secure
 # requests, run as www-data.
 data="${App__DataRoot:-/data}"
 if [ "$(id -u)" = 0 ]; then
-  # Hand the data folder to `app`. Earlier versions ran the API as root, so an existing volume or
-  # host folder is root-owned; only entries with another owner are touched, so a normal start
-  # changes nothing. -h changes a symlink itself, never its target: the API can write here, and
+  # Hand the data folder to `app`. A host folder Docker creates for a bind mount (Unraid's
+  # appdata/keepit, say) is root-owned; only entries with another owner are touched, so a normal
+  # start changes nothing. -h changes a symlink itself, never its target: the API can write here, and
   # must not be able to aim this root-run chown at a file outside the folder.
   # Some storage doesn't let root change owners (a network share with root squashing, say). That
   # needn't be fatal, since such a folder may already be writable for everyone, so say what

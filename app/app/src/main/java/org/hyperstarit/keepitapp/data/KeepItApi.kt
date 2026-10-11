@@ -49,14 +49,11 @@ interface KeepItApi {
     @POST("api/auth/changepassword")
     suspend fun changePassword(@Body body: ChangePasswordRequestDto): AuthResponseDto
 
-    /**
-     * Deletes the account and everything it owns. 204 on success, 400 for a wrong password, and
-     * 404 from a server older than 0.9.2, which has no such endpoint.
-     */
+    /** Deletes the account and everything it owns. 204 on success, 400 for a wrong password. */
     @POST("api/auth/delete-account")
     suspend fun deleteAccount(@Body body: DeleteAccountRequestDto)
 
-    // ---- two-factor authentication (servers from 0.9.2; older ones answer 404) ----
+    // ---- two-factor authentication ----
 
     @GET("api/auth/two-factor")
     suspend fun twoFactorStatus(): TwoFactorStatusDto
@@ -121,8 +118,7 @@ interface KeepItApi {
 
     /**
      * Empties the trash of the listed notes: the caller's own are deleted, and they leave the ones
-     * shared with them. Servers before 0.7.5 answer 404, see the fallback in
-     * [org.hyperstarit.keepitapp.data.offline.SyncEngine].
+     * shared with them.
      */
     @POST("api/notes/trash/empty")
     suspend fun emptyTrash(@Body body: EmptyTrashDto)

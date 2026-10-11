@@ -50,10 +50,10 @@ class ReminderScheduler(private val context: Context) {
         val recurrence: String = ReminderRecurrences.NONE,
         /** A plain-text content excerpt for the notification's big-text body. */
         val preview: String = "",
-        /** The zone whose clock a recurring reminder keeps (see [nextOccurrenceAfter]); null is UTC. */
+        /** The zone whose clock a recurring reminder keeps (see [nextOccurrenceAfter]). */
         val timeZone: String? = null,
-        /** The occurrence a recurring reminder counts from; null on a snapshot written before it was kept. */
-        val firstAtUtcMs: Long? = null,
+        /** The occurrence a recurring reminder counts from. */
+        val firstAtUtcMs: Long = atUtcMs,
     )
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -75,7 +75,7 @@ class ReminderScheduler(private val context: Context) {
                 recurrence = n.reminderRecurrence ?: ReminderRecurrences.NONE,
                 preview = previewOf(n),
                 timeZone = n.reminderTimeZone,
-                firstAtUtcMs = n.reminderFirstAtUtc?.let(::epochMsOrNull),
+                firstAtUtcMs = n.reminderFirstAtUtc?.let(::epochMsOrNull) ?: ms,
             )
         }
         synchronized(this) {
@@ -125,9 +125,8 @@ class ReminderScheduler(private val context: Context) {
             }
             postOnce(entry, posted)
             if (entry.recurrence != ReminderRecurrences.NONE) {
-                val first = entry.firstAtUtcMs ?: entry.atUtcMs
-                val next = nextOccurrenceAfter(first, reminderZone(entry.timeZone), entry.recurrence, now)
-                remainingPending.add(entry.copy(atUtcMs = next, firstAtUtcMs = first))
+                val next = nextOccurrenceAfter(entry.firstAtUtcMs, reminderZone(entry.timeZone), entry.recurrence, now)
+                remainingPending.add(entry.copy(atUtcMs = next))
             }
         }
 

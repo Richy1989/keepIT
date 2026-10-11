@@ -29,8 +29,7 @@ class LoginRefusalTest {
     }
 
     @Test
-    fun `an older server's body, or none, is a plain refusal of the credentials`() {
-        assertFalse(loginRefusal("""{"error":"Invalid email or password."}""").twoFactorRequired)
+    fun `a proxy's body, or none, is a plain refusal of the credentials`() {
         assertEquals("Invalid email or password.", loginRefusal(null).message)
         assertEquals("Invalid email or password.", loginRefusal("<html>proxy error</html>").message)
     }

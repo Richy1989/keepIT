@@ -27,15 +27,19 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 📦 Deployment & Docs
 
+- This version needs a new, empty database: the server's database schema starts afresh for 1.0,
+  so a server from 0.9.2 or a 0.9.3 beta won't work on its old one. Before updating, every user
+  exports their notes under Settings → Your data. Then update, starting on an empty database and
+  data folder (with Compose, `docker compose down -v` removes both volumes; on Unraid, empty
+  `/mnt/user/appdata/keepit`), create the accounts again and import.
 - Building the server image yourself, with `docker build` or `docker compose up --build`, now needs a
   free Six Labors license key for ImageSharp; the README says how to get one and where it goes.
   Pulling the image from Docker Hub needs nothing new.
 - The About page credits ImageSharp under Apache 2.0, the license it grants open-source projects.
-- Set `TZ` to your time zone (with Compose, in `.env`; Unraid already sets it). Reminders set
-  before this update have no zone of their own and repeat on that clock; without `TZ` they stay on
-  UTC and still move when the clocks change. Update the Android app along with the server, since
-  the app works out repeating reminders itself while it is offline.
-- The server adds two columns to the reminders table when it starts. Nothing to do.
+- Set `TZ` to your time zone (with Compose, in `.env`; Unraid already sets it). Reminders imported
+  from an export made before this version have no zone of their own and repeat on that clock;
+  without `TZ` they stay on UTC and move when the clocks change. Update the Android app along with
+  the server, since the app works out repeating reminders itself while it is offline.
 
 ## 0.9.2
 

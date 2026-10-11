@@ -406,7 +406,7 @@ namespace keepITCore.Data.Migrations
                     b.Property<DateTime?>("FiredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("FirstAtUtc")
+                    b.Property<DateTime>("FirstAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Recurrence")

@@ -30,7 +30,7 @@ RUN --mount=type=secret,id=sixlabors_license,target=/run/secrets/sixlabors.lic \
 
 # Final runtime image: just the published output on the non-root base. /data is created owned by
 # that user, so a new named volume mounted there starts out writable (Docker copies the mount
-# point's owner into an empty volume); docker-compose.yml's data-owner service fixes older ones.
+# point's owner into an empty volume).
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .

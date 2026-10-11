@@ -38,10 +38,11 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
   older importer reading the file, and keep the round-trip tests green — they are the format's
   only specification, since a file format can't live in the OpenAPI document.
 - **A note's attachments are one list of two kinds.** `NoteMedia.Kind` (`Image`/`Audio`) — never a
-  second table, and `Image` must stay `0` so rows predating the enum read back correctly. Audio is
+  second table, and never renumber the kinds: the column holds the number. Audio is
   stored **byte for byte as uploaded** (no encoder in the container), so identifying it by
   signature in `Service/AudioProbe.cs` *is* the validation — never trust the client's file name, and
   never accept an MPEG-4 with a video track. Recording is Android-only; the web plays back.
+- **Within 1.x the API only grows.** A 1.x app may be older than its server (F-Droid ships days after the Docker image, and phones update when they like), so never remove or rename an endpoint or a DTO field, or change what one means; add new ones beside them. Nothing before 1.0 is supported: never add code for a pre-1.0 server, cache, archive or volume.
 - **A new mutating endpoint must push realtime.** After `SaveChangesAsync`, call `IRealtimeNotifier.NotifyAsync(userId, …)` with the affected resources (`notes` / `lists` / `notification`). For a **shared** note's content, fan out to the whole recipient set (`NoteAccessService.RecipientIdsAsync`, i.e. owner + grantees); for **per-user** changes notify only the caller — mirror the existing controllers, or devices won't resync.
 
 ## Android app (`app/`)
@@ -61,6 +62,7 @@ the Android app generally should too. Key design points:
   format is chosen for playback *and* the planned transcription, so do not "optimise" it down to
   16 kHz. Recording reuses the image attach path end to end (stage → `PendingOp.AttachMedia` →
   upload), which is why it works offline and in standalone mode without new machinery.
+- **The server may be older than the app.** F-Droid updates the app by itself, and operators update their servers by hand. A feature that needs a server newer than 1.0 reads the server's version from `/api/meta` and stays hidden on an older one, saying the server needs updating. The first such feature adds that check; there is none yet. Never detect a missing feature by catching a 404: a 404 from a bug would then blame the server.
 - **DTOs are hand-synced.** `data/Dtos.kt` mirrors the C# DTOs (the source of truth). Change a C# DTO → update `Dtos.kt` to match. There is no codegen step here, so this is the one place drift can creep in — keep field names and nullability exactly aligned. The same goes for size limits: `data/NoteLimits.kt` mirrors the server's `Data/NoteLimits.cs`, and the app holds notes to it before queueing (a note the server refuses is one the outbox can only drop).
 - **Session** (`SessionRepository` + `ApiClient`): access token in memory, refresh cookie persisted in app-private `SharedPreferences` via `PersistentCookieJar` (the mobile analogue of the web httpOnly cookie), silent refresh on 401. Base server URL is user-entered at login.
 - **Realtime** (`RealtimeClient`): SignalR against `RealTimeHub`; on `Changed` it triggers a sync/refetch, same contract as the web client.

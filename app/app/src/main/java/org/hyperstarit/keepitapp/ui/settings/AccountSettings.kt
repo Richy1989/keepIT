@@ -40,7 +40,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
 import java.io.IOException
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.data.SessionState
@@ -292,8 +291,6 @@ private fun DeleteAccountDialog(container: AppContainer, onDismiss: () -> Unit) 
         scope.launch {
             container.session.deleteAccount(password).onFailure { e ->
                 error = when {
-                    e is HttpException && e.code() == 404 ->
-                        "This server can't delete accounts yet. It needs keepIT 0.9.2 or newer."
                     e is IOException -> "Can't reach your server. Deleting an account needs a connection."
                     else -> apiErrorMessage(e, "Could not delete the account.")
                 }

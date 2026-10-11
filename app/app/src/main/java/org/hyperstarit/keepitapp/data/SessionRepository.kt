@@ -305,8 +305,8 @@ private fun loginRefusal(e: HttpException): LoginRefusedException? {
 }
 
 /**
- * Reads a sign-in's 401 body ([LoginFailureDto]). A body without one — an older server's, or none
- * at all — is a plain refusal of the credentials.
+ * Reads a sign-in's 401 body ([LoginFailureDto]). A body without one — from a proxy in front of the
+ * server, say — is a plain refusal of the credentials.
  */
 internal fun loginRefusal(body: String?): LoginRefusedException {
     val failure = body?.let { runCatching { loginJson.decodeFromString<LoginFailureDto>(it) }.getOrNull() }

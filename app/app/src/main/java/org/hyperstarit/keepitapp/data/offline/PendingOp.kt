@@ -132,9 +132,8 @@ sealed class PendingOp {
         val stagedPath: String,
         val tempMediaId: String,
         /**
-         * [org.hyperstarit.keepitapp.data.MediaKinds] - what the staged file is. Defaulted to an
-         * image so an outbox written before voice notes existed still decodes to what it held, and
-         * so the UI can draw a queued recording as a player without opening the file to find out.
+         * [org.hyperstarit.keepitapp.data.MediaKinds] - what the staged file is, so the UI can draw
+         * a queued recording as a player without opening the file to find out.
          */
         val kind: String = MediaKinds.IMAGE,
         override val opId: String = newOpId(),

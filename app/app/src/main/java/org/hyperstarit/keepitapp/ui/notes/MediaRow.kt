@@ -48,8 +48,7 @@ object MediaSizes {
 
     /**
      * At most 1280 px: a note card's hero, which is close to screen width in the single-column
-     * list — where the thumbnail was stretched about 3× and looked soft. A server that predates it
-     * answers with the original, so asking for it is always safe.
+     * list — where the thumbnail was stretched about 3× and looked soft.
      */
     const val PREVIEW = "preview"
     const val FULL = "full"

@@ -9,8 +9,8 @@ import org.hyperstarit.keepitapp.data.UpdateNoteDto
  * The ops behind acting on several notes at once — the note list's multi-select. There is no batch
  * endpoint and no batch op: each function yields the op a single-note action already queues, once
  * per note it actually changes, so the outbox coalesces them per note as usual and replay sends
- * exactly what tapping each card in turn would have. That also keeps a new app working against an
- * older server. A note already in the requested state queues nothing.
+ * exactly what tapping each card in turn would have. A note already in the requested state queues
+ * nothing.
  *
  * Pure (no Android types), like [applyOp], so the rules are JVM-tested.
  */

@@ -23,8 +23,8 @@ public static class ReminderSchedule
     private static readonly ConcurrentDictionary<string, TimeZoneInfo?> Zones = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// The zone for a reminder that has none of its own: one set before reminders carried a zone, or
-    /// by a client too old to send one. It is the server's own zone (in a container, whatever
+    /// The zone for a reminder that has none of its own: its device didn't name one, or named one
+    /// this server doesn't know. It is the server's own zone (in a container, whatever
     /// <c>TZ</c> says; UTC when it says nothing), by an IANA id, since that is the form the clients
     /// read it in (see <see cref="ZoneIdOf"/>).
     /// </summary>
