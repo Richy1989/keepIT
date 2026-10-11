@@ -6,66 +6,77 @@ something doesn't work. Settings are given as environment variables; the
 add any other one as a variable.
 
 - [Updating](#updating)
+- [Starting up](#starting-up)
 - [Password reset and email](#password-reset-and-email)
 - [HTTPS and reverse proxies](#https-and-reverse-proxies)
 - [Images](#images)
+- [Backups, export and import](#backups-export-and-import)
 - [Logs and security](#logs-and-security)
 
 ## Updating
 
 ### Do I need to change anything when I update?
 
-Usually not, including from 0.7.1 or earlier to 0.7.5, the release that brought the changes
-below (see the [CHANGELOG](CHANGELOG.md)). keepIT keeps its settings, moves its data folder over
-to the user it now runs as, and picks up the new protections on its own. A few setups do need a
-change, each with its own answer below:
+Usually not. keepIT brings its database up to date when it starts, and any 1.x app works with any
+1.x server, so phones can update before or after the server. What's new, and anything new you may
+set, is in the [CHANGELOG](CHANGELOG.md).
 
-- You send email (SMTP) but never set `App__PublicBaseUrl`: password-reset emails stop until
-  you do. See [Password-reset emails stopped arriving](#password-reset-emails-stopped-arriving-after-the-update).
-- `App__PublicBaseUrl` is set, but not to a full `https://…` address: keepIT won't start. See
-  [keepIT won't start: "App:PublicBaseUrl"](#keepit-wont-start-apppublicbaseurl).
-- Your mail server doesn't offer encryption (STARTTLS): email stops. See
-  [The test email fails](#the-test-email-fails-with-doesnt-offer-starttls).
-- Your data folder is on a network share that doesn't allow changing file owners: keepIT may
-  not start. See [keepIT won't start: "unable to open database file"](#keepit-wont-start-unable-to-open-database-file).
+The exception is updating from 0.9.2 or older, or from the first two 0.9.3 betas: the versions
+after them start on a new database, so [export first](#updating-from-092-or-older).
 
-Two things you'll notice but don't need to act on: the data folder
-[now belongs to user 1654](#why-does-my-data-folder-now-belong-to-user-1654), and the container
-log is now [one short, coloured line per request](#what-does-the-container-log-show).
+### Updating from 0.9.2 or older
 
-### Password-reset emails stopped arriving after the update
+> [!CAUTION]
+> **Export your notes before you update.** Versions after 0.9.3-beta.2 start on a new, empty
+> database. They can't use one from 0.9.2 or older, or from 0.9.3-beta.1 or beta.2, so moving
+> over means exporting, starting afresh and importing.
 
-keepIT now builds the link in a reset email only from `App__PublicBaseUrl`, the address your
-users open keepIT at (for example `https://notes.example.com`). Without it, no reset email is
-sent. The server log says so at startup, and the web app's Settings page shows a warning. Set
-`App__PublicBaseUrl` and restart. [Why keepIT insists on it](#why-does-keepit-insist-on-app__publicbaseurl).
+1. **Every user exports their notes** under **Settings → Your data**, in the web app or the
+   Android app, while the old version still runs. Open the app on each phone first, online, so
+   changes made offline reach the server: the export is what the server holds. It has the user's
+   notes, checklists, lists, reminders, photos and voice notes.
+2. **Stop keepIT and empty both its database and its data folder:**
+   - Single container: `docker rm -f keepit && docker volume rm keepit-data`.
+   - Unraid: stop the container and delete everything in `/mnt/user/appdata/keepit`.
+   - Docker Compose: `docker compose down -v`, which removes both volumes.
+   - Your own PostgreSQL: drop the `keepit` database and create it again, empty. Empty the data
+     folder too.
+3. **Start the new version**, create the accounts again, and **every user imports their file**
+   under **Settings → Your data**. Phones and browsers sign in again.
+
+An export holds a user's notes, not their account, so a few things are set up again: notes shared
+with each other (their owner shares them again), two-factor sign-in, profile pictures, and the web
+app's theme and accent colour. The Android app without a server isn't affected.
+
+### I updated without exporting first
+
+Your notes are still there. Go back to the version you came from (`richy1989/keepit:0.9.2`, or
+`0.9.3-beta.2`), export, and follow the steps above. What you'll have seen:
+
+- **On PostgreSQL** (Compose, or a database of your own), keepIT didn't start, and its log ends in
+  `relation "AspNetRoles" already exists`. It changed nothing.
+- **On the built-in database** (the single container's default), keepIT started and your notes
+  are all there, but repeating reminders set on 0.9.2 or older go off at the wrong time. One that
+  has already gone off keeps its wrong time through the export: set it again after importing.
+
+## Starting up
 
 ### keepIT won't start: "App:PublicBaseUrl"
 
 The address is malformed, usually because it lacks `https://` (`notes.example.com` instead of
-`https://notes.example.com`). Older versions accepted it and sent broken links; now it stops at
-startup so you notice. Use the full address, without a path or query.
+`https://notes.example.com`). keepIT stops at startup rather than send broken links. Use the full
+address, without a path or query.
 
-### The test email fails with "doesn't offer STARTTLS"
+### Why does my data folder belong to user 1654?
 
-keepIT no longer sends mail unencrypted. Your mail server, on the port you configured, doesn't
-offer to encrypt the connection. Pick one:
-
-- If your provider supports implicit TLS, use port 465 with `Email__UseStartTls=false`.
-- For a relay on your own network that can't do TLS at all (a local Postfix, say), set
-  `Email__AllowUnencrypted=true`. Only there: anywhere else, anyone on the network path could
-  read your reset links and your SMTP password. Settings shows a warning while it's on.
-
-### Why does my data folder now belong to user 1654?
-
-keepIT no longer runs as root. The app runs as an unprivileged user, `app` (uid 1654), so a flaw
-in it wouldn't come with full control of the container. On every start, before the app runs, the
-container makes everything in the data folder that user's. That's how data written by older
-versions, which ran as root, keeps working with no manual step. Files you add later as root, a
-restored backup for example, are handed over at the next start.
+keepIT doesn't run as root. The app runs as an unprivileged user, `app` (uid 1654), so a flaw in
+it wouldn't come with full control of the container. On every start, before the app runs, the
+container makes everything in the data folder that user's. That's how a folder Docker created as
+root, such as Unraid's `appdata/keepit`, works with no manual step, and so do files you add later
+as root, a restored backup for example.
 
 On Unraid, `appdata/keepit` shows 1654 as its owner. Backups (CA Appdata Backup and the like)
-work as before, and access over SMB is the same as it was with root: read-only.
+work as usual, and access over SMB is read-only, as for any folder root doesn't own.
 
 ### keepIT won't start: "unable to open database file"
 
@@ -91,6 +102,23 @@ Docker's log handling can cap it:
   `daemon.json`. Without it, Docker keeps every line.
 
 ## Password reset and email
+
+### Password-reset emails don't arrive
+
+keepIT builds the link in a reset email only from `App__PublicBaseUrl`, the address your users
+open keepIT at (for example `https://notes.example.com`). Without it, no reset email is sent. The
+server log says so at startup, and the web app's Settings page shows a warning. Set
+`App__PublicBaseUrl` and restart. [Why keepIT insists on it](#why-does-keepit-insist-on-app__publicbaseurl).
+
+### The test email fails with "doesn't offer STARTTLS"
+
+keepIT doesn't send mail unencrypted. Your mail server, on the port you configured, doesn't
+offer to encrypt the connection. Pick one:
+
+- If your provider supports implicit TLS, use port 465 with `Email__UseStartTls=false`.
+- For a relay on your own network that can't do TLS at all (a local Postfix, say), set
+  `Email__AllowUnencrypted=true`. Only there: anywhere else, anyone on the network path could
+  read your reset links and your SMTP password. Settings shows a warning while it's on.
 
 ### Can I use password reset without a mail server?
 

@@ -140,7 +140,11 @@ every push and PR.
   both). Add `(#N)` when an issue exists. 📦 holds what an operator must do or may set (new
   settings, migrations, "update the server with the app"), and also library updates and About
   credits. Don't put an intro paragraph, a title or a Docker line in the section: the workflow
-  adds the frame. Sections up to 0.9.2 use the older layout; leave them as they are.
+  adds the frame. The one thing allowed above the headings is a warning: when operators must act
+  *before* updating or lose data or a working server, the section opens with a `> [!CAUTION]`
+  block (GitHub draws a red box) titled `### ⚠️ <what to do>`, saying why in a few lines and
+  linking the FAQ answer that has the steps. If app users must act too, the fastlane changelog
+  says so as well. Sections up to 0.9.2 use the older layout; leave them as they are.
 
 **Where the current state is read.** Look these up rather than rely on what an earlier session saw.
 
@@ -225,7 +229,7 @@ keepIT/
 - **Deployment smoke test:** `deploy/smoke-test.sh <base-url>` signs up, uploads a ~3 MB photo and reads it back **through whatever proxy is in front** — CI runs it against the freshly built single-container image, which is the only check that sees nginx, then checks that no token sent in a URL, and no escape sequence sent in a path, reaches the container log raw. No web tests yet. The **Android app is tested in three layers** — see the Testing section below.
 - **Dependencies:** `.github/workflows/dependencies.yml` fails on high/critical advisories in the web app's runtime npm packages and in NuGet packages (transitive too), on every push/PR and weekly; it also feeds the libraries the Android app ships with (`releaseRuntimeClasspath`, not the build tooling) to GitHub's dependency graph. Dependabot (`.github/dependabot.yml`) proposes grouped weekly updates. A package whose next major must not arrive as a routine PR (.NET-versioned packages) gets an `ignore` entry there.
 - **ImageSharp needs a Six Labors license key to build in Release.** Six Labors forbids publishing it: never commit `sixlabors.lic` or the key, never pass it as a Docker build arg, and never copy it into a build context. Locally it is the gitignored `keepIT/keepITCore/sixlabors.lic`; CI reads the `SIXLABORS_LICENSE_KEY` secret (Actions *and* Dependabot); Docker builds take it as the BuildKit secret `sixlabors_license`. See ARCHITECTURE.md → Processing (ImageSharp).
-- **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration (`DatabaseTests` fails until you do). The **SQLite DB uses `EnsureCreated`, not migrations** — which does nothing to an existing file, so `Infrastructure/SqliteSchemaReconciler.cs` adds the tables, columns and indexes an older file is missing at startup (see ARCHITECTURE.md). Entity changes therefore land on an existing `App_Data/keepit.db` without deleting it. `App_Data/` is user data (gitignored) — never commit it.
+- **Migrations are Postgres-authoritative** (design-time factory targets Npgsql). After changing an EF entity, add a migration (`DatabaseTests` fails until you do). Never edit, fold or delete a migration that has shipped: every 1.x server must upgrade any 1.x database. They were folded once, before 1.0, which is why a database from 0.9.2 or older, or 0.9.3-beta.1 or beta.2, needs a fresh start (see ARCHITECTURE.md → Database initialization). The **SQLite DB uses `EnsureCreated`, not migrations** — which does nothing to an existing file, so `Infrastructure/SqliteSchemaReconciler.cs` adds the tables, columns and indexes an older file is missing at startup (see ARCHITECTURE.md). Entity changes therefore land on an existing `App_Data/keepit.db` without deleting it. `App_Data/` is user data (gitignored) — never commit it.
 
 ## Common commands
 

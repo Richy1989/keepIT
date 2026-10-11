@@ -5,6 +5,17 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
+> [!CAUTION]
+> ### ⚠️ Export your notes before you update
+>
+> This version starts on a new, empty database. It can't use one from 0.9.2 or older, or from
+> 0.9.3-beta.1 or beta.2: on PostgreSQL it won't start, and on the built-in database old repeating
+> reminders go off at the wrong time. So every user exports their notes under **Settings → Your
+> data** first. Then start this version on an empty database and data folder, create the accounts
+> again, and everyone imports their file. Shared notes, two-factor sign-in and profile pictures
+> are set up again. Step by step, for Docker, Unraid, Compose and your own PostgreSQL:
+> [Updating from 0.9.2 or older](FAQ.md#updating-from-092-or-older).
+
 ### 🔧 Improvements
 
 - Note cards have a new look on the web and on Android: rounder corners, a fill that is lit from
@@ -27,11 +38,6 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 📦 Deployment & Docs
 
-- This version needs a new, empty database: the server's database schema starts afresh for 1.0,
-  so a server from 0.9.2 or a 0.9.3 beta won't work on its old one. Before updating, every user
-  exports their notes under Settings → Your data. Then update, starting on an empty database and
-  data folder (with Compose, `docker compose down -v` removes both volumes; on Unraid, empty
-  `/mnt/user/appdata/keepit`), create the accounts again and import.
 - Building the server image yourself, with `docker build` or `docker compose up --build`, now needs a
   free Six Labors license key for ImageSharp; the README says how to get one and where it goes.
   Pulling the image from Docker Hub needs nothing new.
@@ -472,7 +478,7 @@ These setups need a change, or keepIT or its email stops working:
 
 - **Email (SMTP) without `App__PublicBaseUrl`:** password-reset emails aren't sent until you set it
   to the address your users open keepIT at. The server log and the web app's Settings page say so.
-  ([FAQ](FAQ.md#password-reset-emails-stopped-arriving-after-the-update))
+  ([FAQ](FAQ.md#password-reset-emails-dont-arrive))
 - **A malformed `App__PublicBaseUrl`**, for example without `https://`: the server stops at startup
   and names the setting. ([FAQ](FAQ.md#keepit-wont-start-apppublicbaseurl))
 - **A mail server without STARTTLS:** email is no longer sent unencrypted. Use port 465 with
@@ -485,7 +491,7 @@ These setups need a change, or keepIT or its email stops working:
 You'll also notice, with nothing to do:
 
 - The data folder (on Unraid, `appdata/keepit`) now belongs to uid 1654, because keepIT no longer
-  runs as root. ([FAQ](FAQ.md#why-does-my-data-folder-now-belong-to-user-1654))
+  runs as root. ([FAQ](FAQ.md#why-does-my-data-folder-belong-to-user-1654))
 - The single container's log includes nginx's request lines. Docker's log rotation can cap it.
   ([FAQ](FAQ.md#how-do-i-keep-the-container-log-from-growing))
 
