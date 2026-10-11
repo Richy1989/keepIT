@@ -1,3 +1,4 @@
+using System.Globalization;
 using Npgsql;
 
 namespace keepITCore.Infrastructure;
@@ -12,40 +13,45 @@ public static class DatabaseSetup
     /// Returns a Postgres connection string if one is configured — either ConnectionStrings:Postgres
     /// or a complete set of POSTGRES_* env vars — otherwise null (caller falls back to SQLite).
     /// </summary>
-    public static string? ResolvePostgresConnectionString(IConfiguration config) =>
-        ConfiguredPostgresConnectionString(config) is { } configured ? WithoutGssEncryption(configured) : null;
-
-    /// <summary>
-    /// Turns off Npgsql's attempt at GSS (Kerberos) encryption unless the connection string requires
-    /// it. Npgsql's default, Prefer, tries it and falls back to none, and trying loads
-    /// <c>libgssapi_krb5</c>. The images don't have it, so the fallback was all that ever happened,
-    /// and .NET wrote "Error: libgssapi_krb5.so.2: cannot open shared object file" to the log at
-    /// every start.
-    /// </summary>
-    private static string WithoutGssEncryption(string connectionString)
+    public static string? ResolvePostgresConnectionString(IConfiguration config)
     {
-        var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        if (builder.GssEncryptionMode == GssEncryptionMode.Prefer)
-            builder.GssEncryptionMode = GssEncryptionMode.Disable;
-        return builder.ConnectionString;
+        if (ConfiguredPostgres(config) is not { } connection)
+            return null;
+
+        // Turns off Npgsql's attempt at GSS (Kerberos) encryption unless the connection string
+        // requires it. Npgsql's default, Prefer, tries it and falls back to none, and trying loads
+        // libgssapi_krb5. The images don't have it, so the fallback was all that ever happened, and
+        // .NET wrote "Error: libgssapi_krb5.so.2: cannot open shared object file" to the log at
+        // every start.
+        if (connection.GssEncryptionMode == GssEncryptionMode.Prefer)
+            connection.GssEncryptionMode = GssEncryptionMode.Disable;
+        return connection.ConnectionString;
     }
 
-    private static string? ConfiguredPostgresConnectionString(IConfiguration config)
+    /// <summary>
+    /// ConnectionStrings:Postgres as written, or one built from the POSTGRES_* settings; null
+    /// without either.
+    /// </summary>
+    private static NpgsqlConnectionStringBuilder? ConfiguredPostgres(IConfiguration config)
     {
         var direct = config.GetConnectionString("Postgres");
         if (!string.IsNullOrWhiteSpace(direct))
-            return direct;
+            return new NpgsqlConnectionStringBuilder(direct);
 
         var host = config["POSTGRES_HOST"];
         if (string.IsNullOrWhiteSpace(host))
             return null;
 
-        var port = config["POSTGRES_PORT"] ?? "5432";
-        var dbName = config["POSTGRES_DB"] ?? "keepit";
-        var user = config["POSTGRES_USER"] ?? "keepit";
-        var password = config["POSTGRES_PASSWORD"] ?? "";
-
-        return $"Host={host};Port={port};Database={dbName};Username={user};Password={password}";
+        // Set one by one, never pasted into a string: the builder quotes what needs quoting, so a
+        // password with a ";" in it can't end the password and start another setting.
+        return new NpgsqlConnectionStringBuilder
+        {
+            Host = host,
+            Port = int.Parse(config["POSTGRES_PORT"] ?? "5432", CultureInfo.InvariantCulture),
+            Database = config["POSTGRES_DB"] ?? "keepit",
+            Username = config["POSTGRES_USER"] ?? "keepit",
+            Password = config["POSTGRES_PASSWORD"] ?? "",
+        };
     }
 
     /// <summary>The SQLite dev database file path inside the data folder.</summary>

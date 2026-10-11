@@ -119,7 +119,12 @@ from configuration:
 - `ConnectionStrings__Postgres` — a full connection string; takes precedence.
 - …or discrete parts: **`POSTGRES_HOST` is the switch** — setting it builds the string from
   `POSTGRES_HOST`/`POSTGRES_PORT`/`POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD`
-  (defaults `5432`/`keepit`/`keepit`).
+  (defaults `5432`/`keepit`/`keepit`). Npgsql's `NpgsqlConnectionStringBuilder` builds it, never
+  string pasting, so a password with a `;` in it arrives as typed. Compose uses these.
+
+Either way, GSS encryption is set to `Disable` unless the string requires it: Npgsql's default
+tries it, and the attempt loads `libgssapi_krb5`, which the images lack, so .NET logged an error
+at every start.
 
 If a connection string resolves → **Npgsql**; otherwise → **SQLite** at `{DataRoot}/keepit.db`
 (logged clearly). This keeps `dotnet run` and the single-container image working with zero

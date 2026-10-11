@@ -37,7 +37,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
       # Postgres is configured, so the API uses it (SQLite is only the bare-metal dev fallback).
-      ConnectionStrings__Postgres: Host=db;Port=5432;Database=keepit;Username=keepit;Password=${POSTGRES_PASSWORD:-keepit}
+      # Separate settings rather than a connection string, so any password works as typed (port,
+      # database and user default to 5432, keepit and keepit).
+      POSTGRES_HOST: db
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-keepit}
       # REQUIRED: a >=32-char random secret. Set JWT_KEY in .env.
       Jwt__Key: ${JWT_KEY:?Set JWT_KEY in .env (a random secret of at least 32 characters)}
       Jwt__Issuer: keepITCore
