@@ -125,9 +125,13 @@ A few things worth knowing:
 - Running **Unraid**? A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
-Updating from an older version, or something not working? The **[FAQ](FAQ.md)** covers what
-changes when you update, reverse proxies and HTTPS, email, and images. What's new in each
-version is in the **[CHANGELOG](CHANGELOG.md)**.
+> [!CAUTION]
+> **On keepIT 0.9.2 or older, or 0.9.3-beta.1 or beta.2? Export your notes before you update.**
+> The versions after them start on a new, empty database.
+> [How to move over](FAQ.md#updating-from-092-or-older).
+
+Updating, or something not working? The **[FAQ](FAQ.md)** covers updates, reverse proxies and
+HTTPS, email, and images. What's new in each version is in the **[CHANGELOG](CHANGELOG.md)**.
 
 <details>
 <summary><strong>Prefer Docker Compose, Postgres, or building the image yourself?</strong></summary>
