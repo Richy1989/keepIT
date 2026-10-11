@@ -1,3 +1,5 @@
+using Npgsql;
+
 namespace keepITCore.Infrastructure;
 
 /// <summary>
@@ -10,7 +12,25 @@ public static class DatabaseSetup
     /// Returns a Postgres connection string if one is configured — either ConnectionStrings:Postgres
     /// or a complete set of POSTGRES_* env vars — otherwise null (caller falls back to SQLite).
     /// </summary>
-    public static string? ResolvePostgresConnectionString(IConfiguration config)
+    public static string? ResolvePostgresConnectionString(IConfiguration config) =>
+        ConfiguredPostgresConnectionString(config) is { } configured ? WithoutGssEncryption(configured) : null;
+
+    /// <summary>
+    /// Turns off Npgsql's attempt at GSS (Kerberos) encryption unless the connection string requires
+    /// it. Npgsql's default, Prefer, tries it and falls back to none, and trying loads
+    /// <c>libgssapi_krb5</c>. The images don't have it, so the fallback was all that ever happened,
+    /// and .NET wrote "Error: libgssapi_krb5.so.2: cannot open shared object file" to the log at
+    /// every start.
+    /// </summary>
+    private static string WithoutGssEncryption(string connectionString)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        if (builder.GssEncryptionMode == GssEncryptionMode.Prefer)
+            builder.GssEncryptionMode = GssEncryptionMode.Disable;
+        return builder.ConnectionString;
+    }
+
+    private static string? ConfiguredPostgresConnectionString(IConfiguration config)
     {
         var direct = config.GetConnectionString("Postgres");
         if (!string.IsNullOrWhiteSpace(direct))
