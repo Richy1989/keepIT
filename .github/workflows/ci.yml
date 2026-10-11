@@ -115,6 +115,27 @@ jobs:
         run: docker run -d --name keepit -p 8080:80 -e Jwt__Key="$(openssl rand -hex 32)" keepit:ci
       - name: Smoke test through nginx
         run: bash deploy/smoke-test.sh http://localhost:8080
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install the browser test and its browser
+        # --with-deps adds the system libraries headless Chromium needs; --only-shell leaves out
+        # the full browser, which a headless run never starts.
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps --only-shell chromium
+      - name: Smoke test in a browser
+        # The web app as a person uses it, on the same container (web/e2e/): sign up, attach a
+        # photo, see the note arrive on a second tab, sign in again. The script above speaks to
+        # the API and never runs the bundle, so it can't see a Content-Security-Policy that
+        # blocks what the page does, or a proxy that doesn't pass the hub's WebSocket.
+        working-directory: web
+        env:
+          KEEPIT_URL: http://localhost:8080
+        run: npm run test:e2e
       - name: Docker sees it healthy, and the checks stay out of the log
         # The image's HEALTHCHECK asks /api/health through nginx (deploy/healthcheck.sh), every 5
         # seconds while it starts. Docker asks every 30 seconds after that, so a healthy answer
@@ -158,6 +179,16 @@ jobs:
       - name: Container log
         if: failure()
         run: docker logs keepit
+      - name: Upload the browser test's trace
+        # Every step of a failed run with the page, console and network at that moment:
+        # `npx playwright show-trace trace.zip`. Nothing is written when the test passes.
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-e2e-trace
+          path: web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   web:
     name: Web (React + TypeScript)

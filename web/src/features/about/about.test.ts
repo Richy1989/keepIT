@@ -63,6 +63,7 @@ const WEB_PACKAGES: Record<string, string | NotCredited> = {
   typescript: 'TypeScript',
   '@fontsource-variable/inter': 'Inter',
   vitest: { notCredited: 'runs the tests' },
+  '@playwright/test': { notCredited: 'runs the browser smoke test' },
   eslint: { notCredited: 'lints the source' },
   '@eslint/js': { notCredited: 'lints the source' },
   'typescript-eslint': { notCredited: 'lints the source' },

@@ -5,6 +5,7 @@
 **/obj
 **/dist
 **/.vite
+**/test-results
 **/.git
 **/.vs
 **/.vscode
