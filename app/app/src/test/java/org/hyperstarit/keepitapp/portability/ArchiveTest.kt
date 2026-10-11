@@ -5,6 +5,7 @@ import org.hyperstarit.keepitapp.data.NoteArchiveDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.offline.PendingOp
+import org.hyperstarit.keepitapp.data.offline.epochMsOrNull
 import org.hyperstarit.keepitapp.data.portability.Archive
 import org.hyperstarit.keepitapp.data.portability.ArchiveError
 import org.hyperstarit.keepitapp.data.portability.ArchiveReader
@@ -20,6 +21,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.time.Instant
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -218,6 +221,89 @@ class ArchiveTest {
         assertEquals(0, written)
         val opened = ArchiveReader.open(zipFile) as OpenArchiveResult.Opened
         opened.archive.use { assertNull(it.openImage("n1", "m1")) }
+    }
+
+    /**
+     * A server reads every id in an archive as a UUID and refuses the whole file otherwise, so this
+     * device's `local-` ids go out as the UUIDs they wrap, the same in every place they appear.
+     */
+    @Test
+    fun `this device's own ids go out as UUIDs a server can read`() {
+        val noteId = PendingOp.newTempId()
+        val listId = PendingOp.newTempId()
+        val mediaId = UUID.randomUUID().toString()
+        val bytes = ByteArray(16) { it.toByte() }
+        val content = buildStandaloneArchive(
+            notes = listOf(NoteDto(id = noteId, title = "phone note", checklistItems = emptyList(), listIds = listOf(listId))),
+            lists = listOf(ListDto(id = listId, name = "Trip")),
+            ops = listOf(PendingOp.AttachMedia(noteId, stagedImage("p.img", bytes).absolutePath, mediaId)),
+            appVersion = "1.0.0",
+            exportedAtUtc = "now",
+            probe = probe,
+        )
+
+        val note = content.manifest.notes.single()
+        val list = content.manifest.lists.single()
+        for (id in listOf(note.id, list.id, note.media.single().id) + note.listIds) UUID.fromString(id)
+        assertEquals(noteId.removePrefix(PendingOp.TEMP_ID_PREFIX), note.id)
+        assertEquals(listOf(list.id), note.listIds)
+
+        val zipFile = temp.newFile("phone.zip")
+        zipFile.outputStream().use { out -> ArchiveWriter.write(out, content) }
+        val opened = ArchiveReader.open(zipFile) as OpenArchiveResult.Opened
+        opened.archive.use { archive ->
+            assertTrue(bytes.contentEquals(archive.openImage(note.id, mediaId)!!.use { it.readBytes() }))
+        }
+    }
+
+    // ---- what released versions wrote ----
+
+    /**
+     * A real export from keepIT 0.9.2, written by that server on its built-in database, so its
+     * dates carry no `Z`. It lives with the API's tests, which import it into the server; a phone
+     * without a server imports it itself, so here it has to open and read back whole.
+     */
+    @Test
+    fun `an export from keepIT 0_9_2 reads back whole`() {
+        val file = File("../../keepIT/keepITCore.Tests/Archives/keepit-export-0.9.2.zip")
+        assertTrue("keepit-export-0.9.2.zip not found at ${file.absolutePath}", file.isFile)
+
+        val opened = ArchiveReader.open(file)
+        assertTrue(opened is OpenArchiveResult.Opened)
+        (opened as OpenArchiveResult.Opened).archive.use { archive ->
+            val manifest = archive.manifest
+            assertEquals("0.9.2+15f5a75", manifest.appVersion)
+            assertEquals(listOf("Kitchen", "Trip"), manifest.lists.map { it.name }.sorted())
+            assertEquals("🧳", manifest.lists.single { it.name == "Trip" }.icon)
+            assertEquals(7, manifest.notes.size)
+            fun note(title: String) = manifest.notes.single { it.title == title }
+
+            val packing = note("Packing")
+            assertTrue(packing.isPinned)
+            assertEquals("Weekly", packing.reminderRecurrence)
+            assertEquals(Instant.parse("2040-01-02T07:00:00Z").toEpochMilli(), epochMsOrNull(packing.remindAtUtc!!))
+            assertNull(packing.reminderTimeZone)
+            assertNull(packing.reminderFirstAtUtc)
+            val photo = packing.media.single()
+            assertEquals(MediaKinds.IMAGE, photo.kind)
+            assertEquals(64 to 48, photo.width to photo.height)
+
+            assertEquals(listOf("milk", "eggs", "bread"), note("Groceries").checklistItems.sortedBy { it.order }.map { it.text })
+            assertEquals("Monthly", note("Groceries").reminderRecurrence)
+
+            val voice = note("Voice memo").media.single()
+            assertEquals(MediaKinds.AUDIO, voice.kind)
+            assertEquals(1500, voice.durationMs)
+
+            assertTrue(note("Old idea").isArchived)
+            assertTrue(note("Discarded").isTrashed)
+
+            // Every attachment the manifest names is in the archive, whole.
+            for (n in manifest.notes) for (media in n.media) {
+                val bytes = archive.openImage(n.id, media.id)!!.use { it.readBytes() }
+                assertEquals(media.byteSize, bytes.size.toLong())
+            }
+        }
     }
 
     // ---- what the reader refuses ----

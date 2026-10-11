@@ -1327,11 +1327,13 @@ than cloned, which destroys nothing and keeps the sidebar usable across repeated
 Matching notes by id ("restore over the top") is a later mode, once the format has mileage.
 
 Timestamps are preserved (a restore that claimed every note was written today would sort the grid
-into nonsense), and per-user state — pin/archive/trash, list membership, reminders — is restored
-as the *importer's* own. One wrinkle worth knowing: a **one-time reminder whose moment has
-already passed imports as already fired**, or restoring a year-old backup would hand the
-dispatcher every overdue reminder at once and the user would get a notification storm for things
-they dealt with long ago. Recurring ones need no help — the dispatcher advances them.
+into nonsense), read as UTC whatever the file says: a server on SQLite writes its times without a
+zone, and PostgreSQL refuses one that doesn't say UTC. Per-user state — pin/archive/trash, list
+membership, reminders — is restored as the *importer's* own. One wrinkle worth knowing: a
+**one-time reminder whose moment has already passed imports as already fired**, or restoring a
+year-old backup would hand the dispatcher every overdue reminder at once and the user would get
+a notification storm for things they dealt with long ago. Recurring ones need no help — the
+dispatcher advances them.
 
 **An archive is a file from the internet.** Ids in it are never reused; file names in it never
 reach the disk (entries are matched by the ids in their path and rewritten under server-generated
@@ -1362,7 +1364,11 @@ only thing standalone mode changes:
   cache and the **outbox**. That last part is the wrinkle: a standalone note's images are not on
   the note at all (`NoteDto.media` is empty) but are still queued `AttachMedia` ops pointing at
   staged files, so each note gains the media rows its staged bytes justify — and only those,
-  because promising an image the archive doesn't carry is worse than leaving it out.
+  because promising an image the archive doesn't carry is worse than leaving it out. Ids go out
+  as plain UUIDs, without the `local-` prefix of a note or list the phone made, because a server
+  reads every id in an archive as a UUID and refuses the file otherwise. The reader, in turn,
+  matches media ids as UUIDs rather than text: the server names an entry by the id without
+  hyphens and lists it with them.
 - **Standalone import** replays the archive as ordinary local edits through `NotesRepository`, so
   every restored note and image also lands in the outbox: connect a server later and the whole
   restored set uploads into the account, which is the promise standalone mode already makes.

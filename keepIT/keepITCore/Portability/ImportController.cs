@@ -259,7 +259,7 @@ public class ImportController : ControllerBase
                 Name = name,
                 Color = ValidColor(source.Color),
                 Icon = ValidIcon(source.Icon),
-                CreatedAtUtc = source.CreatedAtUtc == default ? DateTime.UtcNow : source.CreatedAtUtc,
+                CreatedAtUtc = ArchivedTime(source.CreatedAtUtc, DateTime.UtcNow),
             };
             _db.Lists.Add(list);
 
@@ -306,8 +306,8 @@ public class ImportController : ControllerBase
             Color = ValidColor(source.Color),
             // Kept, not reset: a restored backup that claimed every note was written today would
             // sort the grid into nonsense.
-            CreatedAtUtc = source.CreatedAtUtc == default ? now : source.CreatedAtUtc,
-            UpdatedAtUtc = source.UpdatedAtUtc == default ? now : source.UpdatedAtUtc,
+            CreatedAtUtc = ArchivedTime(source.CreatedAtUtc, now),
+            UpdatedAtUtc = ArchivedTime(source.UpdatedAtUtc, now),
         };
 
         var items = source.ChecklistItems.OrderBy(c => c.Order).ToList();
@@ -388,6 +388,14 @@ public class ImportController : ControllerBase
     /// <summary>A name cut to a length a warning can show in full.</summary>
     private static string Shorten(string text) =>
         text.Length <= 60 ? text : NoteLimits.Cut(text, 60).TrimEnd() + "…";
+
+    /// <summary>
+    /// A time from the archive, as UTC, or <paramref name="missing"/> when it has none. A server on
+    /// SQLite writes its times without a zone, and PostgreSQL refuses one that doesn't say UTC, so
+    /// an export from a single container would otherwise fail to import into Compose.
+    /// </summary>
+    private static DateTime ArchivedTime(DateTime value, DateTime missing) =>
+        value == default ? missing : ReminderSchedule.AsUtc(value);
 
     /// <summary>
     /// A colour key that fits its column, or none. Colours are keys into the clients' palettes,
@@ -515,7 +523,7 @@ public class ImportController : ControllerBase
             Height = image.Height,
             ByteSize = byteSize,
             Order = order,
-            CreatedAtUtc = archived.CreatedAtUtc == default ? DateTime.UtcNow : archived.CreatedAtUtc,
+            CreatedAtUtc = ArchivedTime(archived.CreatedAtUtc, DateTime.UtcNow),
         };
     }
 
@@ -549,7 +557,7 @@ public class ImportController : ControllerBase
             DurationMs = audio.DurationMs,
             ByteSize = byteSize,
             Order = order,
-            CreatedAtUtc = archived.CreatedAtUtc == default ? DateTime.UtcNow : archived.CreatedAtUtc,
+            CreatedAtUtc = ArchivedTime(archived.CreatedAtUtc, DateTime.UtcNow),
         };
     }
 

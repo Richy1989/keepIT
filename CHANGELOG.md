@@ -32,6 +32,12 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   to the 31st slipped to the 28th after February and stayed there. Now each reminder keeps the
   time zone of the device that set it: 08:00 stays 08:00, and the 31st comes back. Web and Android.
 - "Support keepIT" in About, on the web and on Android, led to the wrong Buy Me A Coffee page — fixed.
+- Importing an export from a server on the built-in database into one on PostgreSQL (moving from
+  the single container to Compose, say) failed with an error — fixed.
+- On Android without a server, importing an export from a server left out every photo and voice
+  note — fixed.
+- On Android without a server, a saved copy of your notes couldn't be imported into a keepIT
+  server — fixed for copies saved with this version or later.
 
 ### 📦 Deployment & Docs
 
