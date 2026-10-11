@@ -94,6 +94,7 @@ import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteLimits
+import org.hyperstarit.keepitapp.data.splitPastedRow
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.AudioRecorder
 import org.hyperstarit.keepitapp.data.MediaKinds
@@ -107,12 +108,16 @@ import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 /**
  * A checklist row being edited. `id` is kept so the server reconciles instead of recreating;
  * `localId` is a stable client key (for focus targeting) since new rows have no server id yet.
+ *
+ * The text is held with its caret ([value]), not as a bare String, so that a row made by a paste
+ * can say where the caret goes: behind what was pasted, [caret], rather than at the row's start.
  */
-private class EditableItem(id: String?, text: String, isChecked: Boolean) {
+private class EditableItem(id: String?, text: String, isChecked: Boolean, caret: Int = text.length) {
     val id = id
     val localId = nextLocalId++
     val focusRequester = FocusRequester()
-    var text by mutableStateOf(text)
+    var value by mutableStateOf(TextFieldValue(text, TextRange(caret)))
+    val text: String get() = value.text
     var isChecked by mutableStateOf(isChecked)
 
     companion object {
@@ -262,6 +267,24 @@ fun EditorScreen(
         val newItem = EditableItem(null, "", false)
         items.add((index + 1).coerceAtMost(items.size), newItem)
         focusTargetLocalId = newItem.localId
+    }
+
+    // Text with line breaks arrived in the row at [index]: a paste, since the keyboard's Enter is
+    // the "next" action and never types one. Each line becomes a row (see [splitPastedRow]), where
+    // the one-line field would otherwise keep them all, and the caret ends up behind the paste.
+    fun pasteRows(index: Int, pasted: TextFieldValue) {
+        val end = pasted.selection.max.coerceIn(0, pasted.text.length)
+        val split = splitPastedRow(
+            head = pasted.text.substring(0, end),
+            tail = pasted.text.substring(end),
+            room = (NoteLimits.CHECKLIST_ITEMS - items.size).coerceAtLeast(0),
+        )
+        val added = split.rows.drop(1).map { EditableItem(null, it, false) }
+        val last = added.lastOrNull() ?: items[index]
+        items[index].value = TextFieldValue(split.rows.first(), TextRange(split.rows.first().length))
+        last.value = TextFieldValue(last.text, TextRange(split.caret))
+        items.addAll(index + 1, added)
+        if (added.isNotEmpty()) focusTargetLocalId = last.localId
     }
 
     fun switchToChecklist() {
@@ -799,8 +822,11 @@ fun EditorScreen(
                                 ),
                             )
                             TextField(
-                                value = item.text,
-                                onValueChange = { item.text = NoteLimits.cut(it, NoteLimits.CHECKLIST_ITEM_TEXT) },
+                                value = item.value,
+                                onValueChange = {
+                                    if (it.text.any { c -> c == '\n' || c == '\r' }) pasteRows(index, it)
+                                    else item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
+                                },
                                 placeholder = { Text("List item", color = KeepItColors.TextFaint) },
                                 readOnly = !canEdit,
                                 singleLine = true,

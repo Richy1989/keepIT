@@ -25,3 +25,48 @@ export function checklistRows(items: ChecklistItemDto[]): ChecklistRow[] {
 export function checklistForDisplay(items: ChecklistItemDto[]): ChecklistItemDto[] {
   return checklistRows(items).map((r) => r.item);
 }
+
+/** Rows in one checklist: the server's `NoteLimits.ChecklistItems`, which a save past it is refused for. */
+export const MAX_CHECKLIST_ITEMS = 500;
+
+/** One row's text, in UTF-16 code units: the server's `NoteLimits.ChecklistItemText`. */
+export const MAX_CHECKLIST_ITEM_TEXT = 2000;
+
+/** `text` cut to at most `max` code units, never ending on half a surrogate pair (`NoteLimits.Cut`). */
+function cut(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
+/**
+ * What a paste with line breaks makes of the checklist row it lands in: **each line a row of its
+ * own**, as the same text pasted into a document would read. A row's `<input>` holds one line, so
+ * the browser would otherwise flatten the lot into that row.
+ *
+ * `head` is the row's text up to the caret with the pasted text added, `tail` is what followed the
+ * caret, and `room` is how many more rows the checklist can take. The first of `rows` replaces the
+ * row pasted into and the others go below it; `caret` is where the pasted text ends in the last
+ * one. Blank lines make no rows and each row is trimmed, since the note is saved that way anyway.
+ *
+ * Nothing the server would refuse comes out: lines past `room` are left out (what followed the
+ * caret then stays behind the last line kept, never dropped with them), and a row is cut to what a
+ * row holds. A refused save is rolled back, so one row too many would cost the whole edit.
+ *
+ * `checklistPaste.json` holds the cases; the Android app's `splitPastedRow` (`data/Checklist.kt`)
+ * is held to the same file, so a paste reads the same on both.
+ */
+export function splitPastedRow(head: string, tail: string, room: number): { rows: string[]; caret: number } {
+  const lines = head.split(/\r\n|\r|\n/);
+  const filled = (texts: string[]) => texts.map((text) => text.trim()).filter(Boolean);
+
+  let rows = filled([...lines.slice(0, -1), lines[lines.length - 1] + tail]);
+  if (rows.length > room + 1) {
+    rows = filled(lines).slice(0, room + 1);
+    rows[rows.length - 1] = (rows[rows.length - 1] + tail).trimEnd();
+  }
+  if (rows.length === 0) rows = [''];
+  rows = rows.map((row) => cut(row, MAX_CHECKLIST_ITEM_TEXT));
+
+  return { rows, caret: Math.max(0, rows[rows.length - 1].length - tail.trimEnd().length) };
+}

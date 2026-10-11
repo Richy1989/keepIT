@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { cn } from '../../lib/cn';
 import { CheckIcon, GripVerticalIcon, PlusIcon, XIcon } from '../../components/icons';
-import { checklistRows } from './checklist';
+import { MAX_CHECKLIST_ITEMS, checklistRows, splitPastedRow } from './checklist';
 import type { ChecklistItemDto } from '../../api/types';
 
 /**
@@ -23,7 +23,12 @@ import type { ChecklistItemDto } from '../../api/types';
  * on close (the server renumbers `Order` from the array index).
  *
  * Keyboard: Enter adds a new row below the current one and focuses it; Backspace on an empty row
- * removes it and moves the caret to the previous row.
+ * removes it and moves the caret to the previous row. Pasting several lines makes a row of each
+ * (see `splitPastedRow`), where the row's one-line `<input>` would flatten them into itself.
+ *
+ * A checklist holds `MAX_CHECKLIST_ITEMS` rows, the server's limit: at it "Add item" gives way to a
+ * line saying so, and neither Enter nor a paste adds more. A save past it would be refused and
+ * rolled back, taking the rest of the edit with it.
  */
 export function ChecklistEditor({
   items,
@@ -38,21 +43,26 @@ export function ChecklistEditor({
 
   // Refs to each row's text input (by display position), plus a pending one to focus after a row is
   // added. Using a ref (not state) for the pending index keeps the focus side-effect out of React's
-  // render/state cycle.
+  // render/state cycle. A paste also says where in that row the caret goes: behind what it pasted.
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const pendingFocus = useRef<number | null>(null);
+  const pendingCaret = useRef<number | null>(null);
 
-  // After items change, focus a freshly-added row if one is pending (Enter / "Add item").
+  // After items change, focus a freshly-added row if one is pending (Enter / "Add item" / a paste).
   useEffect(() => {
     if (pendingFocus.current === null) return;
-    inputRefs.current[pendingFocus.current]?.focus();
+    const input = inputRefs.current[pendingFocus.current];
+    input?.focus();
+    if (pendingCaret.current !== null) input?.setSelectionRange(pendingCaret.current, pendingCaret.current);
     pendingFocus.current = null;
+    pendingCaret.current = null;
   }, [items]);
 
   const rows = checklistRows(items);
   // Display position of the first checked row: "Add item" goes right before it.
   const firstChecked = rows.findIndex((r) => r.item.isChecked);
   const addAt = firstChecked === -1 ? rows.length : firstChecked;
+  const full = items.length >= MAX_CHECKLIST_ITEMS;
 
   const update = (stored: number, patch: Partial<ChecklistItemDto>) =>
     onChange(items.map((it, idx) => (idx === stored ? { ...it, ...patch } : it)));
@@ -63,6 +73,7 @@ export function ChecklistEditor({
     checklistRows(next).findIndex((r) => r.index === stored);
 
   function add() {
+    if (full) return;
     const next = [...items, { id: null, text: '', isChecked: false, order: items.length }];
     pendingFocus.current = displayPositionOf(next, next.length - 1);
     onChange(next);
@@ -70,10 +81,35 @@ export function ChecklistEditor({
 
   /** Inserts a new empty item right after the item stored at `stored`, renumbers `order`, focuses it. */
   function insertAfter(stored: number) {
+    if (full) return;
     const next = [...items];
     next.splice(stored + 1, 0, { id: null, text: '', isChecked: false, order: 0 });
     // The new row is unchecked, so it isn't necessarily displayed directly below the current row.
     pendingFocus.current = displayPositionOf(next, stored + 1);
+    onChange(next.map((it, idx) => ({ ...it, order: idx })));
+  }
+
+  /**
+   * Pastes text with line breaks into the row stored at `stored`, whose input has the selection
+   * `start`–`end`: the selection is replaced, each line becomes a row (see `splitPastedRow`), and
+   * the caret ends up behind the last thing pasted.
+   */
+  function pasteLines(stored: number, start: number, end: number, text: string) {
+    const row = items[stored].text;
+    const { rows: texts, caret } = splitPastedRow(
+      row.slice(0, start) + text,
+      row.slice(end),
+      MAX_CHECKLIST_ITEMS - items.length,
+    );
+    const next = [...items];
+    next[stored] = { ...next[stored], text: texts[0] };
+    next.splice(
+      stored + 1,
+      0,
+      ...texts.slice(1).map((text) => ({ id: null, text, isChecked: false, order: 0 })),
+    );
+    pendingFocus.current = displayPositionOf(next, stored + texts.length - 1);
+    pendingCaret.current = caret;
     onChange(next.map((it, idx) => ({ ...it, order: idx })));
   }
 
@@ -117,7 +153,11 @@ export function ChecklistEditor({
     setOverIndex(null);
   }
 
-  const addButton = (
+  const addButton = full ? (
+    <p key="add-item" className="py-0.5 text-xs text-text-muted">
+      A checklist holds up to {MAX_CHECKLIST_ITEMS} items.
+    </p>
+  ) : (
     <button
       key="add-item"
       type="button"
@@ -181,6 +221,15 @@ export function ChecklistEditor({
             }}
             value={it.text}
             onChange={(e) => update(stored, { text: e.target.value })}
+            onPaste={(e) => {
+              // One line is the browser's to paste, and a copied picture is the note's to attach
+              // (the composer and the editor take it from the same event, further up).
+              const text = e.clipboardData.getData('text/plain');
+              if (!/[\r\n]/.test(text) || e.clipboardData.files.length > 0) return;
+              e.preventDefault();
+              const input = e.currentTarget;
+              pasteLines(stored, input.selectionStart ?? it.text.length, input.selectionEnd ?? it.text.length, text);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
