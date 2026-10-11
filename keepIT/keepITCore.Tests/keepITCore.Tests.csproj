@@ -26,6 +26,8 @@
   <ItemGroup>
     <!-- Shared with the Android app's tests, which read it from here (see ReminderScheduleTests). -->
     <None Include="ReminderOccurrences.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Exports written by released versions, which every later one must import (see ImportTests). -->
+    <None Include="Archives/*.zip" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

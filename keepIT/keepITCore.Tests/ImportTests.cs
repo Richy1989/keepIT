@@ -1,9 +1,11 @@
+using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using keepITCore.Notes;
 using keepITCore.Tests.TestHost;
 
 namespace keepITCore.Tests;
@@ -182,6 +184,126 @@ public sealed class ImportTests
         var image = await target.GetAsync($"/api/notes/{newNoteId}/media/{newMediaId}");
         Assert.Equal(HttpStatusCode.OK, image.StatusCode);
         Assert.Equal((40, 30), TestImages.SizeOf(await image.Content.ReadAsByteArrayAsync()));
+    }
+
+    /// <summary>
+    /// A real export from keepIT 0.9.2, the last release before 1.0's clean start: moving to 1.0 is
+    /// export, start clean, import, so this file has to arrive whole. It was written by v0.9.2
+    /// itself, on the built-in database (whose dates carry no <c>Z</c>), from an account filled
+    /// through its API: lists with and without an icon, a pinned note in a list with a photo, a
+    /// checklist in two lists, a voice note, an archived and a trashed note, and reminders weekly,
+    /// monthly on the 31st, one-time ahead and one-time past. 0.9.2 kept no zone or first
+    /// occurrence for a reminder, so those come from the server.
+    /// </summary>
+    [Fact]
+    public async Task An_export_from_keepIT_0_9_2_imports_whole()
+    {
+        var archive = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Archives", "keepit-export-0.9.2.zip"));
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+
+        var result = await ImportOkAsync(client, archive);
+
+        Assert.Equal(7, result.GetProperty("notesImported").GetInt32());
+        Assert.Equal(2, result.GetProperty("listsCreated").GetInt32());
+        Assert.Equal(2, result.GetProperty("attachmentsImported").GetInt32());
+        Assert.Equal(0, result.GetProperty("attachmentsSkipped").GetInt32());
+        Assert.Empty(result.GetProperty("warnings").EnumerateArray());
+
+        var lists = (await client.GetFromJsonAsync<JsonElement>("/api/lists")).EnumerateArray().ToArray();
+        var trip = Assert.Single(lists, l => l.GetProperty("name").GetString() == "Trip");
+        var kitchen = Assert.Single(lists, l => l.GetProperty("name").GetString() == "Kitchen");
+        Assert.Equal("teal", trip.GetProperty("color").GetString());
+        Assert.Equal("🧳", trip.GetProperty("icon").GetString());
+        Assert.Equal(JsonValueKind.Null, kitchen.GetProperty("icon").ValueKind);
+        var tripId = trip.GetProperty("id").GetString();
+        var kitchenId = kitchen.GetProperty("id").GetString();
+
+        var grid = await GridAsync(client);
+        Assert.Equal(
+            new[] { "Called back", "Dentist", "Groceries", "Packing", "Voice memo" },
+            grid.Select(n => n.GetProperty("title").GetString()).Order());
+
+        var packing = NoteWithTitle(grid, "Packing");
+        Assert.Equal("**Passport**, charger\n\n- socks\n- [x] tickets", packing.GetProperty("body").GetString());
+        Assert.Equal("amber", packing.GetProperty("color").GetString());
+        Assert.True(packing.GetProperty("isPinned").GetBoolean());
+        Assert.Equal(new[] { tripId }, packing.GetProperty("listIds").EnumerateArray().Select(i => i.GetString()));
+        AssertReminder(packing, "Weekly", "2040-01-02T07:00:00Z");
+
+        var photo = Assert.Single(packing.GetProperty("media").EnumerateArray());
+        Assert.Equal("Image", photo.GetProperty("kind").GetString());
+        Assert.Equal((64, 48), (photo.GetProperty("width").GetInt32(), photo.GetProperty("height").GetInt32()));
+        var image = await client.GetAsync($"/api/notes/{packing.GetProperty("id")}/media/{photo.GetProperty("id")}");
+        Assert.Equal(HttpStatusCode.OK, image.StatusCode);
+        Assert.Equal((64, 48), TestImages.SizeOf(await image.Content.ReadAsByteArrayAsync()));
+
+        var groceries = NoteWithTitle(grid, "Groceries");
+        Assert.Equal("Checklist", groceries.GetProperty("type").GetString());
+        Assert.Equal("sage", groceries.GetProperty("color").GetString());
+        var items = groceries.GetProperty("checklistItems").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "milk", "eggs", "bread" }, items.Select(i => i.GetProperty("text").GetString()));
+        Assert.Equal(new[] { true, false, false }, items.Select(i => i.GetProperty("isChecked").GetBoolean()));
+        Assert.Equal(
+            new[] { kitchenId, tripId }.Order(),
+            groceries.GetProperty("listIds").EnumerateArray().Select(i => i.GetString()).Order());
+        AssertReminder(groceries, "Monthly", "2040-01-31T08:00:00Z");
+
+        // Audio is stored as uploaded, so the recording comes back byte for byte.
+        var memo = NoteWithTitle(grid, "Voice memo");
+        Assert.Equal("Call the plumber", memo.GetProperty("body").GetString());
+        var voice = Assert.Single(memo.GetProperty("media").EnumerateArray());
+        Assert.Equal("Audio", voice.GetProperty("kind").GetString());
+        Assert.Equal(1500, voice.GetProperty("durationMs").GetInt32());
+        var recording = await client.GetAsync($"/api/notes/{memo.GetProperty("id")}/media/{voice.GetProperty("id")}");
+        Assert.Equal(HttpStatusCode.OK, recording.StatusCode);
+        Assert.Equal(ArchivedRecording(archive), await recording.Content.ReadAsByteArrayAsync());
+
+        AssertReminder(NoteWithTitle(grid, "Dentist"), "None", "2040-03-01T09:30:00Z");
+        Assert.False(NoteWithTitle(grid, "Dentist").GetProperty("reminderFired").GetBoolean());
+        Assert.True(NoteWithTitle(grid, "Called back").GetProperty("reminderFired").GetBoolean());
+
+        var old = Assert.Single(await GridAsync(client, "archived"));
+        Assert.Equal("Old idea", old.GetProperty("title").GetString());
+        Assert.Equal("violet", old.GetProperty("color").GetString());
+        Assert.Equal("Discarded", Assert.Single(await GridAsync(client, "trashed")).GetProperty("title").GetString());
+
+        // Dates without a Z are UTC, as 0.9.2 meant them: every note keeps the time it was written
+        // (to the microsecond PostgreSQL keeps).
+        using var zip = new ZipArchive(new MemoryStream(archive));
+        using var manifest = JsonDocument.Parse(zip.GetEntry("keepit-export.json")!.Open());
+        var written = manifest.RootElement.GetProperty("notes").EnumerateArray()
+            .ToDictionary(n => n.GetProperty("title").GetString()!, n => Utc(n.GetProperty("createdAtUtc").GetString()!));
+        foreach (var note in grid)
+        {
+            Assert.Equal(
+                written[note.GetProperty("title").GetString()!],
+                Utc(note.GetProperty("createdAtUtc").GetString()!),
+                TimeSpan.FromMilliseconds(1));
+        }
+    }
+
+    /// <summary>A 0.9.2 reminder: as it was set, counted from there, on the server's clock.</summary>
+    private static void AssertReminder(JsonElement note, string recurrence, string remindAtUtc)
+    {
+        Assert.Equal(recurrence, note.GetProperty("reminderRecurrence").GetString());
+        Assert.Equal(Utc(remindAtUtc), Utc(note.GetProperty("remindAtUtc").GetString()!));
+        Assert.Equal(Utc(remindAtUtc), Utc(note.GetProperty("reminderFirstAtUtc").GetString()!));
+        Assert.Equal(ReminderSchedule.Default.Id, note.GetProperty("reminderTimeZone").GetString());
+    }
+
+    /// <summary>An ISO date as UTC; one without a zone is UTC, as the API means it.</summary>
+    private static DateTime Utc(string iso) =>
+        DateTime.Parse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
+
+    /// <summary>The voice note's bytes as they are in the archive.</summary>
+    private static byte[] ArchivedRecording(byte[] archive)
+    {
+        using var zip = new ZipArchive(new MemoryStream(archive));
+        using var stream = zip.Entries.Single(e => e.FullName.EndsWith(".m4a", StringComparison.Ordinal)).Open();
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        return copy.ToArray();
     }
 
     /// <summary>

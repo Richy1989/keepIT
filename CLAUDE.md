@@ -36,7 +36,10 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
   mirror of a DTO to the archive, and never let export project a note by any route other than
   `NoteProjection.ToDto`. Bump `NoteArchiveDto.CurrentSchemaVersion` when a change would stop an
   older importer reading the file, and keep the round-trip tests green — they are the format's
-  only specification, since a file format can't live in the OpenAPI document.
+  only specification, since a file format can't live in the OpenAPI document. Every 1.x imports
+  every older export: `keepITCore.Tests/Archives/` holds real exports from released versions,
+  which `ImportTests` imports into the server and the app's `ArchiveTest` reads, so never edit
+  one, and add one when a release changes what an export holds.
 - **A note's attachments are one list of two kinds.** `NoteMedia.Kind` (`Image`/`Audio`) — never a
   second table, and never renumber the kinds: the column holds the number. Audio is
   stored **byte for byte as uploaded** (no encoder in the container), so identifying it by

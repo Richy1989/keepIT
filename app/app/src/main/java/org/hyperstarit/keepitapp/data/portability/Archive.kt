@@ -60,6 +60,16 @@ object Archive {
         "media/$noteId/$mediaId$extension"
 
     /**
+     * An id as a media entry is matched to its manifest row. The server names an entry by the
+     * media id without hyphens (`media/<note id>/<32 hex digits>.jpg`) while its manifest writes
+     * the id with them, so a UUID compares the same in either form, as the server's own importer
+     * reads it; any other id (this device's `local-…` ones) compares as it is.
+     */
+    fun idKey(id: String): String = if (uuid.matches(id)) id.replace("-", "").lowercase() else id
+
+    private val uuid = Regex("[0-9a-fA-F]{32}|[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
+
+    /**
      * The (note id, media id) a media entry's path encodes, or null when the entry is not one.
      *
      * The ids are parsed out of the path and never used as a path themselves — an imported entry's
@@ -124,6 +134,10 @@ data class AttachmentInfo(
  * leaving it out. Voice notes ride the same path: an attachment is an attachment to the outbox,
  * which is what let recording reuse every bit of the offline machinery unchanged.
  *
+ * Ids are written as plain UUIDs. This device's own are `local-<uuid>` until a server assigns one,
+ * and a server reads every id in an archive as a UUID, so with the prefix it couldn't import the
+ * file at all.
+ *
  * @param probe identifies a staged file; null when it is neither a readable image nor audio, in
  *   which case it is left out rather than promised.
  */
@@ -141,8 +155,9 @@ fun buildStandaloneArchive(
 
     val images = mutableListOf<ArchiveImage>()
 
-    val manifestNotes = notes.map { note ->
-        val attachments = attachmentsByNote[note.id].orEmpty()
+    val manifestNotes = notes.map { local ->
+        val note = local.copy(id = archiveId(local.id), listIds = local.listIds.map(::archiveId))
+        val attachments = attachmentsByNote[local.id].orEmpty()
         if (attachments.isEmpty()) return@map note.copy(media = emptyList())
 
         val media = mutableListOf<NoteMediaDto>()
@@ -170,12 +185,15 @@ fun buildStandaloneArchive(
         manifest = NoteArchiveDto(
             exportedAtUtc = exportedAtUtc,
             appVersion = appVersion,
-            lists = lists,
+            lists = lists.map { it.copy(id = archiveId(it.id)) },
             notes = manifestNotes,
         ),
         images = images,
     )
 }
+
+/** An id as an archive carries it: a plain UUID, without this device's `local-` prefix. */
+private fun archiveId(id: String): String = id.removePrefix(PendingOp.TEMP_ID_PREFIX)
 
 /** Writes an [ArchiveContent] as a zip. */
 object ArchiveWriter {
@@ -210,8 +228,8 @@ object ArchiveWriter {
 }
 
 /**
- * An opened archive: its manifest, and the image entries it carries keyed by the ids in their path.
- * Holds the [ZipFile] open, so callers close it.
+ * An opened archive: its manifest, and the image entries it carries keyed by the ids in their path
+ * (each as [Archive.idKey] puts it). Holds the [ZipFile] open, so callers close it.
  */
 class ReadArchive(
     private val zip: ZipFile,
@@ -220,13 +238,15 @@ class ReadArchive(
 ) : AutoCloseable {
 
     /** The declared uncompressed size of one image, or null when the archive doesn't carry it. */
-    fun imageSize(noteId: String, mediaId: String): Long? = media[noteId to mediaId]?.size
+    fun imageSize(noteId: String, mediaId: String): Long? = media[key(noteId, mediaId)]?.size
 
     /** Opens one image's bytes, or null when the archive doesn't carry it. */
     fun openImage(noteId: String, mediaId: String): InputStream? =
-        media[noteId to mediaId]?.let { zip.getInputStream(it) }
+        media[key(noteId, mediaId)]?.let { zip.getInputStream(it) }
 
     override fun close() = zip.close()
+
+    private fun key(noteId: String, mediaId: String) = Archive.idKey(noteId) to Archive.idKey(mediaId)
 }
 
 /** Why an archive could not be opened — each maps to a message the user can act on. */
@@ -290,7 +310,11 @@ object ArchiveReader {
             }
 
             val media = zip.entries().asSequence()
-                .mapNotNull { e -> Archive.parseMediaPath(e.name)?.let { it to e } }
+                .mapNotNull { e ->
+                    Archive.parseMediaPath(e.name)?.let { (noteId, mediaId) ->
+                        (Archive.idKey(noteId) to Archive.idKey(mediaId)) to e
+                    }
+                }
                 .toMap()
 
             keepOpen = true
