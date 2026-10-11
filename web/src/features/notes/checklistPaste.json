@@ -1,0 +1,82 @@
+[
+  {
+    "name": "three lines into an empty row are three rows (issue #22)",
+    "head": "1 yellow onion\n2 cloves garlic\n1 15oz. can petite diced tomatoes",
+    "tail": "",
+    "room": 499,
+    "rows": ["1 yellow onion", "2 cloves garlic", "1 15oz. can petite diced tomatoes"],
+    "caret": 33
+  },
+  {
+    "name": "the first line continues the row, and what followed the caret follows the last line",
+    "head": "abx\ny\nz",
+    "tail": "cd",
+    "room": 499,
+    "rows": ["abx", "y", "zcd"],
+    "caret": 1
+  },
+  {
+    "name": "Windows and old Mac line endings count as one break each",
+    "head": "a\r\nb\rc",
+    "tail": "",
+    "room": 499,
+    "rows": ["a", "b", "c"],
+    "caret": 1
+  },
+  {
+    "name": "blank lines make no rows, and indentation is dropped",
+    "head": "  milk  \n\n\t eggs\n   \nbread",
+    "tail": "",
+    "room": 499,
+    "rows": ["milk", "eggs", "bread"],
+    "caret": 5
+  },
+  {
+    "name": "after a trailing line break, what followed the caret gets a row of its own",
+    "head": "abx\ny\n",
+    "tail": "cd",
+    "room": 499,
+    "rows": ["abx", "y", "cd"],
+    "caret": 0
+  },
+  {
+    "name": "one line with a trailing line break stays one row",
+    "head": "milk\n",
+    "tail": "",
+    "room": 499,
+    "rows": ["milk"],
+    "caret": 4
+  },
+  {
+    "name": "a line break alone splits the row at the caret",
+    "head": "ab\n",
+    "tail": "cd",
+    "room": 499,
+    "rows": ["ab", "cd"],
+    "caret": 0
+  },
+  {
+    "name": "nothing but line breaks leaves an empty row empty",
+    "head": "\n\n",
+    "tail": "",
+    "room": 499,
+    "rows": [""],
+    "caret": 0
+  },
+  {
+    "name": "lines the checklist has no room for are left out, and what followed the caret is kept",
+    "head": "a\nb\nc\nd",
+    "tail": "!",
+    "room": 1,
+    "rows": ["a", "b!"],
+    "caret": 1
+  },
+  {
+    "name": "a full checklist takes the first line only",
+    "head": "x\ny",
+    "tail": "",
+    "room": 0,
+    "rows": ["x"],
+    "caret": 1
+  }
+]

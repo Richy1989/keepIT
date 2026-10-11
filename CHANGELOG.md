@@ -48,6 +48,10 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   at every start. It was harmless (a kind of encryption keepIT never uses) and is gone now.
 - A PostgreSQL password containing `;` stopped keepIT from starting, with Compose or with the
   `POSTGRES_*` settings — fixed. Any password now works as typed.
+- Pasting several lines into a checklist put them all in one item. Now each line becomes an item
+  of its own, on the web and on Android. (#22)
+- On the web, a checklist with more than 500 items couldn't be saved, and the edit was lost without
+  a word. Now the editor stops at 500 items and says so, as the Android app does.
 
 ### 📦 Deployment & Docs
 
