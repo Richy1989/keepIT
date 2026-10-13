@@ -1,7 +1,8 @@
 # Seed images
 
 Sample photos the seed scripts (`../seed-dev-data.ps1` / `../seed-dev-data.sh`) attach to notes, so a
-freshly seeded dev instance exercises image attachments — and so screenshots show them.
+freshly seeded dev instance exercises image attachments — and so screenshots show them:
+`../screenshots/seed-demo.sh` builds the screenshots' demo account from the same photos.
 
 Each file is downscaled to a 2560 px long edge and stripped of metadata, which is exactly what
 `NoteMediaProcessor` does to an upload anyway; keeping the originals would only make the repo heavier

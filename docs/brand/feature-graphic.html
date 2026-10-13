@@ -9,6 +9,9 @@
 
   Colours are the app's: the forest accent fill (#41aa79), the dark canvas (#18181b), text tokens,
   and the dim theme's note backgrounds and borders (sky, amber, violet) from web/src/index.css.
+  The cards are drawn the way the app draws a note (.note-card there): the colour lit from above,
+  sinking 10% toward black at the bottom, with the note's radius and the lit top edge. Only the
+  drop shadow is the graphic's own, deeper than a card's because these float over the canvas.
 -->
 <html lang="en">
 <head>
@@ -68,9 +71,10 @@
     width: 255px;
     box-sizing: border-box;
     padding: 26px 22px;
-    border-radius: 14px;
+    border-radius: 18px;
     border: 1px solid;
-    box-shadow: 0 24px 40px -12px rgb(0 0 0 / 0.55);
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 55%, color-mix(in srgb, var(--bg), black 10%) 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 24px 40px -12px rgb(0 0 0 / 0.55);
   }
   .card .title { height: 9px; width: 130px; border-radius: 5px; background: var(--accent); opacity: 0.9; }
   .card .line { height: 7px; border-radius: 4px; background: var(--line); margin-top: 16px; }
@@ -79,9 +83,9 @@
   .box { width: 13px; height: 13px; border-radius: 3px; box-sizing: border-box; border: 2px solid var(--accent); }
   .box.done { background: var(--accent); }
 
-  .sky    { left: 592px; top: 42px;  height: 222px; transform: rotate(-4deg); background: #104566; border-color: #215d84; }
-  .amber  { left: 738px; top: 142px; height: 222px; transform: rotate(4deg);  background: #503f0e; border-color: #665114; }
-  .violet { left: 622px; top: 298px; height: 196px; transform: rotate(-3deg); background: #4e297f; border-color: #683fa1; }
+  .sky    { left: 592px; top: 42px;  height: 222px; transform: rotate(-4deg); --bg: #104566; border-color: #215d84; }
+  .amber  { left: 738px; top: 142px; height: 222px; transform: rotate(4deg);  --bg: #503f0e; border-color: #665114; }
+  .violet { left: 622px; top: 298px; height: 196px; transform: rotate(-3deg); --bg: #4e297f; border-color: #683fa1; }
 </style>
 </head>
 <body>
