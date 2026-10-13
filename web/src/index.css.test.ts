@@ -187,6 +187,16 @@ describe.each(THEMES)('theme: %s', (theme) => {
       }
     });
 
+    // The editor and the composer are painted in the note's flat colour. Their unticked boxes were
+    // outlined in --color-border-strong, at most 1.7:1 there, after the card's had moved on.
+    it.each(['default', ...NOTE_COLORS])('an unticked checkbox shows in the editor of a %s note', (color) => {
+      const bg = t[`--note-${color}-bg`];
+      expect(
+        contrast(over(t['--color-border-control'], bg), bg),
+        `checkbox outline on ${color} (${theme})`,
+      ).toBeGreaterThanOrEqual(AA_LARGE);
+    });
+
     it('a note border is visible against its own fill', () => {
       for (const color of NOTE_COLORS) {
         const ratio = contrast(t[`--note-${color}-bg`], t[`--note-${color}-border`]);

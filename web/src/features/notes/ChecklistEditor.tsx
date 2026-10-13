@@ -210,7 +210,7 @@ export function ChecklistEditor({
             onClick={() => update(stored, { isChecked: !it.isChecked })}
             className={cn(
               'grid size-4 shrink-0 place-items-center rounded border transition',
-              it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-strong hover:border-text-muted',
+              it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-control hover:border-text-muted',
             )}
           >
             {it.isChecked && <CheckIcon className="text-[10px]" />}

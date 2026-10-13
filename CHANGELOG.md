@@ -52,6 +52,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   of its own, on the web and on Android. (#22)
 - On the web, a checklist with more than 500 items couldn't be saved, and the edit was lost without
   a word. Now the editor stops at 500 items and says so, as the Android app does.
+- With a checklist open, the box of an item not yet ticked could hardly be seen against the note's
+  colour, on the web and on Android — fixed. The same goes for the boxes in Android's Lists sheet.
 
 ### 📦 Deployment & Docs
 

@@ -435,7 +435,7 @@ function ReadOnlyChecklist({ items }: { items: ChecklistItemDto[] }) {
           <span
             className={cn(
               'mt-0.5 grid size-4 shrink-0 place-items-center rounded border',
-              it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-strong',
+              it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-control',
             )}
           >
             {it.isChecked && <CheckIcon className="text-[10px]" />}
