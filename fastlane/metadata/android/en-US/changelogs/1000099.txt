@@ -1,0 +1,5 @@
+Using keepIT with a server? Export your notes under Settings → Your data before it updates to 1.0: 1.0 starts with a clean database.
+
+Note cards have a new look: rounder corners, a fill lit from above, and a note with a photo is painted on the photo itself.
+
+Fixed: repeating reminders keep their time when the clocks change, pasting several lines into a checklist makes an item of each, and the unticked boxes of an open checklist are easy to see.
