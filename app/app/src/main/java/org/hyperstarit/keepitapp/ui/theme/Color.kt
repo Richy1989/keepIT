@@ -50,8 +50,9 @@ class KeepItPalette(
     /** The wash painted over a surface: code spans and blocks in a note body. */
     val overlayHover: Color,
     /**
-     * The outline of an unticked checklist box on a note card. Translucent, so it reaches the 3:1 a
-     * control's outline needs on all ten note colours; [borderStrong] was ~1.3:1 on dark sage.
+     * The outline of an unticked box: a checklist item's on a note card and in the editor, and a
+     * list's in the Lists sheet. Translucent, so it reaches the 3:1 a control's outline needs on
+     * all ten note colours and on the sheet; [borderStrong] was ~1.3:1 on dark sage.
      */
     val borderControl: Color,
     /** A wash that raises what sits on a card: the reminder chip's fill. */

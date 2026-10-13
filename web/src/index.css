@@ -63,9 +63,10 @@
      lightbox keeps its own near-opaque backdrop — there the point is to show nothing but the photo. */
   --color-scrim: rgb(0 0 0 / 0.6);
 
-  /* The outline of an unticked checkbox on a note card. Translucent, so it reads on all ten note
-     colours: --color-border-strong, which it replaced there, was ~1.3:1 on a dark sage card, and
-     a control's outline needs 3:1. index.css.test.ts holds it to that on every colour. */
+  /* The outline of an unticked checkbox, on a note card and in the editor, which is painted in the
+     note's colour too. Translucent, so it reads on all ten note colours: --color-border-strong,
+     which it replaced, was ~1.3:1 on a dark sage card (and 1.03:1 in the editor of a light rose
+     note), and a control's outline needs 3:1. index.css.test.ts holds it to that on every colour. */
   --color-border-control: rgb(255 255 255 / 0.45);
 
   /* Two washes for things sitting *on* a note card: `lift` raises (the reminder chip's fill),

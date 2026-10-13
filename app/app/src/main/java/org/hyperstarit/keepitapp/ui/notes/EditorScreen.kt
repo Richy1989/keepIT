@@ -815,10 +815,17 @@ fun EditorScreen(
                                 checked = item.isChecked,
                                 onCheckedChange = { if (canEdit) item.isChecked = it },
                                 enabled = canEdit,
+                                // The box sits on the note's colour, where BorderStrong is at most
+                                // 1.7:1: BorderControl is the outline that shows on all of them.
+                                // A viewer's boxes are disabled and drawn the same, as the web
+                                // draws them: Material's faded default is under 3:1 on most
+                                // note colours.
                                 colors = CheckboxDefaults.colors(
                                     checkedColor = KeepItColors.Accent,
                                     checkmarkColor = Color.Black,
-                                    uncheckedColor = KeepItColors.BorderStrong,
+                                    uncheckedColor = KeepItColors.BorderControl,
+                                    disabledCheckedColor = KeepItColors.Accent,
+                                    disabledUncheckedColor = KeepItColors.BorderControl,
                                 ),
                             )
                             TextField(

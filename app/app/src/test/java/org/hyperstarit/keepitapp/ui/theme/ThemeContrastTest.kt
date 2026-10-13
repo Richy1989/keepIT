@@ -125,6 +125,21 @@ class ThemeContrastTest {
     }
 
     @Test
+    fun `an unticked box shows wherever one is drawn`() {
+        // The editor is painted in the note's flat colour and the Lists sheet in the surface. Both
+        // outlined their boxes in borderStrong, at most 1.7:1 there, after the card's had moved on
+        // to borderControl. A control's boundary needs 3:1 (WCAG 1.4.11).
+        for (p in KeepItPalette.All) {
+            for (swatch in p.notes) {
+                val outline = p.borderControl.compositeOver(swatch.bg)
+                assertContrast(outline, swatch.bg, aaLarge, "$p checkbox outline in the editor of ${swatch.key}")
+            }
+            val onSheet = p.borderControl.compositeOver(p.surface)
+            assertContrast(onSheet, p.surface, aaLarge, "$p checkbox outline on the Lists sheet")
+        }
+    }
+
+    @Test
     fun `accent icons read on every per-note background`() {
         // The pin and a ticked checklist item on a card are accentInk icons on the note's colour.
         for (p in KeepItPalette.All) {

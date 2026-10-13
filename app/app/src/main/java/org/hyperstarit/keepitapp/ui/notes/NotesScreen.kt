@@ -993,7 +993,8 @@ private fun SelectionListsSheet(
                         colors = CheckboxDefaults.colors(
                             checkedColor = KeepItColors.Accent,
                             checkmarkColor = Color.Black,
-                            uncheckedColor = KeepItColors.BorderStrong,
+                            // BorderStrong is a divider's colour: 1.7:1 at best on the sheet.
+                            uncheckedColor = KeepItColors.BorderControl,
                         ),
                     )
                     ListGlyph(list.icon, modifier = Modifier.padding(start = 20.dp))
