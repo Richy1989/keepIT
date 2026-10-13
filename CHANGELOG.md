@@ -63,6 +63,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   reminders you import from before 1.0 keep that clock.
 - The FAQ explains how to [back up and restore a whole server](FAQ.md#how-do-i-back-up-the-whole-server),
   on Unraid, as a single container and with Compose.
+- New screenshots, with the new note cards and the list icons, in the README, on F-Droid and in the
+  Unraid template.
 
 ## 0.9.2
 
