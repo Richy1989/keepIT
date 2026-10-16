@@ -15,6 +15,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -35,6 +38,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Checkbox
@@ -67,15 +71,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,6 +103,7 @@ import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteLimits
 import org.hyperstarit.keepitapp.data.splitPastedRow
+import org.hyperstarit.keepitapp.data.suggestFromChecked
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.AudioRecorder
 import org.hyperstarit.keepitapp.data.MediaKinds
@@ -111,9 +120,21 @@ import org.hyperstarit.keepitapp.ui.theme.noteSwatch
  *
  * The text is held with its caret ([value]), not as a bare String, so that a row made by a paste
  * can say where the caret goes: behind what was pasted, [caret], rather than at the row's start.
+ *
+ * [addedHere] marks a row this editor made (Add item, Enter, a paste): only such a row is offered
+ * a ticked one while it is typed (see [suggestFromChecked]), never one being edited. Taking the
+ * offer makes the row that ticked row, [id] included, so it is no longer new — the rows the web
+ * picks out by their missing id.
  */
-private class EditableItem(id: String?, text: String, isChecked: Boolean, caret: Int = text.length) {
-    val id = id
+private class EditableItem(
+    id: String?,
+    text: String,
+    isChecked: Boolean,
+    caret: Int = text.length,
+    addedHere: Boolean = false,
+) {
+    var id = id
+    var addedHere = addedHere
     val localId = nextLocalId++
     val focusRequester = FocusRequester()
     var value by mutableStateOf(TextFieldValue(text, TextRange(caret)))
@@ -190,6 +211,10 @@ fun EditorScreen(
     var showShare by remember { mutableStateOf(false) }
     // The row whose text field should grab focus next (a just-added checklist item).
     var focusTargetLocalId by remember { mutableStateOf<Long?>(null) }
+    // The new row being typed into: the one row a ticked one is offered for. Typing sets it, not
+    // focus, so the offer comes and goes with the typing; leaving the row, or anything that moves
+    // rows about, clears it.
+    var typingLocalId by remember { mutableStateOf<Long?>(null) }
 
     // The content as it was loaded, or as it was last saved; see [persist]. List membership isn't in
     // it: that is the caller's own, compared and saved on its own.
@@ -264,9 +289,27 @@ fun EditorScreen(
 
     fun addItemAfter(index: Int) {
         if (items.size >= NoteLimits.CHECKLIST_ITEMS) return
-        val newItem = EditableItem(null, "", false)
+        val newItem = EditableItem(null, "", false, addedHere = true)
         items.add((index + 1).coerceAtMost(items.size), newItem)
         focusTargetLocalId = newItem.localId
+        typingLocalId = null
+    }
+
+    fun removeItem(index: Int) {
+        items.removeAt(index)
+        typingLocalId = null
+    }
+
+    // The new row [typed] takes the ticked row [offered]: it becomes that row, unticked, in the new
+    // row's place (where the user is typing), and the ticked one is gone. The id comes along, so the
+    // server sees the item come back rather than a new one; the field stays the same, so the caret
+    // and the keyboard stay where they are.
+    fun takeOffer(typed: EditableItem, offered: EditableItem) {
+        typed.id = offered.id
+        typed.value = TextFieldValue(offered.text, TextRange(offered.text.length))
+        typed.addedHere = false
+        items.remove(offered)
+        typingLocalId = null
     }
 
     // Text with line breaks arrived in the row at [index]: a paste, since the keyboard's Enter is
@@ -279,18 +322,19 @@ fun EditorScreen(
             tail = pasted.text.substring(end),
             room = (NoteLimits.CHECKLIST_ITEMS - items.size).coerceAtLeast(0),
         )
-        val added = split.rows.drop(1).map { EditableItem(null, it, false) }
+        val added = split.rows.drop(1).map { EditableItem(null, it, false, addedHere = true) }
         val last = added.lastOrNull() ?: items[index]
         items[index].value = TextFieldValue(split.rows.first(), TextRange(split.rows.first().length))
         last.value = TextFieldValue(last.text, TextRange(split.caret))
         items.addAll(index + 1, added)
         if (added.isNotEmpty()) focusTargetLocalId = last.localId
+        typingLocalId = null
     }
 
     fun switchToChecklist() {
         type = NoteTypes.CHECKLIST
         if (items.isEmpty()) {
-            val first = EditableItem(null, "", false)
+            val first = EditableItem(null, "", false, addedHere = true)
             items.add(first)
             focusTargetLocalId = first.localId
         }
@@ -795,6 +839,16 @@ fun EditorScreen(
                 // which every edit below addresses.
                 val rows = items.displayRows()
                 val addAt = rows.indexOfFirst { it.value.isChecked }.let { if (it == -1) rows.size else it }
+                // The ticked row offered for the new one being typed, if any (see [suggestFromChecked]).
+                val typingIndex = items.indexOfFirst { it.localId == typingLocalId }
+                val offered = typingIndex.takeIf { it >= 0 && items[it].addedHere }
+                    ?.let { typed ->
+                        suggestFromChecked(
+                            items.map { ChecklistItemDto(text = it.text, isChecked = it.isChecked) },
+                            typed,
+                        )
+                    }
+                    ?.let { items[it] }
                 rows.forEachIndexed { position, (index, item) ->
                     if (position == addAt) key("add-item") { addItem() }
                     // Keyed by the row's stable local id so a row that moves (ticking sinks it to
@@ -831,8 +885,13 @@ fun EditorScreen(
                             TextField(
                                 value = item.value,
                                 onValueChange = {
-                                    if (it.text.any { c -> c == '\n' || c == '\r' }) pasteRows(index, it)
-                                    else item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
+                                    if (it.text.any { c -> c == '\n' || c == '\r' }) {
+                                        pasteRows(index, it)
+                                    } else {
+                                        // A moved caret is no typing: only a changed text offers.
+                                        if (it.text != item.text) typingLocalId = item.localId
+                                        item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
+                                    }
                                 },
                                 placeholder = { Text("List item", color = KeepItColors.TextFaint) },
                                 readOnly = !canEdit,
@@ -847,10 +906,13 @@ fun EditorScreen(
                                 keyboardActions = KeyboardActions(onNext = { addItemAfter(index) }),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .focusRequester(item.focusRequester),
+                                    .focusRequester(item.focusRequester)
+                                    .onFocusChanged {
+                                        if (!it.isFocused && typingLocalId == item.localId) typingLocalId = null
+                                    },
                             )
                             if (canEdit) {
-                                IconButton(onClick = { items.removeAt(index) }) {
+                                IconButton(onClick = { removeItem(index) }) {
                                     Icon(
                                         Icons.Filled.Clear,
                                         contentDescription = "Remove item",
@@ -859,6 +921,9 @@ fun EditorScreen(
                                     )
                                 }
                             }
+                        }
+                        if (offered != null && index == typingIndex) {
+                            TickedOffer(offered.text, onTake = { takeOffer(item, offered) })
                         }
                     }
                 }
@@ -975,6 +1040,48 @@ fun EditorScreen(
             onPick = { color = it },
             onDismiss = { showColorSheet = false },
         )
+    }
+}
+
+/**
+ * The ticked row offered under the new one being typed (see [suggestFromChecked]); a tap takes it.
+ * It never takes focus, so the row being typed keeps it and the keyboard stays up: with a mouse or
+ * a hardware keyboard a press would otherwise move focus, which ends the offer before the click
+ * lands. It is brought into
+ * view as it appears: the row being typed is often the last one above the keyboard, and an offer
+ * under the keyboard is none.
+ */
+@Composable
+private fun TickedOffer(text: String, onTake: () -> Unit) {
+    val requester = remember { BringIntoViewRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { } // laid out first, or there is nothing to bring into view
+        requester.bringIntoView()
+    }
+    androidx.compose.material3.TextButton(
+        onClick = onTake,
+        // In line with the row's text: past the checkbox's 48dp, then the field's own 16dp.
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        modifier = Modifier
+            .padding(start = 48.dp)
+            .focusProperties { canFocus = false }
+            .bringIntoViewRequester(requester),
+    ) {
+        Icon(
+            Icons.Filled.Replay,
+            contentDescription = null,
+            tint = KeepItColors.TextMuted,
+            modifier = Modifier.size(16.dp),
+        )
+        Text(
+            "  $text",
+            color = KeepItColors.TextMuted,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Text(" · from ticked", color = KeepItColors.TextFaint, fontSize = 13.sp, maxLines = 1)
     }
 }
 

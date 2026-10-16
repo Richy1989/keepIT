@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 import { cn } from '../../lib/cn';
-import { CheckIcon, GripVerticalIcon, PlusIcon, XIcon } from '../../components/icons';
-import { MAX_CHECKLIST_ITEMS, checklistRows, splitPastedRow } from './checklist';
+import { CheckIcon, GripVerticalIcon, PlusIcon, RestoreIcon, XIcon } from '../../components/icons';
+import { MAX_CHECKLIST_ITEMS, checklistRows, splitPastedRow, suggestFromChecked } from './checklist';
 import type { ChecklistItemDto } from '../../api/types';
 
 /**
@@ -26,6 +26,10 @@ import type { ChecklistItemDto } from '../../api/types';
  * removes it and moves the caret to the previous row. Pasting several lines makes a row of each
  * (see `splitPastedRow`), where the row's one-line `<input>` would flatten them into itself.
  *
+ * Typing a new row offers a ticked row it could be instead (see `suggestFromChecked`), just under
+ * it: a click or Tab takes it, and that row comes back unticked where the new one was being typed,
+ * rather than the list holding the item twice.
+ *
  * A checklist holds `MAX_CHECKLIST_ITEMS` rows, the server's limit: at it "Add item" gives way to a
  * line saying so, and neither Enter nor a paste adds more. A save past it would be refused and
  * rolled back, taking the rest of the edit with it.
@@ -48,6 +52,12 @@ export function ChecklistEditor({
   const pendingFocus = useRef<number | null>(null);
   const pendingCaret = useRef<number | null>(null);
 
+  // The new row being typed into, by stored index: the one row a ticked one is offered for. Typing
+  // sets it, not focus, so the offer comes and goes with the typing; leaving the row, or anything
+  // that moves rows about, clears it. New means not saved yet (no id), so editing an existing row
+  // offers nothing, and nor does a row that has just taken an offer: it has that row's id.
+  const [typing, setTyping] = useState<number | null>(null);
+
   // After items change, focus a freshly-added row if one is pending (Enter / "Add item" / a paste).
   useEffect(() => {
     if (pendingFocus.current === null) return;
@@ -63,10 +73,27 @@ export function ChecklistEditor({
   const firstChecked = rows.findIndex((r) => r.item.isChecked);
   const addAt = firstChecked === -1 ? rows.length : firstChecked;
   const full = items.length >= MAX_CHECKLIST_ITEMS;
+  const offer = typing !== null && items[typing] && !items[typing].id ? suggestFromChecked(items, typing) : null;
 
   const update = (stored: number, patch: Partial<ChecklistItemDto>) =>
     onChange(items.map((it, idx) => (idx === stored ? { ...it, ...patch } : it)));
   const remove = (stored: number) => onChange(items.filter((_, idx) => idx !== stored));
+
+  /**
+   * The new row stored at `typed` takes the ticked row stored at `offered`: it becomes that row,
+   * unticked, in the new row's place (where the user is typing), and the ticked one is gone. The
+   * row keeps its id, so the server sees the item come back rather than a new one.
+   */
+  function take(typed: number, offered: number) {
+    const restored = { ...items[offered], isChecked: false };
+    const next = items.map((it, idx) => (idx === typed ? restored : it)).filter((_, idx) => idx !== offered);
+    const at = offered < typed ? typed - 1 : typed;
+    // The row's key changes with its id, so the caret has to be put back, behind the text.
+    pendingFocus.current = displayPositionOf(next, at);
+    pendingCaret.current = restored.text.length;
+    setTyping(null);
+    onChange(next.map((it, idx) => ({ ...it, order: idx })));
+  }
 
   /** Display position of the row stored at `stored`, once `next` is committed. */
   const displayPositionOf = (next: ChecklistItemDto[], stored: number) =>
@@ -74,6 +101,7 @@ export function ChecklistEditor({
 
   function add() {
     if (full) return;
+    setTyping(null);
     const next = [...items, { id: null, text: '', isChecked: false, order: items.length }];
     pendingFocus.current = displayPositionOf(next, next.length - 1);
     onChange(next);
@@ -82,6 +110,7 @@ export function ChecklistEditor({
   /** Inserts a new empty item right after the item stored at `stored`, renumbers `order`, focuses it. */
   function insertAfter(stored: number) {
     if (full) return;
+    setTyping(null);
     const next = [...items];
     next.splice(stored + 1, 0, { id: null, text: '', isChecked: false, order: 0 });
     // The new row is unchecked, so it isn't necessarily displayed directly below the current row.
@@ -96,6 +125,7 @@ export function ChecklistEditor({
    */
   function pasteLines(stored: number, start: number, end: number, text: string) {
     const row = items[stored].text;
+    setTyping(null);
     const { rows: texts, caret } = splitPastedRow(
       row.slice(0, start) + text,
       row.slice(end),
@@ -138,6 +168,7 @@ export function ChecklistEditor({
    */
   function move(from: number, to: number) {
     if (from === to || !canDropOn(from, to)) return;
+    setTyping(null);
     const a = rows[from].index;
     const b = rows[to].index;
     const next = [...items];
@@ -220,7 +251,11 @@ export function ChecklistEditor({
               inputRefs.current[i] = el;
             }}
             value={it.text}
-            onChange={(e) => update(stored, { text: e.target.value })}
+            onChange={(e) => {
+              update(stored, { text: e.target.value });
+              setTyping(stored);
+            }}
+            onBlur={() => setTyping(null)}
             onPaste={(e) => {
               // One line is the browser's to paste, and a copied picture is the note's to attach
               // (the composer and the editor take it from the same event, further up).
@@ -231,13 +266,17 @@ export function ChecklistEditor({
               pasteLines(stored, input.selectionStart ?? it.text.length, input.selectionEnd ?? it.text.length, text);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Tab' && !e.shiftKey && stored === typing && offer !== null) {
+                e.preventDefault();
+                take(stored, offer);
+              } else if (e.key === 'Enter') {
                 e.preventDefault();
                 insertAfter(stored);
               } else if (e.key === 'Backspace' && it.text === '' && i > 0) {
                 // Empty row + Backspace removes it and drops the caret into the previous row.
                 e.preventDefault();
                 pendingFocus.current = i - 1;
+                setTyping(null);
                 remove(stored);
               }
             }}
@@ -256,6 +295,26 @@ export function ChecklistEditor({
             <XIcon className="text-sm" />
           </button>
         </div>,
+        ...(stored === typing && offer !== null
+          ? [
+              <button
+                key="offer"
+                type="button"
+                // Pressing it would take the caret out of the row, and leaving the row ends the offer.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => take(stored, offer)}
+                aria-label={`Bring back “${items[offer].text}” from the ticked items`}
+                className="ml-11 flex max-w-[calc(100%-2.75rem)] items-center gap-1.5 py-0.5 text-left text-xs text-text-muted transition hover:text-text"
+              >
+                <RestoreIcon className="shrink-0 text-sm" />
+                <span className="truncate">{items[offer].text}</span>
+                <span className="shrink-0 text-text-faint">· from ticked</span>
+                <kbd className="shrink-0 rounded border border-border-control px-1 font-sans text-[10px] text-text-faint touch:hidden">
+                  Tab
+                </kbd>
+              </button>,
+            ]
+          : []),
       ])}
       {addAt === rows.length && addButton}
     </div>

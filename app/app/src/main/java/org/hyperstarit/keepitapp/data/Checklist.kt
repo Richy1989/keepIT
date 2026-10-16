@@ -1,5 +1,7 @@
 package org.hyperstarit.keepitapp.data
 
+import java.text.Normalizer
+
 /**
  * Display order for a checklist: **unchecked rows first, checked rows at the bottom**, each group
  * keeping its stored order.
@@ -54,4 +56,63 @@ fun splitPastedRow(head: String, tail: String, room: Int): PastedRows {
     rows = rows.map { NoteLimits.cut(it, NoteLimits.CHECKLIST_ITEM_TEXT) }
 
     return PastedRows(rows, (rows.last().length - tail.trimEnd().length).coerceAtLeast(0))
+}
+
+/** Text as [suggestFromChecked] compares it: no accents, no case, no space around it. */
+private fun fold(text: String): String =
+    Normalizer.normalize(text, Normalizer.Form.NFD).replace(MARKS, "").lowercase().trim()
+
+private val MARKS = Regex("\\p{M}")
+
+/** Whether [typed] starts a word of [text] other than its first: it follows a non-letter, non-digit. */
+private fun startsAWord(text: String, typed: String): Boolean {
+    var at = text.indexOf(typed, 1)
+    while (at != -1) {
+        if (!text[at - 1].isLetterOrDigit()) return true
+        at = text.indexOf(typed, at + 1)
+    }
+    return false
+}
+
+/**
+ * The ticked row to offer while a new row is being typed. A list used again and again — the weekly
+ * shop — holds last time's items ticked at the bottom, and typing one of them again should bring
+ * that row back rather than make a second one.
+ *
+ * [typing] is the index in [items] (home order) of the row being typed. What is offered is a ticked
+ * row whose text starts with what has been typed or, failing that, has a word that does ("gar"
+ * finds "2 cloves garlic"), ignoring case and accents. Of several, the shortest wins, so "Milk"
+ * comes before "Milk chocolate" and typing on reaches the longer one; of equally long ones, the
+ * first shown. A ticked row whose text is on the list unticked as well is never offered: taking it
+ * would make the very duplicate this is here to avoid.
+ *
+ * Returns the offered row's index, or null when nothing fits or nothing has been typed. The web
+ * client's `suggestFromChecked` (`web/src/features/notes/checklist.ts`) is the same rule;
+ * `checklistSuggest.json` beside it holds the cases, and `ChecklistSuggestTest` runs them against
+ * this.
+ */
+fun suggestFromChecked(items: List<ChecklistItemDto>, typing: Int): Int? {
+    val row = items.getOrNull(typing)
+    val typed = if (row != null && !row.isChecked) fold(row.text) else ""
+    if (typed.isEmpty()) return null
+
+    val unticked = items.filterIndexed { index, it -> !it.isChecked && index != typing }.mapTo(HashSet()) { fold(it.text) }
+    var best: Int? = null
+    var bestTier = 0
+    var bestLength = 0
+    items.forEachIndexed { index, item ->
+        val text = if (item.isChecked) fold(item.text) else ""
+        if (text.isEmpty() || text in unticked) return@forEachIndexed
+        val tier = when {
+            text.startsWith(typed) -> 0
+            startsAWord(text, typed) -> 1
+            else -> return@forEachIndexed
+        }
+        if (best == null || tier < bestTier || (tier == bestTier && text.length < bestLength)) {
+            best = index
+            bestTier = tier
+            bestLength = text.length
+        }
+    }
+    return best
 }

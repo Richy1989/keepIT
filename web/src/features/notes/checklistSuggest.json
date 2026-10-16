@@ -1,0 +1,183 @@
+[
+  {
+    "name": "a ticked row that starts with what is typed is offered",
+    "items": [
+      { "text": "Milk", "isChecked": true },
+      { "text": "Eggs", "isChecked": true },
+      { "text": "mi", "isChecked": false }
+    ],
+    "typing": 2,
+    "offer": 0
+  },
+  {
+    "name": "nothing typed, nothing offered",
+    "items": [
+      { "text": "Milk", "isChecked": true },
+      { "text": "   ", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": null
+  },
+  {
+    "name": "only ticked rows are offered",
+    "items": [
+      { "text": "Mint", "isChecked": false },
+      { "text": "mi", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": null
+  },
+  {
+    "name": "a ticked row is never typed into, so it is offered nothing",
+    "items": [
+      { "text": "Milk", "isChecked": true },
+      { "text": "mi", "isChecked": true }
+    ],
+    "typing": 1,
+    "offer": null
+  },
+  {
+    "name": "accents and case in the ticked row don't matter",
+    "items": [
+      { "text": "Crème fraîche", "isChecked": true },
+      { "text": "CREME F", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": 0
+  },
+  {
+    "name": "an accent typed matches the same letter without one",
+    "items": [
+      { "text": "Apfelsaft", "isChecked": true },
+      { "text": "äpf", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": 0
+  },
+  {
+    "name": "space around what is typed doesn't count",
+    "items": [
+      { "text": "Milk", "isChecked": true },
+      { "text": "  mi ", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": 0
+  },
+  {
+    "name": "a word inside the row counts when no row starts with it",
+    "items": [
+      { "text": "1 yellow onion", "isChecked": true },
+      { "text": "2 cloves garlic", "isChecked": true },
+      { "text": "gar", "isChecked": false }
+    ],
+    "typing": 2,
+    "offer": 1
+  },
+  {
+    "name": "a row that starts with it beats one with a word that does, however short",
+    "items": [
+      { "text": "Red onion", "isChecked": true },
+      { "text": "Onion rings, frozen", "isChecked": true },
+      { "text": "on", "isChecked": false }
+    ],
+    "typing": 2,
+    "offer": 1
+  },
+  {
+    "name": "a word starts after punctuation",
+    "items": [
+      { "text": "Tomatoes (canned)", "isChecked": true },
+      { "text": "can", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": 0
+  },
+  {
+    "name": "an emoji is no letter, so a word after it starts there",
+    "items": [
+      { "text": "🥛Milk", "isChecked": true },
+      { "text": "mil", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": 0
+  },
+  {
+    "name": "the middle of a word doesn't count",
+    "items": [
+      { "text": "Milk", "isChecked": true },
+      { "text": "ilk", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": null
+  },
+  {
+    "name": "a digit is part of a word, so a match after one is in the middle",
+    "items": [
+      { "text": "A4 paper", "isChecked": true },
+      { "text": "4", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": null
+  },
+  {
+    "name": "the shortest of several is offered",
+    "items": [
+      { "text": "Milk chocolate", "isChecked": true },
+      { "text": "Milk", "isChecked": true },
+      { "text": "mi", "isChecked": false }
+    ],
+    "typing": 2,
+    "offer": 1
+  },
+  {
+    "name": "typing on reaches the longer one",
+    "items": [
+      { "text": "Milk chocolate", "isChecked": true },
+      { "text": "Milk", "isChecked": true },
+      { "text": "milk c", "isChecked": false }
+    ],
+    "typing": 2,
+    "offer": 0
+  },
+  {
+    "name": "of equally long ones, the first shown",
+    "items": [
+      { "text": "Pears", "isChecked": true },
+      { "text": "Peach", "isChecked": true },
+      { "text": "pea", "isChecked": false }
+    ],
+    "typing": 2,
+    "offer": 0
+  },
+  {
+    "name": "typing the whole text still offers it, so the ticked row comes back instead of a second one",
+    "items": [
+      { "text": "Milk", "isChecked": true },
+      { "text": "milk", "isChecked": false }
+    ],
+    "typing": 1,
+    "offer": 0
+  },
+  {
+    "name": "a ticked row already on the list unticked is passed over",
+    "items": [
+      { "text": "Milk", "isChecked": false },
+      { "text": "Milk", "isChecked": true },
+      { "text": "Milk chocolate", "isChecked": true },
+      { "text": "mi", "isChecked": false }
+    ],
+    "typing": 3,
+    "offer": 2
+  },
+  {
+    "name": "the row being typed may sit anywhere in the stored order",
+    "items": [
+      { "text": "Bread", "isChecked": false },
+      { "text": "br", "isChecked": false },
+      { "text": "Butter", "isChecked": true },
+      { "text": "Bread rolls", "isChecked": true }
+    ],
+    "typing": 1,
+    "offer": 3
+  }
+]

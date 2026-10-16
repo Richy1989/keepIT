@@ -26,6 +26,54 @@ export function checklistForDisplay(items: ChecklistItemDto[]): ChecklistItemDto
   return checklistRows(items).map((r) => r.item);
 }
 
+/** Text as [suggestFromChecked] compares it: no accents, no case, no space around it. */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+}
+
+/** Whether `typed` starts a word of `text` other than its first: it follows a non-letter, non-digit. */
+function startsAWord(text: string, typed: string): boolean {
+  for (let at = text.indexOf(typed, 1); at !== -1; at = text.indexOf(typed, at + 1)) {
+    if (!/[\p{L}\p{Nd}]/u.test(text[at - 1])) return true;
+  }
+  return false;
+}
+
+/**
+ * The ticked row to offer while a new row is being typed. A list used again and again — the weekly
+ * shop — holds last time's items ticked at the bottom, and typing one of them again should bring
+ * that row back rather than make a second one.
+ *
+ * `typing` is the stored index of the row being typed. What is offered is a ticked row whose text
+ * starts with what has been typed or, failing that, has a word that does ("gar" finds "2 cloves
+ * garlic"), ignoring case and accents. Of several, the shortest wins, so "Milk" comes before "Milk
+ * chocolate" and typing on reaches the longer one; of equally long ones, the first shown. A ticked
+ * row whose text is on the list unticked as well is never offered: taking it would make the very
+ * duplicate this is here to avoid.
+ *
+ * Returns the offered row's stored index, or null when nothing fits or nothing has been typed.
+ * `checklistSuggest.json` holds the cases; the Android app's `suggestFromChecked`
+ * (`data/Checklist.kt`) is held to the same file, so both offer the same row.
+ */
+export function suggestFromChecked(items: ChecklistItemDto[], typing: number): number | null {
+  const row = items[typing];
+  const typed = row && !row.isChecked ? fold(row.text) : '';
+  if (!typed) return null;
+
+  const unticked = new Set(items.filter((it, idx) => !it.isChecked && idx !== typing).map((it) => fold(it.text)));
+  let best: { index: number; tier: number; length: number } | null = null;
+  for (const [index, it] of items.entries()) {
+    const text = it.isChecked ? fold(it.text) : '';
+    if (!text || unticked.has(text)) continue;
+    const tier = text.startsWith(typed) ? 0 : startsAWord(text, typed) ? 1 : -1;
+    if (tier === -1) continue;
+    if (!best || tier < best.tier || (tier === best.tier && text.length < best.length)) {
+      best = { index, tier, length: text.length };
+    }
+  }
+  return best?.index ?? null;
+}
+
 /** Rows in one checklist: the server's `NoteLimits.ChecklistItems`, which a save past it is refused for. */
 export const MAX_CHECKLIST_ITEMS = 500;
 

@@ -1033,7 +1033,10 @@ A note is one of several **types**, and any note can carry a background color:
      preview toggle.
 2. **Checklist note** — an ordered list of checkbox items; reorder, check off, add, remove. Ticked
    items display at the bottom of the list and return to their original slot when unticked — see
-   `ChecklistItem.order` for the contract that makes that work on every client.
+   `ChecklistItem.order` for the contract that makes that work on every client. Typing a new item
+   offers the ticked one it matches (`suggestFromChecked`, one rule on both clients, held to
+   `web/src/features/notes/checklistSuggest.json`); taking it makes the new row that item, unticked
+   and with its id, where it was being typed, so a list used week after week holds each item once.
 3. **Background** — every note can set a background **color** from the palette. Background
    *images* are still not implemented.
 
