@@ -34,17 +34,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.data.LoginRefusedException
 import org.hyperstarit.keepitapp.data.SessionRepository
 import org.hyperstarit.keepitapp.data.apiErrorMessage
+import org.hyperstarit.keepitapp.ui.settings.AboutContent
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
 
@@ -273,6 +280,25 @@ fun LoginScreen(
                             },
                         )
                     }
+                }
+                if (registerMode) {
+                    // As on the web: creating an account accepts the terms (what may be shared).
+                    Text(
+                        text = buildAnnotatedString {
+                            append("By creating an account you accept the ")
+                            withLink(
+                                LinkAnnotation.Url(
+                                    AboutContent.TERMS_URL,
+                                    TextLinkStyles(SpanStyle(color = KeepItColors.AccentInk, fontWeight = FontWeight.Medium)),
+                                ),
+                            ) { append("terms of use") }
+                            append(".")
+                        },
+                        color = KeepItColors.TextMuted,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
 
                 if (forgotMode) {

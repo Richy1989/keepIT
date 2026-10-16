@@ -4,6 +4,7 @@ import {
   CodeIcon,
   ExternalLinkIcon,
   FileTextIcon,
+  GavelIcon,
   HeartIcon,
   MessageIcon,
   ShieldIcon,
@@ -19,6 +20,7 @@ const LINK_ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
   releases: TagIcon,
   license: FileTextIcon,
   privacy: ShieldIcon,
+  terms: GavelIcon,
   support: HeartIcon,
 };
 

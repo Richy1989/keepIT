@@ -39,6 +39,12 @@
       "url": "https://github.com/Richy1989/keepIT/blob/main/PRIVACY.md"
     },
     {
+      "id": "terms",
+      "label": "Terms of use",
+      "detail": "What may be stored and shared",
+      "url": "https://github.com/Richy1989/keepIT/blob/main/TERMS.md"
+    },
+    {
       "id": "support",
       "label": "Support keepIT",
       "detail": "Buy the developer a coffee",

@@ -3,8 +3,12 @@ import { TwoFactorRequiredError, useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { apiErrorMessage } from '../lib/apiError';
 import { BrandMark } from '../components/BrandMark';
+import { ABOUT } from '../features/about/content';
 
 type Mode = 'login' | 'register' | 'forgot';
+
+/** The terms of use, which creating an account accepts; About links the same page. */
+const TERMS_URL = ABOUT.links.find((link) => link.id === 'terms')!.url;
 
 /** Sign-in / sign-up / forgot-password screen. Toggles between the modes; login and register
  * submit via the auth context, forgot posts directly (no session involved).
@@ -212,6 +216,20 @@ export function AuthPage() {
                       ? 'Create account'
                       : 'Send reset link'}
               </button>
+              {mode === 'register' && (
+                <p className="text-center text-xs text-text-muted">
+                  By creating an account you accept the{' '}
+                  <a
+                    href={TERMS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-accent-ink hover:underline"
+                  >
+                    terms of use
+                  </a>
+                  .
+                </p>
+              )}
             </form>
           )}
         </div>
