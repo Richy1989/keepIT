@@ -11,8 +11,8 @@ without an alpha channel and losslessly optimised: F-Droid and the README show t
 and a screencap carries an alpha channel that nothing uses. The Unraid template links two of them
 under names of their own, so those are written as byte-for-byte copies.
 
-Phone shots are then widened from the emulator's 1080x2400 to 1200x2400, because Google Play takes
-no screenshot longer than 2:1. The 60 pixels added on each side repeat the screen's outermost
+Phone shots are then widened from the emulator's 1080x2400 to 1350x2400, because Google Play takes
+phone screenshots only at 9:16. The 135 pixels added on each side repeat the screen's outermost
 column, row by row, so each screen keeps its own margin in its own theme (the status bar, a note's
 colour, the wallpaper) and nothing on it is scaled. F-Droid and the README show the same files.
 
@@ -29,8 +29,8 @@ PHONE = REPO / "fastlane/metadata/android/en-US/images/phoneScreenshots"
 
 WEB_SIZE = (2880, 1800)
 PHONE_SIZE = (1080, 2400)
-# What a phone shot is widened to: Play's longest side may be at most twice the shortest.
-PHONE_STORE_WIDTH = 1200
+# What a phone shot is widened to: Play Console takes phone screenshots at 16:9 or 9:16 only.
+PHONE_STORE_WIDTH = 1350
 WEB_NAMES = ["web-notes-dark.png", "web-notes-light.png", "web-editor-dim.png"]
 PHONE_NAMES = [f"{n}.png" for n in range(1, 10)]
 # What deploy/keepit.unraid.xml links, and the screenshot each is a copy of.
