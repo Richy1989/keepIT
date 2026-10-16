@@ -7,7 +7,7 @@ junitVersion = "1.3.0"
 espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 composeBom = "2026.09.00"
 retrofit = "3.0.0"
 okhttp = "5.5.0"
@@ -32,7 +32,7 @@ coil = "3.6.3"
 # (react-markdown). A hand-rolled subset here diverged from it in ways nobody could predict; this is
 # the same spec on the JVM, with the GFM extensions the web enables. BSD-2-Clause (autolink: MIT),
 # plain Java with no reflection, so it raises nothing for F-Droid or R8.
-commonmark = "0.30.0"
+commonmark = "0.30.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
