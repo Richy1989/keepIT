@@ -12,6 +12,15 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   "Milk" is back on the list, unticked, where you were typing, instead of on it twice. Web and
   Android.
 
+### 🔒 Security
+
+- The server's email library now runs on System.Security.Cryptography.Pkcs 10.0.13, which fixes
+  a denial-of-service advisory rated high (CVE-2026-84008).
+
+### 📦 Deployment & Docs
+
+- About credits .NET, the runtime and libraries the server is built on.
+
 ## 1.0.0
 
 > [!CAUTION]

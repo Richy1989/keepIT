@@ -54,6 +54,7 @@ object AboutContent {
     val serverCredits = listOf(
         Credit("ASP.NET Core", "Web framework and live sync (SignalR)", "MIT", "https://github.com/dotnet/aspnetcore"),
         Credit("Entity Framework Core", "Database access", "MIT", "https://github.com/dotnet/efcore"),
+        Credit(".NET", "Runtime and libraries", "MIT", "https://github.com/dotnet/runtime"),
         Credit("Npgsql", "PostgreSQL driver", "PostgreSQL License", "https://www.npgsql.org"),
         Credit("SQLite", "Built-in database", "Public domain", "https://sqlite.org"),
         Credit("SQLitePCLRaw", "SQLite for .NET", "Apache 2.0", "https://github.com/ericsink/SQLitePCL.raw"),
