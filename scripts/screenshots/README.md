@@ -34,8 +34,9 @@ change to the app.
 
 Web screenshots are 2880×1800 (a 1440×900 window at twice the density), phone ones are taken at
 1080×2400, all without an alpha channel. `finish.py` refuses any other size, and widens the phone
-ones to 1200×2400 by repeating their outermost columns: Google Play takes no screenshot longer than
-2:1, and F-Droid and the README show the same files.
+ones to 1350×2400 by repeating their outermost columns: Play Console takes phone screenshots at
+9:16 only, and F-Droid and the README show the same files. Play takes at most eight, so `9.png`
+(About) is the one it goes without.
 
 ## 1. A server with the demo account
 
