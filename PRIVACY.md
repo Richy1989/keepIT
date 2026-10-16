@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**keepIT** · Effective 5 October 2026
+**keepIT** · Effective 16 October 2026
 
 keepIT is free, open-source software for notes: an Android app, a web app and a server you run
 yourself. It is a personal project by Richard Leopold (“the developer”), not a service. This policy
@@ -103,7 +103,8 @@ no camera or storage permission and sees only the photos you pick.
 
 When you share a note, the people you share it with see the note with its photos and recordings,
 your email address and, if you set one, your profile picture. Invitations arrive in their keepIT
-inbox. Each person keeps their own pins, lists and reminders, which the others do not see.
+inbox. Each person keeps their own pins, lists and reminders, which the others do not see. What
+may be shared is set out in the [terms of use](TERMS.md).
 
 ## Other services
 
@@ -152,5 +153,6 @@ top shows when it last changed.
 ## Contact
 
 Questions about this policy or about keepIT:
+[support@hyperstarit.org](mailto:support@hyperstarit.org), or
 [open an issue on GitHub](https://github.com/Richy1989/keepIT/issues). For questions about the data
 on a particular keepIT server, contact the person who runs it.

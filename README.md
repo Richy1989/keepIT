@@ -394,7 +394,7 @@ appreciated, but never expected.
 
 keepIT collects nothing. The developer runs no keepIT servers, and there are no ads, analytics or
 trackers anywhere in it: your notes stay on your own server or your phone. See the
-[Privacy Policy](PRIVACY.md).
+[Privacy Policy](PRIVACY.md) and the [Terms of Use](TERMS.md).
 
 ## License
 

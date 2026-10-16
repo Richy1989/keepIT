@@ -18,6 +18,9 @@ object AboutContent {
     const val NAME = "keepIT"
     const val TAGLINE = "A modern, real-time notes app you can run yourself."
     const val COPYRIGHT = "© 2026 Richard Leopold"
+
+    /** The terms of use, which creating an account accepts: linked from About and from sign-up. */
+    const val TERMS_URL = "https://github.com/Richy1989/keepIT/blob/main/TERMS.md"
     const val THANKS = "keepIT is built on the work of many open-source projects. Our sincere thanks " +
         "to everyone who creates and maintains them."
 
@@ -37,6 +40,7 @@ object AboutContent {
         AboutLink("releases", "What's new", "Release notes on GitHub", "https://github.com/Richy1989/keepIT/releases"),
         AboutLink("license", "License", "MIT License", "https://github.com/Richy1989/keepIT/blob/main/LICENSE"),
         AboutLink("privacy", "Privacy policy", "How your data is handled", "https://github.com/Richy1989/keepIT/blob/main/PRIVACY.md"),
+        AboutLink("terms", "Terms of use", "What may be stored and shared", TERMS_URL),
         AboutLink("support", "Support keepIT", "Buy the developer a coffee", "https://buymeacoffee.com/spaceelephant"),
     )
 

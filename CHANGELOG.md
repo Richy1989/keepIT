@@ -20,6 +20,11 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 ### 📦 Deployment & Docs
 
 - About credits .NET, the runtime and libraries the server is built on.
+- keepIT has [terms of use](https://github.com/Richy1989/keepIT/blob/main/TERMS.md): what may be
+  stored and shared on a keepIT server, and what to do about unwanted sharing. Creating an account
+  says it accepts them, and About links them, on the web and on Android.
+- The privacy policy now gives an email address for questions: support@hyperstarit.org.
+- The Android screenshots are 1200×2400, the shape Google Play accepts.
 
 ## 1.0.0
 
