@@ -250,6 +250,8 @@ a copy now and then with **Settings → Your data → Save my notes** and keep i
 <a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/Richy1989/keepIT"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="60"></a>
 &nbsp;&nbsp;
 <a href="https://f-droid.org/packages/org.hyperstarit.keepitapp/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"></a>
+&nbsp;&nbsp;
+<a href="https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"></a>
 
 **[Obtainium](https://github.com/ImranR98/Obtainium)** is the easiest way: tap the badge, or add
 `https://github.com/Richy1989/keepIT` as a GitHub app source. It installs the APK and keeps it
@@ -261,7 +263,8 @@ repository, so it updates alongside everything else you installed from there.
 Prefer to do it by hand? Grab `keepit-vX.Y.Z-universal.apk` from the
 [latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it.
 
-**Google Play** has keepIT in a closed test before it goes public there, and anyone can join:
+**Google Play** has keepIT in a closed test before it goes public there, so its page opens only
+for testers. Anyone can become one:
 
 1. Join the [keepIT testers group](https://groups.google.com/g/keepit-tester) with the Google
    account your phone uses.
@@ -413,3 +416,5 @@ trackers anywhere in it: your notes stay on your own server or your phone. See t
 
 Released under the [MIT License](LICENSE). © 2026 Richard Leopold. Free to use, modify, and
 distribute; just keep the copyright and license notice.
+
+Google Play and the Google Play logo are trademarks of Google LLC.
