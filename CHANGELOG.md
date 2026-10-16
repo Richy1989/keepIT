@@ -3,6 +3,15 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### ✨ New Features
+
+- Ticked items come back — typing a new checklist item offers the ticked item it matches: type
+  "mi" and a ticked "Milk" shows up under the row. Take it (tap it, or press Tab on the web) and
+  "Milk" is back on the list, unticked, where you were typing, instead of on it twice. Web and
+  Android.
+
 ## 1.0.0
 
 > [!CAUTION]

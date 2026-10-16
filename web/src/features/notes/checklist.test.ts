@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CHECKLIST_ITEM_TEXT, splitPastedRow } from './checklist';
+import { MAX_CHECKLIST_ITEM_TEXT, splitPastedRow, suggestFromChecked } from './checklist';
 import cases from './checklistPaste.json';
+import suggestCases from './checklistSuggest.json';
 
 /**
  * What pasting several lines into a checklist row makes of them. The cases live in
@@ -25,5 +26,16 @@ describe('splitPastedRow', () => {
 
     expect(splitPastedRow(lines, '', 10).rows).toHaveLength(11);
     expect(splitPastedRow(lines, 'kept', 10).rows.at(-1)).toBe('line 10kept');
+  });
+});
+
+/**
+ * Which ticked row is offered while a new row is typed. The cases live in `checklistSuggest.json`
+ * for the same reason as the paste's: the Android app's ChecklistSuggestTest runs them too.
+ */
+describe('suggestFromChecked', () => {
+  it.each(suggestCases)('$name', ({ items, typing, offer }) => {
+    const dtos = items.map((it, order) => ({ id: null, ...it, order }));
+    expect(suggestFromChecked(dtos, typing)).toBe(offer);
   });
 });
