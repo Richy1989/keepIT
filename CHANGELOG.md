@@ -25,6 +25,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   says it accepts them, and About links them, on the web and on Android.
 - The privacy policy now gives an email address for questions: support@hyperstarit.org.
 - The Android screenshots are 1350×2400 (9:16), the shape Google Play accepts.
+- keepIT is on Google Play as a closed test that anyone can join: the README's
+  [Get it](https://github.com/Richy1989/keepIT#get-it) says how. Play signs it with the same key as
+  F-Droid and GitHub, so switching needs no reinstall.
 
 ## 1.0.0
 
