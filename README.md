@@ -261,10 +261,21 @@ repository, so it updates alongside everything else you installed from there.
 Prefer to do it by hand? Grab `keepit-vX.Y.Z-universal.apk` from the
 [latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it.
 
-> Every source ships the **same signed build**: F-Droid checks that the release APK reproduces
-> from this repository and then publishes that developer-signed APK rather than one of its own. So
-> you can move between F-Droid, Obtainium and a hand-downloaded APK by updating, with nothing to
-> uninstall.
+**Google Play** has keepIT in a closed test before it goes public there, and anyone can join:
+
+1. Join the [keepIT testers group](https://groups.google.com/g/keepit-tester) with the Google
+   account your phone uses.
+2. [Become a tester](https://play.google.com/apps/testing/org.hyperstarit.keepitapp).
+3. [Install keepIT from Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp).
+
+The test gets the betas (see [Beta releases](#beta-releases)), so it is a version ahead of
+F-Droid. Tell us what you find at support@hyperstarit.org or in a
+[GitHub issue](https://github.com/Richy1989/keepIT/issues).
+
+> Every source ships a build **signed with the same key**: F-Droid checks that the release APK
+> reproduces from this repository and then publishes that developer-signed APK rather than one of
+> its own, and Google Play signs keepIT with that key too. So you can move between F-Droid,
+> Obtainium, Google Play and a hand-downloaded APK by updating, with nothing to uninstall.
 
 The app updates on its own and your server updates when you update it, so the two will often be
 on different versions. That's fine: **any 1.x app works with any 1.x server.** Something new that
@@ -351,6 +362,8 @@ accident:
   release, which Android won't install over the beta. You can also sideload
   `keepit-vX.Y.Z-beta.N-universal.apk` from its
   [pre-release](https://github.com/Richy1989/keepIT/releases).
+- **Android, through Google Play:** join the closed test (see [Get it](#get-it)). Each beta
+  arrives from the Play Store as an update, and so does the release that follows it.
 - **F-Droid** never carries betas. A beta installs over the F-Droid app, since it is the same
   signed build, and F-Droid takes over again with the next release.
 - **Server:** `richy1989/keepit:beta` is the newest beta, and `richy1989/keepit:X.Y.Z-beta.N` a

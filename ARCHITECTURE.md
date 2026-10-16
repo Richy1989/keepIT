@@ -1496,8 +1496,11 @@ reconciler bring up to date.
 image (tagged `X.Y.Z` + `latest`, with the version/sha baked in for `/api/meta`), builds the
 **signed Android APK** (version name/code derived from the tag; keystore from repo secrets,
 mirrored locally by a gitignored `app/keystore.properties`), and publishes a GitHub Release
-with the APK attached. Sideloading the APK is the current distribution channel; the Play
-Store is not (yet) used.
+with the APK attached. Google Play is not in the workflow: it carries keepIT in a closed test,
+from a bundle built locally (`./gradlew :app:assembleRelease :app:bundleRelease` with the tag's
+`VERSION_NAME`/`VERSION_CODE`) and uploaded in Play Console by hand. Play signs with the release
+key itself (uploaded through PEPK, not a Google-generated key), so its installs update across
+F-Droid and GitHub like any other.
 
 The release notes are laid out like calendarIT's (the structure is in CLAUDE.md → Releases).
 The workflow writes the frame: the `# keepIT X.Y.Z` title, the logo, and "Changes since" the
