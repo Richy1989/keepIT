@@ -62,6 +62,7 @@
     "server": [
       { "name": "ASP.NET Core", "role": "Web framework and live sync (SignalR)", "license": "MIT", "url": "https://github.com/dotnet/aspnetcore" },
       { "name": "Entity Framework Core", "role": "Database access", "license": "MIT", "url": "https://github.com/dotnet/efcore" },
+      { "name": ".NET", "role": "Runtime and libraries", "license": "MIT", "url": "https://github.com/dotnet/runtime" },
       { "name": "Npgsql", "role": "PostgreSQL driver", "license": "PostgreSQL License", "url": "https://www.npgsql.org" },
       { "name": "SQLite", "role": "Built-in database", "license": "Public domain", "url": "https://sqlite.org" },
       { "name": "SQLitePCLRaw", "role": "SQLite for .NET", "license": "Apache 2.0", "url": "https://github.com/ericsink/SQLitePCL.raw" },

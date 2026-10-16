@@ -40,6 +40,10 @@
     <PackageReference Include="SixLabors.ImageSharp" Version="4.1.3" />
     <PackageReference Include="SourceGear.sqlite3" Version="3.53.4" />
     <PackageReference Include="SQLitePCLRaw.provider.e_sqlite3" Version="3.0.5" />
+    <!-- Not used directly: MimeKit (under MailKit) asks for 10.0.0, which has a high-rated
+         denial-of-service advisory (GHSA-846f-f764-76mx, fixed in 10.0.13). Referencing it here
+         lifts what MimeKit gets; drop it once MimeKit asks for a fixed version itself. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
 </Project>

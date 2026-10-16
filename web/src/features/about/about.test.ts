@@ -92,6 +92,7 @@ const SERVER_PACKAGES: Record<string, string | NotCredited> = {
   MailKit: 'MailKit',
   'Net.Codecrete.QrCodeGenerator': 'QR Code Generator',
   'Serilog.AspNetCore': 'Serilog',
+  'System.Security.Cryptography.Pkcs': '.NET',
   nginx: 'nginx',
   'Microsoft.OpenApi': { notCredited: 'builds the API description, served only in development' },
   'Scalar.AspNetCore': { notCredited: 'the API reference page, served only in development' },
