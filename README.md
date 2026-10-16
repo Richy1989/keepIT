@@ -252,6 +252,7 @@ a copy now and then with **Settings → Your data → Save my notes** and keep i
 <a href="https://f-droid.org/packages/org.hyperstarit.keepitapp/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"></a>
 &nbsp;&nbsp;
 <a href="https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"></a>
+<br><sub>Google Play is in closed testing for now: <a href="https://groups.google.com/g/keepit-tester">join the testers</a> first, as described below.</sub>
 
 **[Obtainium](https://github.com/ImranR98/Obtainium)** is the easiest way: tap the badge, or add
 `https://github.com/Richy1989/keepIT` as a GitHub app source. It installs the APK and keeps it
