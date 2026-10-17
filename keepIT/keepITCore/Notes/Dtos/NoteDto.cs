@@ -63,4 +63,12 @@ public class NoteDto
 
     /// <summary>Ids of the caller's lists this note belongs to.</summary>
     public List<Guid> ListIds { get; set; } = new();
+
+    /// <summary>
+    /// Everyone else on the note, owner first: for the owner, the users it is shared with; for a
+    /// collaborator, the owner and the other collaborators. Unanswered invites are not on it. Empty
+    /// when the note isn't shared, and always empty in an export archive, which must not carry
+    /// other people's details.
+    /// </summary>
+    public List<NoteCollaboratorDto> Collaborators { get; set; } = new();
 }

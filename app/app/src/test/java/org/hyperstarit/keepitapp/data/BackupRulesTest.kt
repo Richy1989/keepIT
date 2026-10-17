@@ -79,6 +79,16 @@ class BackupRulesTest {
     }
 
     @Test
+    fun `other people's pictures stay behind`() {
+        for ((section, rules) in sections) {
+            assertTrue(
+                "<$section> must exclude the collaborators' pictures: they download again, and aren't this user's",
+                excludes(rules).any { covers(it, "file", "offline/people/u_v.img") },
+            )
+        }
+    }
+
+    @Test
     fun `the notes themselves always travel`() {
         val data = listOf("offline/cache.json", "offline/outbox.json", "offline/media-staging/photo.jpg")
         for ((section, rules) in sections) {

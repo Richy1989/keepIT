@@ -33,6 +33,7 @@ function note(partial: Partial<NoteDto> = {}): NoteDto {
     checklistItems: [],
     media: [],
     listIds: [],
+    collaborators: [],
     ...partial,
   };
 }

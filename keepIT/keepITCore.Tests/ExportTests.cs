@@ -206,6 +206,8 @@ public sealed class ExportTests
         var exported = Assert.Single(NotesIn(ownerManifest));
         Assert.Equal(sharedId, exported.GetProperty("id").GetString());
         Assert.True(exported.GetProperty("isShared").GetBoolean());
+        // ...but not who it is shared with: an export file carries no one else's details.
+        Assert.Empty(exported.GetProperty("collaborators").EnumerateArray());
     }
 
     /// <summary>

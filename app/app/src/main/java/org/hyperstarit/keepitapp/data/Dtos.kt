@@ -177,6 +177,20 @@ data class NoteMediaDto(
     val isAudio: Boolean get() = kind == MediaKinds.AUDIO
 }
 
+/**
+ * Someone else on a shared note, as its card shows them: a round picture, or the first letter of
+ * their [email] without one. [profileImageVersion] changes with every new picture and is null when
+ * there is none, so [org.hyperstarit.keepitapp.data.offline.CollaboratorPictures] keeps one file per
+ * user and version and never asks for a picture that doesn't exist.
+ */
+@Serializable
+data class NoteCollaboratorDto(
+    val userId: String,
+    val email: String = "",
+    val isOwner: Boolean = false,
+    val profileImageVersion: String? = null,
+)
+
 @Serializable
 data class NoteDto(
     val id: String,
@@ -210,6 +224,11 @@ data class NoteDto(
     /** Image attachments, ordered. Empty when the note has none. */
     val media: List<NoteMediaDto> = emptyList(),
     val listIds: List<String> = emptyList(),
+    /**
+     * Everyone else on the note, owner first; empty when it isn't shared — and from a server older
+     * than this field, which then leaves the card its "Shared" label. Never in an export archive.
+     */
+    val collaborators: List<NoteCollaboratorDto> = emptyList(),
 )
 
 /**

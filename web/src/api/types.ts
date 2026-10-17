@@ -21,6 +21,7 @@ export type NoteMediaDto = S['NoteMediaDto'];
 export type NoteType = S['NoteType'];
 
 export type NoteShareDto = S['NoteShareDto'];
+export type NoteCollaboratorDto = S['NoteCollaboratorDto'];
 export type CreateShareDto = S['CreateShareDto'];
 export type UpdateShareRoleDto = S['UpdateShareRoleDto'];
 export type NoteRole = S['NoteRole'];

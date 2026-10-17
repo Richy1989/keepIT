@@ -10,18 +10,16 @@ import { noteColor } from './palette';
 import { MAX_CARD_RECORDINGS, MAX_PREVIEW_ITEMS } from './masonry';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
+import { CollaboratorFaces } from './CollaboratorFaces';
 import { ColorPicker } from '../../components/ColorPicker';
 import {
   ArchiveIcon,
   CheckIcon,
   ClockIcon,
-  EyeIcon,
   PaletteIcon,
-  PencilIcon,
   PinIcon,
   RestoreIcon,
   TrashIcon,
-  UsersIcon,
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { ChecklistItemDto, NoteDto, NoteField, UpdateNoteDto } from '../../api/types';
@@ -286,7 +284,7 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
         <div className="ml-auto flex flex-col items-end gap-1">
           {!note.isTrashed && <ReminderChip note={note} onClick={() => setShowReminder(true)} />}
           <div className="flex items-center gap-1.5">
-            <ShareBadge note={note} />
+            <CollaboratorFaces note={note} onPhoto={!!hero} />
             {note.createdAtUtc && (
               <time
                 className="whitespace-nowrap text-xs text-text-faint"
@@ -332,30 +330,6 @@ function formatDateFull(iso: string) {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-/**
- * A subtle indicator of a note's share status: for the owner, a "shared with others" marker; for a
- * collaborator, whether they hold view-only or edit access.
- */
-function ShareBadge({ note }: { note: NoteDto }) {
-  if (note.isOwner) {
-    if (!note.isShared) return null;
-    return (
-      <span title="Shared with others" className="text-text-faint">
-        <UsersIcon className="text-sm" />
-      </span>
-    );
-  }
-  return note.canEdit ? (
-    <span title="Shared with you — you can edit" className="text-text-faint">
-      <PencilIcon className="text-sm" />
-    </span>
-  ) : (
-    <span title="Shared with you — view only" className="text-text-faint">
-      <EyeIcon className="text-sm" />
-    </span>
-  );
 }
 
 /** A small icon button in the card's hover toolbar. */

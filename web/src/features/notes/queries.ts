@@ -170,6 +170,7 @@ export function useCreateNote() {
         media: [],
         checklistItems: input.checklistItems ?? [],
         listIds: input.listIds ?? [],
+        collaborators: [],
       };
       reconcileNote(qc, tempId, optimistic);
       return { snapshot, tempId };

@@ -231,7 +231,28 @@ namespace keepITCore.Settings
             }
 
             await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Settings);
+            // The picture is on the card of every shared note the user is on (NoteDto.Collaborators),
+            // so the people they share notes with refetch their notes to show the new one.
+            var partners = await SharePartnerIdsAsync(ownerId.Value, ct);
+            await Task.WhenAll(partners.Select(uid => _notifier.NotifyAsync(uid, RealtimeResources.Notes)));
             return Ok(new { fileName });
+        }
+
+        /// <summary>
+        /// Everyone on a shared note with <paramref name="userId"/>: the owners of the notes shared
+        /// with them, and every grantee of those notes and of their own shared notes — but not
+        /// <paramref name="userId"/> themself.
+        /// </summary>
+        /// <param name="userId">The user whose share partners to find.</param>
+        /// <param name="ct">Cancellation token.</param>
+        private async Task<List<Guid>> SharePartnerIdsAsync(Guid userId, CancellationToken ct)
+        {
+            var noteIds = _db.NoteShares
+                .Where(s => s.GranteeId == userId || s.Note.OwnerId == userId)
+                .Select(s => s.NoteId);
+            var owners = _db.Notes.Where(n => noteIds.Contains(n.Id)).Select(n => n.OwnerId);
+            var grantees = _db.NoteShares.Where(s => noteIds.Contains(s.NoteId)).Select(s => s.GranteeId);
+            return await owners.Union(grantees).Where(id => id != userId).ToListAsync(ct);
         }
 
         /// <summary>

@@ -82,7 +82,8 @@ public class NotesController : ControllerBase
         var states = await query
             .Include(us => us.Note).ThenInclude(n => n.ChecklistItems)
             .Include(us => us.Note).ThenInclude(n => n.NoteLists.Where(nl => nl.UserId == callerId))
-            .Include(us => us.Note).ThenInclude(n => n.NoteShares)
+            .Include(us => us.Note).ThenInclude(n => n.NoteShares).ThenInclude(s => s.Grantee)
+            .Include(us => us.Note).ThenInclude(n => n.Owner)
             .Include(us => us.Note).ThenInclude(n => n.Reminders.Where(r => r.UserId == callerId))
             .Include(us => us.Note).ThenInclude(n => n.Media)
             .OrderByDescending(us => us.IsPinned)
@@ -469,7 +470,8 @@ public class NotesController : ControllerBase
             .Where(n => n.Id == id)
             .Include(n => n.ChecklistItems)
             .Include(n => n.NoteLists.Where(nl => nl.UserId == callerId))
-            .Include(n => n.NoteShares)
+            .Include(n => n.NoteShares).ThenInclude(s => s.Grantee)
+            .Include(n => n.Owner)
             .Include(n => n.Reminders.Where(r => r.UserId == callerId))
             .Include(n => n.Media)
             .FirstOrDefaultAsync();

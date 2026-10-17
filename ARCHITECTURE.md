@@ -529,6 +529,21 @@ color. Not shared (each per-user): pin/archive/trash, list memberships (`NoteLis
 a collaborator files a shared note into their *own* lists), and **reminders** (`NoteReminder`
 is keyed per user; a viewer can set their own reminder on a shared note).
 
+**Who is on a note (`NoteDto.collaborators`).** Each note carries everyone else on it, owner
+first and then the grantees in the order they joined, never the caller and never an unanswered
+invite: `{ userId, email, isOwner, profileImageVersion }`, built in `NoteProjection` from the
+owner and each share's grantee. Both clients draw it as overlapping round faces in the card's
+footer (`CollaboratorFaces` on each), at most three and then a "+N" circle, with a picture or
+the email's first letter; the row's accessible name says who is on it and, for a collaborator,
+whether they may edit, which the card no longer shows any other way. `profileImageVersion` is
+the stored picture's random file name, so it changes with every upload and is null without a
+picture: the web caches a picture per user and version, Android keeps one per user on disk
+(`data/offline/CollaboratorPictures.kt`, `filesDir/offline/people/`, warmed after each sync like
+the thumbnails, cleared on sign-out). An upload pushes `notes` to everyone who shares a note with
+the uploader, so their cards pick up the new face. The field is only email and picture, which a
+collaborator could already see in the share list and through `getProfileImage`. A server older
+than the field sends none, and Android then keeps its old "Shared" / "Can edit" label.
+
 **Endpoints.** Sharing is an **invite → accept** flow, not a silent grant (a note shouldn't
 just appear in a stranger's grid). Owner-only except where noted:
 - `POST   /api/notes/{id}/shares` — invite a user (by email) at a role. Creates a pending
@@ -708,13 +723,14 @@ rejection may destroy the session.
 
 **Device backup.** Android backs up everything the rules don't exclude — to the cloud (Google, or
 Seedvault on de-Googled phones) and in a transfer to a new phone — so
-`res/xml/data_extraction_rules.xml` is exclusions only, and there are two. The cookie's prefs file
+`res/xml/data_extraction_rules.xml` is exclusions only, and there are three. The cookie's prefs file
 (`ApiClient.PREFS_NAME`) stays behind: a restored cookie is either a working sign-in sitting in a
 backup or, once the original device has refreshed past it, a replay that the server's reuse
 detection answers by ending every session on the account. A restored phone signs in again, and the
 restored cache and outbox carry on under the same account (a different one wipes them). The
 downloaded-image cache (`offline/media`) stays behind too: it re-downloads, and it alone can exceed
-cloud backup's 25 MB per-app quota, which skips the backup altogether. Everything else travels, and
+cloud backup's 25 MB per-app quota, which skips the backup altogether. So do the pictures of the
+people on shared notes (`offline/people`): they re-download, and they are other people's. Everything else travels, and
 must — for a standalone user the offline store and staged images are the only copy.
 `BackupRulesTest` pins both directions.
 
@@ -1161,7 +1177,8 @@ resource, with `Service/ImageService.cs` doing the storage work:
   refetched when realtime connects (every sign-in, every reconnect) and on the `settings` push an
   upload sends. A 404 removes it and any other failure keeps it, so a bad connection never turns a
   picture back into an initial; sign-out deletes it. Each new picture gets a new file name, since
-  Coil caches by path. Uploading stays web-only.
+  Coil caches by path. Uploading stays web-only. The pictures of the people on shared notes have a
+  cache of their own, keyed by version (see **Sharing / collaboration**).
 
 **Implemented: note media (image attachments).** Images attach to **any** note — text or
 checklist — as an ordered, append-only collection (`NoteMedia`, cascade-deleted with the note).
@@ -1309,7 +1326,9 @@ shape, three producers, nothing extra to keep in sync — and `NoteProjection.To
 `NotesController` so the export cannot drift from what a client would have been served.
 
 Per-caller fields (`isOwner`, `role`, `canEdit`, `isShared`, `noteCount`) ride along as a snapshot
-and are ignored on import. Only originals are archived — thumbnails are derived and regenerated,
+and are ignored on import. `collaborators` does not: export projects with `forArchive: true`,
+which leaves it empty, because a file the user keeps must not carry other people's emails
+(Android's standalone archive clears it too). Only originals are archived — thumbnails are derived and regenerated,
 so shipping them would double the file. `schemaVersion` is the compatibility gate: an importer
 refuses an archive newer than it understands rather than silently dropping whatever was added.
 

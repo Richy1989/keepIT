@@ -2,6 +2,7 @@ package org.hyperstarit.keepitapp.portability
 
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteArchiveDto
+import org.hyperstarit.keepitapp.data.NoteCollaboratorDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.offline.PendingOp
@@ -94,6 +95,18 @@ class ArchiveTest {
 
         assertTrue(content.manifest.notes.single().media.isEmpty())
         assertTrue(content.images.isEmpty())
+    }
+
+    /** An archive carries no one else's details, the server's export says so too (ExportTests). */
+    @Test
+    fun `the people on a note stay out of the archive`() {
+        val notes = listOf(
+            NoteDto(id = "n1", collaborators = listOf(NoteCollaboratorDto(userId = "u2", email = "ben@example.com"))),
+        )
+
+        val content = buildStandaloneArchive(notes, emptyList(), emptyList(), "0.7.6", "now", probe)
+
+        assertTrue(content.manifest.notes.single().collaborators.isEmpty())
     }
 
     @Test
