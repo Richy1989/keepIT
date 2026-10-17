@@ -1,0 +1,7 @@
+node_modules/
+out/
+# The recorded footage: record-tour.py makes it, and it is too big for the repository.
+public/tour.mp4
+# Mixkit's licence lets the track be used in the video but not passed on as a file; README.md says
+# where to download it.
+public/music/dirty-thinkin.mp3

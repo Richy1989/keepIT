@@ -101,3 +101,11 @@ RELEASING.md
 
 # Superpowers brainstorming companion (local mockups)
 .superpowers/
+
+# Videos are made, never committed: the promo video's renders and screen recordings
+# (docs/promo/) are rebuilt from its scripts, and GitHub is no place for them.
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.m4v

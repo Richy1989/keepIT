@@ -1,0 +1,20 @@
+{
+  "grid": 0.6,
+  "open": 5.33,
+  "tick": 9.08,
+  "tick2": 12.11,
+  "colour": 15.4,
+  "sage": 18.54,
+  "sheetClosed": 19.76,
+  "close": 22.86,
+  "scroll": 24.89,
+  "scroll2": 29.67,
+  "faces": 31.86,
+  "end": 35.86,
+  "facesBox": [
+    743,
+    1300,
+    905,
+    1368
+  ]
+}
