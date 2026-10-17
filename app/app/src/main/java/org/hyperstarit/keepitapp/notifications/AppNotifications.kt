@@ -17,9 +17,9 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
 /**
  * The app's native notification surface — channels, permission checks, and posting. **Every**
  * user-facing notification goes through here (reminders fired by the local alarm, and server-created
- * inbox items like share invites); there is deliberately no in-app notification UI on Android, the
- * system tray is it. Channel setup is idempotent and runs at app start, so the user can manage
- * per-channel behavior in system settings from day one.
+ * inbox items like share invites). Server inbox items are also kept in the app, under the notes
+ * screen's bell, since the tray loses whatever is swiped away. Channel setup is idempotent and
+ * runs at app start, so the user can manage per-channel behavior in system settings from day one.
  */
 object AppNotifications {
 

@@ -30,6 +30,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,13 +49,19 @@ import org.hyperstarit.keepitapp.data.ShareResponseDto
 import org.hyperstarit.keepitapp.data.UserNotificationDto
 import org.hyperstarit.keepitapp.data.apiErrorMessage
 import org.hyperstarit.keepitapp.notifications.AppNotifications
+import org.hyperstarit.keepitapp.notifications.ServerNotificationsWatcher
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 
 /**
- * The in-app inbox, the phone twin of the web's notification bell: share invites are answerable
- * here (accept grants access, either answer consumes the invite), everything else is dismissable.
- * The tray keeps alerting (that's the watcher's job) — this screen is where invites get *acted on*,
- * which a native notification tap can't do. Online-only.
+ * The in-app inbox, the phone twin of the web's notification bell, opened from the notes screen's
+ * bell: share invites are answerable here (accept grants access, either answer consumes the
+ * invite), everything else is dismissable. The tray keeps alerting (that's the watcher's job) —
+ * this screen is where invites get *acted on*, which a native notification tap can't do, and where
+ * whatever was swiped away in the tray is still found. Online-only.
+ *
+ * The list is the watcher's [ServerNotificationsWatcher.inbox], which follows every realtime push,
+ * so it stays live while open. Looking at it reads it: opening the screen marks the inbox read, as
+ * opening the web's bell does, and so does anything that arrives while it is open.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,20 +69,30 @@ fun NotificationsScreen(container: AppContainer, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val api = container.apiClient.api
+    val watcher = container.notificationsWatcher
 
-    var items by remember { mutableStateOf<List<UserNotificationDto>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    val inbox by watcher.inbox.collectAsState()
+    val unread by watcher.unread.collectAsState()
+    // Whether this screen's own fetch has finished; until then, an inbox not fetched yet is loading.
+    var loaded by remember { mutableStateOf(false) }
     var busyId by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     suspend fun reload() {
-        runCatching { api.notifications() }
-            .onSuccess { items = it }
+        runCatching { watcher.refresh() }
             .onFailure { snackbarHostState.showSnackbar(apiErrorMessage(it, "Could not load notifications.")) }
-        loading = false
+        loaded = true
     }
 
+    // Fetched on opening even when the watcher has a copy: the socket may have been down.
     LaunchedEffect(Unit) { reload() }
+    // Reads whatever is unread, on opening and on each arrival. One that fails (offline) leaves the
+    // bell its count, and the next arrival or opening tries again.
+    LaunchedEffect(unread > 0) {
+        if (unread > 0) runCatching { watcher.markAllRead() }
+    }
+
+    val items = inbox.orEmpty()
 
     /** Shared flow for answer/dismiss: call, drop the tray copy, reload; errors go to the snackbar. */
     fun act(item: UserNotificationDto, fallback: String, refreshNotes: Boolean, block: suspend (String) -> Unit) {
@@ -117,7 +134,7 @@ fun NotificationsScreen(container: AppContainer, onBack: () -> Unit) {
         },
     ) { padding ->
         when {
-            loading -> Box(
+            inbox == null && !loaded -> Box(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {

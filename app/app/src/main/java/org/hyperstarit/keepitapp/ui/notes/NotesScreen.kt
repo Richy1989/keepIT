@@ -42,8 +42,11 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Star as StarOutline
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CheckboxDefaults
@@ -163,6 +166,7 @@ fun NotesScreen(
     val pendingMedia by repo.pendingMediaByNote.collectAsState()
     val session by container.session.state.collectAsState()
     val profilePicture by container.profileImage.file.collectAsState()
+    val unread by container.notificationsWatcher.unread.collectAsState()
     // Set once Sign out is tapped, so a second tap can't start a second sign-out.
     var signingOut by remember { mutableStateOf(false) }
     // Changes still queued make Sign out ask first: it tries one last sync, then wipes the queue
@@ -391,6 +395,7 @@ fun NotesScreen(
                     if (!standalone) {
                         NavigationDrawerItem(
                             label = { Text("Notifications") },
+                            badge = { if (unread > 0) UnreadBadge(unread) },
                             selected = false,
                             onClick = {
                                 scope.launch { drawerState.close() }
@@ -494,6 +499,8 @@ fun NotesScreen(
                                 IconButton(onClick = { scope.launch { repo.refreshAll() } }) {
                                     Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = KeepItColors.TextMuted)
                                 }
+                                // The inbox is the server's, as in the drawer.
+                                InboxBell(unread = unread, onClick = onOpenNotifications)
                             }
                         },
                     )
@@ -1073,6 +1080,32 @@ private fun ListDialog(
             }
         },
     )
+}
+
+/**
+ * The top bar's way into the inbox, the web's bell: it carries the [unread] count, so a
+ * notification swiped away in the tray, or never shown there with notifications off, is still
+ * seen. Opening the inbox reads it (see NotificationsScreen), which clears the count.
+ */
+@Composable
+private fun InboxBell(unread: Int, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        BadgedBox(badge = { if (unread > 0) UnreadBadge(unread) }) {
+            Icon(
+                Icons.Outlined.Notifications,
+                contentDescription = if (unread > 0) "Notifications, $unread unread" else "Notifications",
+                tint = KeepItColors.TextMuted,
+            )
+        }
+    }
+}
+
+/** The unread count on an accent fill, which carries black; past nine it reads "9+", as on the web. */
+@Composable
+private fun UnreadBadge(unread: Int) {
+    Badge(containerColor = KeepItColors.Accent, contentColor = Color.Black) {
+        Text(if (unread > 9) "9+" else "$unread")
+    }
 }
 
 /**
