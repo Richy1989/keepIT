@@ -7,6 +7,7 @@
     "render": "npm run render:landscape && npm run render:portrait",
     "render:landscape": "remotion render src/index.ts Promo out/keepit-promo-landscape.mp4 --codec=h264 --crf=16",
     "render:portrait": "remotion render src/index.ts PromoPortrait out/keepit-promo-portrait.mp4 --codec=h264 --crf=16",
+    "render:readme": "remotion render src/index.ts Promo out/keepit-promo-readme.mp4 --codec=h264 --crf=16 --frames=45-749",
     "still": "remotion still src/index.ts Promo out/still.png",
     "typecheck": "tsc --noEmit"
   },

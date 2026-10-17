@@ -60,7 +60,27 @@ npm run studio      # preview in the browser, with a timeline to scrub
 npm run render      # out/keepit-promo-landscape.mp4 and out/keepit-promo-portrait.mp4
 ```
 
-`npm run render:landscape` and `npm run render:portrait` make one of them.
+`npm run render:landscape` and `npm run render:portrait` make one of them, and
+`npm run render:readme` the README's cut (see below).
+
+## In the README
+
+The README shows its own cut of the landscape video, `npm run render:readme`: the same video from
+1.5 s on, when the phone, the caption and the logo are all in. GitHub's player shows a video's first
+frame until it is played, and the full video's first frame is still empty background. The cut
+starts on a beat of the music, and keeps it: GitHub never plays a video by itself, so the sound
+only comes when someone presses play.
+
+GitHub plays a video in a README only when it was uploaded to GitHub, not one stored in the
+repository, so it takes both:
+
+1. Copy `out/keepit-promo-readme.mp4` to `docs/video/keepit-promo-readme.mp4`. That is the one video
+   in git: the root `.gitignore` keeps every other video out and lets that folder through.
+2. Upload the same file: on github.com, drag it into a new issue's text box (and leave the issue
+   unsubmitted). GitHub answers with a `https://github.com/user-attachments/assets/…` link. Videos
+   may be 10 MB on a free plan.
+3. Put that link on a line of its own in `README.md`, in place of the old one: GitHub shows it as a
+   player.
 
 ## Where things are
 

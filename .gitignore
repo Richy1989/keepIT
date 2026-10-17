@@ -109,3 +109,6 @@ RELEASING.md
 *.mov
 *.mkv
 *.m4v
+# ...except the one the README shows, copied here from docs/promo/out/ by hand: see
+# docs/promo/README.md -> In the README.
+!docs/video/*.mp4
