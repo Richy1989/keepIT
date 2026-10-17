@@ -82,6 +82,17 @@ repository, so it takes both:
 3. Put that link on a line of its own in `README.md`, in place of the old one: GitHub shows it as a
    player.
 
+## On YouTube and F-Droid
+
+The portrait video is on YouTube as a Short, https://www.youtube.com/watch?v=Ml5dyDoTC9w, and
+`docs/video/keepit-promo-portrait.mp4` keeps the file that was uploaded. F-Droid's listing links it:
+`fastlane/metadata/android/en-US/video.txt` holds the link, which F-Droid reads from a release tag,
+so it shows from the next release on. The link is in the plain `watch?v=` form, which apps such as
+NewPipe open as readily as YouTube's own; Play's preview video field takes it in that form too.
+
+After a new render, upload the new file, replace the copy in `docs/video/`, and put the new link in
+`video.txt` before the release is tagged.
+
 ## Where things are
 
 | File | What it is |

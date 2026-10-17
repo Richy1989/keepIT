@@ -35,7 +35,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 📦 Deployment & Docs
 
-- The README shows the Android app in a short video, under "A closer look".
+- The README shows the Android app in a short video, under "A closer look", and F-Droid's listing
+  links the same tour in portrait, [on YouTube](https://www.youtube.com/watch?v=Ml5dyDoTC9w).
 - New setting `App__WelcomeNote`: set it to `false` and new accounts start without the welcome
   note. Existing accounts are not affected either way.
 - About credits .NET, the runtime and libraries the server is built on.
