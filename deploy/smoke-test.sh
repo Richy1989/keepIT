@@ -57,6 +57,10 @@ CREDENTIALS="{\"email\":\"$EMAIL\",\"password\":\"Smoke-test-pass-1\"}"
 curl -fsS -o /dev/null -H 'Content-Type: application/json' -d "$CREDENTIALS" "$BASE/api/auth/register"
 curl -fsS -o "login.json" -H 'Content-Type: application/json' -d "$CREDENTIALS" "$BASE/api/auth/login"
 AUTH="Authorization: Bearer $(json "login.json" accessToken)"
+# A new account starts with the welcome note unless the server has App__WelcomeNote=false, so the
+# export and the import below count on the notes it started with, plus the one made here.
+STARTED_WITH="$(curl -fsS -H "$AUTH" "$BASE/api/notes" | "$PY" -c 'import json, sys; print(len(json.load(sys.stdin)))')"
+NOTES=$((STARTED_WITH + 1))
 
 step "Create a note"
 curl -fsS -o "note.json" -H "$AUTH" -H 'Content-Type: application/json' \
@@ -89,7 +93,7 @@ TYPE="$(curl -fsS -o /dev/null -w '%{content_type}' -H "$AUTH" "$BASE/api/notes/
 step "Export the account through the proxy"
 CODE="$(curl -sS -o "export.zip" -w '%{http_code}' -H "$AUTH" "$BASE/api/export")"
 [ "$CODE" = 200 ] || fail "GET /api/export returned HTTP $CODE: $(head -c 300 "export.zip")"
-"$PY" - "export.zip" <<'PYTHON'
+"$PY" - "export.zip" "$NOTES" <<'PYTHON'
 import json, sys, zipfile
 with zipfile.ZipFile(sys.argv[1]) as z:
     if z.testzip() is not None:
@@ -98,20 +102,21 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     if "keepit-export.json" not in names:
         raise SystemExit("no manifest in the export: %s" % names)
     manifest = json.loads(z.read("keepit-export.json"))
-    if len(manifest["notes"]) != 1:
-        raise SystemExit("expected 1 note in the manifest, got %d" % len(manifest["notes"]))
+    expected = int(sys.argv[2])
+    if len(manifest["notes"]) != expected:
+        raise SystemExit("expected %d notes in the manifest, got %d" % (expected, len(manifest["notes"])))
     if not any(n.startswith("media/") for n in names):
         raise SystemExit("the photo is missing from the export: %s" % names)
-    print("exported %d note and %d image" % (len(manifest["notes"]), len(names) - 1))
+    print("exported %d notes and %d image" % (len(manifest["notes"]), len(names) - 1))
 PYTHON
 
 step "Import it back"
 CODE="$(curl -sS -o "import.json" -w '%{http_code}' -H "$AUTH" \
   -F "file=@export.zip;type=application/zip" "$BASE/api/import")"
 [ "$CODE" = 200 ] || fail "POST /api/import returned HTTP $CODE (413 from a proxy means its body limit is too low for an archive): $(head -c 300 "import.json")"
-[ "$(json "import.json" notesImported)" = 1 ] || fail "the import reported $(cat "import.json")"
+[ "$(json "import.json" notesImported)" = "$NOTES" ] || fail "the import reported $(cat "import.json")"
 [ "$(json "import.json" attachmentsImported)" = 1 ] || fail "the photo did not survive the round trip: $(cat "import.json")"
-echo "round trip restored the note and its photo"
+echo "round trip restored the notes and the photo"
 
 step "A 20 MB import body reaches the API rather than a proxy limit"
 # Past the 12 MB a photo upload is allowed, well inside the import cap. Deliberately not a real

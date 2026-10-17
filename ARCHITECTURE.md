@@ -254,6 +254,10 @@ the API issues tokens.
 - `POST /register` — create account → access token + refresh cookie. Refused with 403 when
   `App__AllowRegistration=false` — the intended mode for an internet-exposed personal
   instance: create your accounts, then close the door (existing users are unaffected).
+  A new account starts with one note of its own, the welcome note (`Notes/WelcomeNote.cs`): a
+  blue Markdown note with things to try and the GitHub link for questions, an ordinary note
+  in every other way. `App__WelcomeNote=false` leaves new accounts empty; so do test hosts,
+  where most tests count the notes they make.
 - `POST /login` — credentials → access token + refresh cookie. Failed attempts count toward
   Identity's per-account **lockout**; a locked account gets the same generic 401 as bad
   credentials (no account/lock-state enumeration). Every 401 is a `LoginFailureDto`; for an
@@ -840,7 +844,8 @@ Both ways of refreshing it run with **no UI in the process**, which shapes them:
   guard. See the testing section.
 
 **Screens** (`ui/`): login/register (with server URL + forgot-password, or standalone), notes grid
-(staggered, with sync-status strip and pending-changes count), editor (Markdown styled live as it
+(staggered, with sync-status strip and pending-changes count, and the inbox bell with its unread
+count), editor (Markdown styled live as it
 is typed, checklist editing, color, share sheet, reminder dialog),
 notifications inbox, settings (theme, notification + exact-alarm permissions, display name,
 change password, about/version — a theme for this device only and no accent, see below).
@@ -1551,8 +1556,9 @@ not be newer than the literals.
   and no email goes out without `App__PublicBaseUrl`), and that SMTP mail stays encrypted (a
   loopback `FakeSmtpServer` that never offers STARTTLS receives neither the SMTP password nor
   the message), and which requests get a Secure refresh cookie (every HTTPS one, direct or
-  forwarded, whatever the setting). They run one host at a time because the
-  data root is a process-wide static.
+  forwarded, whatever the setting), and that a new account gets its welcome note (and none when
+  `App:WelcomeNote` is off, as it is on every other test host, so tests count only the notes
+  they make). They run one host at a time because the data root is a process-wide static.
 - **Deployment smoke test** (`deploy/smoke-test.sh`, run by CI against the built image): a ~3 MB
   photo upload through nginx — the layer every in-process test bypasses, and where the 1 MB
   default body limit once hid. The same CI job then checks that neither a hub token nor a reset
