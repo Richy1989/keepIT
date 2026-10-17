@@ -34,7 +34,8 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
 - **The export archive is the DTOs, not a format of its own.** `keepit-export.json` holds
   `NoteDto[]` + `ListDto[]` (see ARCHITECTURE.md → Export & import). Never add a hand-written
   mirror of a DTO to the archive, and never let export project a note by any route other than
-  `NoteProjection.ToDto`. Bump `NoteArchiveDto.CurrentSchemaVersion` when a change would stop an
+  `NoteProjection.ToDto` — with `forArchive: true`, which keeps other people's details
+  (`NoteDto.collaborators`) out of a file the user keeps; a new field naming anyone else goes there too. Bump `NoteArchiveDto.CurrentSchemaVersion` when a change would stop an
   older importer reading the file, and keep the round-trip tests green — they are the format's
   only specification, since a file format can't live in the OpenAPI document. Every 1.x imports
   every older export: `keepITCore.Tests/Archives/` holds real exports from released versions,

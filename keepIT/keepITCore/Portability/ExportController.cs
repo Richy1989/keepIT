@@ -158,7 +158,7 @@ public class ExportController : ControllerBase
             AppVersion = AppVersion.Current,
             Lists = lists,
             Notes = notes
-                .Select(n => NoteProjection.ToDto(n, states.GetValueOrDefault(n.Id), ownerId))
+                .Select(n => NoteProjection.ToDto(n, states.GetValueOrDefault(n.Id), ownerId, forArchive: true))
                 .ToList(),
         };
     }

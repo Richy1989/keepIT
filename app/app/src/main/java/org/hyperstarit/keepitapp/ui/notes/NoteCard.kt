@@ -89,7 +89,8 @@ private const val MAX_PREVIEW_ITEMS = 6
 /**
  * One full-width row in the note list, styled like the web NoteCard: palette background + border,
  * title, body/checklist preview, and a footer with pin (trash view: restore / owner-only
- * delete-forever), share badge, and timestamp. Tapping the card opens the editor.
+ * delete-forever), the faces of the people it is shared with, and timestamp. Tapping the card opens
+ * the editor.
  *
  * Long-pressing it selects it, which puts the list into multi-select ([selecting]): from then on a
  * tap selects or deselects, and the card's own controls (pin, reminder, playing a recording) stand
@@ -347,7 +348,18 @@ fun NoteCard(
                                     )
                                 }
 
-                                ShareBadge(note)
+                                // The people on it; from a server older than that field, the old label.
+                                if (note.collaborators.isNotEmpty()) {
+                                    CollaboratorFaces(
+                                        note = note,
+                                        pictures = repo.collaboratorPictures,
+                                        // The colour behind the footer: the gradient's bottom, or on
+                                        // a photo the photo text colour, as Keep rings faces in white.
+                                        ring = if (photo) card.photoText else card.bottom(swatch.bg),
+                                    )
+                                } else {
+                                    ShareBadge(note)
+                                }
 
                                 Text(
                                     text = formatDate(note.createdAtUtc),
@@ -538,7 +550,10 @@ private fun ChecklistPreview(note: NoteDto) {
     }
 }
 
-/** Share status like the web: owner sees "Shared"; a collaborator sees their access level. */
+/**
+ * Share status in words: the owner sees "Shared", a collaborator their access level. Only for a
+ * server too old to say who is on a note; everywhere else [CollaboratorFaces] says it.
+ */
 @Composable
 private fun ShareBadge(note: NoteDto) {
     val label = when {

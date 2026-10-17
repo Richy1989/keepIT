@@ -65,11 +65,16 @@ export function useUpdateDisplayName() {
  * Fetches the user's profile image as a Blob (the endpoint is authenticated, so it can't be used
  * directly as an <img src>). Returns null when the user has no image (404). The caller turns the
  * Blob into an object URL.
+ *
+ * `version` is for someone else's picture: a note collaborator's `profileImageVersion`. Each
+ * version is an entry of its own, so a new picture is fetched once and an unchanged one never
+ * again, and null — no picture — fetches nothing. Left out, as for the signed-in user's own
+ * avatar, the image is kept until their own upload invalidates it.
  */
-export function useProfileImage(userId: string | undefined) {
+export function useProfileImage(userId: string | undefined, version?: string | null) {
   return useQuery({
-    queryKey: [PROFILE_IMAGE_KEY, userId],
-    enabled: !!userId,
+    queryKey: version === undefined ? [PROFILE_IMAGE_KEY, userId] : [PROFILE_IMAGE_KEY, userId, version],
+    enabled: !!userId && version !== null,
     staleTime: Infinity, // only changes via our own upload, which invalidates this
     queryFn: async () => {
       const { data, response } = await api.GET('/api/settings/getProfileImage/{userId}', {

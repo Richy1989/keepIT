@@ -13,6 +13,8 @@
    - offline/media - downloaded server images. They download again, and a cache of up to 256 MB
      would push the app past cloud backup's 25 MB allowance, which skips the backup altogether.
      offline/media-staging is a different directory and stays in.
+   - offline/people - the profile pictures of the people on shared notes. They download again, and
+     they are other people's pictures, which have no place in this user's backup.
 
    Pinned by BackupRulesTest; backup_rules.xml carries the same exclusions.
    See https://developer.android.com/about/versions/12/backup-restore#xml-changes
@@ -21,9 +23,11 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="keepit_net.xml"/>
         <exclude domain="file" path="offline/media"/>
+        <exclude domain="file" path="offline/people"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="keepit_net.xml"/>
         <exclude domain="file" path="offline/media"/>
+        <exclude domain="file" path="offline/people"/>
     </device-transfer>
 </data-extraction-rules>

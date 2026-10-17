@@ -14,6 +14,11 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - Welcome note — a new account starts with a blue note that says hello, suggests things to try
   and links GitHub for questions and problems. It is an ordinary note, to keep, change or delete.
   Web and Android.
+- Faces on shared notes — a shared note shows the people on it as small round profile pictures at
+  the bottom of its card, overlapping a little: up to three, then a "+N" circle for the rest.
+  Hovering on the web, or TalkBack on Android, says who they are and, on a note shared with you,
+  whether you can edit it. Web and Android; the Android app shows them once its server is updated,
+  and keeps the "Shared" label until then.
 
 ### 🔧 Improvements
 
@@ -36,7 +41,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - keepIT has [terms of use](https://github.com/Richy1989/keepIT/blob/main/TERMS.md): what may be
   stored and shared on a keepIT server, and what to do about unwanted sharing. Creating an account
   says it accepts them, and About links them, on the web and on Android.
-- The privacy policy now gives an email address for questions: support@hyperstarit.org.
+- The privacy policy now gives an email address for questions: support@hyperstarit.org. It also
+  says plainly that everyone on a shared note sees the others' email addresses and profile pictures.
 - The Android screenshots are 1350×2400 (9:16), the shape Google Play accepts.
 - keepIT is on Google Play as a closed test that anyone can join: the README's
   [Get it](https://github.com/Richy1989/keepIT#get-it) says how. Play signs it with the same key as

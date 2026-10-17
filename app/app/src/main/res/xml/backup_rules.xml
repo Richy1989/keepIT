@@ -7,4 +7,5 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="keepit_net.xml"/>
     <exclude domain="file" path="offline/media"/>
+    <exclude domain="file" path="offline/people"/>
 </full-backup-content>

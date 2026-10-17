@@ -156,7 +156,13 @@ fun buildStandaloneArchive(
     val images = mutableListOf<ArchiveImage>()
 
     val manifestNotes = notes.map { local ->
-        val note = local.copy(id = archiveId(local.id), listIds = local.listIds.map(::archiveId))
+        // No one else's details in an archive, as the server's export: a standalone note has no
+        // collaborators anyway, but the rule shouldn't rest on that.
+        val note = local.copy(
+            id = archiveId(local.id),
+            listIds = local.listIds.map(::archiveId),
+            collaborators = emptyList(),
+        )
         val attachments = attachmentsByNote[local.id].orEmpty()
         if (attachments.isEmpty()) return@map note.copy(media = emptyList())
 

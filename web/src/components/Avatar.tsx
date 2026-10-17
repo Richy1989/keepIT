@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useProfileImage } from '../features/account/queries';
 import { cn } from '../lib/cn';
@@ -31,6 +32,40 @@ export function Avatar({
         'grid shrink-0 place-items-center overflow-hidden rounded-full bg-elevated font-semibold text-text-muted',
         className,
       )}
+    >
+      {url ? <img src={url} alt="" className="size-full object-cover" /> : initial}
+    </span>
+  );
+}
+
+/**
+ * Someone else's avatar — a collaborator on a shared note: their profile image at the given
+ * `version` (see useProfileImage), or `initial` until it loads and when they have none. Styled
+ * like Avatar; the caller adds size, text size and any ring through `className` and `style`.
+ */
+export function PersonAvatar({
+  userId,
+  version,
+  initial,
+  className,
+  style,
+}: {
+  userId: string;
+  version: string | null | undefined;
+  initial: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const { data: blob } = useProfileImage(userId, version ?? null);
+  const url = useObjectUrl(blob);
+
+  return (
+    <span
+      className={cn(
+        'grid shrink-0 place-items-center overflow-hidden rounded-full bg-elevated font-semibold text-text-muted',
+        className,
+      )}
+      style={style}
     >
       {url ? <img src={url} alt="" className="size-full object-cover" /> : initial}
     </span>

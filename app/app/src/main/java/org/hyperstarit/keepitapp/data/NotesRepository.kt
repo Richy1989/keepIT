@@ -25,6 +25,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.hyperstarit.keepitapp.data.offline.CacheSnapshot
+import org.hyperstarit.keepitapp.data.offline.CollaboratorPictures
 import org.hyperstarit.keepitapp.data.offline.LocalStore
 import org.hyperstarit.keepitapp.data.offline.MediaCache
 import org.hyperstarit.keepitapp.data.offline.MediaStaging
@@ -124,6 +125,11 @@ class NotesRepository(
      */
     val mediaCache = MediaCache(java.io.File(appContext.filesDir, "offline/media")) { noteId, mediaId, size ->
         client.api.downloadNoteMedia(noteId, mediaId, size)
+    }
+
+    /** The faces on shared notes' cards, kept for offline like [mediaCache] (see [CollaboratorPictures]). */
+    val collaboratorPictures = CollaboratorPictures(java.io.File(appContext.filesDir, "offline/people")) { userId ->
+        client.api.profileImage(userId)
     }
 
     val notes: StateFlow<List<NoteDto>> =
@@ -235,6 +241,7 @@ class NotesRepository(
         // Downloaded images are as personal as the notes they hang off — the next account to sign
         // in on this device must not find them sitting in the cache.
         mediaCache.clear()
+        collaboratorPictures.clear()
         // Nor the staged ones, whose ops were just cleared. In standalone mode these are the only
         // copies of the images, so erasing the device has to take them too.
         staging.pruneExcept(emptySet())
@@ -535,7 +542,11 @@ class NotesRepository(
      */
     private fun prefetch() {
         prefetchJob?.cancel()
-        prefetchJob = scope.launch { prefetchThumbnails(cache.value) }
+        prefetchJob = scope.launch {
+            val notes = cache.value
+            prefetchThumbnails(notes)
+            prefetchCollaboratorPictures(notes)
+        }
     }
 
     /**
@@ -556,6 +567,20 @@ class NotesRepository(
             }
 
         mediaCache.evict(MAX_MEDIA_CACHE_BYTES)
+    }
+
+    /**
+     * Fetches the faces on shared cards that aren't on disk yet, for offline, and forgets everyone
+     * who is on no note any more. Best-effort like the thumbnails: a face that fails shows its
+     * initial, and the card fetches it again when it is next drawn.
+     */
+    private suspend fun prefetchCollaboratorPictures(notes: List<NoteDto>) {
+        val current = notes.asSequence()
+            .flatMap { it.collaborators.asSequence() }
+            .mapNotNull { person -> person.profileImageVersion?.let { person.userId to it } }
+            .toMap()
+        current.forEach { (userId, version) -> runCatching { collaboratorPictures.file(userId, version) } }
+        collaboratorPictures.retain(current)
     }
 
     override suspend fun onIdRemapped(tempId: String, realId: String) {

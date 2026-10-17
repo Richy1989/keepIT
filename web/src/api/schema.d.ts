@@ -1884,6 +1884,13 @@ export interface components {
         MetaDto: {
             version: string;
         };
+        NoteCollaboratorDto: {
+            /** Format: uuid */
+            userId: string;
+            email: string;
+            isOwner: boolean;
+            profileImageVersion?: null | string;
+        };
         NoteDto: {
             /** Format: uuid */
             id: string;
@@ -1912,6 +1919,7 @@ export interface components {
             checklistItems: components["schemas"]["ChecklistItemDto"][];
             media: components["schemas"]["NoteMediaDto"][];
             listIds: string[];
+            collaborators: components["schemas"]["NoteCollaboratorDto"][];
         };
         /** @enum {unknown} */
         NoteField: "Type" | "Title" | "Body" | "Color" | "ChecklistItems";
