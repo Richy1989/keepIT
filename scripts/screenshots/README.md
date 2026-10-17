@@ -48,12 +48,13 @@ docker build --secret id=sixlabors_license,src=keepIT/keepITCore/sixlabors.lic \
     --build-arg VERSION=1.0.0 --build-arg COMMIT="$(git rev-parse --short HEAD)" \
     -f deploy/Dockerfile -t keepit-shots:local .
 docker run -d --name keepit-shots -p 127.0.0.1:18080:80 \
-    -e Jwt__Key="$(openssl rand -hex 32)" keepit-shots:local
+    -e Jwt__Key="$(openssl rand -hex 32)" -e App__WelcomeNote=false keepit-shots:local
 ./scripts/screenshots/seed-demo.sh http://localhost:18080
 ```
 
 The seed needs `curl`, `jq`, ImageMagick 7, `ffmpeg` and GNU `date` (on Windows: Git Bash or WSL),
-and a server nobody has signed up on. It ends by printing the notes in the order the grid shows
+and a server nobody has signed up on. `App__WelcomeNote=false` keeps the welcome note a new account
+gets out of the screenshots. It ends by printing the notes in the order the grid shows
 them. Sign in as `anna@example.com` / `Demo1234#demo`.
 
 A card prints when its note was last changed (the time of day, while it is still that day), so
