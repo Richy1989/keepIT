@@ -53,6 +53,9 @@ public sealed class KeepItApiFactory : WebApplicationFactory<Program>
         // the run asked for Postgres.
         builder.UseSetting("ConnectionStrings:Postgres", PostgresDatabase ?? "");
         builder.UseSetting("POSTGRES_HOST", "");
+        // A new account starts empty here, as most tests count the notes they made. WelcomeNoteTests
+        // switches it back on through Settings.
+        builder.UseSetting("App:WelcomeNote", "false");
 
         foreach (var (key, value) in Settings)
             builder.UseSetting(key, value);

@@ -3,6 +3,7 @@ using keepITCore.Data;
 using keepITCore.Infrastructure;
 using keepITCore.Infrastructure.Email;
 using keepITCore.Infrastructure.Security;
+using keepITCore.Notes;
 using keepITCore.SignalR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -104,7 +105,29 @@ public class AuthController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
+        if (_config.GetValue<bool?>(WelcomeNote.SettingKey) ?? true)
+            await AddWelcomeNoteAsync(user.Id);
+
         return await IssueTokensAsync(user);
+    }
+
+    /// <summary>
+    /// Gives a new account its <see cref="WelcomeNote"/>. The account exists by now, so a failure
+    /// here is logged and the sign-up still succeeds: a missing welcome must never cost a user their
+    /// account. No realtime push: a brand-new account has no device listening yet.
+    /// </summary>
+    private async Task AddWelcomeNoteAsync(Guid userId)
+    {
+        try
+        {
+            _db.Notes.Add(WelcomeNote.For(userId, DateTime.UtcNow));
+            await _db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not add the welcome note for a new account.");
+            _db.ChangeTracker.Clear();
+        }
     }
 
     /// <summary>

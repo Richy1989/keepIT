@@ -11,6 +11,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   "mi" and a ticked "Milk" shows up under the row. Take it (tap it, or press Tab on the web) and
   "Milk" is back on the list, unticked, where you were typing, instead of on it twice. Web and
   Android.
+- Welcome note — a new account starts with a blue note that says hello, suggests things to try
+  and links GitHub for questions and problems. It is an ordinary note, to keep, change or delete.
+  Web and Android.
 
 ### 🔧 Improvements
 
@@ -27,6 +30,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 📦 Deployment & Docs
 
+- New setting `App__WelcomeNote`: set it to `false` and new accounts start without the welcome
+  note. Existing accounts are not affected either way.
 - About credits .NET, the runtime and libraries the server is built on.
 - keepIT has [terms of use](https://github.com/Richy1989/keepIT/blob/main/TERMS.md): what may be
   stored and shared on a keepIT server, and what to do about unwanted sharing. Creating an account
