@@ -69,6 +69,10 @@ also works entirely on its own, with no server at all.
 
 ## A closer look
 
+The Android app in action, in under half a minute (with music):
+
+https://github.com/user-attachments/assets/8c5d0574-b9ed-4ab7-aac6-e54ae903551c
+
 Light, dim or dark, on the web and on your phone:
 
 <div align="center">
