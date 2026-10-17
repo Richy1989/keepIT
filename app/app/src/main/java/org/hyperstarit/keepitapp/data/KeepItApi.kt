@@ -215,9 +215,16 @@ interface KeepItApi {
 
     // ---- notifications ----
 
-    /** The caller's notification inbox, newest first — surfaced as native Android notifications. */
+    /** The caller's notification inbox, newest first — the in-app inbox, and native notifications. */
     @GET("api/notifications")
     suspend fun notifications(): List<UserNotificationDto>
+
+    /**
+     * Marks every notification read (clears `isActive`), which zeroes the bell's count. The rows
+     * stay listed, and an invite stays answerable, until dismissed or answered.
+     */
+    @POST("api/notifications/mark-read")
+    suspend fun markNotificationsRead()
 
     /** Answers a share invite (accept = gain access / decline). Either way the invite is consumed. */
     @POST("api/notifications/{id}/respond")

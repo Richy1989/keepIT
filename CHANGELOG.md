@@ -12,6 +12,14 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   "Milk" is back on the list, unticked, where you were typing, instead of on it twice. Web and
   Android.
 
+### 🔧 Improvements
+
+- The Android app has the web's notification bell: it sits in the top bar with the number of
+  unread notifications, and the menu's Notifications shows the number too. Before, a notification
+  swiped away in the phone's tray, or never shown there because notifications were off, could only
+  be found by opening Notifications from the menu. Opening it marks everything read, on the web
+  and on Android alike.
+
 ### 🔒 Security
 
 - The server's email library now runs on System.Security.Cryptography.Pkcs 10.0.13, which fixes

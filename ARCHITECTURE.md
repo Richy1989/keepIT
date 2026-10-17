@@ -573,12 +573,16 @@ subtype fields as nullable columns) so the generated TS client narrows on a
 
 **Endpoints** (all owner-scoped to the caller):
 - `GET    /api/notifications` — the caller's notifications, newest first.
+- `POST   /api/notifications/mark-read` — mark them all read, which zeroes the bell's count.
 - `POST   /api/notifications/{id}/respond` — answer a share invite (`{ accept }`).
 - `DELETE /api/notifications/{id}` — dismiss.
 
 Every mutation pushes a realtime `notification` signal to the affected user, so the top-bar
 bell updates live. Web feature: `web/src/features/notifications/`. On Android, a
-`ServerNotificationsWatcher` surfaces inbox entries as **native** notifications.
+`ServerNotificationsWatcher` surfaces inbox entries as **native** notifications and keeps the
+inbox it fetched, so the notes screen has the same bell with the unread count (`isActive`), and
+opening the inbox calls `POST /api/notifications/mark-read` as opening the web's bell does. The
+tray alone would lose whatever is swiped away.
 
 ## Reminders
 
