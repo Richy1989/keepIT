@@ -30,6 +30,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
@@ -101,16 +102,23 @@ import org.hyperstarit.keepitapp.ui.theme.NotePalette
  * aimed at the camera. And it is one row, never two: "Aa" swaps the tools for the Markdown
  * formatting buttons and ✕ swaps them back, text notes only, since a checklist has no body to
  * format.
+ *
+ * A checklist has "Add item" in that place instead. The list's own "Add item" moves down the note
+ * as the list grows, and is a scroll away once the list is longer than the screen; this one stays
+ * under the thumb.
  */
 @Composable
 internal fun EditorToolbar(
     /** A text note: "Aa" and the formatting buttons are offered. */
     canFormat: Boolean,
     isChecklist: Boolean,
+    /** The checklist has room for another item: fewer than `NoteLimits.CHECKLIST_ITEMS`. */
+    canAddItem: Boolean,
     /** The note has a colour of its own, which lights up the palette button. */
     hasColor: Boolean,
     recording: Boolean,
     onAdd: () -> Unit,
+    onAddItem: () -> Unit,
     onColor: () -> Unit,
     onToggleChecklist: () -> Unit,
     onToggleRecording: () -> Unit,
@@ -190,6 +198,14 @@ internal fun EditorToolbar(
                         if (canFormat) {
                             ToolButton(Icons.Filled.TextFormat, "Formatting") { formatting = true }
                         }
+                        if (isChecklist) {
+                            ToolButton(
+                                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                label = "Add item",
+                                enabled = canAddItem,
+                                onClick = onAddItem,
+                            )
+                        }
                         ToolButton(Icons.Filled.Palette, "Background color", active = hasColor, onClick = onColor)
                         ToolButton(
                             icon = Icons.Filled.Checklist,
@@ -248,7 +264,7 @@ private fun Modifier.fadingEdges(scroll: ScrollState, width: Dp = 28.dp): Modifi
 /**
  * One tool in the pill. A tool that is *on* — checklist mode, a colour, a live microphone — gets a
  * tinted fill behind its icon, not only a tint on it: at a glance the fill reads where a yellow
- * icon among grey ones does not.
+ * icon among grey ones does not. One that can't act now (a full checklist's "Add item") is faded.
  */
 @Composable
 private fun ToolButton(
@@ -256,14 +272,17 @@ private fun ToolButton(
     label: String,
     active: Boolean = false,
     activeColor: Color = KeepItColors.AccentInk,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     IconButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier.size(48.dp),
         colors = IconButtonDefaults.iconButtonColors(
             containerColor = if (active) activeColor.copy(alpha = 0.18f) else Color.Transparent,
             contentColor = if (active) activeColor else KeepItColors.TextMuted,
+            disabledContentColor = KeepItColors.TextMuted.copy(alpha = 0.38f),
         ),
     ) {
         Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
