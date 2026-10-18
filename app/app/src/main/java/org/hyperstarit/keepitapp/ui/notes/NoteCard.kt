@@ -57,7 +57,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -493,42 +492,35 @@ private fun BoxScope.PhotoBackdrop(
 private val Saturate = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(1.5f) })
 
 /**
- * A checklist row's box, drawn as the web draws it: an outline in [KeepItColors.BorderControl]
- * (3:1 on every note colour) while unticked, the accent fill with a black tick once ticked.
+ * An unticked checklist row's box, drawn as the web draws it: an outline in
+ * [KeepItColors.BorderControl], 3:1 on every note colour.
  */
 @Composable
-private fun CheckBoxGlyph(checked: Boolean) {
-    val shape = RoundedCornerShape(5.dp)
+private fun CheckBoxGlyph() {
     Box(
-        contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(16.dp)
-            .then(
-                if (checked) {
-                    Modifier.background(KeepItColors.Accent, shape)
-                } else {
-                    Modifier.border(1.5.dp, KeepItColors.BorderControl, shape)
-                },
-            ),
-    ) {
-        if (checked) {
-            Icon(Icons.Filled.Check, contentDescription = null, tint = Color.Black, modifier = Modifier.size(12.dp))
-        }
-    }
+            .border(1.5.dp, KeepItColors.BorderControl, RoundedCornerShape(5.dp)),
+    )
 }
 
+/**
+ * A checklist on its card: the items still to do, then how many are ticked, as in Google Keep.
+ * The ticked items stay off the card as they fold away in the editor, so a list half done shows
+ * the half that is left rather than filling its lines with crossed-out ones.
+ */
 @Composable
 private fun ChecklistPreview(note: NoteDto) {
     val items = note.checklistItems.inDisplayOrder()
-    val done = items.count { it.isChecked }
+    val open = items.filterNot { it.isChecked }
+    val ticked = items.size - open.size
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        items.take(MAX_PREVIEW_ITEMS).forEach { item ->
+        open.take(MAX_PREVIEW_ITEMS).forEach { item ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CheckBoxGlyph(checked = item.isChecked)
+                CheckBoxGlyph()
                 Text(
                     text = item.text,
-                    color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
-                    textDecoration = if (item.isChecked) TextDecoration.LineThrough else null,
+                    color = KeepItColors.Text,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -536,16 +528,21 @@ private fun ChecklistPreview(note: NoteDto) {
                 )
             }
         }
-        if (items.size > MAX_PREVIEW_ITEMS) {
+        if (open.size > MAX_PREVIEW_ITEMS) {
             Text(
-                text = "+ ${items.size - MAX_PREVIEW_ITEMS} more",
+                text = "+ ${open.size - MAX_PREVIEW_ITEMS} more",
                 color = KeepItColors.TextFaint,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(start = 20.dp),
             )
         }
-        if (items.isNotEmpty()) {
-            Text(text = "$done/${items.size} done", color = KeepItColors.TextFaint, fontSize = 11.sp)
+        if (ticked > 0) {
+            Text(
+                text = if (ticked == 1) "+ 1 ticked item" else "+ $ticked ticked items",
+                color = KeepItColors.TextFaint,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 20.dp),
+            )
         }
     }
 }

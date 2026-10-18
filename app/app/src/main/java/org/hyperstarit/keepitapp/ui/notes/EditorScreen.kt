@@ -12,6 +12,14 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.util.UUID
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,8 +28,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -35,6 +45,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PersonAdd
@@ -74,6 +85,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -85,6 +98,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -215,6 +231,9 @@ fun EditorScreen(
     // focus, so the offer comes and goes with the typing; leaving the row, or anything that moves
     // rows about, clears it.
     var typingLocalId by remember { mutableStateOf<Long?>(null) }
+    // The ticked rows fold away under a header that counts them ([TickedHeader]), so the list
+    // shows what is still to do. Folded each time a note opens.
+    var tickedOpen by remember { mutableStateOf(false) }
 
     // The content as it was loaded, or as it was last saved; see [persist]. List membership isn't in
     // it: that is the caller's own, compared and saved on its own.
@@ -683,9 +702,12 @@ fun EditorScreen(
                 EditorToolbar(
                     canFormat = type == NoteTypes.TEXT,
                     isChecklist = type == NoteTypes.CHECKLIST,
+                    canAddItem = items.size < NoteLimits.CHECKLIST_ITEMS,
                     hasColor = color != null,
                     recording = recordingSince != null,
                     onAdd = { showAddSheet = true },
+                    // Where the list's own "Add item" puts it: last of the unticked rows.
+                    onAddItem = { addItemAfter(items.lastIndex) },
                     onColor = { showColorSheet = true },
                     onToggleChecklist = {
                         if (type == NoteTypes.TEXT) switchToChecklist() else type = NoteTypes.TEXT
@@ -824,14 +846,35 @@ fun EditorScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     } else if (canEdit) {
-                        androidx.compose.material3.TextButton(onClick = { addItemAfter(items.lastIndex) }) {
-                            Icon(
-                                Icons.Filled.Add,
-                                contentDescription = null,
-                                tint = KeepItColors.TextMuted,
-                                modifier = Modifier.size(16.dp),
+                        // The width of the note and the height of a row, on a wash of its own, laid
+                        // out like the rows it adds to: "+" where their checkbox is, the words where
+                        // their text starts. A small grey text button was easy to miss between two
+                        // rows, and grey is what the ticked rows' header below it is.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .heightIn(min = 52.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(KeepItColors.OverlayLift)
+                                .clickable(role = Role.Button) { addItemAfter(items.lastIndex) },
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = null,
+                                    tint = KeepItColors.Text,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                            Text(
+                                "Add item",
+                                color = KeepItColors.Text,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(start = 16.dp),
                             )
-                            Text("  Add item", color = KeepItColors.TextMuted)
                         }
                     }
                 }
@@ -850,7 +893,12 @@ fun EditorScreen(
                     }
                     ?.let { items[it] }
                 rows.forEachIndexed { position, (index, item) ->
-                    if (position == addAt) key("add-item") { addItem() }
+                    if (position == addAt) {
+                        key("add-item") { addItem() }
+                        key("ticked-header") {
+                            TickedHeader(count = rows.size - addAt, open = tickedOpen) { tickedOpen = !tickedOpen }
+                        }
+                    }
                     // Keyed by the row's stable local id so a row that moves (ticking sinks it to
                     // the bottom) carries its composable state — and its focus — along with it.
                     key(item.localId) {
@@ -861,69 +909,82 @@ fun EditorScreen(
                                 focusTargetLocalId = null
                             }
                         }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth(),
+                        // A ticked row shows only while the ticked rows are open. Shown or not, it
+                        // stays in its key, so a row that is ticked or unticked still carries its
+                        // state along.
+                        AnimatedVisibility(
+                            visible = !item.isChecked || tickedOpen,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut(),
                         ) {
-                            Checkbox(
-                                checked = item.isChecked,
-                                onCheckedChange = { if (canEdit) item.isChecked = it },
-                                enabled = canEdit,
-                                // The box sits on the note's colour, where BorderStrong is at most
-                                // 1.7:1: BorderControl is the outline that shows on all of them.
-                                // A viewer's boxes are disabled and drawn the same, as the web
-                                // draws them: Material's faded default is under 3:1 on most
-                                // note colours.
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = KeepItColors.Accent,
-                                    checkmarkColor = Color.Black,
-                                    uncheckedColor = KeepItColors.BorderControl,
-                                    disabledCheckedColor = KeepItColors.Accent,
-                                    disabledUncheckedColor = KeepItColors.BorderControl,
-                                ),
-                            )
-                            TextField(
-                                value = item.value,
-                                onValueChange = {
-                                    if (it.text.any { c -> c == '\n' || c == '\r' }) {
-                                        pasteRows(index, it)
-                                    } else {
-                                        // A moved caret is no typing: only a changed text offers.
-                                        if (it.text != item.text) typingLocalId = item.localId
-                                        item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
-                                    }
-                                },
-                                placeholder = { Text("List item", color = KeepItColors.TextFaint) },
-                                readOnly = !canEdit,
-                                singleLine = true,
-                                colors = transparentFieldColors(),
-                                textStyle = androidx.compose.ui.text.TextStyle(
-                                    fontSize = 14.sp,
-                                    color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
-                                ),
-                                // Enter adds a new item right below and moves the cursor there.
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                                keyboardActions = KeyboardActions(onNext = { addItemAfter(index) }),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(item.focusRequester)
-                                    .onFocusChanged {
-                                        if (!it.isFocused && typingLocalId == item.localId) typingLocalId = null
-                                    },
-                            )
-                            if (canEdit) {
-                                IconButton(onClick = { removeItem(index) }) {
-                                    Icon(
-                                        Icons.Filled.Clear,
-                                        contentDescription = "Remove item",
-                                        tint = KeepItColors.TextFaint,
-                                        modifier = Modifier.size(16.dp),
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Checkbox(
+                                        checked = item.isChecked,
+                                        onCheckedChange = { if (canEdit) item.isChecked = it },
+                                        enabled = canEdit,
+                                        // The box sits on the note's colour, where BorderStrong
+                                        // is at most 1.7:1: BorderControl is the outline that
+                                        // shows on all of them. A viewer's boxes are disabled
+                                        // and drawn the same, as the web draws them: Material's
+                                        // faded default is under 3:1 on most note colours.
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = KeepItColors.Accent,
+                                            checkmarkColor = Color.Black,
+                                            uncheckedColor = KeepItColors.BorderControl,
+                                            disabledCheckedColor = KeepItColors.Accent,
+                                            disabledUncheckedColor = KeepItColors.BorderControl,
+                                        ),
                                     )
+                                    TextField(
+                                        value = item.value,
+                                        onValueChange = {
+                                            if (it.text.any { c -> c == '\n' || c == '\r' }) {
+                                                pasteRows(index, it)
+                                            } else {
+                                                // A moved caret is no typing: only a changed
+                                                // text offers.
+                                                if (it.text != item.text) typingLocalId = item.localId
+                                                item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
+                                            }
+                                        },
+                                        placeholder = { Text("List item", color = KeepItColors.TextFaint) },
+                                        readOnly = !canEdit,
+                                        singleLine = true,
+                                        colors = transparentFieldColors(),
+                                        textStyle = androidx.compose.ui.text.TextStyle(
+                                            fontSize = 14.sp,
+                                            color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
+                                        ),
+                                        // Enter adds a new item right below and moves the cursor
+                                        // there.
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                        keyboardActions = KeyboardActions(onNext = { addItemAfter(index) }),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .focusRequester(item.focusRequester)
+                                            .onFocusChanged {
+                                                if (!it.isFocused && typingLocalId == item.localId) typingLocalId = null
+                                            },
+                                    )
+                                    if (canEdit) {
+                                        IconButton(onClick = { removeItem(index) }) {
+                                            Icon(
+                                                Icons.Filled.Clear,
+                                                contentDescription = "Remove item",
+                                                tint = KeepItColors.TextFaint,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                                if (offered != null && index == typingIndex) {
+                                    TickedOffer(offered.text, onTake = { takeOffer(item, offered) })
                                 }
                             }
-                        }
-                        if (offered != null && index == typingIndex) {
-                            TickedOffer(offered.text, onTake = { takeOffer(item, offered) })
                         }
                     }
                 }
@@ -1039,6 +1100,40 @@ fun EditorScreen(
             selected = color,
             onPick = { color = it },
             onDismiss = { showColorSheet = false },
+        )
+    }
+}
+
+/**
+ * The header the ticked rows fold away under, as in Google Keep: a chevron and how many there are,
+ * aligned like the rows (the chevron where their checkbox is). A tap opens or closes them; TalkBack
+ * reads the count with "expanded" or "collapsed".
+ */
+@Composable
+private fun TickedHeader(count: Int, open: Boolean, onToggle: () -> Unit) {
+    val turn by animateFloatAsState(if (open) 0f else -90f, label = "ticked chevron")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onToggle)
+            .semantics { stateDescription = if (open) "Expanded" else "Collapsed" },
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
+            Icon(
+                Icons.Filled.ExpandMore,
+                contentDescription = null,
+                tint = KeepItColors.TextMuted,
+                modifier = Modifier.size(24.dp).rotate(turn),
+            )
+        }
+        Text(
+            text = if (count == 1) "1 ticked item" else "$count ticked items",
+            color = KeepItColors.TextMuted,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(start = 16.dp),
         )
     }
 }
