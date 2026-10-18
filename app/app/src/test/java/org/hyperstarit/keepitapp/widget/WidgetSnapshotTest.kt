@@ -81,21 +81,43 @@ class WidgetSnapshotTest {
     }
 
     @Test
-    fun `a checklist note becomes ticked lines, unchecked first, capped at four`() {
+    fun `a checklist note becomes the lines still to do, capped at four, and a count of the ticked`() {
         val projected = NotesRepository.widgetNotesFrom(
-            listOf(checklist("n1", "Milk" to true, "Eggs" to false, "Bread" to false, "Jam" to false, "Tea" to false))
+            listOf(
+                checklist(
+                    "n1",
+                    "Milk" to true, "Eggs" to false, "Bread" to false, "Jam" to false, "Tea" to false, "Rice" to false,
+                ),
+            )
         ).single()
 
-        // inDisplayOrder() sinks the ticked row, so the cap keeps what's still to do.
         assertEquals(listOf("☐ Eggs", "☐ Bread", "☐ Jam", "☐ Tea"), projected.checklist)
+        assertEquals(1, projected.ticked)
         assertEquals("", projected.preview)
     }
 
     @Test
-    fun `a ticked row renders with the filled box when it fits`() {
+    fun `a ticked row never takes a line, even when there is room for it`() {
+        // The note's card leaves ticked items off too: the widget says how many, not which.
+        val projected = NotesRepository.widgetNotesFrom(
+            listOf(checklist("n1", "Done" to true, "Left" to false, "Also done" to true))
+        ).single()
+
+        assertEquals(listOf("☐ Left"), projected.checklist)
+        assertEquals(2, projected.ticked)
+    }
+
+    @Test
+    fun `a checklist with everything ticked leaves only the count`() {
         val projected = NotesRepository.widgetNotesFrom(listOf(checklist("n1", "Done" to true))).single()
 
-        assertEquals(listOf("☑ Done"), projected.checklist)
+        assertTrue(projected.checklist.isEmpty())
+        assertEquals(1, projected.ticked)
+    }
+
+    @Test
+    fun `a text note counts no ticked items`() {
+        assertEquals(0, NotesRepository.widgetNotesFrom(listOf(text("n1", body = "- [x] done"))).single().ticked)
     }
 
     // --- codec ----------------------------------------------------------------------------------
@@ -103,7 +125,10 @@ class WidgetSnapshotTest {
     @Test
     fun `a snapshot survives the round trip through the prefs blob`() {
         val snapshot = NotesRepository.widgetNotesFrom(
-            listOf(text("n1", title = "Hi", body = "there", color = "amber"), checklist("n2", "Milk" to false))
+            listOf(
+                text("n1", title = "Hi", body = "there", color = "amber"),
+                checklist("n2", "Milk" to false, "Eggs" to true),
+            )
         )
 
         val decoded = NotesRepository.decodeWidgetSnapshot(NotesRepository.encodeWidgetSnapshot(snapshot))
@@ -113,8 +138,8 @@ class WidgetSnapshotTest {
 
     @Test
     fun `a snapshot from an older build decodes, with the fields it never wrote defaulted`() {
-        // WidgetNote gained `checklist` after the first release; a blob written before that must
-        // still decode rather than wedge the widget on its loading layout.
+        // WidgetNote gained `checklist` after the first release, and `ticked` in 1.1; a blob
+        // written before either must still decode rather than wedge the widget on its loading layout.
         val legacy = """[{"id":"n1","title":"Old","preview":"body","color":null}]"""
 
         val decoded = NotesRepository.decodeWidgetSnapshot(legacy)

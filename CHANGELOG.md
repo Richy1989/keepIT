@@ -28,10 +28,11 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   be found by opening Notifications from the menu. Opening it marks everything read, on the web
   and on Android alike.
 - Checklists on Android show what is still to do: in an open note, ticked items fold away under
-  "3 ticked items", and a tap on it shows them again; on a card in the list, the items still to do
-  are followed by "+ 3 ticked items" instead of the ticked ones crossed out. "Add item" stands out
-  more, as wide as the note and as tall as an item, and the toolbar at the bottom has an
-  "Add item" button too, which stays in reach however long the list gets.
+  "3 ticked items", and a tap on it shows them again; on a card in the list and on the home-screen
+  widget, the items still to do are followed by "+ 3 ticked items" instead of the ticked ones
+  themselves. "Add item" stands out more, as wide as the note and as tall as an item, and the
+  toolbar at the bottom has an "Add item" button too, which stays in reach however long the list
+  gets.
 
 ### 🔒 Security
 

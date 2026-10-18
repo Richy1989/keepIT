@@ -255,12 +255,20 @@ private fun NoteRow(context: Context, note: WidgetNote, colors: WidgetColors) {
                     ),
                 )
             }
-            // Checklist items each on their own line (not run together).
+            // Checklist items each on their own line (not run together), then how many are ticked,
+            // as the note's card says it.
             note.checklist.forEach { line ->
                 Text(
                     text = line,
                     maxLines = 1,
                     style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
+                )
+            }
+            if (note.ticked > 0) {
+                Text(
+                    text = if (note.ticked == 1) "+ 1 ticked item" else "+ ${note.ticked} ticked items",
+                    maxLines = 1,
+                    style = TextStyle(color = colors.of { it.textFaint }, fontSize = 12.sp),
                 )
             }
             if (note.preview.isNotBlank()) {
@@ -270,7 +278,7 @@ private fun NoteRow(context: Context, note: WidgetNote, colors: WidgetColors) {
                     style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
                 )
             }
-            if (note.title.isBlank() && note.preview.isBlank() && note.checklist.isEmpty()) {
+            if (note.title.isBlank() && note.preview.isBlank() && note.checklist.isEmpty() && note.ticked == 0) {
                 Text(
                     text = "Empty note",
                     style = TextStyle(color = colors.of { it.textFaint }, fontSize = 14.sp),

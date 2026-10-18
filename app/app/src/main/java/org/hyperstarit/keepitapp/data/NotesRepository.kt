@@ -62,8 +62,9 @@ data class NotesFilter(
 
 /**
  * A trimmed note snapshot the widget can render without auth or network. For checklist notes
- * [checklist] holds each item as its own display line (so the widget stacks them); for text notes
- * [preview] holds a one-line body excerpt and [checklist] is empty.
+ * [checklist] holds each item still to do as its own display line (so the widget stacks them), and
+ * [ticked] counts the ticked ones, which stay off the widget as they stay off the note's card; for
+ * text notes [preview] holds a one-line body excerpt, [checklist] is empty and [ticked] is 0.
  */
 @Serializable
 data class WidgetNote(
@@ -72,6 +73,7 @@ data class WidgetNote(
     val preview: String,
     val color: String?,
     val checklist: List<String> = emptyList(),
+    val ticked: Int = 0,
 )
 
 /**
@@ -708,14 +710,17 @@ class NotesRepository(
                     preview = if (isChecklist) "" else stripMarkdown(n.body ?: "").replace('\n', ' ').take(100),
                     color = n.color,
                     checklist = if (isChecklist) {
-                        // Unchecked first, so the few lines that fit the widget show what's still to do.
+                        // Only what's still to do, as on the note's card: the ticked items are
+                        // counted below, so the few lines that fit the widget never go to them.
                         n.checklistItems
                             .inDisplayOrder()
+                            .filterNot { it.isChecked }
                             .take(WIDGET_CHECKLIST_LINES)
-                            .map { (if (it.isChecked) "☑ " else "☐ ") + it.text }
+                            .map { "☐ " + it.text }
                     } else {
                         emptyList()
                     },
+                    ticked = if (isChecklist) n.checklistItems.count { it.isChecked } else 0,
                 )
             }
 
