@@ -84,7 +84,7 @@ class WidgetCompositionSmokeTest {
     @Test
     fun the_widget_composes_and_inflates_with_notes() {
         seed(
-            WidgetNote("n1", "Release checklist", "", "sky", listOf("☐ Smoke test auth flow")),
+            WidgetNote("n1", "Release checklist", "", "sky", listOf("☐ Smoke test auth flow"), ticked = 2),
             WidgetNote("n2", "Q3 roadmap", "Ship sharing, then image notes", "amber"),
         )
 
