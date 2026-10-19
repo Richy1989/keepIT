@@ -233,8 +233,8 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={onListEnter(setBody)}
               placeholder="Take a note…"
-              rows={3}
-              className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-text-faint"
+              // Grows with its text (`field-sizing: content`), then scrolls past half the window.
+              className="field-sizing-content max-h-[50dvh] min-h-15 w-full resize-none bg-transparent text-sm outline-none placeholder:text-text-faint"
             />
           )}
         </div>

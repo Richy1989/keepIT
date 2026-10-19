@@ -24,6 +24,8 @@ import {
   ClockIcon,
   EyeIcon,
   ImageIcon,
+  MaximizeIcon,
+  MinimizeIcon,
   PaletteIcon,
   PencilIcon,
   ShareIcon,
@@ -38,6 +40,28 @@ function listsChanged(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return true;
   const set = new Set(a);
   return b.some((id) => !set.has(id));
+}
+
+const EXPANDED_STORAGE = 'keepit:editor-expanded';
+
+/**
+ * Whether this browser last left the editor expanded. Per device, like the theme: a wide window
+ * wants it and a phone doesn't. Storage can be blocked, which just means the default size.
+ */
+function readExpanded(): boolean {
+  try {
+    return localStorage.getItem(EXPANDED_STORAGE) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function storeExpanded(expanded: boolean) {
+  try {
+    localStorage.setItem(EXPANDED_STORAGE, expanded ? '1' : '0');
+  } catch {
+    // Not remembered, which costs one click next time.
+  }
 }
 
 /**
@@ -87,6 +111,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [showShare, setShowShare] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [expanded, setExpanded] = useState(readExpanded);
   // What the Text ↔ Checklist switch would make of the note; null when its text is too long for a
   // checklist, which turns the switch off.
   const switched = useMemo(() => switchNoteType(type, body, items), [type, body, items]);
@@ -158,7 +183,10 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
 
   return (
     <div
-      className="fade-in fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-scrim p-4 pt-[8vh] backdrop-blur-sm"
+      className={cn(
+        'fade-in fixed inset-0 z-50 grid place-items-start overflow-y-auto bg-scrim p-4 backdrop-blur-sm',
+        !expanded && 'pt-[8dvh]',
+      )}
       onMouseDown={save}
     >
       <div
@@ -190,10 +218,15 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               }
             : undefined
         }
-        className="pop-in mx-auto w-full max-w-2xl rounded-2xl border elev-overlay"
+        // Never taller than the window, so the bar at the bottom stays in reach however long the
+        // note: the body below scrolls instead. Expanded, it fills the window, wider too.
+        className={cn(
+          'pop-in mx-auto flex w-full flex-col rounded-2xl border elev-overlay',
+          expanded ? 'h-[calc(100dvh-2rem)] max-w-5xl' : 'max-h-[calc(92dvh-1rem)] max-w-2xl',
+        )}
         style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
       >
-        <div className="p-5">
+        <div className="flex min-h-0 flex-auto flex-col overflow-y-auto p-5">
           {!note.isOwner && (
             <div className="mb-3 flex items-center gap-1.5 text-xs text-text-faint">
               <EyeIcon className="text-sm" />
@@ -234,54 +267,61 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
             readOnly={!canEdit}
             className="w-full bg-transparent text-lg font-medium outline-none placeholder:text-text-faint"
           />
-          <div className="mt-3">
-            {type === 'Checklist' ? (
-              canEdit ? (
+          {type === 'Checklist' ? (
+            <div className="mt-3">
+              {canEdit ? (
                 <ChecklistEditor items={items} onChange={setItems} />
               ) : (
                 <ReadOnlyChecklist items={items} />
-              )
-            ) : canEdit ? (
-              <>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  {preview ? (
-                    <span className="text-xs text-text-faint">Preview</span>
-                  ) : (
-                    <MarkdownToolbar textareaRef={bodyRef} onChange={setBody} />
-                  )}
-                  <button
-                    type="button"
-                    title={preview ? 'Edit' : 'Preview'}
-                    aria-label={preview ? 'Edit' : 'Preview'}
-                    onClick={() => setPreview((p) => !p)}
-                    className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-overlay-hover hover:text-text"
-                  >
-                    {preview ? <PencilIcon /> : <EyeIcon />}
-                  </button>
-                </div>
+              )}
+            </div>
+          ) : canEdit ? (
+            <>
+              <div className="mb-2 mt-3 flex items-center justify-between gap-2">
                 {preview ? (
-                  body.trim() ? (
-                    <Markdown text={body} />
-                  ) : (
-                    <p className="text-sm italic text-text-faint">Nothing to preview.</p>
-                  )
+                  <span className="text-xs text-text-faint">Preview</span>
                 ) : (
-                  <textarea
-                    ref={bodyRef}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    onKeyDown={onListEnter(setBody)}
-                    placeholder="Take a note…"
-                    rows={8}
-                    className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
-                  />
+                  <MarkdownToolbar textareaRef={bodyRef} onChange={setBody} />
                 )}
-              </>
-            ) : (
-              // Viewers get the rendered note, not raw Markdown in a disabled textarea.
-              body.trim() && <Markdown text={body} />
-            )}
-          </div>
+                <button
+                  type="button"
+                  title={preview ? 'Edit' : 'Preview'}
+                  aria-label={preview ? 'Edit' : 'Preview'}
+                  onClick={() => setPreview((p) => !p)}
+                  className="focus-ring grid size-7 place-items-center rounded-md text-sm text-text-muted transition hover:bg-overlay-hover hover:text-text"
+                >
+                  {preview ? <PencilIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {preview ? (
+                body.trim() ? (
+                  <Markdown text={body} />
+                ) : (
+                  <p className="text-sm italic text-text-faint">Nothing to preview.</p>
+                )
+              ) : (
+                // The one part of the panel that gives way when it runs out of height: it grows
+                // with its text (`field-sizing: content`) until the panel is full, then scrolls in
+                // place, keeping the formatting bar and the lists in view. Expanded, it fills the
+                // panel. Anything else too tall scrolls the whole body.
+                <textarea
+                  ref={bodyRef}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  onKeyDown={onListEnter(setBody)}
+                  placeholder="Take a note…"
+                  className="field-sizing-content min-h-48 w-full flex-auto resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
+                />
+              )}
+            </>
+          ) : (
+            // Viewers get the rendered note, not raw Markdown in a disabled textarea.
+            body.trim() && (
+              <div className="mt-3">
+                <Markdown text={body} />
+              </div>
+            )
+          )}
 
           {(allLists?.length ?? 0) > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -391,13 +431,24 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
               </button>
             )}
           </div>
-          <button
-            type="button"
-            onClick={save}
-            className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-overlay-hover hover:text-text"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-1">
+            <EditorTool
+              label={expanded ? 'Shrink' : 'Expand'}
+              onClick={() => {
+                setExpanded(!expanded);
+                storeExpanded(!expanded);
+              }}
+            >
+              {expanded ? <MinimizeIcon className="text-lg" /> : <MaximizeIcon className="text-lg" />}
+            </EditorTool>
+            <button
+              type="button"
+              onClick={save}
+              className="focus-ring rounded-md px-4 py-1.5 text-sm font-medium text-text-muted transition hover:bg-overlay-hover hover:text-text"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
 

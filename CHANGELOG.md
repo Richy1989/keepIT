@@ -38,6 +38,10 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   the switch showed a second, separate content, so a text note became an empty list. Ticks are lost
   on the way back to text, and a text longer than a checklist holds (500 lines of up to 2,000
   characters) stays text.
+- The note editor on the web grows with the note, up to the height of the window, instead of
+  showing eight lines and a scrollbar, and its bottom bar stays in reach however long the note is.
+  A new button beside Close expands the editor to fill the window, and the browser remembers it.
+  A new note grows the same way as you write it.
 
 ### 🔒 Security
 
