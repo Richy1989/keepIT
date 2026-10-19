@@ -296,6 +296,22 @@ export const EyeIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const MaximizeIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M15 3h6v6" />
+    <path d="m21 3-7 7" />
+    <path d="m3 21 7-7" />
+    <path d="M9 21H3v-6" />
+  </Icon>
+);
+export const MinimizeIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 14h6v6" />
+    <path d="M20 10h-6V4" />
+    <path d="m14 10 7-7" />
+    <path d="m3 21 7-7" />
+  </Icon>
+);
 export const PencilIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M12 20h9" />
