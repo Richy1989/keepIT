@@ -1,4 +1,4 @@
-import type { ChecklistItemDto } from '../../api/types';
+import type { ChecklistItemDto, NoteType } from '../../api/types';
 
 /** A checklist row paired with its index in the stored (unsorted) array, so edits address the right item. */
 export type ChecklistRow = { item: ChecklistItemDto; index: number };
@@ -117,4 +117,79 @@ export function splitPastedRow(head: string, tail: string, room: number): { rows
   rows = rows.map((row) => cut(row, MAX_CHECKLIST_ITEM_TEXT));
 
   return { rows, caret: Math.max(0, rows[rows.length - 1].length - tail.trimEnd().length) };
+}
+
+/** A Markdown list item's marker (`-`, `*`, `+`, `1.`, `1)`), then a task box (`[ ]`, `[x]`). */
+const LIST_MARKER = /^(?:[-*+]|\d{1,9}[.)])(?:\s+|$)/;
+const TASK_BOX = /^\[([ xX])\](?:\s+|$)/;
+
+/**
+ * What switching a text note to a checklist makes of its text: **each line an item**, so a note
+ * holds one text whichever way it is shown. Blank lines make no items and each item is trimmed.
+ * A Markdown list's markers are dropped, since a checklist row is already one, and a Markdown task
+ * keeps its tick: `- [x] Bread` is a ticked "Bread". Nothing else is read as Markdown.
+ *
+ * Returns null when the text doesn't fit a checklist: more lines than `MAX_CHECKLIST_ITEMS`, or a
+ * line longer than `MAX_CHECKLIST_ITEM_TEXT`. The note then stays text rather than lose the rest,
+ * which a refused save would cost too.
+ *
+ * `checklistConvert.json` holds the cases; the Android app's `checklistFromText`
+ * (`data/Checklist.kt`) is held to the same file, so a note converts the same on both.
+ */
+export function checklistFromText(text: string): { text: string; isChecked: boolean }[] | null {
+  const items: { text: string; isChecked: boolean }[] = [];
+  for (const line of text.split(/\r\n|\r|\n/)) {
+    let rest = line.trim();
+    let isChecked = false;
+    const marker = LIST_MARKER.exec(rest);
+    if (marker) {
+      rest = rest.slice(marker[0].length);
+      const box = TASK_BOX.exec(rest);
+      if (box) {
+        rest = rest.slice(box[0].length);
+        isChecked = box[1] !== ' ';
+      }
+    }
+    rest = rest.trim();
+    if (!rest) continue;
+    if (rest.length > MAX_CHECKLIST_ITEM_TEXT || items.length === MAX_CHECKLIST_ITEMS) return null;
+    items.push({ text: rest, isChecked });
+  }
+  return items;
+}
+
+/**
+ * What switching a checklist to a text note makes of its items: **each item a line**, in the
+ * list's own (stored) order, so text that became a list comes back as it was written. The ticks
+ * are not kept: a ticked item is a plain line where it stands. Empty items make no lines.
+ *
+ * `checklistConvert.json` holds the cases, shared with the Android app's `textFromChecklist`.
+ */
+export function textFromChecklist(texts: string[]): string {
+  return texts
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+/**
+ * A note's content after the Text ↔ Checklist switch: the text made into items, or the items into
+ * text, and the side switched away from emptied — so a note holds one text whichever way it is
+ * shown, and nothing is left behind the switch to come back later. A text with nothing in it
+ * becomes a checklist with one empty item to type into.
+ *
+ * Null when the text doesn't fit a checklist (`checklistFromText`); the switch then stays off.
+ */
+export function switchNoteType(
+  type: NoteType,
+  body: string,
+  items: ChecklistItemDto[],
+): { type: NoteType; body: string; items: ChecklistItemDto[] } | null {
+  if (type === 'Checklist') {
+    return { type: 'Text', body: textFromChecklist(items.map((item) => item.text)), items: [] };
+  }
+  const converted = checklistFromText(body);
+  if (!converted) return null;
+  const rows = converted.length > 0 ? converted : [{ text: '', isChecked: false }];
+  return { type: 'Checklist', body: '', items: rows.map((row, order) => ({ id: null, ...row, order })) };
 }

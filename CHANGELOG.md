@@ -33,6 +33,11 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   themselves. "Add item" stands out more, as wide as the note and as tall as an item, and the
   toolbar at the bottom has an "Add item" button too, which stays in reach however long the list
   gets.
+- Switching a note between text and checklist converts it, on the web and on Android: each line
+  becomes an item and each item a line, so a note holds one text whichever way it is shown. Before,
+  the switch showed a second, separate content, so a text note became an empty list. Ticks are lost
+  on the way back to text, and a text longer than a checklist holds (500 lines of up to 2,000
+  characters) stays text.
 
 ### 🔒 Security
 

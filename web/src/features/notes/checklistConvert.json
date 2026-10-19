@@ -1,0 +1,66 @@
+{
+  "toChecklist": [
+    {
+      "name": "each line becomes an item",
+      "text": "Milk\nBread\nEggs",
+      "items": [["Milk", false], ["Bread", false], ["Eggs", false]]
+    },
+    {
+      "name": "blank lines make no items, and each item is trimmed",
+      "text": "  Milk  \n\n\t Bread\n   \nEggs\n",
+      "items": [["Milk", false], ["Bread", false], ["Eggs", false]]
+    },
+    {
+      "name": "Windows and old Mac line endings count as one break each",
+      "text": "a\r\nb\rc",
+      "items": [["a", false], ["b", false], ["c", false]]
+    },
+    {
+      "name": "a Markdown list's markers are dropped",
+      "text": "- Milk\n* Bread\n+ Eggs\n1. Flour\n2) Sugar",
+      "items": [["Milk", false], ["Bread", false], ["Eggs", false], ["Flour", false], ["Sugar", false]]
+    },
+    {
+      "name": "a Markdown task keeps its tick",
+      "text": "- [ ] Milk\n- [x] Bread\n* [X] Eggs\n1. [ ] Flour",
+      "items": [["Milk", false], ["Bread", true], ["Eggs", true], ["Flour", false]]
+    },
+    {
+      "name": "a nested list loses its indentation",
+      "text": "- Fruit\n  - Apples\n    - [x] Pears",
+      "items": [["Fruit", false], ["Apples", false], ["Pears", true]]
+    },
+    {
+      "name": "a marker needs a space after it, so text that merely starts like one is kept",
+      "text": "-5 degrees\n*bold*\n1.5 kg flour\n[x] no marker, no task",
+      "items": [["-5 degrees", false], ["*bold*", false], ["1.5 kg flour", false], ["[x] no marker, no task", false]]
+    },
+    {
+      "name": "a line that is only a marker makes no item",
+      "text": "-\n- [ ]\n1.\nMilk",
+      "items": [["Milk", false]]
+    },
+    {
+      "name": "an empty text makes an empty list",
+      "text": "",
+      "items": []
+    }
+  ],
+  "toText": [
+    {
+      "name": "each item becomes a line, in the list's own order",
+      "items": ["Milk", "Bread", "Eggs"],
+      "text": "Milk\nBread\nEggs"
+    },
+    {
+      "name": "empty items make no lines, and each line is trimmed",
+      "items": ["  Milk ", "", "   ", "Bread"],
+      "text": "Milk\nBread"
+    },
+    {
+      "name": "an empty list makes an empty text",
+      "items": [],
+      "text": ""
+    }
+  ]
+}
