@@ -58,6 +58,57 @@ fun splitPastedRow(head: String, tail: String, room: Int): PastedRows {
     return PastedRows(rows, (rows.last().length - tail.trimEnd().length).coerceAtLeast(0))
 }
 
+/** A checklist item as [checklistFromText] makes it from a line of text. */
+data class TextItem(val text: String, val isChecked: Boolean)
+
+/** A Markdown list item's marker (`-`, `*`, `+`, `1.`, `1)`), then a task box (`[ ]`, `[x]`). */
+private val LIST_MARKER = Regex("^(?:[-*+]|\\d{1,9}[.)])(?:\\s+|$)")
+private val TASK_BOX = Regex("^\\[([ xX])\\](?:\\s+|$)")
+
+/**
+ * What switching a text note to a checklist makes of its text: **each line an item**, so a note
+ * holds one text whichever way it is shown. Blank lines make no items and each item is trimmed.
+ * A Markdown list's markers are dropped, since a checklist row is already one, and a Markdown task
+ * keeps its tick: `- [x] Bread` is a ticked "Bread". Nothing else is read as Markdown.
+ *
+ * Returns null when the text doesn't fit a checklist: more lines than
+ * [NoteLimits.CHECKLIST_ITEMS], or a line longer than [NoteLimits.CHECKLIST_ITEM_TEXT]. The note
+ * then stays text rather than lose the rest, which the server refusing the save would cost too.
+ *
+ * The web client's `checklistFromText` (`web/src/features/notes/checklist.ts`) is the same rule;
+ * `checklistConvert.json` beside it holds the cases, and `ChecklistConvertTest` runs them against
+ * this.
+ */
+fun checklistFromText(text: String): List<TextItem>? {
+    val items = mutableListOf<TextItem>()
+    for (line in text.split("\r\n", "\r", "\n")) {
+        var rest = line.trim()
+        var isChecked = false
+        LIST_MARKER.find(rest)?.let { marker ->
+            rest = rest.substring(marker.value.length)
+            TASK_BOX.find(rest)?.let { box ->
+                rest = rest.substring(box.value.length)
+                isChecked = box.groupValues[1] != " "
+            }
+        }
+        rest = rest.trim()
+        if (rest.isEmpty()) continue
+        if (rest.length > NoteLimits.CHECKLIST_ITEM_TEXT || items.size == NoteLimits.CHECKLIST_ITEMS) return null
+        items += TextItem(rest, isChecked)
+    }
+    return items
+}
+
+/**
+ * What switching a checklist to a text note makes of its items: **each item a line**, in the
+ * list's own (home) order, so text that became a list comes back as it was written. The ticks are
+ * not kept: a ticked item is a plain line where it stands. Empty items make no lines.
+ *
+ * The web client's `textFromChecklist` is the same rule, held to the same `checklistConvert.json`.
+ */
+fun textFromChecklist(texts: List<String>): String =
+    texts.map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n")
+
 /** Text as [suggestFromChecked] compares it: no accents, no case, no space around it. */
 private fun fold(text: String): String =
     Normalizer.normalize(text, Normalizer.Form.NFD).replace(MARKS, "").lowercase().trim()

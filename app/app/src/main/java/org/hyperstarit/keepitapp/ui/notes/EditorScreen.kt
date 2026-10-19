@@ -118,8 +118,10 @@ import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteLimits
+import org.hyperstarit.keepitapp.data.checklistFromText
 import org.hyperstarit.keepitapp.data.splitPastedRow
 import org.hyperstarit.keepitapp.data.suggestFromChecked
+import org.hyperstarit.keepitapp.data.textFromChecklist
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.AudioRecorder
 import org.hyperstarit.keepitapp.data.MediaKinds
@@ -350,13 +352,38 @@ fun EditorScreen(
         typingLocalId = null
     }
 
+    // The Text ↔ Checklist switch converts the note: each line of the text an item, each item a
+    // line of the text ([checklistFromText], [textFromChecklist]). The side it leaves is emptied,
+    // so a note holds one text whichever way it is shown, and nothing hides behind the switch.
     fun switchToChecklist() {
-        type = NoteTypes.CHECKLIST
+        val converted = checklistFromText(body.text)
+        if (converted == null) {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    "Too long for a checklist: it holds ${NoteLimits.CHECKLIST_ITEMS} items " +
+                        "of up to ${NoteLimits.CHECKLIST_ITEM_TEXT} characters.",
+                )
+            }
+            return
+        }
+        items.clear()
+        converted.forEach { items.add(EditableItem(null, it.text, it.isChecked)) }
         if (items.isEmpty()) {
             val first = EditableItem(null, "", false, addedHere = true)
             items.add(first)
             focusTargetLocalId = first.localId
         }
+        typingLocalId = null
+        body = TextFieldValue("")
+        type = NoteTypes.CHECKLIST
+    }
+
+    fun switchToText() {
+        val text = textFromChecklist(items.map { it.text })
+        items.clear()
+        typingLocalId = null
+        body = TextFieldValue(text, TextRange(text.length))
+        type = NoteTypes.TEXT
     }
 
     fun buildChecklist(): List<ChecklistItemDto> = items
@@ -373,11 +400,10 @@ fun EditorScreen(
     // update that note instead of creating duplicates; the mutex keeps overlapping saves from racing.
     val saveMutex = remember { Mutex() }
 
-    // Both representations are always persisted, whatever `type` currently is. The server stores
-    // Body and ChecklistItems independently and `type` only selects which one renders, so keeping
-    // the inactive side makes the Text ↔ Checklist toggle reversible. Nulling it out instead meant
-    // one tap on the toolbar deleted every checklist row (the server replaces the set wholesale) —
-    // and because saving here is autosaved on a debounce, it happened without even closing the note.
+    // Both sides are compared and saved, whatever `type` is. The Text ↔ Checklist switch converts
+    // one into the other and empties the side it leaves ([switchToChecklist], [switchToText]), so a
+    // switched note sends both: the content in its new form, and the old form cleared, which leaves
+    // nothing hidden behind the switch on the server either.
     suspend fun persist() = saveMutex.withLock {
         val current = note
         if (current == null) {
@@ -710,7 +736,7 @@ fun EditorScreen(
                     onAddItem = { addItemAfter(items.lastIndex) },
                     onColor = { showColorSheet = true },
                     onToggleChecklist = {
-                        if (type == NoteTypes.TEXT) switchToChecklist() else type = NoteTypes.TEXT
+                        if (type == NoteTypes.TEXT) switchToChecklist() else switchToText()
                     },
                     onToggleRecording = ::toggleRecording,
                     // Each button rewrites the body's current selection.

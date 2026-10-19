@@ -1084,6 +1084,11 @@ everything else is scoped to):
 - `Note` — id, ownerId, **type** (`Text` | `Checklist`), title, body (Markdown), color
   (palette key, nullable), createdAt/updatedAt. **Pin/archive/trash are not on the note** —
   they're per-user. Navigations to checklist items, note-lists, user states, shares, reminders.
+  `Body` and the checklist items are stored apart, but a note holds one of them: the clients'
+  Text ↔ Checklist switch converts the content (each line an item, each item a line, ticks lost
+  on the way back to text) and saves the side it leaves empty. The rule is `checklistFromText` /
+  `textFromChecklist` in `checklist.ts` and `Checklist.kt`, both held to `checklistConvert.json`.
+  A note saved before 1.1 may still hold both, the hidden side unseen; the switch replaces it.
 - `ChecklistItem` — id, noteId, text, isChecked, order. Replaced wholesale on note update but
   reconciled by id server-side (stable ids, no delete-and-reinsert churn). **`order` is the row's
   *home* position, not its display position** — the server renumbers it from the incoming array

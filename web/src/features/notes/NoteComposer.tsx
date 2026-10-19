@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useCreateNote } from './queries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
+import { switchNoteType } from './checklist';
 import { ColorPicker } from '../../components/ColorPicker';
 import { CheckSquareIcon, ImageIcon, PaletteIcon, XIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
@@ -37,6 +38,9 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
   const [body, setBody] = useState('');
   const [items, setItems] = useState<ChecklistItemDto[]>([]);
   const [color, setColor] = useState('default');
+  // What the Text ↔ Checklist switch would make of the draft; null when its text is too long for a
+  // checklist, which turns the switch off.
+  const switched = useMemo(() => switchNoteType(type, body, items), [type, body, items]);
 
   const uploadMedia = useUploadNoteMedia();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -82,9 +86,8 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
       return;
     }
 
-    // Both representations are saved regardless of `type` — the server keeps Body and
-    // ChecklistItems independently and `type` only picks which renders, so a draft typed as text
-    // and then toggled to a checklist (or vice versa) isn't silently thrown away.
+    // Both sides are sent whatever `type` is: the Text ↔ Checklist switch converts one into the
+    // other and empties the side it leaves (`switchNoteType`), so the side not shown is empty.
     const created = create.mutateAsync({
       type,
       title: title.trim() || null,
@@ -255,15 +258,16 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
             <PaletteIcon className="text-lg" />
           </ComposerTool>
           <ComposerTool
-            label={type === 'Checklist' ? 'Switch to text' : 'Switch to checklist'}
+            label={
+              type === 'Checklist' ? 'Switch to text' : switched ? 'Switch to checklist' : 'Too long for a checklist'
+            }
             onClick={() => {
-              if (type === 'Text') {
-                setType('Checklist');
-                if (items.length === 0) setItems([{ id: null, text: '', isChecked: false, order: 0 }]);
-              } else {
-                setType('Text');
-              }
+              if (!switched) return;
+              setType(switched.type);
+              setBody(switched.body);
+              setItems(switched.items);
             }}
+            disabled={!switched}
           >
             <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent-ink')} />
           </ComposerTool>

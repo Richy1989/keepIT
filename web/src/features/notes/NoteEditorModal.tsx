@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSetNoteLists, useUpdateNote } from './queries';
 import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
-import { checklistForDisplay } from './checklist';
+import { checklistForDisplay, switchNoteType } from './checklist';
 import { Markdown } from './Markdown';
 import { MarkdownToolbar } from './MarkdownToolbar';
 import { ReminderChip } from './ReminderChip';
@@ -87,6 +87,9 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [showShare, setShowShare] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [preview, setPreview] = useState(false);
+  // What the Text ↔ Checklist switch would make of the note; null when its text is too long for a
+  // checklist, which turns the switch off.
+  const switched = useMemo(() => switchNoteType(type, body, items), [type, body, items]);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // Released for the share dialog, the leave confirmation and the image viewer alike: each renders
@@ -99,10 +102,10 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
       .filter((i) => i.text.trim())
       .map((i, idx) => ({ ...i, text: i.text.trim(), order: idx }));
 
-    // Both representations are always persisted, regardless of `type`. The server stores Body and
-    // ChecklistItems independently and `type` only picks which one renders, so keeping the inactive
-    // one means toggling Text ↔ Checklist is reversible instead of silently destroying the other
-    // side (a stray toolbar click used to delete every checklist row, unconfirmed and unrecoverable).
+    // Both sides are compared and saved, whatever `type` is. The Text ↔ Checklist switch converts
+    // one into the other and empties the side it leaves (`switchNoteType`), so a switched note
+    // sends both: the content in its new form, and the old form cleared, which leaves nothing
+    // hidden behind the switch on the server either.
     const nextBody = body.trim() || null;
     const nextColor = color === 'default' ? null : color;
     // What differs from the note as it was opened, and so all the update sets: a collaborator may
@@ -330,16 +333,20 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                   <PaletteIcon className="text-lg" />
                 </EditorTool>
                 <EditorTool
-                  label={type === 'Checklist' ? 'Switch to text' : 'Switch to checklist'}
+                  label={
+                    type === 'Checklist'
+                      ? 'Switch to text'
+                      : switched
+                        ? 'Switch to checklist'
+                        : 'Too long for a checklist'
+                  }
                   onClick={() => {
-                    if (type === 'Text') {
-                      setType('Checklist');
-                      if (items.length === 0)
-                        setItems([{ id: null, text: '', isChecked: false, order: 0 }]);
-                    } else {
-                      setType('Text');
-                    }
+                    if (!switched) return;
+                    setType(switched.type);
+                    setBody(switched.body);
+                    setItems(switched.items);
                   }}
+                  disabled={!switched}
                 >
                   <CheckSquareIcon className={cn('text-lg', type === 'Checklist' && 'text-accent-ink')} />
                 </EditorTool>
