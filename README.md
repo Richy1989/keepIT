@@ -289,23 +289,24 @@ server, or standalone without one.
 <a href="https://f-droid.org/packages/org.hyperstarit.keepitapp/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"></a>
 &nbsp;&nbsp;
 <a href="https://play.google.com/apps/testing/org.hyperstarit.keepitapp"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"></a>
-<br><sub>Google Play is in <strong>open testing</strong> for now: anyone can join, <a href="#google-play-open-testing">as described below</a>.</sub>
+<br><sub>Google Play is in <strong>open testing</strong> for now: <a href="https://groups.google.com/g/keepit-tester">join the testers group</a> first, <a href="#google-play-open-testing">as described below</a>.</sub>
 
 | Source | How to install | How it updates |
 | --- | --- | --- |
 | **[Obtainium](https://github.com/ImranR98/Obtainium)** (easiest) | Tap the badge, or add `https://github.com/Richy1989/keepIT` as a GitHub app source. | With every release, straight from this repo and without a store account. |
 | **[F-Droid](https://f-droid.org/packages/org.hyperstarit.keepitapp/)** | Install keepIT from F-Droid's main repository. | Alongside everything else you installed from there. |
-| **[Google Play](#google-play-open-testing)** (open testing) | Join the open test, then install from Google Play. | From the Play Store, with every beta and release. |
+| **[Google Play](#google-play-open-testing)** (open testing) | Join the testers group and the open test, then install from Google Play. | From the Play Store, with every beta and release. |
 | **By hand** | Grab `keepit-vX.Y.Z-universal.apk` from the [latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it. | When you download the next one. |
 
 #### Google Play (open testing)
 
-keepIT is in **open testing** on Google Play before it goes public there. Anyone can join, with no
-invitation and no group to sign up for:
+keepIT is in **open testing** on Google Play before it goes public there. Anyone can join, in
+three steps, all with the Google account your phone uses:
 
-1. Open the [testing page](https://play.google.com/apps/testing/org.hyperstarit.keepitapp),
-   signed in with the Google account your phone uses, and tap **Become a tester**.
-2. [Install keepIT from Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp).
+1. Join the [keepIT testers group](https://groups.google.com/g/keepit-tester).
+2. Open the [testing page](https://play.google.com/apps/testing/org.hyperstarit.keepitapp) and
+   tap **Become a tester**.
+3. [Install keepIT from Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp).
 
 The open test gets the betas too (see [Beta releases](#beta-releases)), so it is often a version
 ahead of F-Droid. Tell us what you find at support@hyperstarit.org or in a
@@ -365,7 +366,7 @@ accident:
   release, which Android won't install over the beta. You can also sideload
   `keepit-vX.Y.Z-beta.N-universal.apk` from its
   [pre-release](https://github.com/Richy1989/keepIT/releases).
-- **Android, through Google Play:** join the open test (see
+- **Android, through Google Play:** join the testers group and the open test (see
   [Google Play](#google-play-open-testing)). Each beta arrives from the Play Store as an update,
   and so does the release that follows it.
 - **F-Droid** never carries betas. A beta installs over the F-Droid app, since it is the same
