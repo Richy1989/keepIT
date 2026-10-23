@@ -8,6 +8,7 @@
 
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/richy1989/keepit)
 [![Android](https://img.shields.io/badge/Android-app-3DDC84?logo=android&logoColor=white)](#the-android-app)
+[![Google Play: open testing](https://img.shields.io/badge/Google_Play-open_testing-01875F)](#google-play-open-testing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 ![Status](https://img.shields.io/badge/status-work_in_progress-yellow)
 
@@ -24,16 +25,29 @@ syncing live across your devices. Everything runs on your own server: no cloud a
 subscription, and nobody else holding your notes. Just want notes on your phone? The Android app
 also works entirely on its own, with no server at all.
 
-**[Get it running](#quick-start)** with one Docker command, or
-**[use the Android app standalone](#no-server-use-it-standalone)**.
-
 <div align="center">
+
+**[Run the server](#quick-start)** · **[Get the Android app](#get-it)** ·
+**[Use the app without a server](#no-server-use-it-standalone)** · **[FAQ](FAQ.md)**
 
 [<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/spaceelephant)
 
 </div>
 
-## What you can do with it
+## Contents
+
+- [Features](#features)
+- [A closer look](#a-closer-look)
+- [Quick start](#quick-start): run your own server with one Docker command
+- [The Android app](#the-android-app): get it, use it without a server, or build it
+- [Beta releases](#beta-releases): try what's coming before it's released
+- [What's next](#whats-next)
+- [For developers](#for-developers)
+- [Why I built this](#why-i-built-this) · [Support](#support) · [Privacy](#privacy) · [License](#license)
+
+## Features
+
+### Notes
 
 - 📝 **Notes your way:** text notes with rich formatting (bold, headings, lists, links, code),
   or checklists you tick off as you go.
@@ -42,23 +56,35 @@ also works entirely on its own, with no server at all.
 - 🎙️ **Voice notes:** record a thought on your phone instead of typing it, and play it back
   anywhere — on the phone or in the web app, straight from your list of notes without opening one.
   Recording works offline too.
+- 🎨 **Make it yours:** light, dim or dark themes (or follow your device), on the web and on
+  Android, a background color per note, and an accent color for the whole app.
+
+### Organizing
+
 - 🗂️ **Stay organized:** group notes into lists, pin the important ones, archive what's done,
   and find anything instantly with search. Deleted notes wait in the trash until you're sure. On
   Android, long-press to select several notes and pin, color, file or delete them together.
 - ⏰ **Reminders:** once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
   arrive as real notifications, even with the app closed, the screen locked, or no internet.
+
+### Sharing and sync
+
 - 👥 **Share notes:** invite someone by email to view or edit a note with you. You each keep
   your own pins, lists and reminders; edits show up for everyone, live.
 - 🔄 **Always in sync:** change a note on one device and watch it update on the others. No
   refresh, no sync button.
+
+### On your phone
+
 - 📱 **Android app included:** the same notes on your phone, with a home-screen widget for
   recent notes and one-tap capture. It works fully offline: read and edit anywhere, and your
   changes sync as soon as you're back online.
 - 📴 **No server? No problem:** the Android app also runs standalone. Notes, lists, photos,
   reminders and the widget all live on your phone, with nothing to set up. Connect a server
   later and everything moves into your account.
-- 🎨 **Make it yours:** light, dim or dark themes (or follow your device), on the web and on
-  Android, a background color per note, and an accent color for the whole app.
+
+### Your data
+
 - 💾 **Take your notes with you:** save everything you own — notes, checklists, lists, reminders
   and photos — as a single zip, and load it back into any keepIT account. On the web and on
   Android, standalone phones included, so a phone with no server still has a real backup. Your
@@ -89,8 +115,8 @@ Light, dim or dark, on the web and on your phone:
 
 ## Quick start
 
-keepIT runs on your own machine or home server with **Docker**. One command, no database to set
-up:
+keepIT's server runs on your own machine or home server with **Docker**. One command, no database
+to set up:
 
 ```bash
 docker run -d \
@@ -104,14 +130,17 @@ docker run -d \
 Then open **http://localhost:8080** (or your server's address on port 8080) and create your
 account. That's it.
 
-A few things worth knowing:
+### The essentials
 
 - **`Jwt__Key`** is a secret that keeps your sign-ins secure. Replace it with any random string
   of at least 32 characters, and keep it the same across restarts.
 - **Your data** lives in the `keepit-data` volume. Back that up and you've backed up your notes
   ([how](FAQ.md#how-do-i-back-up-the-whole-server)).
-- **Once your accounts are created**, you can close public sign-up by adding
+- **Close public sign-up** once your accounts are created, by adding
   `-e App__AllowRegistration=false` (recommended if your server is reachable from the internet).
+
+### Good to know
+
 - **Forgot password** works without any mail server: the reset link is written to the server
   log (`docker logs keepit`), where you, the operator, can grab it. To have it emailed to
   users instead, configure SMTP with the `Email__*` settings below **and** set
@@ -127,8 +156,10 @@ A few things worth knowing:
   logs, have it leave out query strings, or at least `token` and `access_token`: the web app's
   live-sync connection carries a sign-in token in its URL, and so does a password-reset link.
   keepIT's own logs blank both.
-- Running **Unraid**? A Community Apps template is included at
+- **Running Unraid?** A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
+
+### Updating
 
 > [!CAUTION]
 > **Running a version before 1.0? Export your notes before you update.** keepIT 1.0 starts with
@@ -137,12 +168,14 @@ A few things worth knowing:
 Updating, or something not working? The **[FAQ](FAQ.md)** covers updates, reverse proxies and
 HTTPS, email, and images. What's new in each version is in the **[CHANGELOG](CHANGELOG.md)**.
 
-<details>
-<summary><strong>Prefer Docker Compose, Postgres, or building the image yourself?</strong></summary>
+### More ways to run it
 
-**Docker Compose** (three containers: app, web server, and a PostgreSQL database), from a clone
-of this repo. It builds the images itself, which needs a license key for ImageSharp (see
-**Build the image yourself** below):
+<details>
+<summary><strong>Docker Compose, with PostgreSQL</strong></summary>
+
+Three containers (app, web server, and a PostgreSQL database), from a clone of this repo. It
+builds the images itself, which needs a license key for ImageSharp (see **Build the image
+yourself** below):
 
 ```bash
 cp .env.example .env          # set JWT_KEY (32+ chars), optionally POSTGRES_PASSWORD
@@ -151,8 +184,13 @@ docker compose up -d --build  # builds everything locally, then starts the stack
 
 Open **http://localhost:8080**. Data persists in named Docker volumes.
 
-**Use PostgreSQL with the single container** instead of the built-in database, either with the
-discrete variables (`POSTGRES_HOST` is the switch; port/db/user default to `5432`/`keepit`/`keepit`):
+</details>
+
+<details>
+<summary><strong>PostgreSQL with the single container</strong></summary>
+
+Use PostgreSQL instead of the built-in database, either with the discrete variables
+(`POSTGRES_HOST` is the switch; port/db/user default to `5432`/`keepit`/`keepit`):
 
 ```bash
 docker run -d \
@@ -177,7 +215,12 @@ docker run -d \
   richy1989/keepit:latest
 ```
 
-**Build the image yourself** (no Docker Hub needed). keepIT processes photos with
+</details>
+
+<details>
+<summary><strong>Build the image yourself</strong></summary>
+
+No Docker Hub needed. keepIT processes photos with
 [ImageSharp](https://sixlabors.com/products/imagesharp/), whose build asks for a Six Labors license
 key. It is free for hobbyists and open-source projects: apply at
 [licensing.sixlabors.com](https://licensing.sixlabors.com) and save the key as
@@ -193,8 +236,10 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 
 </details>
 
+### All settings
+
 <details>
-<summary><strong>All settings (environment variables)</strong></summary>
+<summary><strong>Every environment variable, with its default</strong></summary>
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
@@ -237,6 +282,42 @@ The app in [`app/`](app) brings your notes to your phone: offline-first, live sy
 reminder notifications, note sharing, and a home-screen widget. It works with your own
 server, or standalone without one.
 
+### Get it
+
+<a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/Richy1989/keepIT"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="60"></a>
+&nbsp;&nbsp;
+<a href="https://f-droid.org/packages/org.hyperstarit.keepitapp/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"></a>
+&nbsp;&nbsp;
+<a href="https://play.google.com/apps/testing/org.hyperstarit.keepitapp"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"></a>
+<br><sub>Google Play is in <strong>open testing</strong> for now: anyone can join, <a href="#google-play-open-testing">as described below</a>.</sub>
+
+| Source | How to install | How it updates |
+| --- | --- | --- |
+| **[Obtainium](https://github.com/ImranR98/Obtainium)** (easiest) | Tap the badge, or add `https://github.com/Richy1989/keepIT` as a GitHub app source. | With every release, straight from this repo and without a store account. |
+| **[F-Droid](https://f-droid.org/packages/org.hyperstarit.keepitapp/)** | Install keepIT from F-Droid's main repository. | Alongside everything else you installed from there. |
+| **[Google Play](#google-play-open-testing)** (open testing) | Join the open test, then install from Google Play. | From the Play Store, with every beta and release. |
+| **By hand** | Grab `keepit-vX.Y.Z-universal.apk` from the [latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it. | When you download the next one. |
+
+#### Google Play (open testing)
+
+keepIT is in **open testing** on Google Play before it goes public there. Anyone can join, with no
+invitation and no group to sign up for:
+
+1. Open the [testing page](https://play.google.com/apps/testing/org.hyperstarit.keepitapp),
+   signed in with the Google account your phone uses, and tap **Become a tester**.
+2. [Install keepIT from Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp).
+
+The open test gets the betas too (see [Beta releases](#beta-releases)), so it is often a version
+ahead of F-Droid. Tell us what you find at support@hyperstarit.org or in a
+[GitHub issue](https://github.com/Richy1989/keepIT/issues).
+
+#### Switching between sources
+
+Every source ships a build **signed with the same key**: F-Droid checks that the release APK
+reproduces from this repository and then publishes that developer-signed APK rather than one of
+its own, and Google Play signs keepIT with that key too. So you can move between F-Droid,
+Obtainium, Google Play and a hand-downloaded APK by updating, with nothing to uninstall.
+
 ### No server? Use it standalone
 
 Tap **Use without a server** on the sign-in screen and the app works entirely on your phone:
@@ -250,41 +331,7 @@ to your gallery instead of being lost. Until then, standalone notes live only on
 a copy now and then with **Settings → Your data → Save my notes** and keep it somewhere else.
 **Settings → This phone only → Erase notes** deletes them for good.
 
-### Get it
-
-<a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/Richy1989/keepIT"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="60"></a>
-&nbsp;&nbsp;
-<a href="https://f-droid.org/packages/org.hyperstarit.keepitapp/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="60"></a>
-&nbsp;&nbsp;
-<a href="https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" height="60"></a>
-<br><sub>Google Play is in closed testing for now: <a href="https://groups.google.com/g/keepit-tester">join the testers</a> first, as described below.</sub>
-
-**[Obtainium](https://github.com/ImranR98/Obtainium)** is the easiest way: tap the badge, or add
-`https://github.com/Richy1989/keepIT` as a GitHub app source. It installs the APK and keeps it
-up to date as new releases land, straight from this repo and without a store account.
-
-**[F-Droid](https://f-droid.org/packages/org.hyperstarit.keepitapp/)** carries keepIT in its main
-repository, so it updates alongside everything else you installed from there.
-
-Prefer to do it by hand? Grab `keepit-vX.Y.Z-universal.apk` from the
-[latest release](https://github.com/Richy1989/keepIT/releases/latest) and sideload it.
-
-**Google Play** has keepIT in a closed test before it goes public there, so its page opens only
-for testers. Anyone can become one:
-
-1. Join the [keepIT testers group](https://groups.google.com/g/keepit-tester) with the Google
-   account your phone uses.
-2. [Become a tester](https://play.google.com/apps/testing/org.hyperstarit.keepitapp).
-3. [Install keepIT from Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp).
-
-The test gets the betas (see [Beta releases](#beta-releases)), so it is a version ahead of
-F-Droid. Tell us what you find at support@hyperstarit.org or in a
-[GitHub issue](https://github.com/Richy1989/keepIT/issues).
-
-> Every source ships a build **signed with the same key**: F-Droid checks that the release APK
-> reproduces from this repository and then publishes that developer-signed APK rather than one of
-> its own, and Google Play signs keepIT with that key too. So you can move between F-Droid,
-> Obtainium, Google Play and a hand-downloaded APK by updating, with nothing to uninstall.
+### App and server versions
 
 The app updates on its own and your server updates when you update it, so the two will often be
 on different versions. That's fine: **any 1.x app works with any 1.x server.** Something new that
@@ -306,6 +353,28 @@ Android emulator, your own machine is `http://10.0.2.2:5025`. For
 reminders that fire on the minute even while your phone sleeps, grant **Alarms & reminders**
 under **Settings → Notifications** in the app.
 
+## Beta releases
+
+Before a release, betas of it may go out for testing, tagged `vX.Y.Z-beta.N`. A beta is built
+exactly like a release but published only where you have to ask for it, so nobody gets one by
+accident:
+
+- **Android, through Obtainium:** in keepIT's settings in Obtainium, turn on **Include
+  prereleases**. Each beta then arrives as an update, and so does the release that follows it.
+  Turn the setting off only once that release is out: until then Obtainium offers the older
+  release, which Android won't install over the beta. You can also sideload
+  `keepit-vX.Y.Z-beta.N-universal.apk` from its
+  [pre-release](https://github.com/Richy1989/keepIT/releases).
+- **Android, through Google Play:** join the open test (see
+  [Google Play](#google-play-open-testing)). Each beta arrives from the Play Store as an update,
+  and so does the release that follows it.
+- **F-Droid** never carries betas. A beta installs over the F-Droid app, since it is the same
+  signed build, and F-Droid takes over again with the next release.
+- **Server:** `richy1989/keepit:beta` is the newest beta, and `richy1989/keepit:X.Y.Z-beta.N` a
+  particular one. `latest` only ever moves to a release. A beta server may already have updated its
+  database for the coming release, so switch it back to `latest` once that release is out, never
+  to an older version.
+
 ## What's next
 
 keepIT is a work in progress and actively developed. Up next:
@@ -316,11 +385,15 @@ keepIT is a work in progress and actively developed. Up next:
 
 ## For developers
 
+### How it works
+
 Curious how it works, or want to hack on it? **[`ARCHITECTURE.md`](ARCHITECTURE.md)** holds the
 full design and the reasoning behind it. The short version: an ASP.NET Core (.NET 10) REST API
 plus SignalR for realtime, a React 19/TypeScript web app, and a Kotlin/Jetpack Compose Android
 app, all speaking the same API, with the C# DTOs as the single source of truth for the contract
 (the typed TypeScript client is generated from OpenAPI: `cd web && npm run generate:api`).
+
+### Run it locally
 
 You'll need the **.NET 10 SDK** and **Node.js 22+**. No database setup needed: a SQLite dev
 database is created for you. One command builds and runs both halves, seeding test data on
@@ -355,30 +428,13 @@ bash scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.
 
 </details>
 
+### The app icon
+
 The app icon is a Blender model: **[`docs/brand/`](docs/brand/README.md)** holds the `.blend` and
 a script that renders every icon file from it, for Android, the web, F-Droid and this README, so
 changing the icon means editing one file and running one command.
 
-### Beta releases
-
-Before a release, betas of it may go out for testing, tagged `vX.Y.Z-beta.N`. A beta is built
-exactly like a release but published only where you have to ask for it, so nobody gets one by
-accident:
-
-- **Android, through Obtainium:** in keepIT's settings in Obtainium, turn on **Include
-  prereleases**. Each beta then arrives as an update, and so does the release that follows it.
-  Turn the setting off only once that release is out: until then Obtainium offers the older
-  release, which Android won't install over the beta. You can also sideload
-  `keepit-vX.Y.Z-beta.N-universal.apk` from its
-  [pre-release](https://github.com/Richy1989/keepIT/releases).
-- **Android, through Google Play:** join the closed test (see [Get it](#get-it)). Each beta
-  arrives from the Play Store as an update, and so does the release that follows it.
-- **F-Droid** never carries betas. A beta installs over the F-Droid app, since it is the same
-  signed build, and F-Droid takes over again with the next release.
-- **Server:** `richy1989/keepit:beta` is the newest beta, and `richy1989/keepit:X.Y.Z-beta.N` a
-  particular one. `latest` only ever moves to a release. A beta server may already have updated its
-  database for the coming release, so switch it back to `latest` once that release is out, never
-  to an older version.
+### Publishing a beta
 
 A beta's release notes are the `## Unreleased` section of [`CHANGELOG.md`](CHANGELOG.md). To
 publish one, tag a commit on `main` and push the tag; there is nothing to bump:
@@ -386,6 +442,8 @@ publish one, tag a commit on `main` and push the tag; there is nothing to bump:
 ```bash
 git tag v0.9.0-beta.1 && git push origin v0.9.0-beta.1
 ```
+
+How releases and betas are built is in [`ARCHITECTURE.md` → Releases (CI)](ARCHITECTURE.md#releases-ci).
 
 ## Why I built this
 
