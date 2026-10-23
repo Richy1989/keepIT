@@ -1529,7 +1529,7 @@ reconciler bring up to date.
 image (tagged `X.Y.Z` + `latest`, with the version/sha baked in for `/api/meta`), builds the
 **signed Android APK** (version name/code derived from the tag; keystore from repo secrets,
 mirrored locally by a gitignored `app/keystore.properties`), and publishes a GitHub Release
-with the APK attached. Google Play is not in the workflow: it carries keepIT in a closed test,
+with the APK attached. Google Play is not in the workflow: it carries keepIT in open testing,
 from a bundle built locally (`./gradlew :app:assembleRelease :app:bundleRelease` with the tag's
 `VERSION_NAME`/`VERSION_CODE`) and uploaded in Play Console by hand. Play signs with the release
 key itself (uploaded through PEPK, not a Google-generated key), so its installs update across
