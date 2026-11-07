@@ -167,3 +167,137 @@ fun suggestFromChecked(items: List<ChecklistItemDto>, typing: Int): Int? {
     }
     return best
 }
+
+/** The only indentation levels a checklist holds: top-level (0) and sub-item (1). */
+const val CHECKLIST_MAX_INDENT = 1
+
+/** The row's level, treating older data as top-level and clamping anything deeper. */
+fun ChecklistItemDto.indentLevel(): Int = indent.coerceIn(0, CHECKLIST_MAX_INDENT)
+
+/** Stored index of the top-level row above [index], or -1 when there is none. */
+fun List<ChecklistItemDto>.parentIndexOf(index: Int): Int {
+    if (index <= 0 || index >= size) return -1
+
+    for (at in index - 1 downTo 0) {
+        if (this[at].indentLevel() == 0) return at
+    }
+
+    return -1
+}
+
+/** Stored indices of the sub-items immediately below the top-level row at [parentIndex]. */
+fun List<ChecklistItemDto>.childIndicesOf(parentIndex: Int): List<Int> {
+    if (parentIndex !in indices || this[parentIndex].indentLevel() != 0) return emptyList()
+
+    val children = mutableListOf<Int>()
+    var at = parentIndex + 1
+    while (at < size && this[at].indentLevel() == 1) {
+        children += at
+        at++
+    }
+
+    return children
+}
+
+/** Whether the row may become a sub-item: not first, currently top-level, with a top-level above. */
+fun List<ChecklistItemDto>.canIndentAt(index: Int): Boolean =
+    index in 1 until size && this[index].indentLevel() == 0 && parentIndexOf(index) != -1
+
+/** Whether the row is a sub-item that can return to the top level. */
+fun List<ChecklistItemDto>.canOutdentAt(index: Int): Boolean =
+    index in indices && this[index].indentLevel() == 1
+
+/** The list with one row's level changed when that move is allowed, or itself unchanged. */
+fun List<ChecklistItemDto>.withIndentAt(index: Int, level: Int): List<ChecklistItemDto> {
+    if (level !in 0..1 || index !in indices) return this
+
+    val allowed = if (level == 1) canIndentAt(index) else canOutdentAt(index)
+    if (!allowed || this[index].indentLevel() == level) return this
+
+    return mapIndexed { at, item -> if (at == index) item.copy(indent = level) else item }
+}
+
+/**
+ * The list with one box toggled, applying the parent/child rule: a top-level row with children
+ * carries the whole group, while a child only changes itself and then recomputes its parent.
+ */
+fun List<ChecklistItemDto>.withCheckedAt(index: Int, checked: Boolean): List<ChecklistItemDto> {
+    if (index !in indices) return this
+
+    val next = toMutableList()
+    next[index] = next[index].copy(isChecked = checked)
+    for (child in childIndicesOf(index)) next[child] = next[child].copy(isChecked = checked)
+
+    if (this[index].indentLevel() == 1) {
+        val parent = parentIndexOf(index)
+        if (parent != -1) {
+            val allChecked = childIndicesOf(parent).all { next[it].isChecked }
+            next[parent] = next[parent].copy(isChecked = allChecked)
+        }
+    }
+
+    return next
+}
+
+/** The list put back into the single-level model: first/orphan rows top-level, deeper values 1. */
+fun List<ChecklistItemDto>.normalizedIndents(): List<ChecklistItemDto> {
+    var seenTopLevel = false
+
+    return map { item ->
+        val level = if (item.indentLevel() > 0 && seenTopLevel) 1 else 0
+        if (level == 0) seenTopLevel = true
+
+        if (item.indent == level) item else item.copy(indent = level)
+    }
+}
+
+/** Where a row added by Enter goes: after the row, or after its whole group when it is a parent. */
+fun List<ChecklistItemDto>.insertionIndexAfter(index: Int): Int {
+    if (index !in indices) return size
+
+    return index + 1 + childIndicesOf(index).size
+}
+
+/** The level of a row added after [index]: another sub-item below a sub-item, else top-level. */
+fun List<ChecklistItemDto>.newItemIndentAfter(index: Int): Int =
+    if (index in indices && this[index].indentLevel() == 1) 1 else 0
+
+/** A row in a checklist's completed section: a real checked row, or a greyed context heading. */
+sealed interface ChecklistDisplayRow {
+    data class Item(val item: ChecklistItemDto, val index: Int) : ChecklistDisplayRow
+    data class Heading(val text: String, val parentIndex: Int) : ChecklistDisplayRow
+}
+
+/** The active and completed halves of a checklist, each in the stored (home) order. */
+data class ChecklistSections(
+    val active: List<ChecklistDisplayRow.Item>,
+    val completed: List<ChecklistDisplayRow>,
+)
+
+/**
+ * Splits a checklist for display. A partial group appears twice: the parent stays active with its
+ * unchecked children, and the completed half repeats its text as a non-interactive heading above
+ * the checked children. A fully checked group has no heading because its parent is checked too.
+ */
+fun List<ChecklistItemDto>.sections(): ChecklistSections {
+    val active = mutableListOf<ChecklistDisplayRow.Item>()
+    val completed = mutableListOf<ChecklistDisplayRow>()
+    val headed = mutableSetOf<Int>()
+
+    forEachIndexed { index, item ->
+        if (!item.isChecked) {
+            active += ChecklistDisplayRow.Item(item, index)
+            return@forEachIndexed
+        }
+
+        if (item.indentLevel() == 1) {
+            val parent = parentIndexOf(index)
+            if (parent != -1 && !this[parent].isChecked && headed.add(parent)) {
+                completed += ChecklistDisplayRow.Heading(this[parent].text, parent)
+            }
+        }
+        completed += ChecklistDisplayRow.Item(item, index)
+    }
+
+    return ChecklistSections(active, completed)
+}

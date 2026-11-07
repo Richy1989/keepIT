@@ -716,7 +716,7 @@ class NotesRepository(
                             .inDisplayOrder()
                             .filterNot { it.isChecked }
                             .take(WIDGET_CHECKLIST_LINES)
-                            .map { "☐ " + it.text }
+                            .map { "☐ " + (if (it.indent > 0) "  " else "") + it.text }
                     } else {
                         emptyList()
                     },

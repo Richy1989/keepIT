@@ -55,6 +55,21 @@ class NoteLimitsTest {
     }
 
     @Test
+    fun `checklist indentation is clamped to the two levels the server accepts`() {
+        val clamped = NoteLimits.clamp(
+            CreateNoteDto(
+                type = NoteTypes.CHECKLIST,
+                checklistItems = listOf(
+                    ChecklistItemDto(text = "deep", indent = 7),
+                    ChecklistItemDto(text = "negative", indent = -3),
+                ),
+            ),
+        )
+
+        assertEquals(listOf(1, 0), clamped.checklistItems!!.map { it.indent })
+    }
+
+    @Test
     fun `a cut never leaves half an emoji behind`() {
         // "😀" is two UTF-16 units; the limit falls between them.
         val text = "a".repeat(NoteLimits.TITLE - 1) + "😀"
