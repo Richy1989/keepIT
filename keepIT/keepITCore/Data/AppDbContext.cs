@@ -105,6 +105,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
         {
             e.HasKey(c => c.Id);
             e.Property(c => c.Text).HasMaxLength(NoteLimits.ChecklistItemText);
+            // 0 = top-level, 1 = sub-item; existing rows backfill to 0.
+            e.Property(c => c.Indent).HasDefaultValue(0);
         });
 
         builder.Entity<NoteMedia>(e =>

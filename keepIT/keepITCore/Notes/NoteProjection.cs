@@ -52,7 +52,7 @@ public static class NoteProjection
             IsShared = isOwner && n.NoteShares.Count > 0,
             ChecklistItems = n.ChecklistItems
                 .OrderBy(c => c.Order)
-                .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, IsChecked = c.IsChecked, Order = c.Order })
+                .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, Indent = c.Indent, IsChecked = c.IsChecked, Order = c.Order })
                 .ToList(),
             Media = n.Media
                 .OrderBy(m => m.Order)

@@ -42,6 +42,7 @@ function items(count: number) {
   return Array.from({ length: count }, (_, i) => ({
     id: `item-${i}`,
     text: `item ${i}`,
+    indent: 0,
     isChecked: false,
     order: i,
   }));

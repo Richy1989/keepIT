@@ -1810,6 +1810,8 @@ export interface components {
             /** Format: uuid */
             id?: null | string;
             text: string;
+            /** Format: int32 */
+            indent: number;
             isChecked: boolean;
             /** Format: int32 */
             order: number;

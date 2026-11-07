@@ -12,6 +12,13 @@ public class ChecklistItemDto
     [MaxLength(NoteLimits.ChecklistItemText)]
     public string Text { get; set; } = "";
 
+    /// <summary>
+    /// Nesting depth: 0 for a top-level row, 1 for a sub-item. The server normalises it on save —
+    /// the first row is always 0, anything deeper than one level becomes 1, and an indented row with
+    /// no top-level row above it falls back to 0 — so the value returned may differ from the one sent.
+    /// </summary>
+    public int Indent { get; set; }
+
     public bool IsChecked { get; set; }
 
     /// <summary>Sort position within the note (ascending).</summary>

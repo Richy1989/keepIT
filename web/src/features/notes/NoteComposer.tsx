@@ -160,7 +160,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
           type="button"
           onClick={() => {
             setType('Checklist');
-            setItems([{ id: null, text: '', isChecked: false, order: 0 }]);
+            setItems([{ id: null, text: '', isChecked: false, indent: 0, order: 0 }]);
             setOpen(true);
           }}
           title="New checklist"

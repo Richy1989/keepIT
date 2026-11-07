@@ -1062,6 +1062,15 @@ A note is one of several **types**, and any note can carry a background color:
    offers the ticked one it matches (`suggestFromChecked`, one rule on both clients, held to
    `web/src/features/notes/checklistSuggest.json`); taking it makes the new row that item, unticked
    and with its id, where it was being typed, so a list used week after week holds each item once.
+   A row can be indented one level under the top-level row above it, by dragging
+   the editor's handle horizontally. A vertical drop takes the target's level too, so a row can leave
+   an indent without a separate outdent gesture. Indenting a parent that already has sub-items brings
+   the whole block under the previous top-level row: its children are already one level down, so they
+   become siblings of the parent rather than a second nesting level. A parent with sub-items is checked
+   when all of them are; its box checks or clears the whole group, while a child only changes itself
+   and then recomputes the parent. A partially completed group appears twice: the parent stays in the active list with its
+   unchecked children, and the completed section repeats it as a greyed, non-interactive heading
+   above the checked children.
 3. **Background** — every note can set a background **color** from the palette. Background
    *images* are still not implemented.
 
@@ -1089,18 +1098,21 @@ everything else is scoped to):
   on the way back to text) and saves the side it leaves empty. The rule is `checklistFromText` /
   `textFromChecklist` in `checklist.ts` and `Checklist.kt`, both held to `checklistConvert.json`.
   A note saved before 1.1 may still hold both, the hidden side unseen; the switch replaces it.
-- `ChecklistItem` — id, noteId, text, isChecked, order. Replaced wholesale on note update but
-  reconciled by id server-side (stable ids, no delete-and-reinsert churn). **`order` is the row's
-  *home* position, not its display position** — the server renumbers it from the incoming array
-  index, and clients must only change it when a row is added, removed or dragged, **never when a
-  box is ticked**. Each client then renders unchecked rows first and checked ones at the bottom
-  (a stable partition), which is what makes a ticked row sink, an unticked row return to exactly
-  the slot it came from, and a new row land above the checked block — identically on every device,
-  because it's derived from persisted state rather than remembered client-side. The editors' "Add
-  item" sits in that gap, between the unchecked rows and the checked ones, right where the new row
-  appears. Nothing enforces
-  this contract, so a client that writes display order back into `order` breaks the other clients:
-  the rule lives in `web/src/features/notes/checklist.ts` and `app/…/data/Checklist.kt`.
+- `ChecklistItem` — id, noteId, text, isChecked, **indent** (0 = top-level, 1 = a sub-item of the
+  top-level row above it; one level only), order. Replaced wholesale on note update but
+  reconciled by id server-side (stable ids, no delete-and-reinsert churn). The server normalises
+  the hierarchy on every write: the first row and any orphan are top-level, deeper values collapse
+  to 1, and a parent that has children is checked if and only if every child is. **`order` is the
+  row's *home* position, not its display position** — the server renumbers it from the incoming
+  array index, and clients must only change it when a row is added, removed or dragged, **never
+  when a box is ticked**. Each client then renders unchecked rows first and checked ones at the
+  bottom (a stable partition), which is what makes a ticked row sink, an unticked row return to
+  exactly the slot it came from, and a new row land above the checked block — identically on every
+  device, because it's derived from persisted state rather than remembered client-side. The web
+  client splits that display further for sub-items (see "Checklist note"); the editors' "Add item"
+  sits in the gap before the checked block, right where the new row appears. Nothing enforces this
+  contract, so a client that writes display order back into `order` breaks the other clients: the
+  rule lives in `web/src/features/notes/checklist.ts` and `app/…/data/Checklist.kt`.
 - `KeepList` (the `List` resource) — id, ownerId, name, color, optional icon. Always private to
   its owner.
 - `NoteList` — the per-user join (noteId, listId, **userId**): a collaborator files a shared

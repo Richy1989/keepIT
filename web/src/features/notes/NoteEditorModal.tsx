@@ -3,7 +3,7 @@ import { useSetNoteLists, useUpdateNote } from './queries';
 import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
-import { checklistForDisplay, switchNoteType } from './checklist';
+import { checklistSections, indentOf, switchNoteType } from './checklist';
 import { Markdown } from './Markdown';
 import { MarkdownToolbar } from './MarkdownToolbar';
 import { ReminderChip } from './ReminderChip';
@@ -141,8 +141,8 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
     if (nextBody !== (opened.body ?? null)) changed.push('Body');
     if (nextColor !== (opened.color ?? null)) changed.push('Color');
     if (
-      JSON.stringify(cleanItems.map((i) => [i.text, i.isChecked])) !==
-      JSON.stringify(opened.checklistItems.map((i) => [i.text, i.isChecked]))
+      JSON.stringify(cleanItems.map((i) => [i.text, indentOf(i), i.isChecked])) !==
+      JSON.stringify(opened.checklistItems.map((i) => [i.text, indentOf(i), i.isChecked]))
     ) {
       changed.push('ChecklistItems');
     }
@@ -484,26 +484,58 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   );
 }
 
-/** Static, non-interactive rendering of a checklist for viewers (no edit affordances). */
+/**
+ * Static, non-interactive rendering of a checklist for viewers (no edit affordances).
+ *
+ * Same active/completed split as the editor (see [checklistSections]): unchecked rows first, then
+ * the completed section, both in home order. A partially completed group repeats its unchecked
+ * parent in the completed section as a greyed context heading above the checked children; that
+ * heading is presentation only — no checkbox control, not focusable, never counted as an item.
+ */
 function ReadOnlyChecklist({ items }: { items: ChecklistItemDto[] }) {
+  const { active, completed } = checklistSections(items);
+
   return (
     <ul className="space-y-1">
-      {checklistForDisplay(items).map((it, i) => (
-        <li key={it.id ?? i} className="flex items-start gap-2 text-sm">
-          <span
-            className={cn(
-              'mt-0.5 grid size-4 shrink-0 place-items-center rounded border',
-              it.isChecked ? 'border-accent bg-accent text-black' : 'border-border-control',
-            )}
-          >
-            {it.isChecked && <CheckIcon className="text-[10px]" />}
-          </span>
-          <span className={cn('text-text', it.isChecked && 'text-text-faint line-through')}>
-            {it.text}
-          </span>
-        </li>
+      {active.map(({ item, index }) => (
+        <ReadOnlyChecklistRow key={item.id ?? `active-${index}`} item={item} />
       ))}
+      {completed.map((row) =>
+        row.kind === 'heading' ? (
+          <li
+            key={`heading-${row.parentIndex}`}
+            className="flex items-center gap-2 py-0.5 text-sm text-text-faint"
+          >
+            <span
+              aria-hidden="true"
+              className="grid size-4 shrink-0 place-items-center rounded border border-border-control opacity-60"
+            />
+            <span className="truncate">{row.text}</span>
+          </li>
+        ) : (
+          <ReadOnlyChecklistRow key={row.item.id ?? `completed-${row.index}`} item={row.item} />
+        ),
+      )}
     </ul>
+  );
+}
+
+/** One real checklist row in the read-only view: a disabled glyph and its text, no click handler. */
+function ReadOnlyChecklistRow({ item }: { item: ChecklistItemDto }) {
+  return (
+    <li className={cn('flex items-start gap-2 text-sm', indentOf(item) === 1 && 'ml-6')}>
+      <span
+        className={cn(
+          'mt-0.5 grid size-4 shrink-0 place-items-center rounded border',
+          item.isChecked ? 'border-accent bg-accent text-black' : 'border-border-control',
+        )}
+      >
+        {item.isChecked && <CheckIcon className="text-[10px]" />}
+      </span>
+      <span className={cn('text-text', item.isChecked && 'text-text-faint line-through')}>
+        {item.text}
+      </span>
+    </li>
   );
 }
 
