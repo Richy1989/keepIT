@@ -1529,11 +1529,19 @@ reconciler bring up to date.
 image (tagged `X.Y.Z` + `latest`, with the version/sha baked in for `/api/meta`), builds the
 **signed Android APK** (version name/code derived from the tag; keystore from repo secrets,
 mirrored locally by a gitignored `app/keystore.properties`), and publishes a GitHub Release
-with the APK attached. Google Play is not in the workflow: it carries keepIT in open testing,
-from a bundle built locally (`./gradlew :app:assembleRelease :app:bundleRelease` with the tag's
-`VERSION_NAME`/`VERSION_CODE`) and uploaded in Play Console by hand. Play signs with the release
-key itself (uploaded through PEPK, not a Google-generated key), so its installs update across
-F-Droid and GitHub like any other.
+with the APK attached. Play signs with the release key itself (uploaded through PEPK, not a
+Google-generated key), so its installs update across F-Droid and GitHub like any other.
+
+**Google Play** gets the same build as an app bundle (`bundleRelease`, beside `assembleRelease`;
+nothing in Gradle knows about Play, so F-Droid's reproducible APK is untouched). The upload is a
+`play` job of its own that runs after the GitHub Release, so a Play failure — an expired key, a
+track the app has no access to yet — never holds back GitHub, Docker or F-Droid; the bundle and its
+R8 mapping are the release job's `google-play` artifact (30 days), for re-running the job or
+uploading by hand. A beta goes to the `PLAY_BETA_TRACK` repo variable (default `beta`, Play's id
+for open testing), a release to `PLAY_RELEASE_TRACK` (default `production`), both as completed
+releases that Play then reviews. "What's new" is the release's fastlane changelog; a beta has none,
+so it names the ✨ items of `## Unreleased` and links its pre-release. The job authenticates with a
+service account's JSON key in the `PLAY_SERVICE_ACCOUNT_JSON` secret and does nothing without it.
 
 The release notes are laid out like calendarIT's (the structure is in CLAUDE.md → Releases).
 The workflow writes the frame: the `# keepIT X.Y.Z` title, the logo, and "Changes since" the
