@@ -516,7 +516,10 @@ private fun ChecklistPreview(note: NoteDto) {
     val ticked = items.size - open.size
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         open.take(MAX_PREVIEW_ITEMS).forEach { item ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = if (item.indent > 0) 20.dp else 0.dp),
+            ) {
                 CheckBoxGlyph()
                 Text(
                     text = item.text,

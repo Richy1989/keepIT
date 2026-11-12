@@ -414,6 +414,53 @@ public sealed class ImportTests
     }
 
     /// <summary>
+    /// Checklist rows in an archive are held to the same single-level rules a save is: a first row
+    /// cannot be indented, deeper nesting collapses to one level, and a parent arrives ticked only
+    /// when every one of its children is — whatever the archive claimed.
+    /// </summary>
+    [Fact]
+    public async Task Imported_checklist_indentation_is_normalised_and_the_parent_is_derived()
+    {
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+
+        var manifest = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            exportedAtUtc = DateTime.UtcNow,
+            appVersion = "test",
+            lists = Array.Empty<object>(),
+            notes = new[]
+            {
+                new
+                {
+                    id = Guid.NewGuid(),
+                    type = "Checklist",
+                    title = "packing",
+                    checklistItems = new[]
+                    {
+                        new { text = "first", indent = 1, isChecked = false, order = 0 },
+                        new { text = "child", indent = 3, isChecked = true, order = 1 },
+                        new { text = "parent", indent = 0, isChecked = false, order = 2 },
+                        new { text = "child 2", indent = 1, isChecked = true, order = 3 },
+                        new { text = "child 3", indent = 1, isChecked = true, order = 4 },
+                    },
+                },
+            },
+        });
+
+        await ImportOkAsync(client, BuildArchive(manifest));
+
+        var items = NoteWithTitle(await GridAsync(client), "packing")
+            .GetProperty("checklistItems").EnumerateArray().ToArray();
+        Assert.Equal(new[] { 0, 1, 0, 1, 1 }, items.Select(i => i.GetProperty("indent").GetInt32()));
+        // Its only child was checked, so the first row is checked despite the archive saying otherwise.
+        Assert.True(items[0].GetProperty("isChecked").GetBoolean());
+        // It had two checked children, so it is checked despite the archive saying otherwise.
+        Assert.True(items[2].GetProperty("isChecked").GetBoolean());
+    }
+
+    /// <summary>
     /// An archive is a file from anywhere, and import holds it to the limits every other write is
     /// held to: over-long content is shortened with a warning, not stored as it is (a note that could
     /// then never be saved again) and not allowed to fail the whole import on a column's size.

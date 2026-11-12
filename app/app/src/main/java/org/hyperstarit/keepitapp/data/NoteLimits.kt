@@ -36,10 +36,15 @@ object NoteLimits {
 
     private fun String?.cutTo(max: Int): String? = this?.let { cut(it, max) }
 
-    /** Checklist rows within the item count and each row's text within its limit. */
+    /** Checklist rows within the item count, each row's text within its limit, indent 0 or 1. */
     fun clampItems(items: List<ChecklistItemDto>?): List<ChecklistItemDto>? = items
         ?.take(CHECKLIST_ITEMS)
-        ?.map { if (it.text.length <= CHECKLIST_ITEM_TEXT) it else it.copy(text = cut(it.text, CHECKLIST_ITEM_TEXT)) }
+        ?.map {
+            it.copy(
+                text = if (it.text.length <= CHECKLIST_ITEM_TEXT) it.text else cut(it.text, CHECKLIST_ITEM_TEXT),
+                indent = it.indent.coerceIn(0, 1),
+            )
+        }
 
     /** A colour the server would refuse is no colour at all, as an unknown one already renders. */
     private fun String?.colorOrNull(): String? = this?.takeIf { it.length <= COLOR }

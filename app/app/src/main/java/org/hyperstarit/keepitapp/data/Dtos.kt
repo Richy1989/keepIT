@@ -150,6 +150,11 @@ data class ChecklistItemDto(
     val id: String? = null,
     val text: String = "",
     val isChecked: Boolean = false,
+    /**
+     * 0 for a top-level row, 1 for a sub-item of the top-level row above it. Defaults to 0 so notes
+     * cached before sub-items existed still decode; the server normalises anything else on save.
+     */
+    val indent: Int = 0,
     val order: Int = 0,
 )
 

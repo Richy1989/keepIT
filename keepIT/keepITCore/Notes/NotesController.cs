@@ -137,8 +137,16 @@ public class NotesController : ControllerBase
         if (dto.ChecklistItems is not null)
         {
             var order = 0;
+            var items = new List<ChecklistItem>(dto.ChecklistItems.Count);
             foreach (var item in dto.ChecklistItems)
-                note.ChecklistItems.Add(NewChecklistItem(note.Id, item, order++));
+                items.Add(NewChecklistItem(note.Id, item, order++));
+
+            // One nesting level only, and a parent's box mirrors every child's state.
+            ChecklistHierarchy.Normalize(items);
+
+            foreach (var item in items) {
+                note.ChecklistItems.Add(item);
+            }
         }
 
         foreach (var listId in await OwnedListIdsAsync(ownerId.Value, dto.ListIds))
@@ -202,6 +210,7 @@ public class NotesController : ControllerBase
     /// by id): existing rows updated, genuinely new ones inserted, the rest deleted. Deleting every
     /// row and re-inserting confuses EF's change tracker (it emits a stray UPDATE against an
     /// already-deleted row → DbUpdateConcurrencyException) and would also churn item ids on every save.
+    /// The merged result is then normalised through <see cref="ChecklistHierarchy"/>.
     /// </summary>
     private void ReconcileChecklist(Note note, List<ChecklistItemDto>? items)
     {
@@ -210,21 +219,30 @@ public class NotesController : ControllerBase
         var keptIds = new HashSet<Guid>();
 
         var order = 0;
+        var ordered = new List<ChecklistItem>(incoming.Count);
         foreach (var item in incoming)
         {
             if (item.Id is { } itemId && existingById.TryGetValue(itemId, out var existing))
             {
                 existing.Text = item.Text;
                 existing.IsChecked = item.IsChecked;
+                existing.Indent = item.Indent;
                 existing.Order = order;
                 keptIds.Add(itemId);
+                ordered.Add(existing);
             }
             else
             {
-                _db.ChecklistItems.Add(NewChecklistItem(note.Id, item, order));
+                var added = NewChecklistItem(note.Id, item, order);
+                _db.ChecklistItems.Add(added);
+                ordered.Add(added);
             }
             order++;
         }
+
+        // Applied to the result of the merge, so rows that only moved are normalised exactly like
+        // new ones (an item that was a child and is now first becomes top-level, and so on).
+        ChecklistHierarchy.Normalize(ordered);
 
         foreach (var stale in existingById.Values.Where(c => !keptIds.Contains(c.Id)))
             _db.ChecklistItems.Remove(stale);
@@ -508,6 +526,7 @@ public class NotesController : ControllerBase
         Id = Guid.NewGuid(),
         NoteId = noteId,
         Text = dto.Text,
+        Indent = dto.Indent,
         IsChecked = dto.IsChecked,
         Order = order,
     };

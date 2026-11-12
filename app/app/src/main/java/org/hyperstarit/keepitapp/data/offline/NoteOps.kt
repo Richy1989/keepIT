@@ -329,4 +329,4 @@ fun changedFields(note: NoteDto, dto: UpdateNoteDto): List<String> = changedFiel
     dto,
 )
 
-private fun List<ChecklistItemDto>.rows() = sortedBy { it.order }.map { Triple(it.id, it.text, it.isChecked) }
+private fun List<ChecklistItemDto>.rows() = sortedBy { it.order }.map { listOf(it.id, it.text, it.isChecked, it.indent) }

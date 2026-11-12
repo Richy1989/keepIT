@@ -4,6 +4,152 @@ import type { ChecklistItemDto, NoteType } from '../../api/types';
 export type ChecklistRow = { item: ChecklistItemDto; index: number };
 
 /**
+ * A row in the completed section. A real checked item is an `item` row; a `heading` is the greyed,
+ * non-interactive copy of an unchecked parent shown above its checked children, so a partially
+ * completed group reads twice without the copy counting as an item of its own.
+ */
+export type CompletedRow =
+  | { kind: 'item'; item: ChecklistItemDto; index: number }
+  | { kind: 'heading'; text: string; parentIndex: number };
+
+/** The active and completed halves of a checklist, each in the stored (home) order. */
+export type ChecklistSections = { active: ChecklistRow[]; completed: CompletedRow[] };
+
+/**
+ * A row's nesting depth: 0 for a top-level row, 1 for a sub-item. `indent` is part of the DTO now,
+ * but notes cached before it existed may not carry it, so a missing value reads as top-level rather
+ * than turning every old row into a sub-item (or crashing on `undefined`).
+ */
+export function indentOf(item: ChecklistItemDto): number {
+  return item.indent ?? 0;
+}
+
+/** Whether `item` is a sub-item. A row deeper than one level still counts, so old bad data is visible. */
+export function isSubItem(item: ChecklistItemDto): boolean {
+  return indentOf(item) > 0;
+}
+
+/**
+ * Stored index of the top-level row above `index`, or -1 when there is none. That row is the parent
+ * of a sub-item; the indent-1 rows between the two are its siblings. Called on a top-level row this
+ * is simply the previous top-level row (not its parent), so callers that need a parent check
+ * [isSubItem] first.
+ */
+export function parentIndexOf(items: ChecklistItemDto[], index: number): number {
+  if (index <= 0 || index >= items.length) return -1;
+  for (let at = index - 1; at >= 0; at -= 1) {
+    if (!isSubItem(items[at])) return at;
+  }
+  return -1;
+}
+
+/**
+ * Stored indices of the sub-items of the top-level row at `parentIndex`: the contiguous indent-1
+ * rows immediately below it, up to the next top-level row. A sub-item is never itself a parent, so
+ * asking one returns no children.
+ */
+export function childIndicesOf(items: ChecklistItemDto[], parentIndex: number): number[] {
+  if (parentIndex < 0 || parentIndex >= items.length || isSubItem(items[parentIndex])) return [];
+  const children: number[] = [];
+  for (let at = parentIndex + 1; at < items.length && isSubItem(items[at]); at += 1) {
+    children.push(at);
+  }
+  return children;
+}
+
+/**
+ * Whether the row at `index` may become a sub-item. The first row never can, a row that already is
+ * one cannot go deeper, and the row must have a top-level row above it to belong to.
+ *
+ * A parent with sub-items can be indented: its children already sit at the sub-item level, so
+ * indenting the parent makes the whole group siblings under the previous top-level row. That is
+ * how a completed block is moved under another one without creating a second nesting level.
+ */
+export function canIndent(items: ChecklistItemDto[], index: number): boolean {
+  if (index <= 0 || index >= items.length) return false;
+  return indentOf(items[index]) === 0 && parentIndexOf(items, index) !== -1;
+}
+
+/** Whether the row at `index` may become top-level again: any sub-item can always be outdented. */
+export function canOutdent(items: ChecklistItemDto[], index: number): boolean {
+  return index >= 0 && index < items.length && isSubItem(items[index]);
+}
+
+/**
+ * The checklist with the row at `index` set to `indent`, or `items` unchanged when the move is not
+ * allowed (see [canIndent] / [canOutdent]) or the depth is not one of the two the model holds.
+ * Returns a new array, so callers can treat the checklist as immutable.
+ */
+export function setItemIndent(items: ChecklistItemDto[], index: number, indent: number): ChecklistItemDto[] {
+  if (indent !== 0 && indent !== 1) return items;
+  const allowed = indent === 1 ? canIndent(items, index) : canOutdent(items, index);
+  if (!allowed || indentOf(items[index]) === indent) return items;
+  return items.map((item, at) => (at === index ? { ...item, indent } : item));
+}
+
+/**
+ * The checklist with the row at `index` checked or unchecked, applying the parent/child rule:
+ *
+ * - a top-level row with children carries the whole group: checking or unchecking it does the same
+ *   to every child;
+ * - a sub-item only changes its own box, and its parent is then recomputed from all of its children
+ *   (checked if and only if every one is checked).
+ *
+ * A parent without children keeps its own state, and an orphaned sub-item simply changes alone.
+ * The stored order is untouched; ticking a row only changes where the display sections put it.
+ */
+export function setItemChecked(items: ChecklistItemDto[], index: number, checked: boolean): ChecklistItemDto[] {
+  if (index < 0 || index >= items.length) return items;
+
+  const next = items.slice();
+  const setChecked = (at: number, value: boolean) => {
+    if (next[at].isChecked !== value) next[at] = { ...next[at], isChecked: value };
+  };
+
+  setChecked(index, checked);
+  const children = childIndicesOf(items, index);
+  for (const child of children) setChecked(child, checked);
+
+  if (isSubItem(items[index])) {
+    const parent = parentIndexOf(items, index);
+    if (parent !== -1) {
+      const allChecked = childIndicesOf(items, parent).every((child) => next[child].isChecked);
+      setChecked(parent, allChecked);
+    }
+  }
+  return next;
+}
+
+/**
+ * The checklist put back into the single-level model after a row is removed or inserted: the first
+ * row (and any row with no top-level row before it) becomes top-level, anything deeper collapses to
+ * 1. This is the same pass the server runs on save, so what the editor shows survives a round trip.
+ */
+export function normalizeIndents(items: ChecklistItemDto[]): ChecklistItemDto[] {
+  let seenTopLevel = false;
+  return items.map((item) => {
+    const indent = indentOf(item) > 0 && seenTopLevel ? 1 : 0;
+    if (indent === 0) seenTopLevel = true;
+    return item.indent === indent ? item : { ...item, indent };
+  });
+}
+
+/**
+ * Where a row added by Enter goes: after the row itself, or after the whole group when that row is
+ * a parent, so a new top-level row never lands between a parent and its children. A sub-item has no
+ * children, so it inserts directly below itself.
+ */
+export function insertionIndexAfter(items: ChecklistItemDto[], index: number): number {
+  if (index < 0 || index >= items.length) return items.length;
+  return index + 1 + childIndicesOf(items, index).length;
+}
+
+/** The depth of a row added by Enter: another sub-item under a sub-item, otherwise top-level. */
+export function newItemIndentAfter(items: ChecklistItemDto[], index: number): number {
+  return index >= 0 && index < items.length && isSubItem(items[index]) ? 1 : 0;
+}
+
+/**
  * Display order for a checklist: **unchecked rows first, checked rows at the bottom**, each group
  * keeping the stored order.
  *
@@ -24,6 +170,42 @@ export function checklistRows(items: ChecklistItemDto[]): ChecklistRow[] {
 /** [checklistRows] for read-only views that don't need the stored index. */
 export function checklistForDisplay(items: ChecklistItemDto[]): ChecklistItemDto[] {
   return checklistRows(items).map((r) => r.item);
+}
+
+/**
+ * The active/completed split used by the editor and the read-only views, **both in home order**.
+ *
+ * The active section holds every unchecked row: a parent stays there with the children still
+ * unticked, as if the group had never left. The completed section holds every checked row, and for
+ * a partially completed group it first repeats the unchecked parent's text as a `heading`, so the
+ * checked children keep the context of what they belong to. The heading is presentation only: it
+ * is not an item, is not interactive, and must not be counted in progress totals.
+ *
+ * A fully checked group needs no heading: its parent is checked too (the parent/child rule keeps it
+ * that way), so the parent itself already appears in the completed section above its children.
+ */
+export function checklistSections(items: ChecklistItemDto[]): ChecklistSections {
+  const active: ChecklistRow[] = [];
+  const completed: CompletedRow[] = [];
+  const headed = new Set<number>();
+
+  items.forEach((item, index) => {
+    if (!item.isChecked) {
+      active.push({ item, index });
+      return;
+    }
+
+    if (isSubItem(item)) {
+      const parentIndex = parentIndexOf(items, index);
+      if (parentIndex !== -1 && !items[parentIndex].isChecked && !headed.has(parentIndex)) {
+        headed.add(parentIndex);
+        completed.push({ kind: 'heading', text: items[parentIndex].text, parentIndex });
+      }
+    }
+    completed.push({ kind: 'item', item, index });
+  });
+
+  return { active, completed };
 }
 
 /** Text as [suggestFromChecked] compares it: no accents, no case, no space around it. */
@@ -191,5 +373,5 @@ export function switchNoteType(
   const converted = checklistFromText(body);
   if (!converted) return null;
   const rows = converted.length > 0 ? converted : [{ text: '', isChecked: false }];
-  return { type: 'Checklist', body: '', items: rows.map((row, order) => ({ id: null, ...row, order })) };
+  return { type: 'Checklist', body: '', items: rows.map((row, order) => ({ id: null, ...row, indent: 0, order })) };
 }

@@ -7,6 +7,7 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### ✨ New Features
 
+- Sub-items in checklists. Drag a row's handle to the right to indent it under the top-level row above, or to the left to bring it back.
 - Ticked items come back — typing a new checklist item offers the ticked item it matches: type
   "mi" and a ticked "Milk" shows up under the row. Take it (tap it, or press Tab on the web) and
   "Milk" is back on the list, unticked, where you were typing, instead of on it twice. Web and

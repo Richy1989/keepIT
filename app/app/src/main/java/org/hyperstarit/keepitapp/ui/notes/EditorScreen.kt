@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Mic
@@ -77,6 +79,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -87,11 +90,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -103,25 +117,36 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.math.abs
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownText
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownVisualTransformation
 import org.hyperstarit.keepitapp.ui.markdown.applyMarkdown
 import org.hyperstarit.keepitapp.ui.markdown.continueListOnEnter
+import org.hyperstarit.keepitapp.data.ChecklistDisplayRow
 import org.hyperstarit.keepitapp.data.ChecklistItemDto
 import org.hyperstarit.keepitapp.data.CreateNoteDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteLimits
 import org.hyperstarit.keepitapp.data.checklistFromText
+import org.hyperstarit.keepitapp.data.canIndentAt
+import org.hyperstarit.keepitapp.data.canOutdentAt
+import org.hyperstarit.keepitapp.data.childIndicesOf
+import org.hyperstarit.keepitapp.data.insertionIndexAfter
+import org.hyperstarit.keepitapp.data.newItemIndentAfter
+import org.hyperstarit.keepitapp.data.sections
 import org.hyperstarit.keepitapp.data.splitPastedRow
 import org.hyperstarit.keepitapp.data.suggestFromChecked
 import org.hyperstarit.keepitapp.data.textFromChecklist
+import org.hyperstarit.keepitapp.data.withCheckedAt
+import org.hyperstarit.keepitapp.data.withIndentAt
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.AudioRecorder
 import org.hyperstarit.keepitapp.data.MediaKinds
@@ -148,6 +173,7 @@ private class EditableItem(
     id: String?,
     text: String,
     isChecked: Boolean,
+    indent: Int = 0,
     caret: Int = text.length,
     addedHere: Boolean = false,
 ) {
@@ -158,25 +184,12 @@ private class EditableItem(
     var value by mutableStateOf(TextFieldValue(text, TextRange(caret)))
     val text: String get() = value.text
     var isChecked by mutableStateOf(isChecked)
+    var indent by mutableStateOf(indent)
 
     companion object {
         private var nextLocalId = 0L
     }
 }
-
-/**
- * Display order for the editor's rows: **unchecked first, checked at the bottom**, each group
- * keeping its stored order. The receiver stays in *home* order — it changes only when rows are
- * added, removed or reordered, never when a box is ticked — so checking a row sinks it and
- * unchecking puts it back in exactly the slot it came from. `buildChecklist` persists that home
- * order and the sort is stable, so it survives a round-trip through the server.
- *
- * Each row is paired with its index in the home list, because that (not the display position) is
- * what every edit addresses. The read-only surfaces apply the same rule to DTOs — see
- * `List<ChecklistItemDto>.inDisplayOrder()` in `data/Checklist.kt` — as does the web editor.
- */
-private fun List<EditableItem>.displayRows(): List<IndexedValue<EditableItem>> =
-    withIndex().sortedBy { it.value.isChecked }
 
 /**
  * Full-note editor, the phone twin of the web NoteEditorModal: title, body or checklist. Tools that
@@ -237,6 +250,17 @@ fun EditorScreen(
     // shows what is still to do. Folded each time a note opens.
     var tickedOpen by remember { mutableStateOf(false) }
 
+    // Drag state for the Google Keep-style grip: which row is moving, how far the finger has
+    // travelled, which row it is over, and each row's root coordinates for hit-testing.
+    val density = LocalDensity.current
+    val indentStepPx = with(density) { 24.dp.toPx() }
+    val indentThresholdPx = with(density) { 28.dp.toPx() }
+    var draggingLocalId by remember { mutableStateOf<Long?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var dragTargetLocalId by remember { mutableStateOf<Long?>(null) }
+    var dragStartCenterY by remember { mutableStateOf(0f) }
+    val rowBounds = remember { mutableStateMapOf<Long, ClosedRange<Float>>() }
+
     // The content as it was loaded, or as it was last saved; see [persist]. List membership isn't in
     // it: that is the caller's own, compared and saved on its own.
     fun contentSignature() = editSignatureOf(type, title, body.text, color, emptySet(), items)
@@ -282,7 +306,7 @@ fun EditorScreen(
         body = TextFieldValue(n.body ?: "")
         color = n.color
         items.clear()
-        n.checklistItems.sortedBy { it.order }.forEach { items.add(EditableItem(it.id, it.text, it.isChecked)) }
+        n.checklistItems.sortedBy { it.order }.forEach { items.add(EditableItem(it.id, it.text, it.isChecked, it.indent)) }
         listIds = n.listIds.toSet()
         persistedContent = contentSignature()
         savedContent = n.asSaved()
@@ -308,17 +332,117 @@ fun EditorScreen(
     val atImageLimit = (live?.media?.count { !it.isAudio } ?: 0) +
         pending.count { !it.isAudio } >= MAX_IMAGES_PER_NOTE
 
-    fun addItemAfter(index: Int) {
+    /** The editor's rows as DTOs, so the shared indent/checked rules can be applied to them. */
+    fun asDtos(): List<ChecklistItemDto> = items.mapIndexed { index, item ->
+        ChecklistItemDto(
+            id = item.id,
+            text = item.text,
+            isChecked = item.isChecked,
+            indent = item.indent,
+            order = index,
+        )
+    }
+
+    /** The single-level pass the server runs, after a removal that may have orphaned a row. */
+    fun normalizeIndents() {
+        var seenTopLevel = false
+        items.forEach { item ->
+            val level = if (item.indent > 0 && seenTopLevel) 1 else 0
+            if (level == 0) seenTopLevel = true
+            item.indent = level
+        }
+    }
+
+    /** Adds a new top-level row at the end, where "Add item" and an empty checklist start. */
+    fun addItem() {
         if (items.size >= NoteLimits.CHECKLIST_ITEMS) return
-        val newItem = EditableItem(null, "", false, addedHere = true)
-        items.add((index + 1).coerceAtMost(items.size), newItem)
+        val newItem = EditableItem(null, "", false, indent = 0, addedHere = true)
+        items.add(newItem)
         focusTargetLocalId = newItem.localId
         typingLocalId = null
     }
 
-    fun removeItem(index: Int) {
-        items.removeAt(index)
+    /** Inserts after the row's whole group, at the depth Enter continues, and focuses it. */
+    fun insertItemAfter(index: Int) {
+        if (items.size >= NoteLimits.CHECKLIST_ITEMS) return
+        val dtos = asDtos()
+        val at = dtos.insertionIndexAfter(index).coerceIn(0, items.size)
+        val newItem = EditableItem(null, "", false, indent = dtos.newItemIndentAfter(index), addedHere = true)
+        items.add(at, newItem)
+        focusTargetLocalId = newItem.localId
         typingLocalId = null
+    }
+
+    /** Removes a row; a parent's direct children are promoted rather than silently lost. */
+    fun removeItem(index: Int) {
+        val children = asDtos().childIndicesOf(index).toSet()
+        items.forEachIndexed { at, item -> if (at in children) item.indent = 0 }
+        items.removeAt(index)
+        normalizeIndents()
+        typingLocalId = null
+    }
+
+    /** Applies the parent/child checked rule to the editor's rows. */
+    fun toggleItem(index: Int, checked: Boolean) {
+        val next = asDtos().withCheckedAt(index, checked)
+        next.forEachIndexed { at, dto -> items[at].isChecked = dto.isChecked }
+        typingLocalId = null
+    }
+
+    /** Indents/outdents one row, flattening a parent's group when it moves under a sub-item. */
+    fun indentItem(index: Int, level: Int): Boolean {
+        val next = asDtos().withIndentAt(index, level)
+        val changed = next[index].indent != items[index].indent
+        items[index].indent = next[index].indent
+        return changed
+    }
+
+    /**
+     * Moves a row, or a top-level parent's whole group, to the target's position and level. The
+     * dropped row takes the target's indent, so dropping beside a sub-item makes it one too.
+     */
+    fun moveItem(from: Int, to: Int) {
+        if (from == to || from !in items.indices || to !in items.indices) return
+        if (items[from].isChecked != items[to].isChecked) return
+
+        val dtos = asDtos()
+        val fromIsSub = items[from].indent > 0
+        val groupEnd = if (fromIsSub) from + 1 else dtos.insertionIndexAfter(from)
+        // A parent cannot land inside its own group.
+        if (!fromIsSub && to in from until groupEnd) return
+
+        val targetIsSub = items[to].indent > 0
+        val insertion = if (targetIsSub) {
+            if (from < to) to + 1 else to
+        } else {
+            if (from < to) dtos.insertionIndexAfter(to) else to
+        }
+        val targetIndent = items[to].indent.coerceIn(0, 1)
+        val group = items.subList(from, groupEnd).toList()
+
+        repeat(group.size) { items.removeAt(from) }
+        val at = (insertion - if (from < insertion) group.size else 0).coerceIn(0, items.size)
+        group.first().indent = targetIndent
+        items.addAll(at, group)
+        normalizeIndents()
+    }
+
+    /** Ends a grip drag: horizontal travel wins, otherwise the row moves onto the row it is over. */
+    fun finishDrag() {
+        val id = draggingLocalId
+        val from = items.indexOfFirst { it.localId == id }
+        val target = items.indexOfFirst { it.localId == dragTargetLocalId }
+        if (from >= 0) {
+            if (abs(dragOffset.x) >= indentThresholdPx) {
+                indentItem(from, if (dragOffset.x > 0) 1 else 0)
+            } else if (target >= 0) {
+                moveItem(from, target)
+            }
+        }
+
+        draggingLocalId = null
+        dragOffset = Offset.Zero
+        dragTargetLocalId = null
     }
 
     // The new row [typed] takes the ticked row [offered]: it becomes that row, unticked, in the new
@@ -343,11 +467,14 @@ fun EditorScreen(
             tail = pasted.text.substring(end),
             room = (NoteLimits.CHECKLIST_ITEMS - items.size).coerceAtLeast(0),
         )
-        val added = split.rows.drop(1).map { EditableItem(null, it, false, addedHere = true) }
+        val dtos = asDtos()
+        val at = dtos.insertionIndexAfter(index).coerceIn(0, items.size)
+        val indent = dtos.newItemIndentAfter(index)
+        val added = split.rows.drop(1).map { EditableItem(null, it, false, indent = indent, addedHere = true) }
         val last = added.lastOrNull() ?: items[index]
         items[index].value = TextFieldValue(split.rows.first(), TextRange(split.rows.first().length))
         last.value = TextFieldValue(last.text, TextRange(split.caret))
-        items.addAll(index + 1, added)
+        items.addAll(at, added)
         if (added.isNotEmpty()) focusTargetLocalId = last.localId
         typingLocalId = null
     }
@@ -389,7 +516,13 @@ fun EditorScreen(
     fun buildChecklist(): List<ChecklistItemDto> = items
         .filter { it.text.isNotBlank() }
         .mapIndexed { index, item ->
-            ChecklistItemDto(id = item.id, text = item.text.trim(), isChecked = item.isChecked, order = index)
+            ChecklistItemDto(
+                id = item.id,
+                text = item.text.trim(),
+                isChecked = item.isChecked,
+                indent = item.indent,
+                order = index,
+            )
         }
 
     // One serialized save path. Persisting is local + instant (offline outbox), so it's cheap to run
@@ -733,7 +866,7 @@ fun EditorScreen(
                     recording = recordingSince != null,
                     onAdd = { showAddSheet = true },
                     // Where the list's own "Add item" puts it: last of the unticked rows.
-                    onAddItem = { addItemAfter(items.lastIndex) },
+                    onAddItem = { addItem() },
                     onColor = { showColorSheet = true },
                     onToggleChecklist = {
                         if (type == NoteTypes.TEXT) switchToChecklist() else switchToText()
@@ -884,7 +1017,7 @@ fun EditorScreen(
                                 .heightIn(min = 52.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(KeepItColors.OverlayLift)
-                                .clickable(role = Role.Button) { addItemAfter(items.lastIndex) },
+                                .clickable(role = Role.Button) { addItem() },
                         ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
                                 Icon(
@@ -904,27 +1037,31 @@ fun EditorScreen(
                         }
                     }
                 }
-                // Rendered in display order; `index` is the row's index in `items` (home order),
-                // which every edit below addresses.
-                val rows = items.displayRows()
-                val addAt = rows.indexOfFirst { it.value.isChecked }.let { if (it == -1) rows.size else it }
+                // Active rows in home order, then "Add item", then the folded ticked rows. The
+                // sections come from the same rule the web uses: a partial group repeats its
+                // unchecked parent as a greyed heading above the checked children.
+                val dtos = asDtos()
+                val checklistSections = dtos.sections()
+                val activeRows = checklistSections.active
+                val completedRows = checklistSections.completed
+                val tickedCount = completedRows.count { it is ChecklistDisplayRow.Item }
                 // The ticked row offered for the new one being typed, if any (see [suggestFromChecked]).
                 val typingIndex = items.indexOfFirst { it.localId == typingLocalId }
                 val offered = typingIndex.takeIf { it >= 0 && items[it].addedHere }
                     ?.let { typed ->
                         suggestFromChecked(
-                            items.map { ChecklistItemDto(text = it.text, isChecked = it.isChecked) },
+                            items.map { ChecklistItemDto(text = it.text, isChecked = it.isChecked, indent = it.indent) },
                             typed,
                         )
                     }
                     ?.let { items[it] }
-                rows.forEachIndexed { position, (index, item) ->
-                    if (position == addAt) {
-                        key("add-item") { addItem() }
-                        key("ticked-header") {
-                            TickedHeader(count = rows.size - addAt, open = tickedOpen) { tickedOpen = !tickedOpen }
-                        }
-                    }
+                val visibleItems = activeRows.map { it.index } +
+                    if (tickedOpen) completedRows.mapNotNull { (it as? ChecklistDisplayRow.Item)?.index } else emptyList()
+
+                // One real row, used by both sections so their controls and key handling stay
+                // identical. `index` is the home-order index every edit addresses.
+                val renderChecklistRow: @Composable (Int) -> Unit = { index ->
+                    val item = items[index]
                     // Keyed by the row's stable local id so a row that moves (ticking sinks it to
                     // the bottom) carries its composable state — and its focus — along with it.
                     key(item.localId) {
@@ -935,86 +1072,188 @@ fun EditorScreen(
                                 focusTargetLocalId = null
                             }
                         }
-                        // A ticked row shows only while the ticked rows are open. Shown or not, it
-                        // stays in its key, so a row that is ticked or unticked still carries its
-                        // state along.
-                        AnimatedVisibility(
-                            visible = !item.isChecked || tickedOpen,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut(),
-                        ) {
-                            Column {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Checkbox(
-                                        checked = item.isChecked,
-                                        onCheckedChange = { if (canEdit) item.isChecked = it },
-                                        enabled = canEdit,
-                                        // The box sits on the note's colour, where BorderStrong
-                                        // is at most 1.7:1: BorderControl is the outline that
-                                        // shows on all of them. A viewer's boxes are disabled
-                                        // and drawn the same, as the web draws them: Material's
-                                        // faded default is under 3:1 on most note colours.
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = KeepItColors.Accent,
-                                            checkmarkColor = Color.Black,
-                                            uncheckedColor = KeepItColors.BorderControl,
-                                            disabledCheckedColor = KeepItColors.Accent,
-                                            disabledUncheckedColor = KeepItColors.BorderControl,
-                                        ),
-                                    )
-                                    TextField(
-                                        value = item.value,
-                                        onValueChange = {
-                                            if (it.text.any { c -> c == '\n' || c == '\r' }) {
-                                                pasteRows(index, it)
-                                            } else {
-                                                // A moved caret is no typing: only a changed
-                                                // text offers.
-                                                if (it.text != item.text) typingLocalId = item.localId
-                                                item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
-                                            }
-                                        },
-                                        placeholder = { Text("List item", color = KeepItColors.TextFaint) },
-                                        readOnly = !canEdit,
-                                        singleLine = true,
-                                        colors = transparentFieldColors(),
-                                        textStyle = androidx.compose.ui.text.TextStyle(
-                                            fontSize = 14.sp,
-                                            color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
-                                        ),
-                                        // Enter adds a new item right below and moves the cursor
-                                        // there.
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                                        keyboardActions = KeyboardActions(onNext = { addItemAfter(index) }),
+                        Column {
+                            val dragging = draggingLocalId == item.localId
+                            val targetItem = items.firstOrNull { it.localId == dragTargetLocalId }
+                            val previewIndent = when {
+                                dragging && abs(dragOffset.x) >= indentThresholdPx ->
+                                    if (dragOffset.x > 0) {
+                                        if (dtos.canIndentAt(index)) 1 else item.indent
+                                    } else {
+                                        if (dtos.canOutdentAt(index)) 0 else item.indent
+                                    }
+                                dragging && targetItem != null -> targetItem.indent.coerceIn(0, 1)
+                                else -> item.indent
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = if (item.indent > 0) 24.dp else 0.dp)
+                                    .zIndex(if (dragging) 1f else 0f)
+                                    .graphicsLayer {
+                                        translationX = if (dragging) (previewIndent - item.indent) * indentStepPx else 0f
+                                        translationY = if (dragging) dragOffset.y else 0f
+                                        shadowElevation = if (dragging) 8f * density.density else 0f
+                                    }
+                                    .onGloballyPositioned { coords ->
+                                        val bounds = coords.boundsInRoot()
+                                        rowBounds[item.localId] = bounds.top..bounds.bottom
+                                    },
+                            ) {
+                                if (canEdit) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
                                         modifier = Modifier
-                                            .weight(1f)
-                                            .focusRequester(item.focusRequester)
-                                            .onFocusChanged {
-                                                if (!it.isFocused && typingLocalId == item.localId) typingLocalId = null
+                                            .size(32.dp)
+                                            .pointerInput(item.localId) {
+                                                detectDragGestures(
+                                                    onDragStart = {
+                                                        draggingLocalId = item.localId
+                                                        dragOffset = Offset.Zero
+                                                        dragTargetLocalId = null
+                                                        val bounds = rowBounds[item.localId]
+                                                        dragStartCenterY = bounds
+                                                            ?.let { (it.start + it.endInclusive) / 2f }
+                                                            ?: 0f
+                                                    },
+                                                    onDrag = { change, amount ->
+                                                        change.consume()
+                                                        dragOffset += amount
+                                                        val pointerY = dragStartCenterY + dragOffset.y
+                                                        val checked = items
+                                                            .firstOrNull { it.localId == draggingLocalId }
+                                                            ?.isChecked
+                                                        dragTargetLocalId = items.firstOrNull { other ->
+                                                            other.localId != draggingLocalId &&
+                                                                other.isChecked == checked &&
+                                                                rowBounds[other.localId]
+                                                                    ?.contains(pointerY) == true
+                                                        }?.localId
+                                                    },
+                                                    onDragEnd = { finishDrag() },
+                                                    onDragCancel = {
+                                                        draggingLocalId = null
+                                                        dragOffset = Offset.Zero
+                                                        dragTargetLocalId = null
+                                                    },
+                                                )
                                             },
-                                    )
-                                    if (canEdit) {
-                                        IconButton(onClick = { removeItem(index) }) {
-                                            Icon(
-                                                Icons.Filled.Clear,
-                                                contentDescription = "Remove item",
-                                                tint = KeepItColors.TextFaint,
-                                                modifier = Modifier.size(16.dp),
-                                            )
-                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.DragHandle,
+                                            contentDescription = "Drag to reorder",
+                                            tint = KeepItColors.TextFaint,
+                                            modifier = Modifier.size(20.dp),
+                                        )
                                     }
                                 }
-                                if (offered != null && index == typingIndex) {
-                                    TickedOffer(offered.text, onTake = { takeOffer(item, offered) })
+                                Checkbox(
+                                    checked = item.isChecked,
+                                    onCheckedChange = { if (canEdit) toggleItem(index, it) },
+                                    enabled = canEdit,
+                                    // The box sits on the note's colour, where BorderStrong
+                                    // is at most 1.7:1: BorderControl is the outline that
+                                    // shows on all of them. A viewer's boxes are disabled
+                                    // and drawn the same, as the web draws them: Material's
+                                    // faded default is under 3:1 on most note colours.
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = KeepItColors.Accent,
+                                        checkmarkColor = Color.Black,
+                                        uncheckedColor = KeepItColors.BorderControl,
+                                        disabledCheckedColor = KeepItColors.Accent,
+                                        disabledUncheckedColor = KeepItColors.BorderControl,
+                                    ),
+                                )
+                                TextField(
+                                    value = item.value,
+                                    onValueChange = {
+                                        if (it.text.any { c -> c == '\n' || c == '\r' }) {
+                                            pasteRows(index, it)
+                                        } else {
+                                            // A moved caret is no typing: only a changed
+                                            // text offers.
+                                            if (it.text != item.text) typingLocalId = item.localId
+                                            item.value = it.capped(NoteLimits.CHECKLIST_ITEM_TEXT)
+                                        }
+                                    },
+                                    placeholder = { Text("List item", color = KeepItColors.TextFaint) },
+                                    readOnly = !canEdit,
+                                    singleLine = true,
+                                    colors = transparentFieldColors(),
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 14.sp,
+                                        color = if (item.isChecked) KeepItColors.TextFaint else KeepItColors.Text,
+                                    ),
+                                    // Enter adds a new item right below and moves the cursor there.
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                                    keyboardActions = KeyboardActions(onNext = { insertItemAfter(index) }),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(item.focusRequester)
+                                        .onFocusChanged {
+                                            if (!it.isFocused && typingLocalId == item.localId) typingLocalId = null
+                                        }
+                                        .onPreviewKeyEvent { event ->
+                                            if (!canEdit || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                            when (event.key) {
+                                                Key.Tab -> {
+                                                    val level = if (event.nativeKeyEvent.isShiftPressed) 0 else 1
+                                                    if (indentItem(index, level)) true else false
+                                                }
+                                                Key.DirectionUp, Key.DirectionDown -> {
+                                                    val at = visibleItems.indexOf(index)
+                                                    val next = visibleItems.getOrNull(
+                                                        at + if (event.key == Key.DirectionUp) -1 else 1,
+                                                    )
+                                                    if (next != null) items[next].focusRequester.requestFocus()
+                                                    // At the first/last row, keep the caret here rather than
+                                                    // sending it to the start/end of this line.
+                                                    true
+                                                }
+                                                else -> false
+                                            }
+                                        },
+                                )
+                                if (canEdit) {
+                                    IconButton(onClick = { removeItem(index) }) {
+                                        Icon(
+                                            Icons.Filled.Clear,
+                                            contentDescription = "Remove item",
+                                            tint = KeepItColors.TextFaint,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    }
+                                }
+                            }
+                            if (offered != null && index == typingIndex) {
+                                TickedOffer(offered.text, onTake = { takeOffer(item, offered) })
+                            }
+                        }
+                    }
+                }
+
+                activeRows.forEach { renderChecklistRow(it.index) }
+                key("add-item") { addItem() }
+                if (tickedCount > 0) {
+                    key("ticked-header") {
+                        TickedHeader(count = tickedCount, open = tickedOpen) { tickedOpen = !tickedOpen }
+                    }
+                    AnimatedVisibility(
+                        visible = tickedOpen,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut(),
+                    ) {
+                        Column {
+                            completedRows.forEach { row ->
+                                when (row) {
+                                    is ChecklistDisplayRow.Heading -> ChecklistHeading(row.text, showHandle = canEdit)
+                                    is ChecklistDisplayRow.Item -> renderChecklistRow(row.index)
                                 }
                             }
                         }
                     }
                 }
-                if (addAt == rows.size) key("add-item") { addItem() }
             } else if (!canEdit) {
                 // Viewers get the rendered note, not raw Markdown in a disabled field.
                 MarkdownText(
@@ -1131,6 +1370,38 @@ fun EditorScreen(
 }
 
 /**
+ * The greyed, non-interactive copy of a partially completed parent shown in the ticked section
+ * above its checked children. It is presentation only: no box to toggle, no field, not focusable.
+ */
+@Composable
+private fun ChecklistHeading(text: String, showHandle: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp),
+    ) {
+        if (showHandle) Box(modifier = Modifier.size(32.dp))
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(KeepItColors.BorderControl.copy(alpha = 0.45f)),
+            )
+        }
+        Text(
+            text = text,
+            color = KeepItColors.TextFaint,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 16.dp),
+        )
+    }
+}
+
+/**
  * The header the ticked rows fold away under, as in Google Keep: a chevron and how many there are,
  * aligned like the rows (the chevron where their checkbox is). A tap opens or closes them; TalkBack
  * reads the count with "expanded" or "collapsed".
@@ -1225,7 +1496,7 @@ private fun editSignatureOf(
         add(body)
         add(color ?: "")
         add(listIds.sorted().joinToString(","))
-        items.forEach { add("${it.id ?: "*"}=${it.isChecked}:${it.text}") }
+        items.forEach { add("${it.id ?: "*"}=${it.isChecked}:${it.indent}:${it.text}") }
     }
     // Length-prefix each field so no separator char is needed and no two distinct field
     // sets can collide into the same fingerprint.
@@ -1274,5 +1545,13 @@ private fun NoteDto.asSaved() = UpdateNoteDto(
     checklistItems = checklistItems
         .sortedBy { it.order }
         .filter { it.text.isNotBlank() }
-        .mapIndexed { index, item -> ChecklistItemDto(id = item.id, text = item.text.trim(), isChecked = item.isChecked, order = index) },
+        .mapIndexed { index, item ->
+            ChecklistItemDto(
+                id = item.id,
+                text = item.text.trim(),
+                isChecked = item.isChecked,
+                indent = item.indent,
+                order = index,
+            )
+        },
 )
