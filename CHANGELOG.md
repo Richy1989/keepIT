@@ -3,7 +3,7 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 1.2.0
 
 ### ✨ New Features
 
@@ -61,9 +61,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - The privacy policy now gives an email address for questions: support@hyperstarit.org. It also
   says plainly that everyone on a shared note sees the others' email addresses and profile pictures.
 - The Android screenshots are 1350×2400 (9:16), the shape Google Play accepts.
-- keepIT is on Google Play in open testing, which anyone can join: the README's
-  [Google Play (open testing)](https://github.com/Richy1989/keepIT#google-play-open-testing) says
-  how. Play signs it with the same key as F-Droid and GitHub, so switching needs no reinstall.
+- keepIT is on [Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp),
+  and from this release on every release reaches it by itself. Play signs it with the same key as
+  F-Droid and GitHub, so switching needs no reinstall.
 
 ## 1.0.0
 
