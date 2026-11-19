@@ -38,6 +38,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - Update the server along with the Android app: the app offers backgrounds only with a server of
   this version or newer, and says so on an older one. The database gains a column, added by the
   migrations (PostgreSQL) or at startup (SQLite); nothing to do by hand.
+- New screenshots of the web app and the Android app, in the dark and the light theme, showing
+  note backgrounds and the Android grid. The README's first phone screenshot now stands as tall as
+  the web one beside it. The dev seed scripts give their notes backgrounds too.
 
 ## 1.2.0
 

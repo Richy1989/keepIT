@@ -14,7 +14,8 @@
 # clean, known data set instead of piling on duplicates.
 #
 # A few notes carry photos from scripts/seed-assets/, uploaded through the real media endpoint, so a
-# seeded instance exercises image attachments as well as text.
+# seeded instance exercises image attachments as well as text, and many have a background from
+# backgrounds/.
 #
 # Usage:
 #   ./scripts/seed-dev-data.sh [--reset] [--domain URL|HOST] [--user EMAIL] [--password P] [--display-name N]
@@ -169,12 +170,34 @@ note_count=0
 image_count=0
 ASSET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/seed-assets"
 
+# Backgrounds by note title: the name of an image in backgrounds/ (the server stores only the name).
+# A note left out here has none.
+declare -A BACKGROUND=(
+    ["Q3 roadmap"]=work
+    ["Standup notes"]=coffee
+    ["Bug: optimistic rollback"]=code
+    ["Books to read"]=study
+    ["Gift ideas for Mum"]=birthday
+    ["App idea: habit streaks"]=dots
+    ["Blog post drafts"]=lined
+    ["Tokyo trip"]=travel
+    ["Carbonara (the real one)"]=food
+    ["Groceries"]=groceries
+    ["Trip todo"]=beach
+    ["Weekend chores"]=squared
+    ["Onboarding setup"]=code
+    ["Garden visitors"]=garden
+)
+# The create payload's "background" for TITLE: its name, or null.
+background_of() { jq -n --arg g "${BACKGROUND[$1]:-}" 'if $g == "" then null else $g end'; }
+
 # add_text TITLE COLOR LISTS_CSV BODY
 add_text() {
     local title="$1" color="$2" lists="$3" body="$4"
     local payload
     payload="$(jq -n --arg t "$title" --arg b "$body" --arg c "$color" --argjson l "$(names_to_ids "$lists")" \
-        '{type:"Text", title:$t, body:$b, color:$c, listIds:$l}')"
+        --argjson g "$(background_of "$title")" \
+        '{type:"Text", title:$t, body:$b, color:$c, background:$g, listIds:$l}')"
     request POST "/api/notes" "$payload"
     NOTE_ID["$title"]="$(jq -r '.id' <<<"$_BODY")"
     note_count=$((note_count + 1))
@@ -193,7 +216,8 @@ add_check() {
     done
     local payload
     payload="$(jq -n --arg t "$title" --arg c "$color" --argjson l "$(names_to_ids "$lists")" --argjson items "$items" \
-        '{type:"Checklist", title:$t, color:$c, checklistItems:$items, listIds:$l}')"
+        --argjson g "$(background_of "$title")" \
+        '{type:"Checklist", title:$t, color:$c, background:$g, checklistItems:$items, listIds:$l}')"
     request POST "/api/notes" "$payload"
     NOTE_ID["$title"]="$(jq -r '.id' <<<"$_BODY")"
     note_count=$((note_count + 1))

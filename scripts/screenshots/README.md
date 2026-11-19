@@ -1,7 +1,8 @@
 # Screenshots
 
 Every screenshot in the repo shows the same demo account: Anna Berger's, with a profile picture,
-five lists and ten notes chosen to show photos, a voice note, checklists, a reminder and sharing.
+five lists and ten notes chosen to show photos, a voice note, checklists, a reminder, note
+backgrounds and sharing.
 The account is not kept anywhere. `seed-demo.sh` builds it on a fresh server, and the rest of this
 folder takes the screenshots from it.
 
@@ -11,7 +12,7 @@ F-Droid reads `fastlane/metadata` from the release tag, so new ones must be on `
 | File | What it does |
 |---|---|
 | `seed-demo.sh` | Builds the demo account over the REST API. |
-| `web-shots.cjs` | Takes the three web screenshots (Playwright). |
+| `web-shots.cjs` | Takes the four web screenshots, dark and light (Playwright). |
 | `adb-ui.py` | Taps, waits and captures on the emulator by the text on screen. |
 | `finish.py` | Checks the new files and writes them where the repo keeps them. |
 
@@ -26,10 +27,11 @@ change to the app.
 |---|---|---|
 | `images/web-notes-dark.png` | Web, dark: the notes | README (top) |
 | `images/web-notes-light.png` | Web, light: the notes | README |
-| `images/web-editor-dim.png` | Web, dim: "Weekend in Puglia" open | README |
+| `images/web-editor-dark.png` | Web, dark: "Weekend in Puglia" open | README |
+| `images/web-editor-light.png` | Web, light: "Garden visitors" open | — |
 | `images/screenshot_1.png` | A copy of `web-notes-dark.png` | Unraid template |
 | `images/screenshot_phone.png` | A copy of phone `1.png` | Unraid template |
-| `fastlane/…/phoneScreenshots/1.png` to `9.png` | The Android app, see below | F-Droid; README shows 1, 2, 3, 6, 7 |
+| `fastlane/…/phoneScreenshots/1.png` to `9.png` | The Android app, see below | F-Droid; README shows 1, 2, 3, 5, 7 |
 | `fastlane/…/featureGraphic.png` | The banner | F-Droid (`docs/brand/README.md` has how) |
 
 Web screenshots are 2880×1800 (a 1440×900 window at twice the density), phone ones are taken at
@@ -98,18 +100,19 @@ localhost) and the demo account. Then take each screen with `adb-ui.py shot "$SH
 
 | File | Theme | Screen |
 |---|---|---|
-| `1.png` | Dim | The notes, at the top: the Puglia photo note and Groceries. Tap Refresh first. |
-| `2.png` | Dim | Scrolled to the other three pinned notes, all selected: long-press Groceries, tap Book club and Lisbon trip. |
-| `4.png` | Dim | "Weekend in Puglia" open in the editor. |
-| `5.png` | Dim | "Lisbon trip" open in the editor. |
-| `3.png` | Light | The notes, scrolled to "Garden visitors" (photo and voice note) and "Carbonara for four". |
-| `8.png` | Light | Settings. |
 | `9.png` | Dark | Settings → About. |
+| `1.png` | Dark | The notes, at the top: the four pinned ones. Tap Refresh first. |
+| `2.png` | Dark | Scrolled to Garden visitors and Summer BBQ, three selected: long-press Summer BBQ, tap Offsite agenda and Garden visitors. |
+| `5.png` | Dark | "Lisbon trip" open in the editor (its travel background, the share). |
 | `6.png` | Dark | The menu, scrolled to its top: the lists with their icons, the account at the bottom. |
-| `7.png` | Dim | The launcher with the keepIT widget, made taller so it shows more notes. |
+| `8.png` | Light | Settings. |
+| `3.png` | Light | The notes, at the top, as in `1.png`. Tap Refresh first. |
+| `4.png` | Light | "Weekend in Puglia" open in the editor. |
+| `7.png` | Light | The launcher with the keepIT widget, made taller (drag its top handle up) so it shows three notes. |
 
-That is the order to take them in, one theme after the other. The theme is Settings → Theme, and
-Settings is in the menu below the lists, so scroll the menu to reach it.
+Only the dark and the light theme are shown, each on both the web and the phone; the app starts in
+Dim, so set Dark first. That is the order to take them in, one theme after the other. The theme is
+Settings → Theme, and Settings is in the menu below the lists, so scroll the menu to reach it.
 
 What went wrong the last time:
 
@@ -125,6 +128,10 @@ What went wrong the last time:
 - **Dragging a widget** from the picker works with `adb shell input draganddrop`. Dragging one off
   the home screen again does not: hold it with `adb shell input motionevent DOWN x y`, wait a
   second, send a few `MOVE`s up to the "Remove" target at the top, then `UP` there.
+- **Text far too large:** the emulator's font size had been left at 200 %. Check
+  `adb shell settings get system font_scale` says 1.0 (`settings put system font_scale 1.0`).
+- **Two Wi-Fi icons** in the status bar: run `adb-ui.py demo off`, then `demo on` again.
+- **The widget picker's search** finds keepIT faster than scrolling: Browse → Search → "keep".
 - **zsh does not split a variable into a command and its arguments**: call `adb-ui.py` by its path,
   not through `U="python3 …/adb-ui.py"`.
 - **A portrait photo first in a note** fills the phone's whole first screen, because a card shows a

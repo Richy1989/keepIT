@@ -15,9 +15,9 @@
 </div>
 
 <div align="center">
-  <img src="images/web-notes-dark.png" alt="keepIT web app in the dark theme: pinned notes with a photo, a shopping list, a reminder and a shared checklist" width="72%">
+  <img src="images/web-notes-dark.png" alt="keepIT web app in the dark theme: pinned notes with a photo, a shopping list with a background, a reminder and a shared checklist" width="69%">
   &nbsp;
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="keepIT Android app in the dim theme: a photo note and a shopping list" width="20%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="keepIT Android app in the dark theme: the same pinned notes, two to a row" width="24%">
 </div>
 
 Notes, checklists, lists, reminders and sharing in a fast web app and a native Android client,
@@ -103,13 +103,13 @@ Light, dim or dark, on the web and on your phone:
 
 <div align="center">
   <img src="images/web-notes-light.png" alt="The web app in the light theme" width="49%">
-  <img src="images/web-editor-dim.png" alt="Editing a note with photos in the web app, dim theme" width="49%">
+  <img src="images/web-editor-dark.png" alt="Editing a note with photos in the web app, dark theme" width="49%">
 </div>
 
 <div align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Android: three notes selected at once, with the actions for all of them in the top bar" width="23%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Android, light theme: a photo note with a voice recording, and a recipe" width="23%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" alt="Android, dark theme: the menu with lists and the signed-in account" width="23%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Android, light theme: the pinned notes, with backgrounds and a photo" width="23%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Android, dark theme: three notes selected at once, with the actions for all of them in the top bar" width="23%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Android, dark theme: a shared checklist open in the editor, on its travel background" width="23%">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" alt="The keepIT home-screen widget with recent notes and a new-note button" width="23%">
 </div>
 

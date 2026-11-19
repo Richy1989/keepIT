@@ -2,8 +2,9 @@
 //
 //   node scripts/screenshots/web-shots.cjs <base-url> <out-dir>
 //
-// Writes web-notes-dark.png, web-notes-light.png and web-editor-dim.png: a 1440x900 window at
-// twice the density, so 2880x1800. finish.py puts them in the repo.
+// Writes the notes and an open note, each in the dark and the light theme: web-notes-dark.png,
+// web-notes-light.png, web-editor-dark.png and web-editor-light.png. A 1440x900 window at twice
+// the density, so 2880x1800. finish.py puts them in the repo.
 //
 // It needs `npm ci` in web/ and that Playwright's Chromium (`npx playwright install chromium`
 // there), the same as the browser smoke test.
@@ -67,20 +68,26 @@ const PASSWORD = 'Demo1234#demo';
     await settle();
   };
 
+  // The editor over the notes: Puglia for its photos, Garden visitors for its photo, voice note
+  // and background.
+  const editor = async (title, file) => {
+    await page.getByRole('button', { name: title, exact: true }).click();
+    await page.getByPlaceholder('Title').waitFor();
+    await settle();
+    await page.screenshot({ path: path.join(out, file) });
+    await page.keyboard.press('Escape');
+    await page.getByPlaceholder('Title').waitFor({ state: 'detached' });
+  };
+
   await theme('dark');
   await page.screenshot({ path: path.join(out, 'web-notes-dark.png') });
+  await editor('Weekend in Puglia', 'web-editor-dark.png');
 
   await theme('light');
   await page.screenshot({ path: path.join(out, 'web-notes-light.png') });
-
-  await theme('dim');
-  await page.getByRole('button', { name: 'Weekend in Puglia', exact: true }).click();
-  await page.getByPlaceholder('Title').waitFor();
-  await settle();
-  await page.screenshot({ path: path.join(out, 'web-editor-dim.png') });
+  await editor('Garden visitors', 'web-editor-light.png');
 
   // Leave the account on the web's default theme.
-  await page.keyboard.press('Escape');
   await theme('dark');
   await browser.close();
 })().catch((e) => {
