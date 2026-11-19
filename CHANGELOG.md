@@ -3,6 +3,36 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### ✨ New Features
+
+- Note backgrounds — a note can have a background pattern, such as ruled lines, a dot grid or
+  little coffee cups, drawn in a shade of the note's own colour. Pick one under the colours in the
+  note's Background menu; it shows on the card and in the editor, for everyone the note is shared
+  with. Web and Android; on Android once its server is updated, and in standalone mode.
+- Highlighting — mark words with a highlighter in yellow, green, blue, pink or purple, from the
+  formatting toolbar (or Ctrl+Shift+H on the web, which uses the last colour). The note keeps it as
+  `<mark data-color="…">` in its text, which other Markdown apps show as a highlight too. Web and
+  Android; an older app shows the tags as text.
+- List chips on cards — the lists a note is in show as chips at the bottom of its card, and a
+  click or tap on one shows that list. Web and Android.
+
+### 🔧 Improvements
+
+- The reminder on a card says the weekday and how it repeats ("Sun, Nov 29, 09:00 · Monthly"),
+  and is cut short with an ellipsis in a narrow column rather than pushing the card's date out.
+  Web and Android.
+- A card's date says "Today" or "Yesterday" for notes created then. Web and Android.
+- On the web, the toolbar a card shows on hover takes the place of its bottom row instead of
+  keeping room of its own, so the reminder and the date no longer crowd into a narrow column.
+
+### 📦 Deployment & Docs
+
+- Update the server along with the Android app: the app offers backgrounds only with a server of
+  this version or newer, and says so on an older one. The database gains a column, added by the
+  migrations (PostgreSQL) or at startup (SQLite); nothing to do by hand.
+
 ## 1.2.0
 
 ### ✨ New Features
