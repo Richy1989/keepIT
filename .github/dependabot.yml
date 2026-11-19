@@ -48,6 +48,10 @@ updates:
       # Microsoft.AspNetCore.OpenApi is built against this library's major.
       - dependency-name: Microsoft.OpenApi
         update-types: [version-update:semver-major]
+      # MailKit 5 changed how a message is sent (SmtpEmailSender no longer compiles), so moving
+      # to it is a change to the mail code with its SMTP tests, not a weekly PR.
+      - dependency-name: MailKit
+        update-types: [version-update:semver-major]
     groups:
       api-minor-and-patch:
         update-types: [minor, patch]

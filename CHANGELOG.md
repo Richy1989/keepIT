@@ -3,6 +3,14 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### 📦 Deployment & Docs
+
+- Library updates: ASP.NET Core and EF Core 10.0.15, MailKit 4.18.2 and Scalar on the server; React
+  19.3.1, TanStack Query, React Router and Tailwind CSS on the web; Kotlin 2.4.21,
+  kotlinx.serialization 1.13, OkHttp 5.5.1 and commonmark-java 0.32 in the Android app.
+
 ## 1.3.0
 
 ### ✨ New Features
