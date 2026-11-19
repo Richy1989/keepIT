@@ -64,6 +64,18 @@ describe('highlight.json: the highlighter', () => {
   }
 });
 
+describe('highlighted list items', () => {
+  it('stay list items, each with its own highlight', () => {
+    const edit = applyHighlight('- one\n- [ ] two', 0, 15, 'green');
+    const html = renderToStaticMarkup(createElement(Markdown, { text: edit.value }));
+    expect(html.match(/<li/g)).toHaveLength(2);
+    expect(marksOf(html)).toEqual([
+      { color: 'green', text: 'one' },
+      { color: 'green', text: 'two' },
+    ]);
+  });
+});
+
 describe('withoutHighlightTags', () => {
   it('leaves the text', () => {
     expect(withoutHighlightTags('a <mark data-color="green">b</mark> c')).toBe('a b c');

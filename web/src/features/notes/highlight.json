@@ -26,6 +26,13 @@
     { "value": "a «<mark data-color=\"green\">b</mark>» c", "color": "green", "result": "a «b» c" },
     { "value": "a <mark>«b»</mark> c", "color": "yellow", "result": "a «b» c" },
     { "value": "«one\n\ntwo»", "color": "yellow", "result": "«<mark data-color=\"yellow\">one</mark>\n\n<mark data-color=\"yellow\">two</mark>»" },
+    { "value": "«- a\n- b»", "color": "green", "result": "«- <mark data-color=\"green\">a</mark>\n- <mark data-color=\"green\">b</mark>»" },
+    { "value": "«- [ ] a\n  - [x] b»", "color": "green", "result": "«- [ ] <mark data-color=\"green\">a</mark>\n  - [x] <mark data-color=\"green\">b</mark>»" },
+    { "value": "«- a\n\n- b»", "color": "green", "result": "«- <mark data-color=\"green\">a</mark>\n\n- <mark data-color=\"green\">b</mark>»" },
+    { "value": "- one «two\n- three» four", "color": "green", "result": "- one «<mark data-color=\"green\">two</mark>\n- <mark data-color=\"green\">three</mark>» four" },
+    { "value": "«- a»", "color": "green", "result": "- <mark data-color=\"green\">«a»</mark>" },
+    { "value": "«1. a»", "color": "green", "result": "1. <mark data-color=\"green\">«a»</mark>" },
+    { "value": "«- <mark data-color=\"green\">a</mark>»", "color": "green", "result": "- «a»" },
     { "value": "plain «text»", "color": null, "result": "plain «text»" }
   ]
 }

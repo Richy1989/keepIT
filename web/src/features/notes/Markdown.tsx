@@ -1,7 +1,8 @@
-import ReactMarkdown, { type Components } from 'react-markdown';
+import ReactMarkdown, { type Components, type Options } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import { remarkHighlight } from './highlight';
+import { previewSource, remarkPreview } from './preview';
 
 /** Drops react-markdown's `node` prop so the rest can spread onto a DOM element. */
 function dom<P extends { node?: unknown }>(props: P): Omit<P, 'node'> {
@@ -94,14 +95,19 @@ const components: Components = {
   mark: (p) => <mark {...dom(p)} />,
 };
 
-/** Renders a note body's Markdown (the note "rich text" format, shared with the Android app). */
-export function Markdown({ text, className }: { text: string; className?: string }) {
+/**
+ * Renders a note body's Markdown (the note "rich text" format, shared with the Android app). With
+ * [preview], only the start of it: about that many characters, cut after parsing (preview.ts).
+ */
+export function Markdown({ text, className, preview }: { text: string; className?: string; preview?: number }) {
+  const plugins: NonNullable<Options['remarkPlugins']> = [remarkGfm, remarkBreaks, remarkHighlight];
+  if (preview !== undefined) plugins.push([remarkPreview, { budget: preview }]);
   return (
     <div className={className ?? 'break-words text-sm leading-relaxed text-text/90 [overflow-wrap:anywhere]'}>
       {/* remark-breaks keeps single newlines as line breaks, so pre-Markdown notes render as written. */}
       {/* remarkHighlight makes paired <mark> tags highlights; any other HTML still shows as text. */}
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, remarkHighlight]} components={components}>
-        {text}
+      <ReactMarkdown remarkPlugins={plugins} components={components}>
+        {preview === undefined ? text : previewSource(text, preview)}
       </ReactMarkdown>
     </div>
   );

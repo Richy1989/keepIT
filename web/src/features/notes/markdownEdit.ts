@@ -4,8 +4,8 @@
  * a dumb list of buttons. Inline actions toggle (applying bold to bold text removes it); line
  * actions toggle their prefix on every selected line. {@link continueList} is Enter inside a list.
  *
- * The Android app's `ui/markdown/MarkdownEdit.kt` implements the same rules; both are unit-tested
- * against the same cases, so a note edited on either client gets the same Markdown.
+ * The Android app's `ui/markdown/MarkdownEdit.kt` implements the same rules; both are held to the
+ * same cases, `markdownEdit.json`, so a note edited on either client gets the same Markdown.
  */
 
 export type MarkdownAction =
@@ -57,16 +57,15 @@ function lineEndOf(text: string, pos: number): number {
 
 function toggleInline(text: string, start: number, end: number, marker: string): MarkdownEdit {
   // Emphasis cannot cross a line break in the Android renderer, and a selection over several
-  // lines reads best styled line by line anyway: "**a\nb**" became "**a**\n**b**".
-  if (text.slice(start, end).includes('\n')) return toggleInlinePerLine(text, start, end, marker);
+  // lines reads best styled line by line anyway: "**a\nb**" became "**a**\n**b**". A selection
+  // that only reaches the start of the next line styles one line.
+  const segments = start === end ? [] : lineSegments(text, start, end);
+  if (segments.length > 1) return toggleInlinePerLine(text, start, end, segments, marker);
 
-  // Emphasis cannot start or end on a space: "**bold **" is literal asterisks in CommonMark. A
-  // drag-selection that caught a space wraps the word and leaves the space outside.
-  let s = start;
-  let e = end;
-  while (s < e && /\s/.test(text[s])) s++;
-  while (e > s && /\s/.test(text[e - 1])) e--;
-  if (s === e && start !== end) e = s = start;
+  // The selection without its spaces or the line's list marker (see lineSegments). With nothing
+  // left, the markers go in at the selection's start: an empty pair to type into.
+  const s = segments[0]?.from ?? start;
+  const e = segments[0]?.to ?? start;
 
   const range = unwrapRange(text, s, e, marker);
   if (range) {
@@ -141,38 +140,58 @@ function runLength(text: string, from: number, to: number, c: string, forward: b
   return n;
 }
 
-function toggleInlinePerLine(text: string, start: number, end: number, marker: string): MarkdownEdit {
-  const lineStart = lineStartOf(text, start);
-  const blockEnd = lineEndOf(text, end);
-  // Each line splits into its prefix (indent, list marker, heading hashes, quote), the text to
-  // style, and trailing space: wrapping "- a" whole would give "**- a**" and break the list.
-  const split = (line: string): [string, string, string] => {
-    let p = prefixLength(line);
-    while (p < line.length && /\s/.test(line[p])) p++;
-    const rest = line.slice(p);
-    const core = rest.trimEnd();
-    return [line.slice(0, p), core, rest.slice(core.length)];
-  };
-  const lines = text.slice(lineStart, blockEnd).split('\n');
-  // One decision for the whole selection: if every line with text is already styled, unstyle.
-  const styled = lines
-    .map(split)
-    .filter(([, core]) => core.length > 0)
-    .every(([, core]) => unwrapRange(core, 0, core.length, marker) !== null);
-  const block = lines
-    .map((line) => {
-      const [head, core, trail] = split(line);
-      if (core.length === 0) return line;
-      const range = unwrapRange(core, 0, core.length, marker);
-      if (styled && range) return head + core.slice(range[2], core.length - range[2]) + trail;
-      if (styled || range) return line;
-      return head + marker + core + marker + trail;
-    })
-    .join('\n');
+/**
+ * The part of a selection that inline formatting applies to, line by line: each line's share of
+ * the selection without the line's prefix (indent, list marker, task box, heading hashes, quote)
+ * and without spaces at either end. "**- a**" would break the list, and "**a **" is literal
+ * asterisks. Lines left with nothing are skipped. Positions are into [text]. The highlighter
+ * (highlight.ts) uses the same split.
+ */
+export function lineSegments(text: string, start: number, end: number): { from: number; to: number }[] {
+  const out: { from: number; to: number }[] = [];
+  for (let lineStart = lineStartOf(text, start); lineStart <= end; ) {
+    const lineEnd = lineEndOf(text, lineStart);
+    let from = Math.max(start, lineStart + prefixLength(text.slice(lineStart, lineEnd)));
+    let to = Math.min(end, lineEnd);
+    while (from < to && /\s/.test(text[from])) from++;
+    while (to > from && /\s/.test(text[to - 1])) to--;
+    if (from < to) out.push({ from, to });
+    if (lineEnd >= text.length) break;
+    lineStart = lineEnd + 1;
+  }
+  return out;
+}
+
+function toggleInlinePerLine(
+  text: string,
+  start: number,
+  end: number,
+  segments: { from: number; to: number }[],
+  marker: string,
+): MarkdownEdit {
+  // One decision for the whole selection: if every part is already styled, unstyle.
+  const ranges = segments.map(({ from, to }) => unwrapRange(text, from, to, marker));
+  const styled = ranges.every((r) => r !== null);
+  // Each edit replaces text[a..b); they don't overlap, and they run in order.
+  const edits: { a: number; b: number; with: string }[] = [];
+  segments.forEach(({ from, to }, i) => {
+    const range = ranges[i];
+    if (styled && range) {
+      const [a, b, width] = range;
+      edits.push({ a, b, with: text.slice(a + width, b - width) });
+    } else if (!styled && !range) {
+      edits.push({ a: from, b: to, with: marker + text.slice(from, to) + marker });
+    }
+  });
+  let value = text;
+  for (const { a, b, with: w } of [...edits].reverse()) value = value.slice(0, a) + w + value.slice(b);
+  if (edits.length === 0) return { value, selectionStart: start, selectionEnd: end };
+  // The selection covers what was styled, its new markers included, so a second tap finds them
+  // inside it and takes them away again: "one [two\nthree] four" ⇄ "one [**two**\n**three**] four".
   return {
-    value: text.slice(0, lineStart) + block + text.slice(blockEnd),
-    selectionStart: lineStart,
-    selectionEnd: lineStart + block.length,
+    value,
+    selectionStart: Math.min(start, edits[0].a),
+    selectionEnd: Math.max(end, edits[edits.length - 1].b) + value.length - text.length,
   };
 }
 
@@ -238,6 +257,17 @@ function toggleLinePrefix(
     if (n !== undefined) number = Number(n) + 1;
   }
 
+  // A caret on an empty line starts the item, heading or list right there, ready to type.
+  if (start === end && lines[0].trim().length === 0) {
+    const prefix = action === 'heading' ? '# ' : action === 'bullet' ? '- ' : `${number}. `;
+    const caret = lineStart + lines[0].length + prefix.length;
+    return {
+      value: value.slice(0, lineStart) + lines[0] + prefix + value.slice(blockEnd),
+      selectionStart: caret,
+      selectionEnd: caret,
+    };
+  }
+
   const allPrefixed = lines.every((l) => l.trim().length === 0 || hasOwnPrefix(l));
   const block = lines
     .map((line) => {
@@ -272,11 +302,42 @@ function toggleLinePrefix(
 
 // ---- Enter in a list ----
 
+/** A line that opens or closes a fenced code block: its fence (``` or ~~~, or longer) and the rest. */
+const FENCE = /^(?:\s*>)*\s*(`{3,}|~{3,})(.*)$/;
+
+/**
+ * Whether the line starting at [lineStart] is inside a fenced code block: one opened above it and
+ * not yet closed, so a block still being typed counts. A block closes on a fence of the same
+ * character, at least as long, with nothing after it, as in CommonMark. Any indent and quote markers
+ * may come before a fence, so one inside a list item or a quote counts too: reading too much as
+ * code only means Enter is an ordinary newline.
+ */
+export function insideCodeFence(text: string, lineStart: number): boolean {
+  return openCodeFence(text, lineStart) !== null;
+}
+
+/** The fence of the code block the line at [lineStart] is inside (see insideCodeFence), or null. */
+export function openCodeFence(text: string, lineStart: number): string | null {
+  let open: string | null = null;
+  for (const line of text.slice(0, lineStart).split('\n')) {
+    const m = FENCE.exec(line);
+    if (!m) continue;
+    const [, fence, rest] = m;
+    if (open === null) {
+      // A backtick fence's info string can't hold a backtick: that line is inline code instead.
+      if (fence[0] !== '`' || !rest.includes('`')) open = fence;
+    } else if (fence[0] === open[0] && fence.length >= open.length && rest.trim() === '') {
+      open = null;
+    }
+  }
+  return open;
+}
+
 /**
  * What Enter does at the caret inside a list, as GitHub and most Markdown editors do: after
  * "- milk" the new line starts "- ", after "3. milk" it starts "4. ", after a task "- [ ] ". Enter on
  * an item with nothing after its marker ends the list instead, leaving an empty line. Returns null
- * where Enter is an ordinary newline, so the textarea handles it natively.
+ * where Enter is an ordinary newline (in a fenced code block too), so the textarea handles it.
  */
 export function continueList(value: string, start: number, end: number): MarkdownEdit | null {
   if (start !== end) return null;
@@ -286,6 +347,8 @@ export function continueList(value: string, start: number, end: number): Markdow
   const match = LIST_ITEM.exec(line);
   // Enter typed within the indent or the marker: an ordinary newline.
   if (!match || start < lineStart + match[0].length) return null;
+  // "- example" inside a code block is code, not a list.
+  if (insideCodeFence(value, lineStart)) return null;
 
   if (line.slice(match[0].length).trim().length === 0) {
     // An empty item: Enter ends the list. The marker goes and no newline is added.

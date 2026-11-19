@@ -13,6 +13,8 @@
  * `highlight.json`, which also specifies {@link applyHighlight}.
  */
 
+import { lineSegments } from './markdownEdit';
+
 export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'] as const;
 export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number];
 
@@ -103,7 +105,8 @@ const CLOSE_TAG = '</mark>';
  * (or exactly around) a highlight on its line changes that highlight instead: the same colour or
  * null removes it, another colour recolours it. Otherwise the selection is wrapped — line by line
  * when it spans several, since a highlight can't cross a line into the next paragraph or list
- * item — and an empty one gets an empty highlight with the caret inside, to type into.
+ * item, and inside each line's list marker (see lineSegments), so an item stays an item — and an
+ * empty one gets an empty highlight with the caret inside, to type into.
  */
 export function applyHighlight(
   value: string,
@@ -111,7 +114,13 @@ export function applyHighlight(
   end: number,
   color: HighlightColor | null,
 ): HighlightEdit {
-  const around = enclosing(value, start, end);
+  // On one line, the selection less its spaces and list marker: "- <mark>a</mark>", never
+  // "<mark>- a</mark>", which is no longer a list item.
+  const segments = start === end ? [] : lineSegments(value, start, end);
+  const single = segments.length === 1;
+  const s = single ? segments[0].from : start;
+  const e = single ? segments[0].to : end;
+  const around = enclosing(value, s, e);
   if (around) {
     const inner = value.slice(around.innerStart, around.innerEnd);
     const remove = color === null || color === around.color;
@@ -122,8 +131,8 @@ export function applyHighlight(
     const shift = open.length - (around.innerStart - around.openStart);
     return {
       value: before + open + inner + close + after,
-      selectionStart: Math.max(around.openStart + open.length, start + shift),
-      selectionEnd: Math.min(around.openStart + open.length + inner.length, end + shift),
+      selectionStart: Math.max(around.openStart + open.length, s + shift),
+      selectionEnd: Math.min(around.openStart + open.length + inner.length, e + shift),
     };
   }
   if (color === null) return { value, selectionStart: start, selectionEnd: end };
@@ -136,16 +145,23 @@ export function applyHighlight(
       selectionEnd: start + open.length,
     };
   }
-  const selected = value.slice(start, end);
-  const wrapped = selected
-    .split('\n')
-    .map((line) => (line.trim() ? open + line + CLOSE_TAG : line))
-    .join('\n');
-  const single = !selected.includes('\n');
+  if (segments.length === 0) return { value, selectionStart: start, selectionEnd: end };
+  if (single) {
+    return {
+      value: value.slice(0, s) + open + value.slice(s, e) + CLOSE_TAG + value.slice(e),
+      selectionStart: s + open.length,
+      selectionEnd: e + open.length,
+    };
+  }
+  let next = value;
+  for (const { from, to } of [...segments].reverse()) {
+    next = next.slice(0, from) + open + next.slice(from, to) + CLOSE_TAG + next.slice(to);
+  }
+  // Over several lines, the selection covers every highlight, tags included.
   return {
-    value: value.slice(0, start) + wrapped + value.slice(end),
-    selectionStart: single ? start + open.length : start,
-    selectionEnd: single ? end + open.length : start + wrapped.length,
+    value: next,
+    selectionStart: Math.min(start, segments[0].from),
+    selectionEnd: Math.max(end, segments[segments.length - 1].to) + next.length - value.length,
   };
 }
 

@@ -225,7 +225,7 @@ export function NoteCard({
         </ul>
       ) : (
         note.body && (
-          <Markdown text={note.body.length > 600 ? `${note.body.slice(0, 600)}…` : note.body} />
+          <Markdown text={note.body} preview={600} />
         )
       )}
 
