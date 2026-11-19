@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -17,22 +18,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.triStateToggleable
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Menu
@@ -41,7 +42,10 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Star as StarOutline
 import androidx.compose.material3.AlertDialog
@@ -51,6 +55,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,16 +76,15 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -102,10 +106,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.io.File
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NotesLayout
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
@@ -115,10 +121,10 @@ import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
 import org.hyperstarit.keepitapp.data.offline.membershipOf
 import org.hyperstarit.keepitapp.ui.auth.UnsyncedSignOutDialog
+import org.hyperstarit.keepitapp.ui.markdown.HighlightMarks
 import org.hyperstarit.keepitapp.ui.settings.ProfilePicture
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
-import java.io.File
 
 /**
  * The phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the user's lists (with
@@ -164,6 +170,7 @@ fun NotesScreen(
     val syncStatus by container.syncEngine.status.collectAsState()
     val standalone by container.appMode.standalone.collectAsState()
     val pendingMedia by repo.pendingMediaByNote.collectAsState()
+    val notesLayout by container.appearance.notesLayout.collectAsState()
     val session by container.session.state.collectAsState()
     val profilePicture by container.profileImage.file.collectAsState()
     val unread by container.notificationsWatcher.unread.collectAsState()
@@ -491,6 +498,19 @@ fun NotesScreen(
                             )
                         },
                         actions = {
+                            // Shows the layout a tap switches to, as Keep's does.
+                            val grid = notesLayout == NotesLayout.Grid
+                            IconButton(
+                                onClick = {
+                                    container.appearance.setNotesLayout(if (grid) NotesLayout.List else NotesLayout.Grid)
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = if (grid) Icons.Outlined.ViewAgenda else Icons.Outlined.GridView,
+                                    contentDescription = if (grid) "Show as a list" else "Show as a grid",
+                                    tint = KeepItColors.TextMuted,
+                                )
+                            }
                             IconButton(onClick = { searchOpen = !searchOpen; if (!searchOpen) search = "" }) {
                                 Icon(Icons.Filled.Search, contentDescription = "Search", tint = KeepItColors.TextMuted)
                             }
@@ -550,6 +570,9 @@ fun NotesScreen(
                     pendingMedia = pendingMedia[note.id].orEmpty(),
                     selected = note.id in selectedIds,
                     selecting = selecting,
+                    lists = lists,
+                    // A list chip shows that list alone, as picking it in the drawer does.
+                    onOpenList = { listId -> applyFilter(NotesFilter(NotesView.ACTIVE, setOf(listId))) },
                     onClick = { if (selecting) toggleSelected(note.id) else onOpenNote(note.id) },
                     onLongClick = { toggleSelected(note.id) },
                 )
@@ -579,17 +602,31 @@ fun NotesScreen(
                         )
                     }
 
-                    else -> LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    // The grid is two columns on a phone, as the web's masonry grid; a wider screen
+                    // fits more. Staggered, so each card keeps its own height and a short one never
+                    // leaves a hole beside a tall one. The list is the same grid with one column.
+                    // The labels and "Delete all" span the full width.
+                    else -> LazyVerticalStaggeredGrid(
+                        columns = if (notesLayout == NotesLayout.Grid) {
+                            StaggeredGridCells.Adaptive(minSize = 160.dp)
+                        } else {
+                            StaggeredGridCells.Fixed(1)
+                        },
+                        verticalItemSpacing = 12.dp,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
                             start = 12.dp, end = 12.dp, top = 8.dp, bottom = 96.dp,
                         ),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         if (pinned.isNotEmpty()) {
-                            item { SectionLabel("PINNED") }
+                            item(key = "label-pinned", span = StaggeredGridItemSpan.FullLine) {
+                                SectionLabel("PINNED", pinned.size)
+                            }
                             items(pinned, key = { "p-${it.id}" }) { note -> card(note) }
-                            item { SectionLabel("OTHERS") }
+                            item(key = "label-others", span = StaggeredGridItemSpan.FullLine) {
+                                SectionLabel("OTHERS", others.size)
+                            }
                         }
                         items(others, key = { it.id }) { note -> card(note) }
                         // Below the last note, as on the web, rather than in the top bar: that is
@@ -597,7 +634,7 @@ fun NotesScreen(
                         // Hidden while searching, where "all" would be ambiguous, and while
                         // selecting, where the bar already offers to delete what is chosen.
                         if (filter.view == NotesView.TRASHED && q.isEmpty() && !selecting) {
-                            item(key = "delete-all") {
+                            item(key = "delete-all", span = StaggeredGridItemSpan.FullLine) {
                                 Box(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                     contentAlignment = Alignment.Center,
@@ -1214,9 +1251,16 @@ private fun SyncStatusStrip(isOnline: Boolean, problem: SyncProblem?, pending: I
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(text: String, count: Int) {
+    // "PINNED  4": the count in regular weight, so the word stays the label.
     Text(
-        text = text,
+        text = androidx.compose.ui.text.buildAnnotatedString {
+            append(text)
+            append("  ")
+            pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Normal))
+            append(count.toString())
+            pop()
+        },
         color = KeepItColors.TextFaint,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
@@ -1249,5 +1293,6 @@ private fun notesLabel(count: Int): String = if (count == 1) "Note" else "$count
 /** Client-side search over title, body, and checklist items — same rule as the web grid. */
 private fun NoteDto.matchesSearch(q: String): Boolean =
     (title ?: "").lowercase().contains(q) ||
-        (body ?: "").lowercase().contains(q) ||
+        // The text as read: "mark" should find the word, not every highlight.
+        HighlightMarks.withoutTags(body ?: "").lowercase().contains(q) ||
         checklistItems.any { it.text.lowercase().contains(q) }

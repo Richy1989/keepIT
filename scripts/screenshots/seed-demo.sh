@@ -4,8 +4,8 @@
 # Drives a running keepIT over its REST API, like seed-dev-data.sh, but where that one fills a dev
 # database with a lot of everything, this one makes the few notes the screenshots show: Anna
 # Berger's account with a profile picture, five lists with an emoji each, and ten notes that
-# between them have photos, a voice note, checklists, a reminder and a share in each direction
-# (Jonas Keller is the second account).
+# between them have photos, a voice note, checklists, a reminder, backgrounds and a share in each
+# direction (Jonas Keller is the second account).
 #
 # It needs a FRESH server: it registers both accounts and stops if either exists. Notes are created
 # oldest first, because the grid sorts by pin and then by last change, so the order below is the
@@ -50,20 +50,21 @@ register() { # register EMAIL NAME -> access token
     api '' POST /api/auth/register "$(jq -n --arg e "$1" --arg p "$PASSWORD" --arg d "$2" \
         '{email:$e,password:$p,displayName:$d}')" | jq -r .accessToken
 }
-text_note() { # text_note TOKEN TITLE COLOR LISTS_JSON BODY -> id
-    api "$1" POST /api/notes "$(jq -n --arg t "$2" --arg c "$3" --argjson l "$4" --arg b "$5" \
-        '{type:"Text",title:$t,body:$b,color:$c,listIds:$l}')" | jq -r .id
+# BACKGROUND is the name of an image in backgrounds/ (the server stores only the name), or '' for none.
+text_note() { # text_note TOKEN TITLE COLOR BACKGROUND LISTS_JSON BODY -> id
+    api "$1" POST /api/notes "$(jq -n --arg t "$2" --arg c "$3" --arg g "$4" --argjson l "$5" --arg b "$6" \
+        '{type:"Text",title:$t,body:$b,color:$c,background:(if $g == "" then null else $g end),listIds:$l}')" | jq -r .id
 }
-check_note() { # check_note TOKEN TITLE COLOR LISTS_JSON "text|done"... -> id
-    local token="$1" title="$2" color="$3" lists="$4"; shift 4
+check_note() { # check_note TOKEN TITLE COLOR BACKGROUND LISTS_JSON "text|done"... -> id
+    local token="$1" title="$2" color="$3" background="$4" lists="$5"; shift 5
     local items='[]' order=0 pair
     for pair in "$@"; do
         items="$(jq --arg x "${pair%|*}" --argjson d "${pair##*|}" --argjson o "$order" \
             '. + [{text:$x,isChecked:$d,order:$o}]' <<<"$items")"
         order=$((order + 1))
     done
-    api "$token" POST /api/notes "$(jq -n --arg t "$title" --arg c "$color" --argjson l "$lists" --argjson i "$items" \
-        '{type:"Checklist",title:$t,color:$c,checklistItems:$i,listIds:$l}')" | jq -r .id
+    api "$token" POST /api/notes "$(jq -n --arg t "$title" --arg c "$color" --arg g "$background" --argjson l "$lists" --argjson i "$items" \
+        '{type:"Checklist",title:$t,color:$c,background:(if $g == "" then null else $g end),checklistItems:$i,listIds:$l}')" | jq -r .id
 }
 pin() { api "$1" PATCH "/api/notes/$2/state" '{"isPinned":true}' >/dev/null; }
 share() { # share OWNER_TOKEN NOTE_ID GRANTEE_EMAIL GRANTEE_TOKEN  (as Editor, and accepted)
@@ -97,29 +98,29 @@ add_list Work indigo '💼'
 ids() { local out=() n; for n in "$@"; do out+=("${L[$n]}"); done; jq -n '$ARGS.positional' --args "${out[@]}"; }
 
 # ---- Others, bottom of the grid first ----
-hike="$(check_note "$J" 'Sunday hike' sky '[]' 'Thermos|false' 'Trail snacks|false' 'Rain jackets|false' 'Check the weather|true')"
+hike="$(check_note "$J" 'Sunday hike' sky running '[]' 'Thermos|false' 'Trail snacks|false' 'Rain jackets|false' 'Check the weather|true')"
 share "$J" "$hike" "$ANNA" "$A"
 api "$A" PUT "/api/notes/$hike/lists" "$(jq -n --argjson l "$(ids Personal)" '{listIds:$l}')" >/dev/null
 
-text_note "$A" 'Offsite agenda' rose "$(ids Work)" $'**Mon:** travel, dinner by the lake\n**Tue:** roadmap, then the retro\n**Wed:** workshops, fly home' >/dev/null
+text_note "$A" 'Offsite agenda' rose work "$(ids Work)" $'**Mon:** travel, dinner by the lake\n**Tue:** roadmap, then the retro\n**Wed:** workshops, fly home' >/dev/null
 
-museum="$(text_note "$A" 'Museum day' indigo "$(ids Personal)" 'Room 12, late afternoon, light coming in sideways. Everyone walks straight past this one.')"
+museum="$(text_note "$A" 'Museum day' indigo '' "$(ids Personal)" 'Room 12, late afternoon, light coming in sideways. Everyone walks straight past this one.')"
 upload "$A" "/api/notes/$museum/media" "$ASSETS/museum-sculpture.jpg"
 
-check_note "$A" 'Summer BBQ' sage "$(ids Home)" 'Halloumi|false' 'Corn on the cob|false' 'Lemonade|false' 'Charcoal|false' 'Invite the neighbours|true' >/dev/null
+check_note "$A" 'Summer BBQ' sage party "$(ids Home)" 'Halloumi|false' 'Corn on the cob|false' 'Lemonade|false' 'Charcoal|false' 'Invite the neighbours|true' >/dev/null
 
-text_note "$A" 'Carbonara for four' coral "$(ids Recipes)" $'- 400 g spaghetti\n- 150 g guanciale\n- 4 egg yolks and 1 whole egg\n- Pecorino and black pepper\n\nNo cream. **Ever.**' >/dev/null
+text_note "$A" 'Carbonara for four' coral food "$(ids Recipes)" $'- 400 g spaghetti\n- 150 g guanciale\n- 4 egg yolks and 1 whole egg\n- Pecorino and black pepper\n\nNo cream. **Ever.**' >/dev/null
 
-garden="$(text_note "$A" 'Garden visitors' sage "$(ids Home)" 'Same branch every morning around eight. Refill the feeder twice a week.')"
+garden="$(text_note "$A" 'Garden visitors' sage garden "$(ids Home)" 'Same branch every morning around eight. Refill the feeder twice a week.')"
 upload "$A" "/api/notes/$garden/media" "$ASSETS/hummingbird.jpg"
 upload "$A" "/api/notes/$garden/media" "$WORK/voice.m4a"
 
 # ---- Pinned, last of the row first ----
-lisbon="$(check_note "$A" 'Lisbon trip' teal "$(ids Travel)" 'Tram 28 tickets|false' 'Pastéis de Belém|false' 'Day trip to Sintra|false' 'Book flights|true' 'Hotel in Alfama|true')"
+lisbon="$(check_note "$A" 'Lisbon trip' teal travel "$(ids Travel)" 'Tram 28 tickets|false' 'Pastéis de Belém|false' 'Day trip to Sintra|false' 'Book flights|true' 'Hotel in Alfama|true')"
 share "$A" "$lisbon" "$JONAS" "$J"
 pin "$A" "$lisbon"
 
-book="$(text_note "$A" 'Book club' violet "$(ids Personal)" 'Finish *The Remains of the Day* before Thursday. Bring the good biscuits.')"
+book="$(text_note "$A" 'Book club' violet study "$(ids Personal)" 'Finish *The Remains of the Day* before Thursday. Bring the good biscuits.')"
 # The coming Thursday at 19:00 in Vienna, and never today: the note says "before Thursday".
 thursday="$(TZ=Europe/Vienna date -d tomorrow +%F)"
 until [[ "$(date -d "$thursday" +%u)" == 4 ]]; do thursday="$(date -d "$thursday +1 day" +%F)"; done
@@ -127,10 +128,10 @@ remind_at="$(date -u -d "@$(TZ=Europe/Vienna date -d "$thursday 19:00" +%s)" +%F
 api "$A" PUT "/api/notes/$book/reminder" "$(jq -n --arg t "$remind_at" '{remindAtUtc:$t,recurrence:"None",timeZone:"Europe/Vienna"}')" >/dev/null
 pin "$A" "$book"
 
-groceries="$(check_note "$A" 'Groceries' amber "$(ids Home)" 'Oat milk|false' 'Sourdough bread|false' 'Tomatoes|false' 'Coffee beans|false' 'Basil|true' 'Parmesan|true')"
+groceries="$(check_note "$A" 'Groceries' amber groceries "$(ids Home)" 'Oat milk|false' 'Sourdough bread|false' 'Tomatoes|false' 'Coffee beans|false' 'Basil|true' 'Parmesan|true')"
 pin "$A" "$groceries"
 
-puglia="$(text_note "$A" 'Weekend in Puglia' sky "$(ids Travel)" $'Vieste at sunset, then a spritz on the terrace.\n\n**Saturday:** boat to the sea caves\n**Sunday:** Polignano a Mare')"
+puglia="$(text_note "$A" 'Weekend in Puglia' sky '' "$(ids Travel)" $'Vieste at sunset, then a spritz on the terrace.\n\n**Saturday:** boat to the sea caves\n**Sunday:** Polignano a Mare')"
 upload "$A" "/api/notes/$puglia/media" "$WORK/coastal-landscape.jpg"
 upload "$A" "/api/notes/$puglia/media" "$ASSETS/aperitivo-terrace.jpg"
 pin "$A" "$puglia"

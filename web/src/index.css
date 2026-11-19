@@ -6,6 +6,9 @@
    delete button, etc.) would stay permanently hidden. The `touch` variant matches pointers with no
    hover, letting us force those controls into their revealed state on phones/tablets. */
 @custom-variant touch (@media (hover: none));
+/* Its opposite, for what may only happen where something can hover: the card footer that steps
+   aside for the hover toolbar would otherwise vanish for good under a toolbar that never leaves. */
+@custom-variant hover-device (@media (hover: hover));
 
 /*
   Design tokens (ARCHITECTURE.md "Look & feel"). Chrome colors are theme tokens so switching
@@ -23,6 +26,11 @@
 */
 @theme {
   --color-canvas: #0a0a0b;
+  /* The left navigation column: a shade off the canvas, so it reads as its own panel next to the
+     notes rather than as more of the page. Lifted toward --color-surface in the dark themes and
+     white on light; --color-surface-hover still shows on it in all three. Web only — the Android
+     menu is a drawer over the content, which has no such neighbour. */
+  --color-sidebar: #111113;
   --color-surface: #18181b;
   --color-surface-hover: #1f1f23;
   --color-elevated: #202024;
@@ -122,6 +130,19 @@
   --note-lift: 0%;
   --note-sink: 10%;
   --note-ring: 100%;
+  /* How much of the note's border colour a background image is painted in (.note-tile). */
+  --note-pattern: 100%;
+
+  /*
+    Highlighted text (features/notes/highlight.ts), one fill per colour: opaque, so the text on it
+    reads the same on every note colour (index.css.test.ts holds --color-text to AA on each). Dark
+    and Dim take these deep fills under their light text; Light takes pastels under dark text.
+  */
+  --hl-yellow: #805c03;
+  --hl-green: #047239;
+  --hl-blue: #0a6899;
+  --hl-pink: #9f436b;
+  --hl-purple: #7850a1;
   --shadow-note: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
     0 12px 28px -14px rgb(0 0 0 / 0.6);
   --shadow-note-hover: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3),
@@ -145,6 +166,7 @@
    below the card so an uncolored note still reads as a card rather than as bare page. */
 html[data-theme='light'] {
   --color-canvas: #f7f7f8;
+  --color-sidebar: #ffffff;
   --color-surface: #ffffff;
   --color-surface-hover: #f0f0f2;
   --color-elevated: #ffffff;
@@ -183,6 +205,13 @@ html[data-theme='light'] {
   --note-lift: 50%;
   --note-sink: 0%;
   --note-ring: 60%;
+  --note-pattern: 100%;
+
+  --hl-yellow: #feea74;
+  --hl-green: #aaf5b9;
+  --hl-blue: #aae6ff;
+  --hl-pink: #ffc4e1;
+  --hl-purple: #eccfff;
   --shadow-note: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(24 24 27 / 0.05),
     0 10px 24px -14px rgb(24 24 27 / 0.2);
   --shadow-note-hover: inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(24 24 27 / 0.05),
@@ -208,6 +237,7 @@ html[data-theme='light'] {
 /* Dim: a softer dark — lifted off near-black, gentler contrast. */
 html[data-theme='dim'] {
   --color-canvas: #18181b;
+  --color-sidebar: #1e1e22;
   --color-surface: #232327;
   --color-surface-hover: #2a2a2f;
   --color-elevated: #2d2d32;
@@ -368,6 +398,56 @@ html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22
     --color-accent-ink: var(--photo-text);
   }
 
+  /*
+    A note's background image (features/notes/backgrounds.ts): a stencil, tiled from the top left
+    over the note's colour and painted in that colour's own ink — the element sets --tile (the
+    image) and --tile-ink (the colour's border token), and --note-pattern says how much of the ink
+    the pattern takes in this theme. The image gives only the shape (its alpha), so one file suits
+    every colour and theme. It masks the element's own paint, so .note-tile is always an empty
+    layer behind the content, never the box the content is in.
+  */
+  .note-tile {
+    background-color: color-mix(in srgb, var(--tile-ink) var(--note-pattern), transparent);
+    -webkit-mask-image: var(--tile);
+    mask-image: var(--tile);
+    -webkit-mask-repeat: repeat;
+    mask-repeat: repeat;
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+  }
+
+  /*
+    Highlighted text: a marker stroke behind the words, a little wider than them and rounded, in
+    the fill its data-color names. `clone` gives each line of a wrapped highlight its own ends.
+    Text on it is always the full text colour: muted text (a quote, a ticked item) falls short of
+    AA on the deep fills, and a highlight is meant to stand out anyway.
+  */
+  .note-mark {
+    background-color: var(--hl-yellow);
+    color: var(--color-text);
+    border-radius: 0.3em;
+    padding: 0.05em 0.2em;
+    margin: 0 -0.05em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  .note-mark[data-color='green'] {
+    background-color: var(--hl-green);
+  }
+
+  .note-mark[data-color='blue'] {
+    background-color: var(--hl-blue);
+  }
+
+  .note-mark[data-color='pink'] {
+    background-color: var(--hl-pink);
+  }
+
+  .note-mark[data-color='purple'] {
+    background-color: var(--hl-purple);
+  }
+
   .pop-in {
     animation: kit-pop-in 130ms ease-out;
   }
@@ -375,4 +455,13 @@ html[data-accent='green']  { --color-accent: #4ade80; --color-accent-strong: #22
   .fade-in {
     animation: kit-fade-in 130ms ease-out;
   }
+}
+
+/*
+  A link inside a highlight keeps its underline but takes the highlight's text colour: the accent
+  ink falls under 3:1 on the deep fills. Outside the layers on purpose, so it outranks the link's
+  `text-accent-ink` utility (index.css.test.ts measures only --color-text on the fills).
+*/
+.note-mark a {
+  color: var(--color-text);
 }

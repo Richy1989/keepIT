@@ -1826,6 +1826,7 @@ export interface components {
             title?: null | string;
             body?: null | string;
             color?: null | string;
+            background?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
             listIds?: null | string[];
         };
@@ -1900,6 +1901,7 @@ export interface components {
             title?: null | string;
             body?: null | string;
             color?: null | string;
+            background?: null | string;
             isPinned: boolean;
             isArchived: boolean;
             isTrashed: boolean;
@@ -1924,7 +1926,7 @@ export interface components {
             collaborators: components["schemas"]["NoteCollaboratorDto"][];
         };
         /** @enum {unknown} */
-        NoteField: "Type" | "Title" | "Body" | "Color" | "ChecklistItems";
+        NoteField: "Type" | "Title" | "Body" | "Color" | "ChecklistItems" | "Background";
         NoteMediaDto: {
             /** Format: uuid */
             id: string;
@@ -2029,6 +2031,7 @@ export interface components {
             title?: null | string;
             body?: null | string;
             color?: null | string;
+            background?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
             fields?: null | components["schemas"]["NoteField"][];
         };

@@ -11,6 +11,9 @@ import { MAX_CARD_RECORDINGS, MAX_PREVIEW_ITEMS } from './masonry';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
 import { CollaboratorFaces } from './CollaboratorFaces';
+import { BackgroundPicker, NoteTile } from './BackgroundPicker';
+import { cardDateLabel } from './cardDate';
+import { useLists } from '../lists/queries';
 import { ColorPicker } from '../../components/ColorPicker';
 import {
   ArchiveIcon,
@@ -37,6 +40,7 @@ function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>, fields: Note
     title: note.title,
     body: note.body,
     color: note.color,
+    background: note.background,
     checklistItems: note.checklistItems,
     ...overrides,
     fields,
@@ -46,9 +50,17 @@ function toUpdate(note: NoteDto, overrides: Partial<UpdateNoteDto>, fields: Note
 /**
  * A single note card in the masonry grid. The body opens the editor on click; pin and the hover
  * toolbar (color / archive / trash, or restore / delete in the trash view) act directly. Checklist
- * items can be ticked inline.
+ * items can be ticked inline, and the chips of the lists it is in open that list.
  */
-export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteDto) => void }) {
+export function NoteCard({
+  note,
+  onOpen,
+  onOpenList,
+}: {
+  note: NoteDto;
+  onOpen: (note: NoteDto) => void;
+  onOpenList: (listId: string) => void;
+}) {
   const setState = useSetNoteState();
   const update = useUpdateNote();
   const del = useDeleteNote();
@@ -62,6 +74,10 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
   const hero = images.at(0);
 
   const checkedItems = note.checklistItems.filter((i) => i.isChecked).length;
+  // The caller's lists this note is in, in the sidebar's order. Shared with the sidebar's query, so
+  // this costs no fetch; an id the cache doesn't know yet (a list just made elsewhere) waits for it.
+  const { data: allLists } = useLists();
+  const lists = (allLists ?? []).filter((l) => note.listIds.includes(l.id));
 
   function toggleItem(stored: number, checked: boolean) {
     if (!note.canEdit) return; // viewers can't change content
@@ -103,7 +119,8 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
       )}
       style={{ '--card-bg': swatch.bg, '--card-border': swatch.border } as CSSProperties}
     >
-      {hero && <PhotoBackdrop noteId={note.id} media={hero} />}
+      {/* A photo takes the place of the colour, and of the background image drawn over it. */}
+      {hero ? <PhotoBackdrop noteId={note.id} media={hero} /> : <NoteTile name={note.background} color={note.color} />}
 
       {/* Pin — visible on hover, or always when pinned. */}
       <button
@@ -232,21 +249,68 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
               setShowColors(false);
             }}
           />
+          <BackgroundPicker
+            value={note.background}
+            color={note.color}
+            onPick={(name) => {
+              update.mutate({ id: note.id, body: toUpdate(note, { background: name }, ['Background']) });
+              setShowColors(false);
+            }}
+          />
         </div>
       )}
 
       {/* Reminder popover. */}
       {showReminder && <ReminderMenu note={note} onClose={() => setShowReminder(false)} />}
 
+      {/* The lists it is in, as chips: each opens its list. */}
+      {lists.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {lists.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              title={`Show the list ${l.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenList(l.id);
+              }}
+              className="focus-ring flex min-w-0 max-w-full items-center gap-1 rounded-full bg-overlay-lift px-2 py-0.5 text-xs text-text-muted transition hover:bg-overlay-hover hover:text-text"
+            >
+              <span aria-hidden="true" className="shrink-0">
+                {l.icon ?? '#'}
+              </span>
+              <span className="truncate">{l.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/*
-        Footer: hover toolbar (left) + always-visible reminder chip and timestamp (right).
-        `flex-wrap` because the toolbar reserves its full width even while it's invisible (it only
-        fades, so the card doesn't resize under the pointer) — in a narrow column that pushed the
-        chip and the date straight out through the card's `overflow-hidden` edge. Wrapping is
-        decided by the column width, not by hover, so nothing jumps when the toolbar appears.
+        Footer: the reminder chip on the left, the faces and the date on the right. With a mouse the
+        toolbar takes the row's place on hover (or while it holds the keyboard focus) instead of
+        reserving room of its own, which crowded the chip and the date out of a narrow column. On a
+        touch screen, where nothing hovers, the toolbar is a row of its own underneath.
       */}
-      <div className="mt-3 flex flex-wrap items-center gap-1">
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100 touch:opacity-100">
+      <div className="relative mt-3">
+        <div className="flex min-h-8 items-center gap-2 transition hover-device:group-hover:opacity-0 hover-device:group-focus-within:opacity-0">
+          <div className="flex min-w-0 flex-1">
+            {!note.isTrashed && <ReminderChip note={note} onClick={() => setShowReminder(true)} inTabOrder={false} />}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <CollaboratorFaces note={note} onPhoto={!!hero} />
+            {note.createdAtUtc && (
+              <time
+                className="whitespace-nowrap text-xs text-text-faint"
+                dateTime={note.createdAtUtc}
+                title={formatDateFull(note.createdAtUtc)}
+              >
+                {cardDateLabel(parseBackendUtc(note.createdAtUtc))}
+              </time>
+            )}
+          </div>
+        </div>
+        <div className="absolute inset-0 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 touch:static touch:mt-1 touch:opacity-100">
         {note.isTrashed ? (
           <>
             <CardTool
@@ -288,21 +352,6 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
           </>
         )}
         </div>
-        <div className="ml-auto flex flex-col items-end gap-1">
-          {!note.isTrashed && <ReminderChip note={note} onClick={() => setShowReminder(true)} />}
-          <div className="flex items-center gap-1.5">
-            <CollaboratorFaces note={note} onPhoto={!!hero} />
-            {note.createdAtUtc && (
-              <time
-                className="whitespace-nowrap text-xs text-text-faint"
-                dateTime={note.createdAtUtc}
-                title={formatDateFull(note.createdAtUtc)}
-              >
-                {formatDate(note.createdAtUtc)}
-              </time>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -311,21 +360,6 @@ export function NoteCard({ note, onOpen }: { note: NoteDto; onOpen: (note: NoteD
 /** Normalizes a backend UTC timestamp: the SQLite dev provider can omit the zone designator. */
 function parseBackendUtc(iso: string): Date {
   return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`);
-}
-
-/**
- * Compact footer date, sized for a narrow masonry column (the full timestamp lives in the
- * tooltip): time only for today, month + day within the year, month + day + year otherwise.
- */
-function formatDate(iso: string) {
-  const d = parseBackendUtc(iso);
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  }
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
-  return d.toLocaleDateString(undefined, opts);
 }
 
 /** The unabridged local timestamp, for the footer date's tooltip. */

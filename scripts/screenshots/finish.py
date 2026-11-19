@@ -31,7 +31,7 @@ WEB_SIZE = (2880, 1800)
 PHONE_SIZE = (1080, 2400)
 # What a phone shot is widened to: Play Console takes phone screenshots at 16:9 or 9:16 only.
 PHONE_STORE_WIDTH = 1350
-WEB_NAMES = ["web-notes-dark.png", "web-notes-light.png", "web-editor-dim.png"]
+WEB_NAMES = ["web-notes-dark.png", "web-notes-light.png", "web-editor-dark.png", "web-editor-light.png"]
 PHONE_NAMES = [f"{n}.png" for n in range(1, 10)]
 # What deploy/keepit.unraid.xml links, and the screenshot each is a copy of.
 UNRAID_COPIES = {"screenshot_1.png": IMAGES / "web-notes-dark.png", "screenshot_phone.png": PHONE / "1.png"}

@@ -109,6 +109,7 @@ public sealed class ImportTests
             title = "packing",
             body = "passport, charger",
             color = "amber",
+            background = "lined",
             listIds = new[] { listId },
         });
         await NewNoteAsync(source, new
@@ -152,6 +153,7 @@ public sealed class ImportTests
         var packing = NoteWithTitle(grid, "packing");
         Assert.Equal("passport, charger", packing.GetProperty("body").GetString());
         Assert.Equal("amber", packing.GetProperty("color").GetString());
+        Assert.Equal("lined", packing.GetProperty("background").GetString());
         Assert.True(packing.GetProperty("isPinned").GetBoolean());
         Assert.True(packing.GetProperty("isOwner").GetBoolean());
         Assert.Equal("Weekly", packing.GetProperty("reminderRecurrence").GetString());

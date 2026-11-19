@@ -38,8 +38,8 @@ android {
         // refuses a tag they disagree with. CI still overrides them from the tag via env for GitHub
         // builds, which is all a beta tag vX.Y.Z-beta.N is: it leaves these at the last release,
         // and CI builds it as X.Y.Z-beta.N with code X*1000000 + Y*10000 + Z*100 + N.
-        versionCode = 1000099
-        versionName = "1.0.0"
+        versionCode = 1030099
+        versionName = "1.3.0"
         System.getenv("VERSION_CODE")?.toIntOrNull()?.let { versionCode = it }
         System.getenv("VERSION_NAME")?.let { versionName = it }
 
@@ -177,6 +177,40 @@ dependencies {
 // wedged on its loading layout for two releases this way (androidx.work.OverwritingInputMerger).
 //
 // So: after R8 runs, read its own reports and assert each entry below still has its constructor.
+/**
+ * Copies the repository's `backgrounds/` folder (the note background images, shared with the web
+ * app) into the assets folder `backgrounds/`, where `ui/notes/NoteBackgrounds.kt` reads them. Its
+ * README stays behind; `NoteBackgroundFilesTest` holds the rest to the rules it states.
+ */
+abstract class CopyNoteBackgrounds : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val source: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val target = output.get().asFile.resolve("backgrounds")
+        target.deleteRecursively()
+        target.mkdirs()
+        source.get().asFile.listFiles().orEmpty()
+            .filter { it.isFile && it.name != "README.md" }
+            .forEach { it.copyTo(target.resolve(it.name)) }
+    }
+}
+
+val copyNoteBackgrounds = tasks.register<CopyNoteBackgrounds>("copyNoteBackgrounds") {
+    source.set(rootProject.layout.projectDirectory.dir("../backgrounds"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyNoteBackgrounds, CopyNoteBackgrounds::output)
+    }
+}
+
 // usage.txt lists what was removed (a bare `com.Foo` line = whole class, `com.Foo:` + indented
 // members = those members), mapping.txt lists what survived. Cheap, deterministic, no emulator.
 val reflectivelyConstructed = mapOf(

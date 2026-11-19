@@ -5,6 +5,55 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
+### 📦 Deployment & Docs
+
+- Library updates: ASP.NET Core and EF Core 10.0.15, MailKit 4.18.2 and Scalar on the server; React
+  19.3.1, TanStack Query, React Router and Tailwind CSS on the web; Kotlin 2.4.21,
+  kotlinx.serialization 1.13, OkHttp 5.5.1 and commonmark-java 0.32 in the Android app.
+
+## 1.3.0
+
+### ✨ New Features
+
+- Note backgrounds — a note can have a background pattern, such as ruled lines, a dot grid or
+  little coffee cups, drawn in a shade of the note's own colour. Pick one under the colours in the
+  note's Background menu; it shows on the card and in the editor, for everyone the note is shared
+  with. Web and Android; on Android once its server is updated, and in standalone mode.
+- Highlighting — mark words with a highlighter in yellow, green, blue, pink or purple, from the
+  formatting toolbar (or Ctrl+Shift+H on the web, which uses the last colour). The note keeps it as
+  `<mark data-color="…">` in its text, which other Markdown apps show as a highlight too. Web and
+  Android; an older app shows the tags as text.
+- List chips on cards — the lists a note is in show as chips at the bottom of its card, and a
+  click or tap on one shows that list. Web and Android.
+- Grid or list — the Android notes screen shows notes two to a row, and a button in its top bar
+  switches between that and one note under another. Each phone keeps its own choice. Android.
+
+### 🔧 Improvements
+
+- The web sidebar is a shade apart from the notes beside it, and a button at its foot folds it
+  into a narrow rail of icons (each row names itself on hover); the browser remembers which. Web.
+- The reminder on a card says the weekday and how it repeats ("Sun, Nov 29, 09:00 · Monthly"),
+  and is cut short with an ellipsis in a narrow column rather than pushing the card's date out.
+  Web and Android.
+- A card's date says "Today" or "Yesterday" for notes created then. Web and Android.
+- The Android editor shows the title as the page's headline, and under it when the note was last
+  edited and, on a shared note, who it is shared with ("Edited today · Shared with ben@x"), in
+  place of the old "Shared with you" line. The reminder and the pictures now come after the title.
+- The Pinned and Others headings on Android say how many notes each holds.
+- On the web, the toolbar a card shows on hover takes the place of its bottom row instead of
+  keeping room of its own, so the reminder and the date no longer crowd into a narrow column.
+
+### 📦 Deployment & Docs
+
+- Update the server along with the Android app: the app offers backgrounds only with a server of
+  this version or newer, and says so on an older one. The database gains a column, added by the
+  migrations (PostgreSQL) or at startup (SQLite); nothing to do by hand.
+- New screenshots of the web app and the Android app, in the dark and the light theme, showing
+  note backgrounds and the Android grid. The README's first phone screenshot now stands as tall as
+  the web one beside it. The dev seed scripts give their notes backgrounds too.
+
+## 1.2.0
+
 ### ✨ New Features
 
 - Sub-items in checklists. Drag a row's handle to the right to indent it under the top-level row above, or to the left to bring it back.
@@ -62,9 +111,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - The privacy policy now gives an email address for questions: support@hyperstarit.org. It also
   says plainly that everyone on a shared note sees the others' email addresses and profile pictures.
 - The Android screenshots are 1350×2400 (9:16), the shape Google Play accepts.
-- keepIT is on Google Play in open testing, which anyone can join: the README's
-  [Google Play (open testing)](https://github.com/Richy1989/keepIT#google-play-open-testing) says
-  how. Play signs it with the same key as F-Droid and GitHub, so switching needs no reinstall.
+- keepIT is on [Google Play](https://play.google.com/store/apps/details?id=org.hyperstarit.keepitapp),
+  and from this release on every release reaches it by itself. Play signs it with the same key as
+  F-Droid and GitHub, so switching needs no reinstall.
 
 ## 1.0.0
 

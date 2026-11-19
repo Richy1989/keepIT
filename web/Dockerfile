@@ -8,6 +8,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# The note backgrounds (src/features/notes/backgroundImages.ts) live beside web/, in the
+# repository's backgrounds/ folder, which docker-compose.yml passes in as a second build context.
+COPY --from=backgrounds . /backgrounds/
 RUN npm run build
 
 FROM nginx:1.31-alpine AS final

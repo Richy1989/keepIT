@@ -1,6 +1,7 @@
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
+import { remarkHighlight } from './highlight';
 
 /** Drops react-markdown's `node` prop so the rest can spread onto a DOM element. */
 function dom<P extends { node?: unknown }>(props: P): Omit<P, 'node'> {
@@ -89,6 +90,8 @@ const components: Components = {
   ),
   hr: (p) => <hr className="my-2 border-border-strong" {...dom(p)} />,
   input: (p) => <input className="mr-1.5 align-middle accent-accent" {...dom(p)} />,
+  // A highlight (highlight.ts): its colour comes from `.note-mark[data-color]` in index.css.
+  mark: (p) => <mark {...dom(p)} />,
 };
 
 /** Renders a note body's Markdown (the note "rich text" format, shared with the Android app). */
@@ -96,7 +99,8 @@ export function Markdown({ text, className }: { text: string; className?: string
   return (
     <div className={className ?? 'break-words text-sm leading-relaxed text-text/90 [overflow-wrap:anywhere]'}>
       {/* remark-breaks keeps single newlines as line breaks, so pre-Markdown notes render as written. */}
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={components}>
+      {/* remarkHighlight makes paired <mark> tags highlights; any other HTML still shows as text. */}
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, remarkHighlight]} components={components}>
         {text}
       </ReactMarkdown>
     </div>

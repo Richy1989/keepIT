@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -73,40 +74,21 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-private val RECURRENCE_LABELS = listOf(
-    ReminderRecurrences.NONE to "Does not repeat",
-    ReminderRecurrences.DAILY to "Daily",
-    ReminderRecurrences.WEEKLY to "Weekly",
-    ReminderRecurrences.MONTHLY to "Monthly",
-    ReminderRecurrences.YEARLY to "Yearly",
-)
-
 /** Parses a backend reminder timestamp; null when unset or unparsable. */
 fun reminderInstant(note: NoteDto): Instant? =
     note.remindAtUtc?.let { runCatching { Instant.parse(ensureUtc(it)) }.getOrNull() }
 
-/** Compact local rendering for the chip — the web `formatReminderTime`: time only today, no year within the year. */
-fun formatReminderTime(at: Instant): String {
-    val local = at.atZone(ZoneId.systemDefault())
-    val now = LocalDateTime.now()
-    val pattern = when {
-        local.toLocalDate() == now.toLocalDate() -> "HH:mm"
-        local.year == now.year -> "MMM d, HH:mm"
-        else -> "MMM d yyyy, HH:mm"
-    }
-    return DateTimeFormatter.ofPattern(pattern).format(local)
-}
-
 /**
- * The always-visible reminder indicator on a card/editor: clock + compact local time, plus a
- * repeat glyph when recurring — the Compose twin of the web `ReminderChip`. Turns amber once the
- * time has passed (or a one-time reminder has fired); renders nothing when no reminder is set.
+ * The always-visible reminder indicator on a card/editor: clock, then the local time and how it
+ * repeats ("Sun, Nov 29, 09:00 · Monthly", [reminderChipLabel]), cut with an ellipsis where the row
+ * is narrower than that — the Compose twin of the web `ReminderChip`. Turns amber once the time has
+ * passed (or a one-time reminder has fired); renders nothing when no reminder is set.
  */
 @Composable
 fun ReminderChip(note: NoteDto, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val at = reminderInstant(note) ?: return
     val past = note.reminderFired || at.isBefore(Instant.now())
-    val recurring = note.reminderRecurrence != null && note.reminderRecurrence != ReminderRecurrences.NONE
+    val label = reminderChipLabel(at.atZone(ZoneId.systemDefault()).toLocalDateTime(), note.reminderRecurrence)
     // Filled rather than outlined, and muted rather than faint: on the lift a faint label falls
     // under 3:1 on the darker note colours (ThemeContrastTest). A passed one keeps its outline.
     val tint = if (past) KeepItColors.AccentInk else KeepItColors.TextMuted
@@ -128,10 +110,14 @@ fun ReminderChip(note: NoteDto, onClick: () -> Unit, modifier: Modifier = Modifi
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
         Icon(Icons.Filled.Alarm, contentDescription = "Reminder", tint = tint, modifier = Modifier.size(13.dp))
-        Text(text = formatReminderTime(at), color = tint, fontSize = 11.sp)
-        if (recurring) {
-            Icon(Icons.Filled.Repeat, contentDescription = "Repeats", tint = tint, modifier = Modifier.size(11.dp))
-        }
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 
@@ -227,7 +213,7 @@ fun ReminderDialog(
                 )
                 Column {
                     Text(
-                        text = heroLabel(selected),
+                        text = reminderLabel(selected),
                         color = KeepItColors.Text,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -382,19 +368,6 @@ fun ReminderDialog(
             },
         )
     }
-}
-
-/** The hero line: "Today, 14:00" / "Tomorrow, 08:00" / "Mon, Jul 21, 09:00". */
-private fun heroLabel(at: LocalDateTime): String {
-    val today = LocalDate.now()
-    val day = when (at.toLocalDate()) {
-        today -> "Today"
-        today.plusDays(1) -> "Tomorrow"
-        else -> DateTimeFormatter.ofPattern(
-            if (at.year == today.year) "EEE, MMM d" else "EEE, MMM d, yyyy",
-        ).format(at.toLocalDate())
-    }
-    return "$day, ${DateTimeFormatter.ofPattern("HH:mm").format(at.toLocalTime())}"
 }
 
 /** The live caption under the hero: how far away it is, plus the repeat cadence when set. */

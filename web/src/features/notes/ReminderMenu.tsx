@@ -1,36 +1,16 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useSetNoteReminder } from './queries';
-import { browserTimeZone, parseUtc } from './reminderTime';
+import { browserTimeZone, parseUtc, RECURRENCE_LABELS, reminderLabel } from './reminderTime';
 import { ClockIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import type { NoteDto, ReminderRecurrence } from '../../api/types';
 
 type Recurrence = Exclude<ReminderRecurrence, null | undefined>;
 
-const RECURRENCE_LABELS: Record<Recurrence, string> = {
-  None: 'Does not repeat',
-  Daily: 'Daily',
-  Weekly: 'Weekly',
-  Monthly: 'Monthly',
-  Yearly: 'Yearly',
-};
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const toDateInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const toTimeInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-/** The hero line: "Today, 14:00" / "Tomorrow, 08:00" / "Mon, Jul 21, 09:00". */
-function heroLabel(at: Date): string {
-  const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-  const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  if (at.toDateString() === today.toDateString()) return `Today, ${time}`;
-  if (at.toDateString() === tomorrow.toDateString()) return `Tomorrow, ${time}`;
-  const opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
-  if (at.getFullYear() !== today.getFullYear()) opts.year = 'numeric';
-  return `${at.toLocaleDateString(undefined, opts)}, ${time}`;
-}
 
 /** The live caption under the hero: how far away it is, plus the repeat cadence when set. */
 function captionLabel(at: Date, recurrence: Recurrence): string {
@@ -124,7 +104,7 @@ export function ReminderMenu({ note, onClose }: { note: NoteDto; onClose: () => 
         <ClockIcon className="shrink-0 text-lg text-accent-ink" />
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold leading-tight text-text">
-            {selected ? heroLabel(selected) : 'Pick a time'}
+            {selected ? reminderLabel(selected) : 'Pick a time'}
           </p>
           {selected && (
             <p className={cn('text-xs', isPast ? 'text-warning' : 'text-text-faint')}>

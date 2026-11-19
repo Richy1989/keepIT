@@ -126,6 +126,10 @@ class WebTokenParityTest {
             assertPercent(p, "--note-lift", p.card.lift, web)
             assertPercent(p, "--note-sink", p.card.sink, web)
             assertPercent(p, "--note-ring", p.card.ring, web)
+            assertPercent(p, "--note-pattern", p.card.pattern, web)
+            for (color in listOf("yellow", "green", "blue", "pink", "purple")) {
+                assertToken(p, "--hl-$color", p.highlight(color), web)
+            }
             assertEquals("$p: --shadow-note", shadow(web.getValue("--shadow-note")), p.card.shadow)
             assertToken(p, "--photo-scrim", p.card.photoScrim, web)
             assertToken(p, "--photo-text", p.card.photoText, web)

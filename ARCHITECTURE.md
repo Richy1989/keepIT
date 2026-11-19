@@ -1037,7 +1037,7 @@ more modern**, not a pixel clone.
 
 ## Note functions (product definition)
 
-A note is one of several **types**, and any note can carry a background color:
+A note is one of several **types**, and any note can carry a background color and image:
 
 1. **Text note** — free-form **Markdown** text in `body`, rendered on cards and for viewers, with
    a formatting toolbar in both editors. The default type.
@@ -1051,6 +1051,18 @@ A note is one of several **types**, and any note can carry a background color:
    - **Raw HTML is shown as text, never interpreted**, and only `http(s)`/`mailto` links open
      (Android adds `tel`). Shared notes are other people's text: a `file://` link crashed the app
      on tap (FileUriExposedException) before Android filtered schemes.
+   - **The one exception is a highlight**: `<mark data-color="green">text</mark>`, in yellow,
+     green, blue, pink or purple (`<mark>` alone, or an unknown colour, is yellow). Neither client
+     lets the HTML through: each pairs the two tags among the parsed inline nodes, and only when
+     they sit in the same paragraph and the same run of formatting
+     (`web/src/features/notes/highlight.ts` as a remark plugin, Android's
+     `ui/markdown/HighlightMarks.kt` over commonmark-java's nodes); anything else, an unpaired tag
+     included, still shows as text. A tag rather than a syntax of our own (`==text==`) because
+     other Markdown apps show `<mark>` as a highlight too. The fills are opaque theme tokens
+     (`--hl-*`, deep on Dark and Dim, pastel on Light, transcribed on Android), and text on them is
+     always the full text colour — links too — which `index.css.test.ts` holds to AA.
+     `highlight.json` specifies both the rendering and the toolbar's highlighter, for both
+     clients. Search and previews read the text without the tags.
    - **Editing rules are shared**: `web/src/features/notes/markdownEdit.ts` and Android's
      `ui/markdown/MarkdownEdit.kt` implement the same toolbar toggles and Enter-continues-the-list,
      each unit-tested. The Android editor also styles the raw text in place
@@ -1071,8 +1083,8 @@ A note is one of several **types**, and any note can carry a background color:
    and then recomputes the parent. A partially completed group appears twice: the parent stays in the active list with its
    unchecked children, and the completed section repeats it as a greyed, non-interactive heading
    above the checked children.
-3. **Background** — every note can set a background **color** from the palette. Background
-   *images* are still not implemented.
+3. **Background** — every note can set a background **color** from the palette, and a
+   background **image** tiled over it (see "Note backgrounds" below).
 
 Plus, orthogonal to type: **image attachments** (any note, ordered, append-only — see "Profile
 images & media"), pin / archive / trash (per user), list membership (per user), sharing
@@ -1080,6 +1092,39 @@ images & media"), pin / archive / trash (per user), list membership (per user), 
 
 Note there is no separate "image note" type: attachments hang off text and checklist notes alike,
 so a note whose content is just photos is an image note without the model needing to say so.
+
+### Note backgrounds
+
+A note's `background` is the **name** of an image in the repository's `backgrounds/` folder
+(`lined` for `backgrounds/lined.png`), tiled over the note's colour from the top left. It is
+shared content, like the colour. Its rules are in `backgrounds/README.md`; the decisions:
+
+- **The images ship with the clients, not the server.** The web bundle (Vite globs the folder,
+  `web/src/features/notes/backgroundImages.ts`) and the Android app (a Gradle task copies it into
+  the assets, `copyNoteBackgrounds`) both carry the same folder, so a background shows offline and
+  in standalone mode, and the API stores and validates only the name's shape
+  (`Notes/NoteBackground.cs`: lowercase words and single hyphens, ≤ 64), never that the image
+  exists. A client without the image (an older build, a name from a newer one) draws the note
+  without it and keeps the name. The cost: a new image needs a release, and a name that has shipped
+  must never be renamed or removed.
+- **Stencils, tiled over the colour, at 2×.** An image is a seamless tile whose *alpha* is the
+  pattern: the clients paint it in the note colour's own border token at the theme's
+  `--note-pattern` strength (web: a CSS mask on an empty layer behind the content; Android: an
+  image shader through a `SrcIn` tint). So one opaque black file suits all ten colours and all
+  three themes, and the pattern always reads as a shade of its note. Line spacing is the same on
+  every card height (a stretched image would not be). A file is drawn at half its pixel size (CSS
+  `image-set(… 2x)`, and on Android scaled to `px × density / 2`). On a photo card the photo takes
+  the place of both colour and image; in the editors the image scrolls with the text.
+- **Set only when named.** `UpdateNoteDto.Fields == null` has always meant "set everything", and
+  an app older than 1.3 sends no background, so its whole-note update would wipe one. Null fields
+  therefore set every field *but* `Background` (`NoteFields.SET_BY_DEFAULT` on Android); only an
+  update naming `Background` sets it.
+- **The first feature that needs a newer server.** A 1.2 server refuses an update naming
+  `Background` (an unknown enum value), so Android reads the server's version from `/api/meta`
+  (`data/ServerFeatures.kt`, at the start of every sync, remembered per server address): with a
+  server older than 1.3 the picker says the server needs updating, and the outbox takes
+  `Background` out of an edit it replays to one (`forServer`), so an edit made in standalone mode
+  or offline still lands, minus the background. The web needs no check: it is served by its server.
 
 ## Data model (implemented)
 
@@ -1461,6 +1506,10 @@ time (`/p:Version` + commit sha, clipped to 7 chars); local builds honestly repo
 `0.0.0-dev`. The web settings page and the Android about screen both display it. The Android
 app's own `versionName`/`versionCode` are derived from the same tag by CI.
 
+The Android app also reads it to know what its server can do (`data/ServerFeatures.kt`), since
+it may be newer than the server: a beta counts as its release, and `0.0.0-dev` as newer than
+any. Note backgrounds were the first feature to need it (see "Note backgrounds").
+
 ## Deployment
 
 **The target is Docker on your own hardware.** Local dev runs bare (`dotnet run` +
@@ -1541,11 +1590,19 @@ reconciler bring up to date.
 image (tagged `X.Y.Z` + `latest`, with the version/sha baked in for `/api/meta`), builds the
 **signed Android APK** (version name/code derived from the tag; keystore from repo secrets,
 mirrored locally by a gitignored `app/keystore.properties`), and publishes a GitHub Release
-with the APK attached. Google Play is not in the workflow: it carries keepIT in open testing,
-from a bundle built locally (`./gradlew :app:assembleRelease :app:bundleRelease` with the tag's
-`VERSION_NAME`/`VERSION_CODE`) and uploaded in Play Console by hand. Play signs with the release
-key itself (uploaded through PEPK, not a Google-generated key), so its installs update across
-F-Droid and GitHub like any other.
+with the APK attached. Play signs with the release key itself (uploaded through PEPK, not a
+Google-generated key), so its installs update across F-Droid and GitHub like any other.
+
+**Google Play** gets the same build as an app bundle (`bundleRelease`, beside `assembleRelease`;
+nothing in Gradle knows about Play, so F-Droid's reproducible APK is untouched). The upload is a
+`play` job of its own that runs after the GitHub Release, so a Play failure — an expired key, a
+track the app has no access to yet — never holds back GitHub, Docker or F-Droid; the bundle and its
+R8 mapping are the release job's `google-play` artifact (30 days), for re-running the job or
+uploading by hand. A beta goes to the `PLAY_BETA_TRACK` repo variable (default `beta`, Play's id
+for open testing), a release to `PLAY_RELEASE_TRACK` (default `production`), both as completed
+releases that Play then reviews. "What's new" is the release's fastlane changelog; a beta has none,
+so it names the ✨ items of `## Unreleased` and links its pre-release. The job authenticates with a
+service account's JSON key in the `PLAY_SERVICE_ACCOUNT_JSON` secret and does nothing without it.
 
 The release notes are laid out like calendarIT's (the structure is in CLAUDE.md → Releases).
 The workflow writes the frame: the `# keepIT X.Y.Z` title, the logo, and "Changes since" the

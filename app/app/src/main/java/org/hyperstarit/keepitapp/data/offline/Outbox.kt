@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.hyperstarit.keepitapp.data.NoteFields
 import org.hyperstarit.keepitapp.data.ReminderRecurrences
 import org.hyperstarit.keepitapp.data.UpdateListDto
 import java.time.Instant
@@ -183,6 +184,12 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
                             title = incoming.dto.title,
                             body = incoming.dto.body,
                             color = incoming.dto.color,
+                            // Only when the edit sets it: an edit without fields leaves it alone.
+                            background = if (incoming.dto.fields?.contains(NoteFields.BACKGROUND) == true) {
+                                incoming.dto.background
+                            } else {
+                                op.dto.background
+                            },
                             checklistItems = incoming.dto.checklistItems,
                         ),
                     )
@@ -191,13 +198,25 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
                 // The earlier edit's fields still have to reach the server, so the merged edit names
                 // both edits' fields: its content is the later one's, which holds the earlier's too.
                 val earlier = ops.filterIsInstance<PendingOp.Update>().firstOrNull { it.noteId == id }
+                // No fields means all but the background, so an edit naming the background and one
+                // naming nothing merge into one that names them all, background included.
+                val namesBackground = listOfNotNull(earlier?.dto?.fields, incoming.dto.fields)
+                    .any { NoteFields.BACKGROUND in it }
                 val fields = when {
                     earlier == null -> incoming.dto.fields
+                    namesBackground -> ((earlier.dto.fields ?: NoteFields.SET_BY_DEFAULT) +
+                        (incoming.dto.fields ?: NoteFields.SET_BY_DEFAULT)).distinct()
                     earlier.dto.fields == null || incoming.dto.fields == null -> null
                     else -> (earlier.dto.fields + incoming.dto.fields).distinct()
                 }
+                // The later edit's content holds the earlier's, but for the background when only
+                // the earlier one set it: the later edit then carries whatever it was built from.
+                val background =
+                    if (incoming.dto.fields?.contains(NoteFields.BACKGROUND) != true &&
+                        earlier?.dto?.fields?.contains(NoteFields.BACKGROUND) == true
+                    ) earlier.dto.background else incoming.dto.background
                 ops.filterNot { it is PendingOp.Update && it.noteId == id } +
-                    incoming.copy(dto = incoming.dto.copy(fields = fields))
+                    incoming.copy(dto = incoming.dto.copy(fields = fields, background = background))
             }
 
         is PendingOp.SetLists -> {

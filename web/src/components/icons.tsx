@@ -216,6 +216,24 @@ export const ChevronLeftIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+/** A panel with its left column, and an arrow that folds it away (the sidebar's collapse button). */
+export const PanelLeftCloseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+    <path d="m16 15-3-3 3-3" />
+  </Icon>
+);
+
+/** The same panel with the arrow pointing out: brings the sidebar back. */
+export const PanelLeftOpenIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+    <path d="m14 9 3 3-3 3" />
+  </Icon>
+);
+
 export const CameraIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z" />
@@ -338,6 +356,14 @@ export const StrikethroughIcon = (p: SVGProps<SVGSVGElement>) => (
     <path d="M16 4H9a3 3 0 0 0-2.83 4" />
     <path d="M14 12a4 4 0 0 1 0 8H6" />
     <path d="M4 12h16" />
+  </Icon>
+);
+
+export const HighlighterIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M15 4.5l4.5 4.5-8.5 8.5H6.5V13z" />
+    <path d="M12.5 7l4.5 4.5" />
+    <path d="M4 21h10" />
   </Icon>
 );
 

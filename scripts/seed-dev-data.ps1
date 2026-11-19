@@ -17,8 +17,8 @@
     re-running gives you a clean, known data set instead of piling duplicates on top.
 
     A few notes carry photos from scripts/seed-assets/, uploaded through the real media endpoint, so
-    a seeded instance exercises image attachments as well as text. Needs PowerShell 7+ (the
-    multipart upload uses Invoke-RestMethod -Form).
+    a seeded instance exercises image attachments as well as text, and many have a background
+    from backgrounds/. Needs PowerShell 7+ (the multipart upload uses Invoke-RestMethod -Form).
 
 .PARAMETER Domain
     Backend URL or host. A full URL (http://localhost:5025) is used as-is; a bare host
@@ -234,16 +234,36 @@ $checklistNotes = @(
         @{ x = "Install Node 22+"; done = $true }, @{ x = "Copy .env.example"; done = $false }, @{ x = "Run seed script"; done = $false }) }
 )
 
+# Backgrounds by note title: the name of an image in backgrounds/ (the server stores only the name).
+# A note left out here has none ($null).
+$backgrounds = @{
+    "Q3 roadmap"                = "work"
+    "Standup notes"             = "coffee"
+    "Bug: optimistic rollback"  = "code"
+    "Books to read"             = "study"
+    "Gift ideas for Mum"        = "birthday"
+    "App idea: habit streaks"   = "dots"
+    "Blog post drafts"          = "lined"
+    "Tokyo trip"                = "travel"
+    "Carbonara (the real one)"  = "food"
+    "Groceries"                 = "groceries"
+    "Trip todo"                 = "beach"
+    "Weekend chores"            = "squared"
+    "Onboarding setup"          = "code"
+    "Garden visitors"           = "garden"
+}
+
 $createdNotes = New-Object System.Collections.Generic.List[object]
 
 foreach ($n in $textNotes) {
     $listIds = @($n.lists | ForEach-Object { $lists[$_] })
     $note = Invoke-Api -Method POST -Path "/api/notes" -Body @{
-        type    = "Text"
-        title   = $n.t
-        body    = $n.b
-        color   = $n.c
-        listIds = $listIds
+        type       = "Text"
+        title      = $n.t
+        body       = $n.b
+        color      = $n.c
+        background = $backgrounds[$n.t]
+        listIds    = $listIds
     }
     $createdNotes.Add($note)
 }
@@ -260,6 +280,7 @@ foreach ($n in $checklistNotes) {
         type           = "Checklist"
         title          = $n.t
         color          = $n.c
+        background     = $backgrounds[$n.t]
         checklistItems = $items
         listIds        = $listIds
     }
@@ -284,11 +305,12 @@ $imageCount = 0
 foreach ($n in $imageNotes) {
     $listIds = @($n.lists | ForEach-Object { $lists[$_] })
     $note = Invoke-Api -Method POST -Path "/api/notes" -Body @{
-        type    = "Text"
-        title   = $n.t
-        body    = $n.b
-        color   = $n.c
-        listIds = $listIds
+        type       = "Text"
+        title      = $n.t
+        body       = $n.b
+        color      = $n.c
+        background = $backgrounds[$n.t]
+        listIds    = $listIds
     }
     $createdNotes.Add($note)
 

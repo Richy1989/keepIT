@@ -41,6 +41,7 @@ and the **Android app** (`app/`). They talk only over HTTP + WebSocket — never
   every older export: `keepITCore.Tests/Archives/` holds real exports from released versions,
   which `ImportTests` imports into the server and the app's `ArchiveTest` reads, so never edit
   one, and add one when a release changes what an export holds.
+- **Note backgrounds are names, not uploads.** An image in `backgrounds/` (rules in its README) is offered by the web and the Android app, which both ship the folder; the server stores only the name. A name that has shipped is forever: never rename or delete one. An update without `Fields` never sets `Background` (an older app would wipe it) — see ARCHITECTURE.md → Note backgrounds.
 - **A note's attachments are one list of two kinds.** `NoteMedia.Kind` (`Image`/`Audio`) — never a
   second table, and never renumber the kinds: the column holds the number. Audio is
   stored **byte for byte as uploaded** (no encoder in the container), so identifying it by
@@ -66,7 +67,7 @@ the Android app generally should too. Key design points:
   format is chosen for playback *and* the planned transcription, so do not "optimise" it down to
   16 kHz. Recording reuses the image attach path end to end (stage → `PendingOp.AttachMedia` →
   upload), which is why it works offline and in standalone mode without new machinery.
-- **The server may be older than the app.** F-Droid updates the app by itself, and operators update their servers by hand. A feature that needs a server newer than 1.0 reads the server's version from `/api/meta` and stays hidden on an older one, saying the server needs updating. The first such feature adds that check; there is none yet. Never detect a missing feature by catching a 404: a 404 from a bug would then blame the server.
+- **The server may be older than the app.** F-Droid updates the app by itself, and operators update their servers by hand. A feature that needs a server newer than 1.0 reads the server's version from `/api/meta` and stays hidden on an older one, saying the server needs updating. `data/ServerFeatures.kt` holds that check (note backgrounds were the first to need it): add the feature's first version there, hide the feature until `ServerVersions.atLeast` says yes, and shape queued ops for the server they reach (`forServer`), since an op made offline or in standalone mode may replay to an older one. Never detect a missing feature by catching a 404: a 404 from a bug would then blame the server.
 - **DTOs are hand-synced.** `data/Dtos.kt` mirrors the C# DTOs (the source of truth). Change a C# DTO → update `Dtos.kt` to match. There is no codegen step here, so this is the one place drift can creep in — keep field names and nullability exactly aligned. The same goes for size limits: `data/NoteLimits.kt` mirrors the server's `Data/NoteLimits.cs`, and the app holds notes to it before queueing (a note the server refuses is one the outbox can only drop).
 - **Session** (`SessionRepository` + `ApiClient`): access token in memory, refresh cookie persisted in app-private `SharedPreferences` via `PersistentCookieJar` (the mobile analogue of the web httpOnly cookie), silent refresh on 401. Base server URL is user-entered at login.
 - **Realtime** (`RealtimeClient`): SignalR against `RealTimeHub`; on `Changed` it triggers a sync/refetch, same contract as the web client.
@@ -216,6 +217,7 @@ keepIT/
 │     ├─ ui/                # AppRoot (nav) + auth/ notes/ notifications/ settings/ markdown/ theme/
 │     ├─ widget/            # KeepItWidget (Glance home-screen widget)
 │     └─ MainActivity.kt    # single-activity host; intents → Destination
+├─ backgrounds/             # note background images, shipped by the web and Android apps (README has the rules)
 ├─ deploy/                  # Unraid template (keepit.unraid.xml)
 ├─ docs/brand/              # app icon source: keepit-icon.blend + render_icons.py (writes every icon file)
 ├─ docker-compose.yml

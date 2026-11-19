@@ -1,0 +1,5 @@
+Checklists: typing an item offers the ticked one it matches, ticked items fold away under "3 ticked items", and switching a note between text and checklist converts it.
+
+Shared notes show the faces of the people on them, and a bell in the top bar counts unread notifications. New accounts start with a welcome note.
+
+Running your own server? Update it to 1.2.0 too: faces on shared notes need it.

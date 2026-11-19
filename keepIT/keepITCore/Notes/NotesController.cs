@@ -130,6 +130,7 @@ public class NotesController : ControllerBase
             Title = dto.Title,
             Body = dto.Body,
             Color = dto.Color,
+            Background = dto.Background,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
         };
@@ -164,7 +165,7 @@ public class NotesController : ControllerBase
     }
 
     /// <summary>
-    /// Replaces a note's editable content (title, body, color, type, checklist items) — all of it, or
+    /// Replaces a note's editable content (title, body, color, background, type, checklist items) — all of it, or
     /// only the fields the update names in <see cref="UpdateNoteDto.Fields"/>.
     /// </summary>
     /// <param name="id">The note id.</param>
@@ -189,12 +190,16 @@ public class NotesController : ControllerBase
         // Only the fields the update names (all of them when it names none; see UpdateNoteDto.Fields).
         // Naming none at all changes nothing, so nothing is written and nobody is told.
         if (dto.Fields is { Count: 0 }) return Ok((await LoadDtoAsync(id, callerId.Value))!);
-        bool Sets(NoteField field) => dto.Fields is null || dto.Fields.Contains(field);
+        // Background is the exception: an update without fields leaves it alone, since an app that
+        // predates it never sends one (see UpdateNoteDto.Fields).
+        bool Sets(NoteField field) =>
+            dto.Fields is null ? field != NoteField.Background : dto.Fields.Contains(field);
 
         if (Sets(NoteField.Type)) note.Type = dto.Type;
         if (Sets(NoteField.Title)) note.Title = dto.Title;
         if (Sets(NoteField.Body)) note.Body = dto.Body;
         if (Sets(NoteField.Color)) note.Color = dto.Color;
+        if (Sets(NoteField.Background)) note.Background = dto.Background;
         note.UpdatedAtUtc = DateTime.UtcNow;
 
         if (Sets(NoteField.ChecklistItems)) ReconcileChecklist(note, dto.ChecklistItems);

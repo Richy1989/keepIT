@@ -82,6 +82,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
             e.HasKey(n => n.Id);
             e.Property(n => n.Title).HasMaxLength(NoteLimits.Title);
             e.Property(n => n.Color).HasMaxLength(NoteLimits.Color);
+            e.Property(n => n.Background).HasMaxLength(NoteLimits.Background);
             // The grid always filters by owner (+ archived/trashed flags), so index the owner.
             e.HasIndex(n => n.OwnerId);
 

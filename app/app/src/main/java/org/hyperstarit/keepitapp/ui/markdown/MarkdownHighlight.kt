@@ -27,7 +27,8 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItPalette
 /**
  * Live styling for the note editor. The field still holds — and shows — the raw Markdown exactly
  * as typed, but styled in place: bold reads bold, headings are larger, code is monospaced, links
- * are coloured, and the syntax itself (`**`, `#`, `- `, `](url)`) is dimmed so the words stand out.
+ * are coloured, highlights sit on their fill, and the syntax itself (`**`, `#`, `- `, `](url)`,
+ * `<mark …>`) is dimmed so the words stand out.
  *
  * Only styles are added, never characters, so [OffsetMapping.Identity] holds: the cursor, the
  * selection, the keyboard's composition and the formatting toolbar all work on the source text,
@@ -118,6 +119,17 @@ fun markdownHighlight(source: String, palette: KeepItPalette): AnnotatedString {
                 is ThematicBreak -> add(syntax, s, e)
             }
         }
+        // Highlights among this node's inlines: the fill over all of it, its tags dimmed.
+        fun mark(pieces: List<HighlightMarks.Piece>) {
+            for (piece in pieces) {
+                if (piece !is HighlightMarks.Piece.Highlight) continue
+                add(SpanStyle(background = palette.highlight(piece.color), color = palette.text), piece.open.start(), piece.close.end())
+                mark(piece.inside)
+                add(syntax, piece.open.start(), piece.open.end())
+                add(syntax, piece.close.start(), piece.close.end())
+            }
+        }
+        if (node.firstChild != null) mark(HighlightMarks.pair(node.children().toList()))
         // Nothing inside code is Markdown, so its children (there are none) and its text stay as is.
         for (child in node.children()) visit(child)
     }

@@ -7,6 +7,11 @@ name: Release
 # someone who asks for it looks. The GitHub Release is a pre-release (Obtainium skips those unless
 # "Include prereleases" is on), the Docker image is tagged `X.Y.Z-beta.N` and `beta` but never
 # `latest`, and F-Droid never sees it (its recipe follows `^v[\d.]+$` tags only).
+#
+# Google Play gets the same build as an app bundle, in a job of its own that runs after the
+# GitHub Release, so a Play failure never holds back GitHub, Docker or F-Droid: a beta goes to
+# open testing, a release to production (the tracks are the repo variables PLAY_BETA_TRACK and
+# PLAY_RELEASE_TRACK). Without the PLAY_SERVICE_ACCOUNT_JSON secret the job does nothing.
 on:
   push:
     tags:
@@ -111,15 +116,59 @@ jobs:
           # VERSION_NAME / VERSION_CODE are read from $GITHUB_ENV set above.
         run: |
           chmod +x ./gradlew   # git tracks the exec bit, but keep this as a Windows-edit safety net
-          ./gradlew :app:assembleRelease --no-daemon
+          # The bundle is Google Play's; it is built from the same sources and key as the APK,
+          # and nothing else in the build knows about Play (F-Droid reproduces the APK alone).
+          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
           # Single fat APK carrying every ABI (arm64-v8a/armeabi-v7a/x86/x86_64) — no ABI splits, so
           # the '-universal' suffix marks it as the all-architectures build.
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/keepit-${GITHUB_REF_NAME}-universal.apk"
+          mkdir -p "$RUNNER_TEMP/play"
+          cp app/build/outputs/bundle/release/app-release.aab app/build/outputs/mapping/release/mapping.txt \
+            "$RUNNER_TEMP/play/"
 
-      # ---- GitHub Release ----
       # The release this one follows: the notes say what changed since it, and a release's list
       # of changes should cover everything since it too (left to itself, GitHub may start at the
       # last beta). A beta follows the last release, as its `## Unreleased` notes do.
+      # ---- What's new on Google Play (at most 500 characters) ----
+      # A release says what its fastlane changelog says, the text F-Droid shows. A beta has no
+      # changelog of its own, so it names the new features of `## Unreleased` (the text before
+      # each item's " — ") and links its GitHub pre-release for the rest.
+      - name: Google Play release notes
+        run: |
+          mkdir -p "$RUNNER_TEMP/play/whatsnew"
+          OUT="$RUNNER_TEMP/play/whatsnew/whatsnew-en-US"
+          CHANGELOG="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
+          LINK="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          if [ "$PRERELEASE" = false ] && [ -s "$CHANGELOG" ]; then
+            cp "$CHANGELOG" "$OUT"
+          else
+            [ "$PRERELEASE" = false ] && echo "::warning::$CHANGELOG is missing; Google Play gets a generic note"
+            FEATURES=$(awk '
+              /^## Unreleased$/ { inside = 1; next }
+              inside && /^## / { exit }
+              inside && /^### / { features = ($0 ~ /New Features/); next }
+              inside && features && /^- / && index($0, " — ") { print substr($0, 3, index($0, " — ") - 3) }
+            ' CHANGELOG.md | paste -sd ',' | sed 's/,/, /g')
+            {
+              [ "$PRERELEASE" = true ] && printf 'A beta of the next version, for testing.'
+              [ -n "$FEATURES" ] && printf ' New: %s.' "$FEATURES"
+              printf ' Everything that changed: %s\n' "$LINK"
+            } | sed 's/^ //' > "$OUT"
+          fi
+          # Play refuses longer notes, and the upload with them. Cut at a word, keep the link off.
+          if [ "$(wc -m < "$OUT")" -gt 500 ]; then
+            echo "::warning::What's new is $(wc -m < "$OUT") characters; Google Play gets the first 500"
+            python3 -c 'import sys; p = sys.argv[1]; t = open(p, encoding="utf-8").read()[:499]; open(p, "w", encoding="utf-8").write(t[:t.rfind(" ")] + "…")' "$OUT"
+          fi
+          cat "$OUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: google-play
+          path: ${{ runner.temp }}/play/
+          retention-days: 30
+          if-no-files-found: error
+
+      # ---- GitHub Release ----
       - name: Previous release
         run: |
           PREVIOUS=$({ git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' \
@@ -182,3 +231,44 @@ jobs:
           # A beta's list starts wherever GitHub chooses, as it always has.
           previous_tag: ${{ env.PRERELEASE == 'false' && env.PREVIOUS_RELEASE || '' }}
           body_path: ${{ runner.temp }}/release-notes.md
+
+  # ---- Google Play ----
+  # Runs after everything else is published, so a failure here (an expired key, a track the app
+  # has no access to yet, a refused review) holds back nothing. Re-run this job on its own once
+  # the cause is fixed: the bundle is the release job's artifact, kept for 30 days, and also the
+  # file to upload in Play Console by hand. A versionCode Play has already taken is refused, and
+  # that only means this tag is already there.
+  play:
+    needs: release
+    runs-on: ubuntu-26.04
+    permissions: {}
+    steps:
+      - name: Is Google Play set up?
+        id: setup
+        env:
+          SERVICE_ACCOUNT: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::notice::No PLAY_SERVICE_ACCOUNT_JSON secret, so nothing goes to Google Play."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v8
+        if: steps.setup.outputs.enabled == 'true'
+        with:
+          name: google-play
+          path: play
+      # Pinned to a commit, not a tag: this step holds the key that publishes the app.
+      - uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        if: steps.setup.outputs.enabled == 'true'
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: org.hyperstarit.keepitapp
+          releaseFiles: play/app-release.aab
+          releaseName: ${{ github.ref_name }}
+          # `beta` is Play's id for the open testing track.
+          track: ${{ contains(github.ref_name, '-beta.') && (vars.PLAY_BETA_TRACK || 'beta') || (vars.PLAY_RELEASE_TRACK || 'production') }}
+          status: completed
+          mappingFile: play/mapping.txt
+          whatsNewDirectory: play/whatsnew
