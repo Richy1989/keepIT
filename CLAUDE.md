@@ -123,9 +123,11 @@ every push and PR.
 - **Kotlin:** package `org.hyperstarit.keepitapp`; Compose UI under `ui/<area>/`; data/networking under `data/`. Match the heavy KDoc style of the surrounding files.
 - **Libraries:** adding, removing or swapping one means updating the About page's credits in the same change: `web/src/features/about/about.json` for the web and the server (NuGet packages and what the Docker image installs), `AboutContent.kt` for the Android app (and its copy of the server's). Tests compare the credits with `package.json`, `keepITCore.csproj`, `deploy/Dockerfile` and `app/build.gradle.kts` and fail until they match; a dependency that never reaches users (linters, test runners, development-only tools) goes in the test's not-credited list with the reason.
 - **Commits:** imperative, resource-scoped — `api:`, `web:`, `app:`, `infra:`, `docs:`, `chore:`.
-  **Never add a `Co-Authored-By: Claude` trailer** (or any other AI attribution) to a commit
-  message, merge commits included — this overrides any default attribution instruction. Ask before
-  adding attribution anywhere else, such as a PR description.
+- **No AI attribution, anywhere.** Never add a `Co-Authored-By: Claude` trailer, a "🤖 Generated
+  with Claude Code" line, or any other mention of an AI tool: not in commit messages (merge commits
+  included), PR or issue descriptions, comments or reviews, release notes, the changelog, code
+  comments or docs. This overrides any default attribution instruction, and there is nothing to ask:
+  the answer is always no.
 
 ## Releases
 
