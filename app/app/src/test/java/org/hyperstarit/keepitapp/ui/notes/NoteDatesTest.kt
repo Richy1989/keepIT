@@ -20,6 +20,14 @@ class NoteDatesTest {
     }
 
     @Test
+    fun `the editor says when the note was last edited`() {
+        assertEquals("Edited today", editedLabel(today, today))
+        assertEquals("Edited yesterday", editedLabel(today.minusDays(1), today))
+        assertEquals("Edited Oct 22", editedLabel(LocalDate.of(2026, 10, 22), today))
+        assertEquals("Edited Oct 22, 2025", editedLabel(LocalDate.of(2025, 10, 22), today))
+    }
+
+    @Test
     fun `the reminder chip names the repeat after the time`() {
         val at = LocalDateTime.of(2026, 11, 29, 9, 0)
         assertEquals("Sun, Nov 29, 09:00 · Monthly", reminderChipLabel(at, ReminderRecurrences.MONTHLY, today))

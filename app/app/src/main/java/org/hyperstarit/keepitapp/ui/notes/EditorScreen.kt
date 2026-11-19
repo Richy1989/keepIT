@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -90,6 +91,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextRange
@@ -772,15 +774,38 @@ fun EditorScreen(
                 .verticalScroll(bodyScroll)
                 .padding(horizontal = 16.dp),
         ) {
+            // The title is the page's headline, and under it the line that says when the note
+            // last changed and who else is on it; the reminder and the pictures come after.
+            TextField(
+                value = title,
+                onValueChange = { title = NoteLimits.cut(it, NoteLimits.TITLE) },
+                placeholder = {
+                    Text("Title", color = KeepItColors.TextFaint, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+                },
+                supportingText = limitNotice(title.length >= NoteLimits.TITLE, "A title holds up to 1,000 characters."),
+                readOnly = !canEdit,
+                colors = transparentFieldColors(),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 26.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.3).sp,
+                    color = KeepItColors.Text,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            live?.let { n ->
+                NoteMetaLine(
+                    note = n,
+                    pictures = repo.collaboratorPictures,
+                    ring = swatch.bg,
+                    // In line with the title's text, which the field insets by 16 dp.
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                )
+            }
+
             note?.let { n ->
-                if (!n.isOwner) {
-                    Text(
-                        text = if (n.canEdit) "Shared with you — you can edit" else "Shared with you — view only",
-                        color = KeepItColors.TextFaint,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
-                }
                 if (n.remindAtUtc != null) {
                     ReminderChip(
                         note = n,
@@ -858,21 +883,6 @@ fun EditorScreen(
                     )
                 }
             }
-
-            TextField(
-                value = title,
-                onValueChange = { title = NoteLimits.cut(it, NoteLimits.TITLE) },
-                placeholder = { Text("Title", color = KeepItColors.TextFaint) },
-                supportingText = limitNotice(title.length >= NoteLimits.TITLE, "A title holds up to 1,000 characters."),
-                readOnly = !canEdit,
-                colors = transparentFieldColors(),
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = KeepItColors.Text,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
 
             if (type == NoteTypes.CHECKLIST) {
                 // "Add item" sits between the unchecked rows and the checked ones, as on the web:
@@ -1297,3 +1307,62 @@ private fun NoteDto.asSaved() = UpdateNoteDto(
         .filter { it.text.isNotBlank() }
         .mapIndexed { index, item -> ChecklistItemDto(id = item.id, text = item.text.trim(), isChecked = item.isChecked, order = index) },
 )
+
+/**
+ * The line under the editor's title: "Edited Oct 22", then, on a shared note, the people on it as
+ * faces and in words — "Shared with ben@x" for the owner, "Shared by anna@x — view only" for a
+ * collaborator, the card's own [sharedLabel]. Edits move it on as they sync, since [note] is the
+ * live copy. A note shared by a server too old to list its people just says "Shared".
+ */
+@Composable
+private fun NoteMetaLine(
+    note: NoteDto,
+    pictures: org.hyperstarit.keepitapp.data.offline.CollaboratorPictures,
+    ring: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    val edited = runCatching {
+        editedLabel(
+            java.time.Instant.parse(org.hyperstarit.keepitapp.data.ensureUtc(note.updatedAtUtc))
+                .atZone(java.time.ZoneId.systemDefault()).toLocalDate(),
+        )
+    }.getOrNull()
+    val shared = when {
+        note.collaborators.isNotEmpty() || !note.isOwner -> sharedLabel(note)
+        note.isShared -> "Shared"
+        else -> null
+    }
+    if (edited == null && shared == null) return
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth()) {
+        if (edited != null) {
+            Text(edited, color = KeepItColors.TextMuted, fontSize = 14.sp, maxLines = 1)
+        }
+        if (edited != null && shared != null) {
+            Text("  ·  ", color = KeepItColors.TextFaint, fontSize = 14.sp)
+        }
+        if (shared != null) {
+            if (note.collaborators.isNotEmpty()) {
+                CollaboratorFaces(note = note, pictures = pictures, ring = ring)
+                Spacer(Modifier.width(6.dp))
+            }
+            // The faces already say it to TalkBack; the words are for the eye.
+            Text(
+                text = shared,
+                color = KeepItColors.TextMuted,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .then(
+                        if (note.collaborators.isNotEmpty()) {
+                            Modifier.clearAndSetSemantics { }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            )
+        }
+    }
+}

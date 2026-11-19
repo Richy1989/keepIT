@@ -37,7 +37,21 @@ enum class ThemePref(val key: String, val label: String) {
 }
 
 /**
- * Where [ThemePref] lives: app-private SharedPreferences, read synchronously so the very first
+ * How the notes list lays its cards out: side by side in columns, or one under another. Like the
+ * theme it is this device's choice, never synced — a phone and a tablet want different ones.
+ */
+enum class NotesLayout(val key: String) {
+    Grid("grid"),
+    List("list");
+
+    companion object {
+        /** The grid; anything unknown or missing is it. */
+        fun fromKey(key: String?): NotesLayout = entries.firstOrNull { it.key == key } ?: Grid
+    }
+}
+
+/**
+ * Where [ThemePref] and [NotesLayout] live: app-private SharedPreferences, read synchronously so the very first
  * frame is already in the right theme, and by the widget, which renders with no UI in the process.
  *
  * The choice is also handed to the system as this app's night mode
@@ -56,6 +70,16 @@ class Appearance(context: Context) {
 
     /** The current choice; the theme, the system bars and the widget all follow it. */
     val theme: StateFlow<ThemePref> = _theme
+
+    private val _notesLayout = MutableStateFlow(NotesLayout.fromKey(prefs.getString(KEY_NOTES_LAYOUT, null)))
+
+    /** Columns or a single list, switched from the notes screen's top bar. */
+    val notesLayout: StateFlow<NotesLayout> = _notesLayout
+
+    fun setNotesLayout(layout: NotesLayout) {
+        prefs.edit().putString(KEY_NOTES_LAYOUT, layout.key).apply()
+        _notesLayout.value = layout
+    }
 
     fun setTheme(pref: ThemePref) {
         prefs.edit().putString(KEY_THEME, pref.key).apply()
@@ -76,6 +100,7 @@ class Appearance(context: Context) {
         /** Read by name in `WidgetCompositionSmokeTest`, which writes it as data. */
         const val PREFS_NAME = "keepit_appearance"
         const val KEY_THEME = "theme"
+        const val KEY_NOTES_LAYOUT = "notes_layout"
 
         /** The stored choice, for callers outside the app's container (the widget). */
         fun read(context: Context): ThemePref = ThemePref.fromKey(

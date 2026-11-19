@@ -17,6 +17,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   Android; an older app shows the tags as text.
 - List chips on cards — the lists a note is in show as chips at the bottom of its card, and a
   click or tap on one shows that list. Web and Android.
+- Grid or list — the Android notes screen shows notes two to a row, and a button in its top bar
+  switches between that and one note under another. Each phone keeps its own choice. Android.
 
 ### 🔧 Improvements
 
@@ -24,6 +26,10 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   and is cut short with an ellipsis in a narrow column rather than pushing the card's date out.
   Web and Android.
 - A card's date says "Today" or "Yesterday" for notes created then. Web and Android.
+- The Android editor shows the title as the page's headline, and under it when the note was last
+  edited and, on a shared note, who it is shared with ("Edited today · Shared with ben@x"), in
+  place of the old "Shared with you" line. The reminder and the pictures now come after the title.
+- The Pinned and Others headings on Android say how many notes each holds.
 - On the web, the toolbar a card shows on hover takes the place of its bottom row instead of
   keeping room of its own, so the reminder and the date no longer crowd into a narrow column.
 

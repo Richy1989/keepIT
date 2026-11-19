@@ -49,3 +49,13 @@ fun cardDateLabel(date: LocalDate, today: LocalDate = LocalDate.now()): String =
     today.minusDays(1) -> "Yesterday"
     else -> DateTimeFormatter.ofPattern(if (date.year == today.year) "MMM d" else "MMM d, yyyy").format(date)
 }
+
+/**
+ * The editor's line under the title, from when the note last changed: "Edited today", "Edited
+ * yesterday", then "Edited Nov 17", with the year only outside this one.
+ */
+fun editedLabel(date: LocalDate, today: LocalDate = LocalDate.now()): String = when (date) {
+    today -> "Edited today"
+    today.minusDays(1) -> "Edited yesterday"
+    else -> "Edited " + DateTimeFormatter.ofPattern(if (date.year == today.year) "MMM d" else "MMM d, yyyy").format(date)
+}

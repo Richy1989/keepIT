@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +42,8 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.outlined.Notifications
@@ -107,6 +111,7 @@ import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NotesLayout
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.NotesFilter
 import org.hyperstarit.keepitapp.data.NotesView
@@ -165,6 +170,7 @@ fun NotesScreen(
     val syncStatus by container.syncEngine.status.collectAsState()
     val standalone by container.appMode.standalone.collectAsState()
     val pendingMedia by repo.pendingMediaByNote.collectAsState()
+    val notesLayout by container.appearance.notesLayout.collectAsState()
     val session by container.session.state.collectAsState()
     val profilePicture by container.profileImage.file.collectAsState()
     val unread by container.notificationsWatcher.unread.collectAsState()
@@ -492,6 +498,19 @@ fun NotesScreen(
                             )
                         },
                         actions = {
+                            // Shows the layout a tap switches to, as Keep's does.
+                            val grid = notesLayout == NotesLayout.Grid
+                            IconButton(
+                                onClick = {
+                                    container.appearance.setNotesLayout(if (grid) NotesLayout.List else NotesLayout.Grid)
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = if (grid) Icons.Outlined.ViewAgenda else Icons.Outlined.GridView,
+                                    contentDescription = if (grid) "Show as a list" else "Show as a grid",
+                                    tint = KeepItColors.TextMuted,
+                                )
+                            }
                             IconButton(onClick = { searchOpen = !searchOpen; if (!searchOpen) search = "" }) {
                                 Icon(Icons.Filled.Search, contentDescription = "Search", tint = KeepItColors.TextMuted)
                             }
@@ -583,17 +602,31 @@ fun NotesScreen(
                         )
                     }
 
-                    else -> LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    // The grid is two columns on a phone, as the web's masonry grid; a wider screen
+                    // fits more. Staggered, so each card keeps its own height and a short one never
+                    // leaves a hole beside a tall one. The list is the same grid with one column.
+                    // The labels and "Delete all" span the full width.
+                    else -> LazyVerticalStaggeredGrid(
+                        columns = if (notesLayout == NotesLayout.Grid) {
+                            StaggeredGridCells.Adaptive(minSize = 160.dp)
+                        } else {
+                            StaggeredGridCells.Fixed(1)
+                        },
+                        verticalItemSpacing = 12.dp,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
                             start = 12.dp, end = 12.dp, top = 8.dp, bottom = 96.dp,
                         ),
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         if (pinned.isNotEmpty()) {
-                            item { SectionLabel("PINNED") }
+                            item(key = "label-pinned", span = StaggeredGridItemSpan.FullLine) {
+                                SectionLabel("PINNED", pinned.size)
+                            }
                             items(pinned, key = { "p-${it.id}" }) { note -> card(note) }
-                            item { SectionLabel("OTHERS") }
+                            item(key = "label-others", span = StaggeredGridItemSpan.FullLine) {
+                                SectionLabel("OTHERS", others.size)
+                            }
                         }
                         items(others, key = { it.id }) { note -> card(note) }
                         // Below the last note, as on the web, rather than in the top bar: that is
@@ -601,7 +634,7 @@ fun NotesScreen(
                         // Hidden while searching, where "all" would be ambiguous, and while
                         // selecting, where the bar already offers to delete what is chosen.
                         if (filter.view == NotesView.TRASHED && q.isEmpty() && !selecting) {
-                            item(key = "delete-all") {
+                            item(key = "delete-all", span = StaggeredGridItemSpan.FullLine) {
                                 Box(
                                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                     contentAlignment = Alignment.Center,
@@ -1218,9 +1251,16 @@ private fun SyncStatusStrip(isOnline: Boolean, problem: SyncProblem?, pending: I
 }
 
 @Composable
-private fun SectionLabel(text: String) {
+private fun SectionLabel(text: String, count: Int) {
+    // "PINNED  4": the count in regular weight, so the word stays the label.
     Text(
-        text = text,
+        text = androidx.compose.ui.text.buildAnnotatedString {
+            append(text)
+            append("  ")
+            pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Normal))
+            append(count.toString())
+            pop()
+        },
         color = KeepItColors.TextFaint,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
