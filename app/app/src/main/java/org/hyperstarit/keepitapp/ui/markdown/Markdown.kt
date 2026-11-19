@@ -258,7 +258,24 @@ private fun renderInlines(parent: Node, p: KeepItPalette): AnnotatedString =
     buildAnnotatedString { appendInlines(parent, p) }
 
 private fun AnnotatedString.Builder.appendInlines(parent: Node, p: KeepItPalette) {
-    for (child in parent.children()) appendInline(child, p)
+    appendPieces(HighlightMarks.pair(parent.children().toList()), p)
+}
+
+/**
+ * Siblings with their `<mark>` tags paired ([HighlightMarks]): a highlight is its fill behind the
+ * text, which takes the full text colour on it — a link too — as on the web, since muted text and
+ * the accent ink fall short of AA on the deep fills. Its tags themselves aren't shown.
+ */
+private fun AnnotatedString.Builder.appendPieces(pieces: List<HighlightMarks.Piece>, p: KeepItPalette) {
+    for (piece in pieces) when (piece) {
+        is HighlightMarks.Piece.Plain -> appendInline(piece.node, p)
+        is HighlightMarks.Piece.Highlight -> {
+            val inside = p.withAccentInk(p.text)
+            withStyle(SpanStyle(background = p.highlight(piece.color), color = p.text)) {
+                appendPieces(piece.inside, inside)
+            }
+        }
+    }
 }
 
 private fun AnnotatedString.Builder.appendInline(node: Node, p: KeepItPalette) {

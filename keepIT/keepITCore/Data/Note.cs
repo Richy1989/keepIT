@@ -2,8 +2,8 @@ namespace keepITCore.Data;
 
 /// <summary>
 /// A single note. One table with a <see cref="Type"/> discriminator; type-specific data (checklist
-/// items) hangs off it. Background is a palette <see cref="Color"/> for now — background images and
-/// image notes arrive with media handling in a later pass. Owned by <see cref="OwnerId"/> and
+/// items) hangs off it. Its look is a palette <see cref="Color"/>, optionally with a tiled
+/// <see cref="Background"/> image drawn over it. Owned by <see cref="OwnerId"/> and
 /// optionally shared with others via <see cref="NoteShares"/>. Per-user view state (pin/archive/
 /// trash) lives in <see cref="UserStates"/>, not on the note, so a collaborator's pin or trash is
 /// private to their own grid (ARCHITECTURE.md "Sharing / collaboration").
@@ -29,6 +29,12 @@ public class Note
 
     /// <summary>Background color key from the palette (e.g. "rose"). Null = the default canvas.</summary>
     public string? Color { get; set; }
+
+    /// <summary>
+    /// The background image tiled over <see cref="Color"/>, by name (e.g. "lined"; see
+    /// <c>Notes/NoteBackground.cs</c>). Null = none. Shared content, like the colour.
+    /// </summary>
+    public string? Background { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -77,6 +77,45 @@ public sealed class NoteUpdateFieldsTests
         Assert.Equal(before.GetProperty("updatedAtUtc").GetString(), note.GetProperty("updatedAtUtc").GetString());
     }
 
+    [Fact]
+    public async Task A_background_is_set_when_named_and_kept_by_an_update_without_fields()
+    {
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+        var id = await NewNoteAsync(client, new { type = "Text", title = "Budget", color = "sky", background = "lined" });
+
+        // An app older than backgrounds sends the whole note, without fields and without one: the
+        // background a newer client chose stays.
+        var note = await PutAsync(client, id, new { type = "Text", title = "October budget", color = "sky" });
+        Assert.Equal("October budget", note.GetProperty("title").GetString());
+        Assert.Equal("lined", note.GetProperty("background").GetString());
+
+        note = await PutAsync(client, id, new { type = "Text", background = "grid-dots", fields = new[] { "Background" } });
+        Assert.Equal("grid-dots", note.GetProperty("background").GetString());
+        Assert.Equal("October budget", note.GetProperty("title").GetString());
+
+        note = await PutAsync(client, id, new { type = "Text", background = (string?)null, fields = new[] { "Background" } });
+        Assert.Equal(JsonValueKind.Null, note.GetProperty("background").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("../secret")]
+    [InlineData("Lined")]
+    [InlineData("lined.png")]
+    [InlineData("-lined")]
+    [InlineData("lined--paper")]
+    public async Task A_background_that_is_not_a_plain_name_is_refused(string background)
+    {
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+        var id = await NewNoteAsync(client, new { type = "Text", title = "x" });
+
+        var update = await client.PutAsJsonAsync($"/api/notes/{id}", new { type = "Text", background, fields = new[] { "Background" } });
+        Assert.Equal(HttpStatusCode.BadRequest, update.StatusCode);
+        var create = await client.PostAsJsonAsync("/api/notes", new { type = "Text", background });
+        Assert.Equal(HttpStatusCode.BadRequest, create.StatusCode);
+    }
+
     private static async Task<string> NewNoteAsync(HttpClient client, object body)
     {
         var response = await client.PostAsJsonAsync("/api/notes", body);

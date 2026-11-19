@@ -341,6 +341,14 @@ export const StrikethroughIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+export const HighlighterIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M15 4.5l4.5 4.5-8.5 8.5H6.5V13z" />
+    <path d="M12.5 7l4.5 4.5" />
+    <path d="M4 21h10" />
+  </Icon>
+);
+
 export const HeadingIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <path d="M6 12h12" />

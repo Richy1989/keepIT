@@ -20,6 +20,7 @@ import org.hyperstarit.keepitapp.data.EmptyTrashDto
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
+import org.hyperstarit.keepitapp.data.ServerFeatures
 import org.hyperstarit.keepitapp.data.SetNoteListsDto
 import retrofit2.HttpException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -54,6 +55,7 @@ class SyncEngine(
     private val updater: CacheUpdater,
     private val staging: MediaStaging,
     private val textRescue: NoteTextRescue,
+    private val serverFeatures: ServerFeatures,
     private val isStandalone: () -> Boolean,
 ) {
     /** How synced data lands in the repository's cache — implemented by NotesRepository. */
@@ -90,6 +92,8 @@ class SyncEngine(
         syncMutex.withLock {
             kickPending.set(false)
             status.value = SyncStatus.SYNCING
+            // Before the replay: what the queued ops may say depends on the server's version.
+            serverFeatures.refresh()
             val drained = replay()
             status.value = when {
                 !drained -> SyncStatus.OFFLINE
@@ -111,7 +115,10 @@ class SyncEngine(
                         updater.onIdRemapped(op.tempId, created.id)
                     }
 
-                    is PendingOp.Update -> client.api.updateNote(op.noteId, op.dto)
+                    is PendingOp.Update -> client.api.updateNote(
+                        op.noteId,
+                        op.dto.forServer(storesBackgrounds = serverFeatures.backgrounds == true),
+                    )
                     is PendingOp.SetState -> client.api.setNoteState(op.noteId, op.state)
                     is PendingOp.SetLists -> client.api.setNoteLists(op.noteId, SetNoteListsDto(op.listIds))
                     is PendingOp.SetReminder -> client.api.setReminder(op.noteId, op.dto)

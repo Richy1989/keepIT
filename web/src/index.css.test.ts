@@ -232,6 +232,12 @@ describe.each(THEMES)('theme: %s', (theme) => {
       }
     });
 
+    it.each(['yellow', 'green', 'blue', 'pink', 'purple'])('text reads on a %s highlight', (hl) => {
+      // Opaque fills, so the note's colour under them doesn't matter: the text is what's measured.
+      // `.note-mark` draws its text in --color-text, whatever text it is in.
+      expect(contrast(t['--color-text'], t[`--hl-${hl}`]), `--color-text on --hl-${hl}`).toBeGreaterThanOrEqual(AA_TEXT);
+    });
+
     it.each(['default', ...NOTE_COLORS])('the reminder chip reads on a %s card', (color) => {
       // The chip carries a time, the same class of text as the faint timestamps: AA_LARGE.
       const chip = over(t['--color-overlay-lift'], t[`--note-${color}-bg`]);

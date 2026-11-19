@@ -177,6 +177,40 @@ dependencies {
 // wedged on its loading layout for two releases this way (androidx.work.OverwritingInputMerger).
 //
 // So: after R8 runs, read its own reports and assert each entry below still has its constructor.
+/**
+ * Copies the repository's `backgrounds/` folder (the note background images, shared with the web
+ * app) into the assets folder `backgrounds/`, where `ui/notes/NoteBackgrounds.kt` reads them. Its
+ * README stays behind; `NoteBackgroundFilesTest` holds the rest to the rules it states.
+ */
+abstract class CopyNoteBackgrounds : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val source: DirectoryProperty
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val target = output.get().asFile.resolve("backgrounds")
+        target.deleteRecursively()
+        target.mkdirs()
+        source.get().asFile.listFiles().orEmpty()
+            .filter { it.isFile && it.name != "README.md" }
+            .forEach { it.copyTo(target.resolve(it.name)) }
+    }
+}
+
+val copyNoteBackgrounds = tasks.register<CopyNoteBackgrounds>("copyNoteBackgrounds") {
+    source.set(rootProject.layout.projectDirectory.dir("../backgrounds"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyNoteBackgrounds, CopyNoteBackgrounds::output)
+    }
+}
+
 // usage.txt lists what was removed (a bare `com.Foo` line = whole class, `com.Foo:` + indented
 // members = those members), mapping.txt lists what survived. Cheap, deterministic, no emulator.
 val reflectivelyConstructed = mapOf(

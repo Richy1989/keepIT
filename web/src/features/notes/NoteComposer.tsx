@@ -3,11 +3,14 @@ import { useCreateNote } from './queries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
 import { switchNoteType } from './checklist';
+import { BackgroundPicker, NoteTile } from './BackgroundPicker';
+import { NOTE_BACKGROUNDS } from './backgroundImages';
 import { ColorPicker } from '../../components/ColorPicker';
 import { CheckSquareIcon, ImageIcon, PaletteIcon, XIcon } from '../../components/icons';
 import { cn } from '../../lib/cn';
 import { isAcceptedImage } from './media/useMediaUpload';
 import { onListEnter } from './listEnter';
+import { onHighlightKey } from './highlightKey';
 import {
   useUploadNoteMedia,
   ACCEPTED_IMAGE_TYPES,
@@ -38,6 +41,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
   const [body, setBody] = useState('');
   const [items, setItems] = useState<ChecklistItemDto[]>([]);
   const [color, setColor] = useState('default');
+  const [background, setBackground] = useState<string | null>(null);
   // What the Text ↔ Checklist switch would make of the draft; null when its text is too long for a
   // checklist, which turns the switch off.
   const switched = useMemo(() => switchNoteType(type, body, items), [type, body, items]);
@@ -69,6 +73,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
     setBody('');
     setItems([]);
     setColor('default');
+    setBackground(null);
     setQueued((q) => {
       q.forEach((f) => URL.revokeObjectURL(f.url));
       return [];
@@ -93,6 +98,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
       title: title.trim() || null,
       body: body.trim() || null,
       color: color === 'default' ? null : color,
+      background,
       checklistItems: cleanItems,
       listIds: defaultListIds,
     });
@@ -193,7 +199,8 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
       className="mx-auto mb-8 max-w-xl rounded-xl border elev-raised"
       style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
     >
-      <div className="p-4">
+      <div className="relative isolate rounded-t-xl p-4">
+        <NoteTile name={background} color={color} />
         {errorBanner}
 
         {queued.length > 0 && (
@@ -231,7 +238,7 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              onKeyDown={onListEnter(setBody)}
+              onKeyDown={(e) => onHighlightKey(e, setBody) || onListEnter(setBody)(e)}
               placeholder="Take a note…"
               // Grows with its text (`field-sizing: content`), then scrolls past half the window.
               className="field-sizing-content max-h-[50dvh] min-h-15 w-full resize-none bg-transparent text-sm outline-none placeholder:text-text-faint"
@@ -245,6 +252,15 @@ export function NoteComposer({ defaultListIds }: { defaultListIds: string[] }) {
               value={color}
               onPick={(c) => {
                 setColor(c);
+                // With backgrounds below, the panel stays for one of those too.
+                if (NOTE_BACKGROUNDS.length === 0) setShowColors(false);
+              }}
+            />
+            <BackgroundPicker
+              value={background}
+              color={color}
+              onPick={(b) => {
+                setBackground(b);
                 setShowColors(false);
               }}
             />

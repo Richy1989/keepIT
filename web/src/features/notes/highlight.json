@@ -1,0 +1,31 @@
+{
+  "about": "Highlighted text, as both clients read and write it: web/src/features/notes/highlight.ts and the Android app's ui/markdown/HighlightMarks.kt. `render`: what a note body shows (its text) and which parts are highlighted, in the order they open. `edit`: the toolbar's highlighter; « and » mark the selection before and after.",
+  "render": [
+    { "source": "a <mark data-color=\"green\">b</mark> c", "text": "a b c", "marks": [{ "color": "green", "text": "b" }] },
+    { "source": "<mark>plain</mark>", "text": "plain", "marks": [{ "color": "yellow", "text": "plain" }] },
+    { "source": "<mark data-color=\"red\">unknown</mark>", "text": "unknown", "marks": [{ "color": "yellow", "text": "unknown" }] },
+    { "source": "<MARK data-color='Blue'>case</MARK>", "text": "case", "marks": [{ "color": "blue", "text": "case" }] },
+    { "source": "Iceland: <mark data-color=\"pink\">€980 saved of €1,200</mark>", "text": "Iceland: €980 saved of €1,200", "marks": [{ "color": "pink", "text": "€980 saved of €1,200" }] },
+    { "source": "<mark data-color=\"purple\">**bold** and *italic*</mark>", "text": "bold and italic", "marks": [{ "color": "purple", "text": "bold and italic" }] },
+    { "source": "**<mark data-color=\"blue\">inside bold</mark>**", "text": "inside bold", "marks": [{ "color": "blue", "text": "inside bold" }] },
+    { "source": "<mark data-color=\"green\">a <mark data-color=\"pink\">b</mark> c</mark>", "text": "a b c", "marks": [{ "color": "green", "text": "a b c" }, { "color": "pink", "text": "b" }] },
+    { "source": "<mark>open but never closed", "text": "<mark>open but never closed", "marks": [] },
+    { "source": "closed </mark> but never opened", "text": "closed </mark> but never opened", "marks": [] },
+    { "source": "`<mark>code</mark>`", "text": "<mark>code</mark>", "marks": [] },
+    { "source": "<mark class=\"x\">other attributes</mark>", "text": "<mark class=\"x\">other attributes</mark>", "marks": [] },
+    { "source": "**<mark>crosses** formatting</mark>", "text": "<mark>crosses formatting</mark>", "marks": [] },
+    { "source": "<b>bold</b> stays text", "text": "<b>bold</b> stays text", "marks": [] }
+  ],
+  "edit": [
+    { "value": "a «b» c", "color": "green", "result": "a <mark data-color=\"green\">«b»</mark> c" },
+    { "value": "a «» c", "color": "pink", "result": "a <mark data-color=\"pink\">«»</mark> c" },
+    { "value": "a <mark data-color=\"green\">«b»</mark> c", "color": "green", "result": "a «b» c" },
+    { "value": "a <mark data-color=\"green\">«b»</mark> c", "color": null, "result": "a «b» c" },
+    { "value": "a <mark data-color=\"green\">«b»</mark> c", "color": "blue", "result": "a <mark data-color=\"blue\">«b»</mark> c" },
+    { "value": "a <mark data-color=\"green\">b«» d</mark> c", "color": null, "result": "a b«» d c" },
+    { "value": "a «<mark data-color=\"green\">b</mark>» c", "color": "green", "result": "a «b» c" },
+    { "value": "a <mark>«b»</mark> c", "color": "yellow", "result": "a «b» c" },
+    { "value": "«one\n\ntwo»", "color": "yellow", "result": "«<mark data-color=\"yellow\">one</mark>\n\n<mark data-color=\"yellow\">two</mark>»" },
+    { "value": "plain «text»", "color": null, "result": "plain «text»" }
+  ]
+}

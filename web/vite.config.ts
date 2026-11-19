@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, searchForWorkspaceRoot } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -18,6 +18,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: apiProxy,
+    // The note backgrounds live beside web/, in the repository's backgrounds/ folder, which the
+    // Android app ships too (src/features/notes/backgroundImages.ts). The dev server serves files
+    // outside the project only from folders named here.
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), '../backgrounds'] },
   },
   // `vite preview` serves the built bundle but does NOT inherit `server.proxy`, so without this
   // every /api call 404s against the production build. Used by `deploy/run-dev.sh --prod`.

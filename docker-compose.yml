@@ -85,6 +85,9 @@ services:
   web:
     build:
       context: ./web
+      # The note backgrounds, shared with the Android app (see web/Dockerfile).
+      additional_contexts:
+        backgrounds: ./backgrounds
     # nginx serves the SPA and proxies /api to the api service (see web/nginx.conf).
     ports:
       - "8080:80"

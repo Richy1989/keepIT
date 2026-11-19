@@ -21,6 +21,9 @@ public static class NoteLimits
     /// <summary>A note's or a list's colour key.</summary>
     public const int Color = 32;
 
+    /// <summary>A note's background image name (see <c>Notes/NoteBackground.cs</c>).</summary>
+    public const int Background = 64;
+
     /// <summary>Rows in one checklist.</summary>
     public const int ChecklistItems = 500;
 

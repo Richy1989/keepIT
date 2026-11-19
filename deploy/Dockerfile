@@ -17,6 +17,8 @@ WORKDIR /web
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ ./
+# The note backgrounds, which live beside web/ (web/src/features/notes/backgroundImages.ts).
+COPY backgrounds/ /backgrounds/
 RUN npm run build
 
 # ---- 2. Publish the .NET API ----

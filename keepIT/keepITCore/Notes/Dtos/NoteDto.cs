@@ -16,6 +16,13 @@ public class NoteDto
     public string? Body { get; set; }
     public string? Color { get; set; }
 
+    /// <summary>
+    /// The background image tiled over <see cref="Color"/>, by name: a file in the repository's
+    /// <c>backgrounds/</c> folder without its extension. Null = none. A client that doesn't have the
+    /// image draws the note without it.
+    /// </summary>
+    public string? Background { get; set; }
+
     /// <summary>The caller's private pin/archive/trash view (from their <see cref="NoteUserState"/>).</summary>
     public bool IsPinned { get; set; }
     public bool IsArchived { get; set; }
