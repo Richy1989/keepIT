@@ -1,0 +1,3 @@
+Checklists can have sub-items: drag a row's handle to the right to put it under the row above, or to the left to bring it back. Ticking a row ticks its sub-items too, and it ticks itself once they are all done. Thanks to oxodao for this feature!
+
+Running your own server? Update it to 1.4.0 too: sub-items need it.
