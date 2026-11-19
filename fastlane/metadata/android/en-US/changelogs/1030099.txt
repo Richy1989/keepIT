@@ -1,0 +1,5 @@
+Notes can have a background pattern, such as ruled lines, dots or little coffee cups, in a shade of their colour. Mark words with a highlighter in five colours. Cards show the lists a note is in, and the notes screen lays them out two to a row or one under another.
+
+The editor shows the title as its headline, with when it was last edited.
+
+Running your own server? Update it to 1.3.0 too: backgrounds need it.
