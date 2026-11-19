@@ -3,7 +3,7 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 1.4.1
 
 ### 🐛 Fixes
 
@@ -19,6 +19,11 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - A note card on the web could show raw asterisks, highlight tags or brackets near its top when
   bold text, a highlight or a reference link carried on past the card's cut-off; the card now reads
   like the note itself. Web.
+
+### 📦 Deployment & Docs
+
+- The web fixes arrive with the server's image; the Android ones need no server update, and work
+  with any 1.x server.
 
 ## 1.4.0
 

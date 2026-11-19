@@ -1,0 +1,3 @@
+Formatting is more predictable: Bullets, Numbered and Heading now work on an empty line, bold and the other styles apply only to the words you selected over several lines (tap again to undo), highlighting list items keeps them list items, and Enter inside a code block is an ordinary newline instead of starting a list item.
+
+No server update needed for these.
