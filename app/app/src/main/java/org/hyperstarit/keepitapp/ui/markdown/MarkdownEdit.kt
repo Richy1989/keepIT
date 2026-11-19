@@ -6,7 +6,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 /**
  * Editing a note body's Markdown: the formatting toolbar's actions, and Enter continuing a list.
  * Pure functions from one [TextFieldValue] to the next, so each rule is a unit test — the web's
- * `markdownEdit.ts` implements the same rules for its textarea.
+ * `markdownEdit.ts` implements the same rules for its textarea, and both are held to the web's
+ * `markdownEdit.json`.
  */
 
 enum class MarkdownAction { BOLD, ITALIC, STRIKE, CODE, HEADING, BULLET, ORDERED, LINK }
@@ -34,16 +35,15 @@ fun applyMarkdown(value: TextFieldValue, action: MarkdownAction): TextFieldValue
 
 private fun toggleInline(text: String, start: Int, end: Int, marker: String): TextFieldValue {
     // Emphasis cannot cross a line break in the renderer's eyes, so a multi-line selection is
-    // styled line by line: "**a\nb**" is bold on the web but raw asterisks everywhere else.
-    if (text.substring(start, end).contains('\n')) return toggleInlinePerLine(text, start, end, marker)
+    // styled line by line: "**a\nb**" is bold on the web but raw asterisks everywhere else. A
+    // selection that only reaches the start of the next line styles one line.
+    val segments = if (start == end) emptyList() else lineSegments(text, start, end)
+    if (segments.size > 1) return toggleInlinePerLine(text, start, end, segments, marker)
 
-    // Emphasis cannot start or end on a space: "**bold **" is literal asterisks in CommonMark.
-    // A drag-selection that caught a space wraps the word and leaves the space outside.
-    var s = start
-    var e = end
-    while (s < e && text[s].isWhitespace()) s++
-    while (e > s && text[e - 1].isWhitespace()) e--
-    if (s == e && start != end) { s = start; e = start }
+    // The selection without its spaces or the line's list marker (see [lineSegments]). With
+    // nothing left, the markers go in at the selection's start: an empty pair to type into.
+    val s = segments.firstOrNull()?.first ?: start
+    val e = segments.firstOrNull()?.last?.plus(1) ?: start
 
     unwrapRange(text, s, e, marker)?.let { (from, to, width) ->
         val inner = text.substring(from + width, to - width)
@@ -112,33 +112,60 @@ private fun runLength(text: String, from: Int, to: Int, c: Char, forward: Boolea
     return n
 }
 
-private fun toggleInlinePerLine(text: String, start: Int, end: Int, marker: String): TextFieldValue {
-    val lineStart = text.lastIndexOf('\n', start - 1) + 1
-    val blockEnd = text.indexOf('\n', end).let { if (it == -1) text.length else it }
-    // Each line splits into its prefix (indent, list marker, heading hashes, quote), the text to
-    // style, and trailing space: wrapping "- a" whole would give "**- a**" and break the list.
-    fun split(line: String): Triple<String, String, String> {
-        val p = prefixLength(line).let { it + line.substring(it).takeWhile(Char::isWhitespace).length }
-        val rest = line.substring(p)
-        val core = rest.trimEnd()
-        return Triple(line.substring(0, p), core, rest.substring(core.length))
+/**
+ * The part of a selection that inline formatting applies to, line by line: each line's share of
+ * the selection without the line's prefix (indent, list marker, task box, heading hashes, quote)
+ * and without spaces at either end. "**- a**" would break the list, and "**a **" is literal
+ * asterisks. Lines left with nothing are skipped. Ranges are into [text], end inclusive. The
+ * highlighter ([HighlightMarks.apply]) uses the same split, as the web's `lineSegments` does.
+ */
+internal fun lineSegments(text: String, start: Int, end: Int): List<IntRange> {
+    val out = mutableListOf<IntRange>()
+    var lineStart = text.lastIndexOf('\n', start - 1) + 1
+    while (lineStart <= end) {
+        val lineEnd = text.indexOf('\n', lineStart).let { if (it == -1) text.length else it }
+        var from = maxOf(start, lineStart + prefixLength(text.substring(lineStart, lineEnd)))
+        var to = minOf(end, lineEnd)
+        while (from < to && text[from].isWhitespace()) from++
+        while (to > from && text[to - 1].isWhitespace()) to--
+        if (from < to) out += from until to
+        if (lineEnd >= text.length) break
+        lineStart = lineEnd + 1
     }
-    val lines = text.substring(lineStart, blockEnd).split('\n')
-    // One decision for the whole selection: if every line with text is already styled, unstyle.
-    val styled = lines.map(::split).filter { it.second.isNotEmpty() }.all { (_, core, _) ->
-        unwrapRange(core, 0, core.length, marker) != null
-    }
-    val block = lines.joinToString("\n") { line ->
-        val (head, core, trail) = split(line)
-        if (core.isEmpty()) return@joinToString line
-        val range = unwrapRange(core, 0, core.length, marker)
+    return out
+}
+
+private fun toggleInlinePerLine(
+    text: String,
+    start: Int,
+    end: Int,
+    segments: List<IntRange>,
+    marker: String,
+): TextFieldValue {
+    // One decision for the whole selection: if every part is already styled, unstyle.
+    val ranges = segments.map { unwrapRange(text, it.first, it.last + 1, marker) }
+    val styled = ranges.all { it != null }
+    // Each edit replaces text[a until b]; they don't overlap, and they run in order.
+    data class Edit(val a: Int, val b: Int, val replacement: String)
+    val edits = segments.mapIndexedNotNull { i, seg ->
+        val range = ranges[i]
         when {
-            styled && range != null -> head + core.substring(range.third, core.length - range.third) + trail
-            styled || range != null -> line
-            else -> head + marker + core + marker + trail
+            styled && range != null -> {
+                val (a, b, width) = range
+                Edit(a, b, text.substring(a + width, b - width))
+            }
+            !styled && range == null -> Edit(seg.first, seg.last + 1, marker + text.substring(seg.first, seg.last + 1) + marker)
+            else -> null
         }
     }
-    return TextFieldValue(text.take(lineStart) + block + text.substring(blockEnd), TextRange(lineStart, lineStart + block.length))
+    if (edits.isEmpty()) return TextFieldValue(text, TextRange(start, end))
+    val value = edits.asReversed().fold(text) { acc, (a, b, replacement) -> acc.take(a) + replacement + acc.substring(b) }
+    // The selection covers what was styled, its new markers included, so a second tap finds them
+    // inside it and takes them away again: "one [two\nthree] four" ⇄ "one [**two**\n**three**] four".
+    return TextFieldValue(
+        value,
+        TextRange(minOf(start, edits.first().a), maxOf(end, edits.last().b) + value.length - text.length),
+    )
 }
 
 // ---- link ----
@@ -179,6 +206,17 @@ private fun toggleLinePrefix(text: String, start: Int, end: Int, action: Markdow
     if (action == MarkdownAction.ORDERED && lineStart > 0) {
         val above = text.substring(text.lastIndexOf('\n', lineStart - 2) + 1, lineStart - 1)
         LIST_ITEM.find(above)?.groups?.get(3)?.value?.toIntOrNull()?.let { number = it + 1 }
+    }
+
+    // A caret on an empty line starts the item, heading or list right there, ready to type.
+    if (start == end && lines.first().isBlank()) {
+        val prefix = when (action) {
+            MarkdownAction.HEADING -> "# "
+            MarkdownAction.BULLET -> "- "
+            else -> "$number. "
+        }
+        val caret = lineStart + lines.first().length + prefix.length
+        return TextFieldValue(text.take(lineStart) + lines.first() + prefix + text.substring(blockEnd), TextRange(caret))
     }
 
     val allPrefixed = lines.all { it.isBlank() || hasOwnPrefix(it) }
@@ -229,12 +267,39 @@ private fun prefixLength(line: String): Int =
 
 // ---- Enter in a list ----
 
+/** A line that opens or closes a fenced code block: its fence (``` or ~~~, or longer) and the rest. */
+private val FENCE = Regex("""^(?:\s*>)*\s*(`{3,}|~{3,})(.*)$""")
+
+/**
+ * Whether the line starting at [lineStart] is inside a fenced code block: one opened above it and
+ * not yet closed, so a block still being typed counts. A block closes on a fence of the same
+ * character, at least as long, with nothing after it, as in CommonMark. Any indent and quote
+ * markers may come before a fence, so one inside a list item or a quote counts too: reading too
+ * much as code only means Enter is an ordinary newline. The web's `insideCodeFence`, rule for rule.
+ */
+internal fun insideCodeFence(text: String, lineStart: Int): Boolean {
+    var open: String? = null
+    for (line in text.substring(0, lineStart).split('\n')) {
+        val m = FENCE.find(line) ?: continue
+        val fence = m.groupValues[1]
+        val rest = m.groupValues[2]
+        val opened = open
+        if (opened == null) {
+            // A backtick fence's info string can't hold a backtick: that line is inline code instead.
+            if (fence[0] != '`' || '`' !in rest) open = fence
+        } else if (fence[0] == opened[0] && fence.length >= opened.length && rest.isBlank()) {
+            open = null
+        }
+    }
+    return open != null
+}
+
 /**
  * Continues a list when Enter is pressed in it, as GitHub and most Markdown editors do: after
  * "- milk" the new line starts "- ", after "3. milk" it starts "4. ", after a task "- [ ] ". Enter on
- * an item with nothing after its marker ends the list instead, leaving an empty line. Anything
- * other than a single newline typed at a caret passes through untouched, so pasting, IME
- * composition and deleting are never rewritten.
+ * an item with nothing after its marker ends the list instead, leaving an empty line. In a fenced
+ * code block Enter is an ordinary newline. Anything other than a single newline typed at a caret
+ * passes through untouched, so pasting, IME composition and deleting are never rewritten.
  */
 fun continueListOnEnter(old: TextFieldValue, new: TextFieldValue): TextFieldValue {
     if (!old.selection.collapsed || !new.selection.collapsed) return new
@@ -253,6 +318,8 @@ fun continueListOnEnter(old: TextFieldValue, new: TextFieldValue): TextFieldValu
     val markerEnd = lineStart + match.range.last + 1
     // Enter typed within the indent or the marker: an ordinary newline.
     if (pos < markerEnd) return new
+    // "- example" inside a code block is code, not a list.
+    if (insideCodeFence(old.text, lineStart)) return new
 
     if (line.substring(match.range.last + 1).isBlank()) {
         // An empty item: Enter ends the list. The marker goes and the newline is not added.

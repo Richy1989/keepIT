@@ -3,6 +3,23 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### 🐛 Fixes
+
+- The formatting toolbar did nothing on an empty line: Bullets, Numbered and Heading now start the
+  item there, ready to type. Web and Android.
+- Bold, italic, strikethrough and code over a selection of several lines styled each whole line;
+  they now style only the selected words, and a second tap takes the styling off again. Web and
+  Android.
+- Highlighting whole list items wrapped their list markers too, so they stopped being list items —
+  fixed. Web and Android.
+- Enter inside a code block continued a "list" when a code line started with `-` or a number; it
+  is now an ordinary newline there. Web and Android.
+- A note card on the web could show raw asterisks, highlight tags or brackets near its top when
+  bold text, a highlight or a reference link carried on past the card's cut-off; the card now reads
+  like the note itself. Web.
+
 ## 1.4.0
 
 ### ✨ New Features

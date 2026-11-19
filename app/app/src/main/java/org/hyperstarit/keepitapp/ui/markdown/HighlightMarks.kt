@@ -87,11 +87,18 @@ object HighlightMarks {
      * Highlights the selection in [color], or with null takes the highlight away — the web's
      * `applyHighlight`, rule for rule. A selection inside (or exactly around) a highlight on its
      * line changes that highlight instead: the same colour or null removes it, another colour
-     * recolours it. Otherwise the selection is wrapped, line by line when it spans several, and an
-     * empty one gets an empty highlight with the caret inside.
+     * recolours it. Otherwise the selection is wrapped, line by line when it spans several and
+     * inside each line's list marker (see [lineSegments]) so an item stays an item, and an empty
+     * one gets an empty highlight with the caret inside.
      */
     fun apply(value: String, start: Int, end: Int, color: String?): Edit {
-        val around = enclosing(value, start, end)
+        // On one line, the selection less its spaces and list marker: "- <mark>a</mark>", never
+        // "<mark>- a</mark>", which is no longer a list item.
+        val segments = if (start == end) emptyList() else lineSegments(value, start, end)
+        val single = segments.size == 1
+        val s = if (single) segments[0].first else start
+        val e = if (single) segments[0].last + 1 else end
+        val around = enclosing(value, s, e)
         if (around != null) {
             val inner = value.substring(around.innerStart, around.innerEnd)
             val remove = color == null || color == around.color
@@ -100,8 +107,8 @@ object HighlightMarks {
             val shift = open.length - (around.innerStart - around.openStart)
             return Edit(
                 value.substring(0, around.openStart) + open + inner + close + value.substring(around.closeEnd),
-                maxOf(around.openStart + open.length, start + shift),
-                minOf(around.openStart + open.length + inner.length, end + shift),
+                maxOf(around.openStart + open.length, s + shift),
+                minOf(around.openStart + open.length + inner.length, e + shift),
             )
         }
         if (color == null) return Edit(value, start, end)
@@ -110,15 +117,18 @@ object HighlightMarks {
         if (start == end) {
             return Edit(value.substring(0, start) + open + CLOSE_TAG + value.substring(end), start + open.length, start + open.length)
         }
-        val selected = value.substring(start, end)
-        val wrapped = selected.split('\n').joinToString("\n") { line ->
-            if (line.isNotBlank()) open + line + CLOSE_TAG else line
+        if (segments.isEmpty()) return Edit(value, start, end)
+        if (single) {
+            return Edit(value.substring(0, s) + open + value.substring(s, e) + CLOSE_TAG + value.substring(e), s + open.length, e + open.length)
         }
-        val single = '\n' !in selected
+        val next = segments.asReversed().fold(value) { acc, seg ->
+            acc.substring(0, seg.first) + open + acc.substring(seg.first, seg.last + 1) + CLOSE_TAG + acc.substring(seg.last + 1)
+        }
+        // Over several lines, the selection covers every highlight, tags included.
         return Edit(
-            value.substring(0, start) + wrapped + value.substring(end),
-            if (single) start + open.length else start,
-            if (single) end + open.length else start + wrapped.length,
+            next,
+            minOf(start, segments.first().first),
+            maxOf(end, segments.last().last + 1) + next.length - value.length,
         )
     }
 

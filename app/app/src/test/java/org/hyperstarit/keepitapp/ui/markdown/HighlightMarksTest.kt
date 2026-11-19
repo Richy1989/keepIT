@@ -61,6 +61,16 @@ class HighlightMarksTest {
     }
 
     @Test
+    fun `highlighted list items stay list items, each with its own highlight`() {
+        val edit = HighlightMarks.apply("- one\n- [ ] two", 0, 15, "green")
+        val out = markdownToAnnotated(edit.value, KeepItPalette.Dim)
+        val fill = KeepItPalette.Dim.highlight("green")
+        val marked = out.spanStyles.filter { it.item.background == fill }.map { out.text.substring(it.start, it.end) }
+        assertEquals(listOf("one", "two"), marked)
+        assertTrue(out.text, "- " !in out.text && "<mark" !in out.text)
+    }
+
+    @Test
     fun `the editor dims the tags and fills the highlight`() {
         val source = "a <mark data-color=\"green\">b</mark> c"
         val styled = markdownHighlight(source, KeepItPalette.Light)
