@@ -3,6 +3,7 @@ import { useEmptyTrash, useNotes, type NotesFilter } from './queries';
 import { NoteCard } from './NoteCard';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { distributeIntoColumns } from './masonry';
+import { withoutHighlightTags } from './highlight';
 import { useMediaQuery } from '../../lib/useMediaQuery';
 import { TrashIcon, KeepItIcon } from '../../components/icons';
 import type { NoteDto } from '../../api/types';
@@ -12,7 +13,8 @@ function matchesSearch(n: NoteDto, q: string): boolean {
   if (!q) return true;
   return (
     (n.title ?? '').toLowerCase().includes(q) ||
-    (n.body ?? '').toLowerCase().includes(q) ||
+    // The text as read, without highlight tags: "mark" should find the word, not every highlight.
+    withoutHighlightTags(n.body ?? '').toLowerCase().includes(q) ||
     n.checklistItems.some((i) => i.text.toLowerCase().includes(q))
   );
 }
@@ -47,10 +49,13 @@ export function NotesGrid({
   filter,
   search,
   onOpen,
+  onOpenList,
 }: {
   filter: NotesFilter;
   search: string;
   onOpen: (note: NoteDto) => void;
+  /** Shows a list: what a card's list chip does. */
+  onOpenList: (listId: string) => void;
 }) {
   const { data, isLoading, isError } = useNotes(filter);
   const emptyTrash = useEmptyTrash();
@@ -102,13 +107,14 @@ export function NotesGrid({
   return (
     <div className="space-y-6">
       {pinned.length > 0 && (
-        <Section label="Pinned" notes={pinned} columnCount={columnCount} onOpen={onOpen} />
+        <Section label="Pinned" notes={pinned} columnCount={columnCount} onOpen={onOpen} onOpenList={onOpenList} />
       )}
       <Section
         label={pinned.length > 0 ? 'Others' : undefined}
         notes={others}
         columnCount={columnCount}
         onOpen={onOpen}
+        onOpenList={onOpenList}
       />
       {/* Hidden while searching: "all" would be ambiguous between the matches and the whole trash. */}
       {filter.view === 'trashed' && !search && (
@@ -151,11 +157,13 @@ function Section({
   notes,
   columnCount,
   onOpen,
+  onOpenList,
 }: {
   label?: string;
   notes: NoteDto[];
   columnCount: number;
   onOpen: (note: NoteDto) => void;
+  onOpenList: (listId: string) => void;
 }) {
   const columns = useMemo(
     () => distributeIntoColumns(notes, columnCount),
@@ -175,7 +183,7 @@ function Section({
           // inside carry note ids, which is what React actually needs to keep them identified.
           <div key={i} className="flex min-w-0 flex-1 flex-col gap-4">
             {column.map((n) => (
-              <NoteCard key={n.id} note={n} onOpen={onOpen} />
+              <NoteCard key={n.id} note={n} onOpen={onOpen} onOpenList={onOpenList} />
             ))}
           </div>
         ))}

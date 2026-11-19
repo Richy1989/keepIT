@@ -44,7 +44,13 @@ export function HomePage() {
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-8">
           <div className="mx-auto max-w-6xl">
             {selection.view === 'active' && <NoteComposer defaultListIds={filter.listIds} />}
-            <NotesGrid filter={filter} search={search} onOpen={(n) => setEditingId(n.id)} />
+            <NotesGrid
+              filter={filter}
+              search={search}
+              onOpen={(n) => setEditingId(n.id)}
+              // A card's list chip: the list, as picking it in the sidebar shows it.
+              onOpenList={(listId) => handleSelect({ view: 'active', listId })}
+            />
           </div>
         </main>
       </div>

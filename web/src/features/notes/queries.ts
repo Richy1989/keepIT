@@ -150,6 +150,7 @@ export function useCreateNote() {
         title: input.title ?? null,
         body: input.body ?? null,
         color: input.color ?? null,
+        background: input.background ?? null,
         isPinned: false,
         isArchived: false,
         isTrashed: false,
@@ -201,14 +202,17 @@ export function useUpdateNote() {
       const snapshot = snapshotNotes(qc);
       const current = findCachedNote(qc, id);
       if (current) {
-        // Only the fields the update names (all when it names none), as the server applies it.
-        const sets = (field: NoteField) => !body.fields || body.fields.includes(field);
+        // Only the fields the update names (all when it names none, but for the background, which
+        // only an update naming it sets), as the server applies it.
+        const sets = (field: NoteField) =>
+          body.fields ? body.fields.includes(field) : field !== 'Background';
         reconcileNote(qc, id, {
           ...current,
           type: sets('Type') ? body.type : current.type,
           title: sets('Title') ? (body.title ?? null) : current.title,
           body: sets('Body') ? (body.body ?? null) : current.body,
           color: sets('Color') ? (body.color ?? null) : current.color,
+          background: sets('Background') ? (body.background ?? null) : current.background,
           checklistItems: sets('ChecklistItems') ? (body.checklistItems ?? []) : current.checklistItems,
           updatedAtUtc: new Date().toISOString(),
         });

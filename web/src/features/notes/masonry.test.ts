@@ -222,9 +222,9 @@ describe('estimateCardHeight', () => {
     expect(six - three).toBeLessThan(three - one);
   });
 
-  it('adds room for a reminder chip', () => {
+  it('adds room for the list chips, and none for a reminder, which shares the footer row', () => {
     const without = estimateCardHeight(note({ body: 'hi' }), W);
-    const with_ = estimateCardHeight(note({ body: 'hi', remindAtUtc: '2026-12-01T09:00:00Z' }), W);
-    expect(with_).toBeGreaterThan(without);
+    expect(estimateCardHeight(note({ body: 'hi', listIds: ['l1'] }), W)).toBeGreaterThan(without);
+    expect(estimateCardHeight(note({ body: 'hi', remindAtUtc: '2030-01-01T00:00:00Z' }), W)).toBe(without);
   });
 });

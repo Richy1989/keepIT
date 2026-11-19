@@ -1,3 +1,5 @@
+import type { ReminderRecurrence } from '../../api/types';
+
 /**
  * Date helpers shared by the reminder chip and picker. Backend timestamps are UTC; Postgres emits
  * a trailing 'Z' but the SQLite dev provider can return DateTimes with no zone designator, which
@@ -13,21 +15,39 @@ export function isOverdue(iso: string): boolean {
   return parseUtc(iso).getTime() < Date.now();
 }
 
-/** Compact local rendering for the chip: time only today, no year within the year. */
-export function formatReminderTime(iso: string): string {
-  const d = parseUtc(iso);
-  const now = new Date();
-  if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  }
-  const opts: Intl.DateTimeFormatOptions = {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  };
-  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
-  return d.toLocaleString(undefined, opts);
+/**
+ * A reminder's time for people, in local time: "Today, 14:00" / "Tomorrow, 08:00" /
+ * "Mon, Jul 21, 09:00", with the year only outside this one. The picker's headline and the card's
+ * chip both say it this way.
+ */
+export function reminderLabel(at: Date, now: Date = new Date()): string {
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  if (at.toDateString() === now.toDateString()) return `Today, ${time}`;
+  if (at.toDateString() === tomorrow.toDateString()) return `Tomorrow, ${time}`;
+  const opts: Intl.DateTimeFormatOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+  if (at.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return `${at.toLocaleDateString(undefined, opts)}, ${time}`;
+}
+
+/** What each repeat is called, on the chip and in the picker. */
+export const RECURRENCE_LABELS: Record<Exclude<ReminderRecurrence, null | undefined>, string> = {
+  None: 'Does not repeat',
+  Daily: 'Daily',
+  Weekly: 'Weekly',
+  Monthly: 'Monthly',
+  Yearly: 'Yearly',
+};
+
+/** The card chip's text: the time, then how it repeats ("Sun, Nov 29, 09:00 · Monthly"). */
+export function reminderChipLabel(
+  iso: string,
+  recurrence: ReminderRecurrence | undefined,
+  now: Date = new Date(),
+): string {
+  const when = reminderLabel(parseUtc(iso), now);
+  return recurrence && recurrence !== 'None' ? `${when} · ${RECURRENCE_LABELS[recurrence]}` : when;
 }
 
 /**

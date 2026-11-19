@@ -6,6 +6,7 @@ import { ChecklistEditor } from './ChecklistEditor';
 import { checklistForDisplay, switchNoteType } from './checklist';
 import { Markdown } from './Markdown';
 import { MarkdownToolbar } from './MarkdownToolbar';
+import { onHighlightKey } from './highlightKey';
 import { ReminderChip } from './ReminderChip';
 import { ReminderMenu } from './ReminderMenu';
 import { ShareDialog } from './ShareDialog';
@@ -14,6 +15,7 @@ import { MediaLightbox } from './media/MediaLightbox';
 import { useMediaUpload, isAcceptedImage } from './media/useMediaUpload';
 import { useDeleteNoteMedia, ACCEPTED_IMAGE_TYPES, MAX_IMAGES_PER_NOTE } from './media/queries';
 import { onListEnter } from './listEnter';
+import { BackgroundPicker, NoteTile } from './BackgroundPicker';
 import { ColorPicker } from '../../components/ColorPicker';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useLists } from '../lists/queries';
@@ -105,6 +107,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [body, setBody] = useState(note.body ?? '');
   const [items, setItems] = useState<ChecklistItemDto[]>(note.checklistItems);
   const [color, setColor] = useState(note.color ?? 'default');
+  const [background, setBackground] = useState<string | null>(note.background ?? null);
   const [listIds, setListIds] = useState<string[]>(note.listIds);
   const [showColors, setShowColors] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
@@ -140,6 +143,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
     if ((title.trim() || null) !== (opened.title ?? null)) changed.push('Title');
     if (nextBody !== (opened.body ?? null)) changed.push('Body');
     if (nextColor !== (opened.color ?? null)) changed.push('Color');
+    if (background !== (opened.background ?? null)) changed.push('Background');
     if (
       JSON.stringify(cleanItems.map((i) => [i.text, i.isChecked])) !==
       JSON.stringify(opened.checklistItems.map((i) => [i.text, i.isChecked]))
@@ -156,6 +160,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           title: title.trim() || null,
           body: nextBody,
           color: nextColor,
+          background,
           checklistItems: cleanItems,
           fields: changed,
         },
@@ -177,7 +182,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, title, body, items, color, listIds, showShare, confirmLeave]);
+  }, [type, title, body, items, color, background, listIds, showShare, confirmLeave]);
 
   const swatch = noteColor(color);
 
@@ -226,7 +231,11 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
         )}
         style={{ backgroundColor: swatch.bg, borderColor: swatch.border }}
       >
-        <div className="flex min-h-0 flex-auto flex-col overflow-y-auto p-5">
+        {/* The background image is a layer in the scrolled content, which is at least as tall as
+            the body: it fills the body however short the note, and scrolls with the text. */}
+        <div className="flex min-h-0 flex-auto flex-col overflow-y-auto rounded-t-2xl">
+          <div className="relative isolate flex flex-auto flex-col p-5">
+          <NoteTile name={background} color={color} />
           {!note.isOwner && (
             <div className="mb-3 flex items-center gap-1.5 text-xs text-text-faint">
               <EyeIcon className="text-sm" />
@@ -308,7 +317,7 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
                   ref={bodyRef}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
-                  onKeyDown={onListEnter(setBody)}
+                  onKeyDown={(e) => onHighlightKey(e, setBody) || onListEnter(setBody)(e)}
                   placeholder="Take a note…"
                   className="field-sizing-content min-h-48 w-full flex-auto resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
                 />
@@ -358,11 +367,13 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           {showColors && canEdit && (
             <div className="mt-4 rounded-lg border border-border-subtle bg-canvas/40 p-2">
               <ColorPicker value={color} onPick={setColor} />
+              <BackgroundPicker value={background} color={color} onPick={setBackground} />
             </div>
           )}
 
           {/* Applies instantly (like pin) — independent of the editor's save-on-close diff. */}
           {showReminder && <ReminderMenu note={note} onClose={() => setShowReminder(false)} />}
+          </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-overlay-line px-4 py-2.5">

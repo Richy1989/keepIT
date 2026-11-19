@@ -44,6 +44,8 @@ const MAX_PREVIEW_CHARS = 600;
 const MAX_HERO_ASPECT = 1.4;
 /** One compact player row (button, progress, running time) plus the gap under it. */
 const RECORDING_ROW_HEIGHT = 42;
+/** The row of list chips above the footer (one line; a note in many lists wraps, rarely). */
+const LIST_CHIPS_HEIGHT = 34;
 
 /**
  * How many voice notes a card gives a player before collapsing the rest into a "+N more" line.
@@ -89,7 +91,7 @@ export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
     height += TEXT_LINE_HEIGHT; // the "Empty note" placeholder
   }
 
-  if (note.remindAtUtc) height += CHECKLIST_ROW_HEIGHT; // the reminder chip sits above the footer
+  if (note.listIds.length) height += LIST_CHIPS_HEIGHT; // the list chips sit above the footer
 
   return height;
 }
