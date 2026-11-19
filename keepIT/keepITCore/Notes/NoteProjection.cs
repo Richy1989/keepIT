@@ -36,6 +36,7 @@ public static class NoteProjection
             Title = n.Title,
             Body = n.Body,
             Color = n.Color,
+            Background = n.Background,
             IsPinned = state?.IsPinned ?? false,
             IsArchived = state?.IsArchived ?? false,
             IsTrashed = state?.IsTrashed ?? false,

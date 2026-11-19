@@ -304,6 +304,9 @@ public class ImportController : ControllerBase
             Title = Within(source.Title, NoteLimits.Title, $"the title (over {NoteLimits.Title:N0} characters)"),
             Body = Within(source.Body, NoteLimits.Body, $"the text (over {NoteLimits.Body:N0} characters)"),
             Color = ValidColor(source.Color),
+            // Only the name travels: the image ships with the clients. One this server's clients
+            // don't have is kept all the same, and shows once a client that has it opens the note.
+            Background = NoteBackground.ValidOrNull(source.Background),
             // Kept, not reset: a restored backup that claimed every note was written today would
             // sort the grid into nonsense.
             CreatedAtUtc = ArchivedTime(source.CreatedAtUtc, now),

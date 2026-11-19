@@ -18,6 +18,11 @@ public class CreateNoteDto
     [MaxLength(NoteLimits.Color)]
     public string? Color { get; set; }
 
+    /// <summary>The background image's name (see <see cref="NoteDto.Background"/>). Null = none.</summary>
+    [MaxLength(NoteLimits.Background)]
+    [RegularExpression(NoteBackground.Pattern)]
+    public string? Background { get; set; }
+
     /// <summary>Initial checklist rows (for checklist notes). MaxLength bounds the item count.</summary>
     [MaxLength(NoteLimits.ChecklistItems)]
     public List<ChecklistItemDto>? ChecklistItems { get; set; }

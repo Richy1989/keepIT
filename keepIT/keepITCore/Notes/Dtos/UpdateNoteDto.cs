@@ -21,6 +21,14 @@ public class UpdateNoteDto
     [MaxLength(NoteLimits.Color)]
     public string? Color { get; set; }
 
+    /// <summary>
+    /// The background image's name (see <see cref="NoteDto.Background"/>). Null = none. Set only
+    /// when <see cref="Fields"/> names <see cref="NoteField.Background"/>.
+    /// </summary>
+    [MaxLength(NoteLimits.Background)]
+    [RegularExpression(NoteBackground.Pattern)]
+    public string? Background { get; set; }
+
     /// <summary>The complete new set of checklist rows (replaces existing). MaxLength bounds the item count.</summary>
     [MaxLength(NoteLimits.ChecklistItems)]
     public List<ChecklistItemDto>? ChecklistItems { get; set; }
@@ -31,6 +39,11 @@ public class UpdateNoteDto
     /// sending the whole note then undid whatever had changed meanwhile in the parts it never
     /// touched — a collaborator's new title reverted by an old edit to the text. Naming the fields
     /// makes concurrent edits last-writer-wins per field instead of per note.
+    /// <para>
+    /// "Them all" means the fields an update had before 1.3: <see cref="Background"/> is set only
+    /// when named. An app older than the field sends no background, and an update without fields
+    /// from it would otherwise wipe the background a newer client chose.
+    /// </para>
     /// </summary>
     public List<NoteField>? Fields { get; set; }
 }

@@ -14,4 +14,10 @@ public enum NoteField
     Body = 2,
     Color = 3,
     ChecklistItems = 4,
+
+    /// <summary>
+    /// The background image. Unlike the others, never set by an update without fields (see
+    /// <see cref="UpdateNoteDto.Fields"/>).
+    /// </summary>
+    Background = 5,
 }
