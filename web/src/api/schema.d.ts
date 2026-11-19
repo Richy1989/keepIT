@@ -1811,7 +1811,7 @@ export interface components {
             id?: null | string;
             text: string;
             /** Format: int32 */
-            indent: number;
+            indent?: null | number;
             isChecked: boolean;
             /** Format: int32 */
             order: number;

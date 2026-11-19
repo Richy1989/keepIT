@@ -417,11 +417,11 @@ public sealed class ImportTests
 
     /// <summary>
     /// Checklist rows in an archive are held to the same single-level rules a save is: a first row
-    /// cannot be indented, deeper nesting collapses to one level, and a parent arrives ticked only
-    /// when every one of its children is — whatever the archive claimed.
+    /// cannot be indented, and deeper nesting collapses to one level. Ticks arrive as the archive
+    /// has them.
     /// </summary>
     [Fact]
-    public async Task Imported_checklist_indentation_is_normalised_and_the_parent_is_derived()
+    public async Task Imported_checklist_indentation_is_normalised()
     {
         using var api = new KeepItApiFactory();
         using var client = await api.CreateSignedInClientAsync();
@@ -456,10 +456,9 @@ public sealed class ImportTests
         var items = NoteWithTitle(await GridAsync(client), "packing")
             .GetProperty("checklistItems").EnumerateArray().ToArray();
         Assert.Equal(new[] { 0, 1, 0, 1, 1 }, items.Select(i => i.GetProperty("indent").GetInt32()));
-        // Its only child was checked, so the first row is checked despite the archive saying otherwise.
-        Assert.True(items[0].GetProperty("isChecked").GetBoolean());
-        // It had two checked children, so it is checked despite the archive saying otherwise.
-        Assert.True(items[2].GetProperty("isChecked").GetBoolean());
+        Assert.Equal(
+            new[] { false, true, false, true, true },
+            items.Select(i => i.GetProperty("isChecked").GetBoolean()));
     }
 
     /// <summary>

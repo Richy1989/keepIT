@@ -142,12 +142,11 @@ public class NotesController : ControllerBase
             foreach (var item in dto.ChecklistItems)
                 items.Add(NewChecklistItem(note.Id, item, order++));
 
-            // One nesting level only, and a parent's box mirrors every child's state.
+            // One nesting level only (see ChecklistHierarchy).
             ChecklistHierarchy.Normalize(items);
 
-            foreach (var item in items) {
+            foreach (var item in items)
                 note.ChecklistItems.Add(item);
-            }
         }
 
         foreach (var listId in await OwnedListIdsAsync(ownerId.Value, dto.ListIds))
@@ -231,7 +230,8 @@ public class NotesController : ControllerBase
             {
                 existing.Text = item.Text;
                 existing.IsChecked = item.IsChecked;
-                existing.Indent = item.Indent;
+                // An app from before sub-items sends no indent: the row keeps the one it has.
+                existing.Indent = item.Indent ?? existing.Indent;
                 existing.Order = order;
                 keptIds.Add(itemId);
                 ordered.Add(existing);
@@ -531,7 +531,7 @@ public class NotesController : ControllerBase
         Id = Guid.NewGuid(),
         NoteId = noteId,
         Text = dto.Text,
-        Indent = dto.Indent,
+        Indent = dto.Indent ?? 0,
         IsChecked = dto.IsChecked,
         Order = order,
     };

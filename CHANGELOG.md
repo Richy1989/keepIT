@@ -5,8 +5,18 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ## Unreleased
 
+### ✨ New Features
+
+- Sub-items in checklists — drag a row's handle to the right to put it under the row above, or to
+  the left to bring it back (Tab and Shift+Tab with a keyboard). Ticking a row ticks its sub-items
+  too, and it ticks itself once they are all done. Web and Android; on Android once its server is
+  updated, and in standalone mode. Contributed by @oxodao (#45) — thank you!
+
 ### 📦 Deployment & Docs
 
+- Update the server along with the Android app to use sub-items: the app offers them only with a
+  server of this version or newer. The database gains a column, added by the migrations
+  (PostgreSQL) or at startup (SQLite); nothing to do by hand.
 - Library updates: ASP.NET Core and EF Core 10.0.15, MailKit 4.18.2 and Scalar on the server; React
   19.3.1, TanStack Query, React Router and Tailwind CSS on the web; Kotlin 2.4.21,
   kotlinx.serialization 1.13, OkHttp 5.5.1 and commonmark-java 0.32 in the Android app.
@@ -56,7 +66,6 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### ✨ New Features
 
-- Sub-items in checklists. Drag a row's handle to the right to indent it under the top-level row above, or to the left to bring it back.
 - Ticked items come back — typing a new checklist item offers the ticked item it matches: type
   "mi" and a ticked "Milk" shows up under the row. Take it (tap it, or press Tab on the web) and
   "Milk" is back on the list, unticked, where you were typing, instead of on it twice. Web and

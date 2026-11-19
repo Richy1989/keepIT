@@ -1082,7 +1082,12 @@ A note is one of several **types**, and any note can carry a background color an
    when all of them are; its box checks or clears the whole group, while a child only changes itself
    and then recomputes the parent. A partially completed group appears twice: the parent stays in the active list with its
    unchecked children, and the completed section repeats it as a greyed, non-interactive heading
-   above the checked children.
+   above the checked children. Those tick rules are the apps'; the server holds only the indent to
+   the model (`Notes/ChecklistHierarchy.cs`) and stores every box as sent, since an app from before
+   sub-items can't see them and a parent it ticks must stay ticked. For the same app,
+   `ChecklistItemDto.indent` is optional in a request: a row sent without it keeps its indent, so
+   an older app's edit never flattens a list. The Android app nests only with a server that stores
+   the indent (`ServerFeatures.SUBITEMS`) or in standalone mode.
 3. **Background** — every note can set a background **color** from the palette, and a
    background **image** tiled over it (see "Note backgrounds" below).
 

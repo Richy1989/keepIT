@@ -136,6 +136,8 @@ import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteLimits
 import org.hyperstarit.keepitapp.data.NoteStateDto
 import org.hyperstarit.keepitapp.data.NoteTypes
+import org.hyperstarit.keepitapp.data.ServerVersions
+import org.hyperstarit.keepitapp.data.ServerFeatures
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import org.hyperstarit.keepitapp.data.checklistFromText
 import org.hyperstarit.keepitapp.data.offline.changedFields
@@ -220,6 +222,9 @@ fun EditorScreen(
     val standalone by container.appMode.standalone.collectAsState()
     // Backgrounds need a server that stores them (see [backgroundsOffer]).
     val serverVersion by container.serverFeatures.version.collectAsState()
+    // Sub-items need a server that stores the indent ([ServerFeatures.SUBITEMS]); an older one
+    // would flatten them on the next save. Standalone keeps them on the device, so it always nests.
+    val canNest = standalone || ServerVersions.atLeast(serverVersion, ServerFeatures.SUBITEMS) == true
 
     // Existing note: prefer the grid cache, fall back to a direct fetch (widget deep link).
     var loaded by remember { mutableStateOf(noteId == null) }
@@ -398,6 +403,8 @@ fun EditorScreen(
 
     /** Indents/outdents one row, flattening a parent's group when it moves under a sub-item. */
     fun indentItem(index: Int, level: Int): Boolean {
+        // Outdenting is always safe; indenting waits for a server that keeps it (see canNest).
+        if (level > 0 && !canNest) return false
         val next = asDtos().withIndentAt(index, level)
         val changed = next[index].indent != items[index].indent
         items[index].indent = next[index].indent
@@ -1103,7 +1110,7 @@ fun EditorScreen(
                             val previewIndent = when {
                                 dragging && abs(dragOffset.x) >= indentThresholdPx ->
                                     if (dragOffset.x > 0) {
-                                        if (dtos.canIndentAt(index)) 1 else item.indent
+                                        if (canNest && dtos.canIndentAt(index)) 1 else item.indent
                                     } else {
                                         if (dtos.canOutdentAt(index)) 0 else item.indent
                                     }

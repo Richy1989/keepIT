@@ -12,7 +12,7 @@ using keepITCore.Data;
 namespace keepITCore.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261107120000_ChecklistItemIndent")]
+    [Migration("20261119160309_ChecklistItemIndent")]
     partial class ChecklistItemIndent
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace keepITCore.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -299,6 +299,10 @@ namespace keepITCore.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Background")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Body")
                         .HasColumnType("text");
