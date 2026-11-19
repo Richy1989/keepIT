@@ -132,8 +132,14 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** The chrome a token is read against: the page, a panel, a menu, and an uncoloured note. */
-const CHROME = ['--color-canvas', '--color-surface', '--color-elevated', '--note-default-bg'];
+/** The chrome a token is read against: the page, the sidebar, a panel, a menu, and an uncoloured note. */
+const CHROME = [
+  '--color-canvas',
+  '--color-sidebar',
+  '--color-surface',
+  '--color-elevated',
+  '--note-default-bg',
+];
 
 describe.each(THEMES)('theme: %s', (theme) => {
   describe.each(ACCENTS)('accent: %s', (accent) => {

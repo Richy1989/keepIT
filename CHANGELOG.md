@@ -22,6 +22,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 🔧 Improvements
 
+- The web sidebar is a shade apart from the notes beside it, and a button at its foot folds it
+  into a narrow rail of icons (each row names itself on hover); the browser remembers which. Web.
 - The reminder on a card says the weekday and how it repeats ("Sun, Nov 29, 09:00 · Monthly"),
   and is cut short with an ellipsis in a narrow column rather than pushing the card's date out.
   Web and Android.
