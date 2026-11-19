@@ -57,6 +57,12 @@ class ServerFeatures(context: Context, private val client: ApiClient) {
 
         /** The first release that stores a note's background ([NoteDto.background]). */
         val BACKGROUNDS = Triple(1, 3, 0)
+
+        /**
+         * The first release that stores a checklist row's indent ([ChecklistItemDto.indent]). An
+         * older server reads every row as top-level and drops the nesting on the next save.
+         */
+        val SUBITEMS = Triple(1, 4, 0)
     }
 }
 

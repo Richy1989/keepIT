@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { useDeleteNote, useSetNoteState, useUpdateNote } from './queries';
 import { Markdown } from './Markdown';
-import { checklistForDisplay } from './checklist';
+import { checklistRows, indentOf, setItemChecked } from './checklist';
 import { NoteImage } from './media/NoteImage';
 import { CardAudio } from './media/CardAudio';
 import { PhotoBackdrop } from './media/PhotoBackdrop';
@@ -25,7 +25,7 @@ import {
   TrashIcon,
 } from '../../components/icons';
 import { cn } from '../../lib/cn';
-import type { ChecklistItemDto, NoteDto, NoteField, UpdateNoteDto } from '../../api/types';
+import type { NoteDto, NoteField, UpdateNoteDto } from '../../api/types';
 
 
 
@@ -79,16 +79,20 @@ export function NoteCard({
   const { data: allLists } = useLists();
   const lists = (allLists ?? []).filter((l) => note.listIds.includes(l.id));
 
-  function toggleItem(target: ChecklistItemDto) {
+  function toggleItem(stored: number, checked: boolean) {
     if (!note.canEdit) return; // viewers can't change content
-    // Matched by reference, not by id: rows on an optimistically-created note all carry `id: null`,
-    // and `i.id === target.id` would then tick every one of them at once.
-    // Only the checked flag changes — the stored order stays the row's home position, and the
-    // display sort is what sinks it to the bottom (and restores it on untick).
-    const items = note.checklistItems.map((i) =>
-      i === target ? { ...i, isChecked: !i.isChecked } : i,
-    );
-    update.mutate({ id: note.id, body: toUpdate(note, { checklistItems: items }, ['ChecklistItems']) });
+    // Addressed by stored index, because the preview is sorted for display and rows on an
+    // optimistically-created note may all carry `id: null`. setItemChecked applies the parent/child
+    // rule: a parent carries its whole group, and a child's change recomputes its parent. The stored
+    // order stays the row's home position; the display sort is what sinks a ticked row to the bottom.
+    update.mutate({
+      id: note.id,
+      body: toUpdate(
+        note,
+        { checklistItems: setItemChecked(note.checklistItems, stored, checked) },
+        ['ChecklistItems'],
+      ),
+    });
   }
 
   return (
@@ -176,10 +180,13 @@ export function NoteCard({
 
       {note.type === 'Checklist' ? (
         <ul className="space-y-1">
-          {checklistForDisplay(note.checklistItems)
+          {checklistRows(note.checklistItems)
             .slice(0, MAX_PREVIEW_ITEMS)
-            .map((it, i) => (
-              <li key={it.id ?? `row-${i}`} className="flex items-start gap-2 text-sm">
+            .map(({ item: it, index }) => (
+              <li
+                key={it.id ?? `row-${index}`}
+                className={cn('flex items-start gap-2 text-sm', indentOf(it) === 1 && 'ml-6')}
+              >
                 <button
                   type="button"
                   role="checkbox"
@@ -188,7 +195,7 @@ export function NoteCard({
                   disabled={!note.canEdit}
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleItem(it);
+                    toggleItem(index, !it.isChecked);
                   }}
                   className={cn(
                     'mt-px grid size-4.5 shrink-0 place-items-center rounded-md border-[1.5px] transition',

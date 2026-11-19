@@ -13,6 +13,12 @@ public class ChecklistItem
     /// <summary>The item's label.</summary>
     public string Text { get; set; } = "";
 
+    /// <summary>
+    /// Nesting depth: 0 for a top-level row, 1 for a sub-item of the top-level row above it.
+    /// Only one level exists, so the server never stores any other value.
+    /// </summary>
+    public int Indent { get; set; }
+
     /// <summary>Whether the box is ticked.</summary>
     public bool IsChecked { get; set; }
 

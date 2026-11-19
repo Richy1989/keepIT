@@ -331,10 +331,15 @@ public class ImportController : ControllerBase
                 Id = Guid.NewGuid(),
                 NoteId = note.Id,
                 Text = NoteLimits.Cut(item.Text ?? "", NoteLimits.ChecklistItemText),
+                Indent = item.Indent ?? 0,
                 IsChecked = item.IsChecked,
                 Order = order++,
             });
         }
+
+        // An archive is hostile input, so the hierarchy is held to the same rules a save is: one
+        // nesting level and no orphaned sub-item.
+        ChecklistHierarchy.Normalize(note.ChecklistItems.ToList());
 
         note.UserStates.Add(new NoteUserState
         {

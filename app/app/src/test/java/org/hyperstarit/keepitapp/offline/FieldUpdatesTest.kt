@@ -45,6 +45,13 @@ class FieldUpdatesTest {
     }
 
     @Test
+    fun `an indent-only checklist change is named`() {
+        val indented = note.checklistItems.map { it.copy(indent = 1) }
+
+        assertEquals(listOf(NoteFields.CHECKLIST_ITEMS), changedFields(note, edit(items = indented)))
+    }
+
+    @Test
     fun `an editor compares with what it opened, not with what has synced in since`() {
         // Opened as "Trip"; a collaborator's rename then synced into the cache, but not the editor.
         val opened = edit()
