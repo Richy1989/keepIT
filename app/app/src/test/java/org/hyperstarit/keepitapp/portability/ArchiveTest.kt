@@ -319,6 +319,54 @@ class ArchiveTest {
         }
     }
 
+    /**
+     * A real export from keepIT 1.4.0, written by the released image, holding what came after
+     * 0.9.2: checklist sub-items, note backgrounds, a highlight and reminders with their time zone.
+     * The API's `ImportTests` imports the same file into the server.
+     */
+    @Test
+    fun `an export from keepIT 1_4_0 reads back whole`() {
+        val file = File("../../keepIT/keepITCore.Tests/Archives/keepit-export-1.4.0.zip")
+        assertTrue("keepit-export-1.4.0.zip not found at ${file.absolutePath}", file.isFile)
+
+        val opened = ArchiveReader.open(file)
+        assertTrue(opened is OpenArchiveResult.Opened)
+        (opened as OpenArchiveResult.Opened).archive.use { archive ->
+            val manifest = archive.manifest
+            assertEquals("1.4.0+734a8e7", manifest.appVersion)
+            assertEquals(listOf("Home", "Trip"), manifest.lists.map { it.name }.sorted())
+            assertEquals(6, manifest.notes.size)
+            fun note(title: String) = manifest.notes.single { it.title == title }
+
+            // Sub-items, in their order, at their level, ticked as they were.
+            val packing = note("Packing")
+            assertEquals("travel", packing.background)
+            val items = packing.checklistItems.sortedBy { it.order }
+            assertEquals(
+                listOf("Clothes", "socks", "rain jacket", "Documents", "passport", "tickets", "charger"),
+                items.map { it.text },
+            )
+            assertEquals(listOf(0, 1, 1, 0, 1, 1, 0), items.map { it.indent })
+            assertEquals(listOf(false, true, false, true, true, true, false), items.map { it.isChecked })
+            assertEquals("Weekly", packing.reminderRecurrence)
+            assertEquals("Europe/Vienna", packing.reminderTimeZone)
+
+            val ideas = note("Ideas")
+            assertEquals("dots", ideas.background)
+            assertTrue(ideas.body!!.contains("<mark data-color=\"yellow\">the blue tiles</mark>"))
+            assertEquals(MediaKinds.IMAGE, ideas.media.single().kind)
+            assertEquals(1500, note("Voice memo").media.single().durationMs)
+            assertEquals("lined", note("Old idea").background)
+            assertTrue(note("Old idea").isArchived)
+            assertTrue(note("Discarded").isTrashed)
+
+            for (n in manifest.notes) for (media in n.media) {
+                val bytes = archive.openImage(n.id, media.id)!!.use { it.readBytes() }
+                assertEquals(media.byteSize, bytes.size.toLong())
+            }
+        }
+    }
+
     // ---- what the reader refuses ----
 
     @Test

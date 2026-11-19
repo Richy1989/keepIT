@@ -294,6 +294,83 @@ public sealed class ImportTests
         Assert.Equal(ReminderSchedule.Default.Id, note.GetProperty("reminderTimeZone").GetString());
     }
 
+    /// <summary>
+    /// A real export from keepIT 1.4.0, written by the released image on its built-in database
+    /// (dates without a <c>Z</c>), from an account filled through its API. It holds what came after
+    /// 0.9.2: checklist sub-items (1.4.0) — one group done, one partly done, a row with none —,
+    /// note backgrounds and a highlight (1.3.0), and reminders with their time zone. Alongside them,
+    /// as in 0.9.2: lists with and without an icon, a photo, a voice note, an archived and a trashed
+    /// note.
+    /// </summary>
+    [Fact]
+    public async Task An_export_from_keepIT_1_4_0_imports_whole()
+    {
+        var archive = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Archives", "keepit-export-1.4.0.zip"));
+        using var api = new KeepItApiFactory();
+        using var client = await api.CreateSignedInClientAsync();
+
+        var result = await ImportOkAsync(client, archive);
+
+        Assert.Equal(6, result.GetProperty("notesImported").GetInt32());
+        Assert.Equal(2, result.GetProperty("listsCreated").GetInt32());
+        Assert.Equal(2, result.GetProperty("attachmentsImported").GetInt32());
+        Assert.Equal(0, result.GetProperty("attachmentsSkipped").GetInt32());
+        Assert.Empty(result.GetProperty("warnings").EnumerateArray());
+
+        var lists = (await client.GetFromJsonAsync<JsonElement>("/api/lists")).EnumerateArray().ToArray();
+        var trip = Assert.Single(lists, l => l.GetProperty("name").GetString() == "Trip");
+        var home = Assert.Single(lists, l => l.GetProperty("name").GetString() == "Home");
+        Assert.Equal("🧳", trip.GetProperty("icon").GetString());
+        Assert.Equal(JsonValueKind.Null, home.GetProperty("icon").ValueKind);
+
+        var grid = await GridAsync(client);
+        Assert.Equal(
+            new[] { "Dentist", "Ideas", "Packing", "Voice memo" },
+            grid.Select(n => n.GetProperty("title").GetString()).Order());
+
+        // Sub-items come back where they were, ticked as they were.
+        var packing = NoteWithTitle(grid, "Packing");
+        Assert.Equal("travel", packing.GetProperty("background").GetString());
+        Assert.Equal("amber", packing.GetProperty("color").GetString());
+        Assert.True(packing.GetProperty("isPinned").GetBoolean());
+        Assert.Equal(new[] { trip.GetProperty("id").GetString() }, packing.GetProperty("listIds").EnumerateArray().Select(i => i.GetString()));
+        var items = packing.GetProperty("checklistItems").EnumerateArray().ToArray();
+        Assert.Equal(
+            new[] { "Clothes", "socks", "rain jacket", "Documents", "passport", "tickets", "charger" },
+            items.Select(i => i.GetProperty("text").GetString()));
+        Assert.Equal(new[] { 0, 1, 1, 0, 1, 1, 0 }, items.Select(i => i.GetProperty("indent").GetInt32()));
+        Assert.Equal(
+            new[] { false, true, false, true, true, true, false },
+            items.Select(i => i.GetProperty("isChecked").GetBoolean()));
+        Assert.Equal("Weekly", packing.GetProperty("reminderRecurrence").GetString());
+        Assert.Equal(Utc("2040-01-06T07:00:00Z"), Utc(packing.GetProperty("remindAtUtc").GetString()!));
+        Assert.Equal("Europe/Vienna", packing.GetProperty("reminderTimeZone").GetString());
+
+        var ideas = NoteWithTitle(grid, "Ideas");
+        Assert.Equal("dots", ideas.GetProperty("background").GetString());
+        Assert.Contains("<mark data-color=\"yellow\">the blue tiles</mark>", ideas.GetProperty("body").GetString());
+        var photo = Assert.Single(ideas.GetProperty("media").EnumerateArray());
+        Assert.Equal("Image", photo.GetProperty("kind").GetString());
+        var image = await client.GetAsync($"/api/notes/{ideas.GetProperty("id")}/media/{photo.GetProperty("id")}");
+        Assert.Equal(HttpStatusCode.OK, image.StatusCode);
+        Assert.Equal((64, 48), TestImages.SizeOf(await image.Content.ReadAsByteArrayAsync()));
+
+        var memo = NoteWithTitle(grid, "Voice memo");
+        var voice = Assert.Single(memo.GetProperty("media").EnumerateArray());
+        Assert.Equal(1500, voice.GetProperty("durationMs").GetInt32());
+        var recording = await client.GetAsync($"/api/notes/{memo.GetProperty("id")}/media/{voice.GetProperty("id")}");
+        Assert.Equal(ArchivedRecording(archive), await recording.Content.ReadAsByteArrayAsync());
+
+        var dentist = NoteWithTitle(grid, "Dentist");
+        Assert.Equal("None", dentist.GetProperty("reminderRecurrence").GetString());
+        Assert.Equal("Europe/Vienna", dentist.GetProperty("reminderTimeZone").GetString());
+
+        var old = Assert.Single(await GridAsync(client, "archived"));
+        Assert.Equal("Old idea", old.GetProperty("title").GetString());
+        Assert.Equal("lined", old.GetProperty("background").GetString());
+        Assert.Equal("Discarded", Assert.Single(await GridAsync(client, "trashed")).GetProperty("title").GetString());
+    }
+
     /// <summary>An ISO date as UTC; one without a zone is UTC, as the API means it.</summary>
     private static DateTime Utc(string iso) =>
         DateTime.Parse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
