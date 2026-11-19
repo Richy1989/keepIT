@@ -18,6 +18,7 @@ import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.ProfileImage
 import org.hyperstarit.keepitapp.data.RealtimeClient
 import org.hyperstarit.keepitapp.data.SessionRepository
+import org.hyperstarit.keepitapp.data.ServerFeatures
 import org.hyperstarit.keepitapp.data.SessionState
 import org.hyperstarit.keepitapp.data.offline.ConnectivityMonitor
 import org.hyperstarit.keepitapp.data.offline.LocalStore
@@ -74,9 +75,13 @@ class AppContainer(context: Context) {
     val connectivity = ConnectivityMonitor(context.applicationContext)
     val notesRepo =
         NotesRepository(apiClient, context.applicationContext, localStore, outbox, appScope, mediaStaging)
+    /** What the connected server can do, by its version (see the class doc). */
+    val serverFeatures = ServerFeatures(context.applicationContext, apiClient)
+
     val syncEngine = SyncEngine(
         apiClient, outbox, connectivity, appScope, notesRepo, mediaStaging,
         NoteTextRescue(context.applicationContext),
+        serverFeatures,
         isStandalone = { appMode.isStandalone },
     )
 

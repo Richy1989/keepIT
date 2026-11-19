@@ -28,10 +28,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
@@ -49,6 +51,8 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.StrikethroughS
 import androidx.compose.material.icons.filled.TextFormat
 import androidx.compose.material.icons.filled.Title
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -68,6 +72,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -77,15 +82,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import org.hyperstarit.keepitapp.data.NoteBackgroundNames
+import org.hyperstarit.keepitapp.ui.markdown.HighlightMarks
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownAction
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
+import org.hyperstarit.keepitapp.ui.theme.LocalKeepItPalette
 import org.hyperstarit.keepitapp.ui.theme.NotePalette
+import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 
 /**
  * The editor's tools, as a floating pill: rounded, lifted off the note, and kept clear of the
@@ -123,6 +134,8 @@ internal fun EditorToolbar(
     onToggleChecklist: () -> Unit,
     onToggleRecording: () -> Unit,
     onFormat: (MarkdownAction) -> Unit,
+    /** Highlights the selection in a colour ([HighlightMarks.COLORS]), or with null removes it. */
+    onHighlight: (String?) -> Unit = {},
 ) {
     var formatting by remember { mutableStateOf(false) }
     // A switch to checklist drops the formatting buttons with it, and a switch back starts on the
@@ -193,6 +206,7 @@ internal fun EditorToolbar(
                         }
                         ToolButton(Icons.Filled.Link, "Link") { onFormat(MarkdownAction.LINK) }
                         ToolButton(Icons.Filled.Code, "Code") { onFormat(MarkdownAction.CODE) }
+                        HighlightTool(onHighlight)
                     } else {
                         ToolButton(Icons.Filled.Add, "Add to note", onClick = onAdd)
                         if (canFormat) {
@@ -266,6 +280,40 @@ private fun Modifier.fadingEdges(scroll: ScrollState, width: Dp = 28.dp): Modifi
  * tinted fill behind its icon, not only a tint on it: at a glance the fill reads where a yellow
  * icon among grey ones does not. One that can't act now (a full checklist's "Add item") is faded.
  */
+/**
+ * The highlighter: a button that opens the five colours, each a swatch in this theme's fill, and
+ * "Remove highlight". The text field keeps its selection while the menu is open.
+ */
+@Composable
+private fun HighlightTool(onHighlight: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val palette = LocalKeepItPalette.current
+    Box {
+        ToolButton(Icons.Filled.BorderColor, "Highlight") { open = true }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = KeepItColors.Elevated) {
+            HighlightMarks.COLORS.forEach { color ->
+                DropdownMenuItem(
+                    text = { Text(HighlightMarks.label(color), color = KeepItColors.Text) },
+                    leadingIcon = {
+                        Box(
+                            Modifier
+                                .size(20.dp)
+                                .background(palette.highlight(color), CircleShape)
+                                .border(1.dp, KeepItColors.BorderStrong, CircleShape),
+                        )
+                    },
+                    onClick = { open = false; onHighlight(color) },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Remove highlight", color = KeepItColors.Text) },
+                leadingIcon = { Icon(Icons.Filled.Close, contentDescription = null, tint = KeepItColors.TextMuted) },
+                onClick = { open = false; onHighlight(null) },
+            )
+        }
+    }
+}
+
 @Composable
 private fun ToolButton(
     icon: ImageVector,
@@ -351,6 +399,10 @@ internal fun AddToNoteSheet(
  *
  * The note list's multi-select opens it for several notes: [mixed] when they differ, so no swatch
  * claims to be theirs, and a [footnote] when some of them are view-only and won't change.
+ *
+ * Under the colours, the background images ([NoteBackgrounds]), each drawn on the note's colour,
+ * when [onPickBackground] is given and [backgrounds] offers them; on a server too old to keep them,
+ * a line saying so instead.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -362,6 +414,10 @@ internal fun NoteColorSheet(
     /** The notes have different colours, so none is shown as selected. */
     mixed: Boolean = false,
     footnote: String? = null,
+    backgrounds: BackgroundsOffer = BackgroundsOffer.HIDDEN,
+    /** The note's background image name, or null for none. */
+    background: String? = null,
+    onPickBackground: ((String?) -> Unit)? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = KeepItColors.Surface) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
@@ -434,6 +490,78 @@ internal fun NoteColorSheet(
                         }
                     }
                 }
+            }
+            if (onPickBackground != null) {
+                BackgroundRow(backgrounds, colorKey = selected, background = background, onPick = onPickBackground)
+            }
+        }
+    }
+}
+
+/** The background images: "None", then each one, drawn on the note's colour as it will look. */
+@Composable
+private fun BackgroundRow(
+    offer: BackgroundsOffer,
+    colorKey: String?,
+    background: String?,
+    onPick: (String?) -> Unit,
+) {
+    val entries = NoteBackgrounds.all(LocalContext.current)
+    if (entries.isEmpty() || offer == BackgroundsOffer.HIDDEN) return
+    if (offer == BackgroundsOffer.NEEDS_SERVER_UPDATE) {
+        Text(
+            text = "Background images need keepIT server 1.3 or newer. Ask whoever runs your server to update it.",
+            color = KeepItColors.TextFaint,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp),
+        )
+        return
+    }
+    val swatch = noteSwatch(colorKey)
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+    ) {
+        (listOf<NoteBackgroundNames.Entry?>(null) + entries).forEach { entry ->
+            val name = entry?.name
+            val isSelected = background == name
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .width(64.dp)
+                    .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onPick(name) }),
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(shape)
+                        .background(swatch.bg)
+                        .noteBackground(name, swatch)
+                        .border(
+                            width = if (isSelected) 2.dp else 1.dp,
+                            color = if (isSelected) KeepItColors.AccentInk else swatch.border,
+                            shape = shape,
+                        ),
+                ) {
+                    if (isSelected) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = KeepItColors.AccentInk, modifier = Modifier.size(22.dp))
+                    } else if (entry == null) {
+                        Icon(Icons.Filled.Close, contentDescription = null, tint = KeepItColors.TextFaint, modifier = Modifier.size(20.dp))
+                    }
+                }
+                Text(
+                    text = entry?.label ?: "None",
+                    color = if (isSelected) KeepItColors.Text else KeepItColors.TextFaint,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
     }

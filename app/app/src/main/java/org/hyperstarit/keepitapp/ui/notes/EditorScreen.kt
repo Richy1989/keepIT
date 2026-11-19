@@ -1,17 +1,12 @@
 package org.hyperstarit.keepitapp.ui.notes
 
-import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.FileProvider
-import java.io.File
-import java.util.UUID
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
@@ -31,12 +26,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -46,8 +41,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
@@ -60,12 +55,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -76,8 +71,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -92,42 +87,48 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.hyperstarit.keepitapp.AppContainer
+import org.hyperstarit.keepitapp.data.AudioRecorder
+import org.hyperstarit.keepitapp.data.ChecklistItemDto
+import org.hyperstarit.keepitapp.data.CreateNoteDto
+import org.hyperstarit.keepitapp.data.MediaKinds
+import org.hyperstarit.keepitapp.data.NoteDto
+import org.hyperstarit.keepitapp.data.NoteLimits
+import org.hyperstarit.keepitapp.data.NoteStateDto
+import org.hyperstarit.keepitapp.data.NoteTypes
+import org.hyperstarit.keepitapp.data.UpdateNoteDto
+import org.hyperstarit.keepitapp.data.checklistFromText
+import org.hyperstarit.keepitapp.data.offline.changedFields
+import org.hyperstarit.keepitapp.data.splitPastedRow
+import org.hyperstarit.keepitapp.data.suggestFromChecked
+import org.hyperstarit.keepitapp.data.textFromChecklist
+import org.hyperstarit.keepitapp.ui.markdown.HighlightMarks
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownText
 import org.hyperstarit.keepitapp.ui.markdown.MarkdownVisualTransformation
 import org.hyperstarit.keepitapp.ui.markdown.applyMarkdown
 import org.hyperstarit.keepitapp.ui.markdown.continueListOnEnter
-import org.hyperstarit.keepitapp.data.ChecklistItemDto
-import org.hyperstarit.keepitapp.data.CreateNoteDto
-import org.hyperstarit.keepitapp.data.NoteDto
-import org.hyperstarit.keepitapp.data.NoteLimits
-import org.hyperstarit.keepitapp.data.checklistFromText
-import org.hyperstarit.keepitapp.data.splitPastedRow
-import org.hyperstarit.keepitapp.data.suggestFromChecked
-import org.hyperstarit.keepitapp.data.textFromChecklist
-import org.hyperstarit.keepitapp.data.NoteStateDto
-import org.hyperstarit.keepitapp.data.AudioRecorder
-import org.hyperstarit.keepitapp.data.MediaKinds
-import org.hyperstarit.keepitapp.data.NoteTypes
-import org.hyperstarit.keepitapp.data.UpdateNoteDto
-import org.hyperstarit.keepitapp.data.offline.changedFields
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.LocalKeepItPalette
 import org.hyperstarit.keepitapp.ui.theme.noteSwatch
@@ -202,6 +203,8 @@ fun EditorScreen(
     val lists by repo.lists.collectAsState()
     // Standalone: no sharing, and queued images are the note's images rather than uploads.
     val standalone by container.appMode.standalone.collectAsState()
+    // Backgrounds need a server that stores them (see [backgroundsOffer]).
+    val serverVersion by container.serverFeatures.version.collectAsState()
 
     // Existing note: prefer the grid cache, fall back to a direct fetch (widget deep link).
     var loaded by remember { mutableStateOf(noteId == null) }
@@ -221,6 +224,7 @@ fun EditorScreen(
     val sharedTextCut = noteId == null &&
         (initialTitle.orEmpty().length > NoteLimits.TITLE || initialBody.orEmpty().length > NoteLimits.BODY)
     var color by remember { mutableStateOf<String?>(null) }
+    var background by remember { mutableStateOf<String?>(null) }
     val items = remember { mutableStateListOf<EditableItem>() }
     var listIds by remember { mutableStateOf(setOf<String>()) }
     var showColorSheet by remember { mutableStateOf(false) }
@@ -239,7 +243,7 @@ fun EditorScreen(
 
     // The content as it was loaded, or as it was last saved; see [persist]. List membership isn't in
     // it: that is the caller's own, compared and saved on its own.
-    fun contentSignature() = editSignatureOf(type, title, body.text, color, emptySet(), items)
+    fun contentSignature() = editSignatureOf(type, title, body.text, color, background, emptySet(), items)
     var persistedContent by remember { mutableStateOf<String?>(null) }
     // The same content as it would be sent: what the next save compares against to name the fields
     // it changes. Never the note as cached now — a sync while the editor is open brings in other
@@ -281,6 +285,7 @@ fun EditorScreen(
         title = n.title ?: ""
         body = TextFieldValue(n.body ?: "")
         color = n.color
+        background = n.background
         items.clear()
         n.checklistItems.sortedBy { it.order }.forEach { items.add(EditableItem(it.id, it.text, it.isChecked)) }
         listIds = n.listIds.toSet()
@@ -418,6 +423,7 @@ fun EditorScreen(
                     title = title.trim().ifBlank { null },
                     body = body.text.trim().ifBlank { null },
                     color = color,
+                    background = background,
                     checklistItems = checklist.ifEmpty { null },
                     listIds = listIds.toList().ifEmpty { null },
                 ),
@@ -428,6 +434,7 @@ fun EditorScreen(
                 title = title.trim().ifBlank { null },
                 body = body.text.trim().ifBlank { null },
                 color = color,
+                background = background,
                 checklistItems = checklist,
             )
         } else {
@@ -444,6 +451,7 @@ fun EditorScreen(
                     title = title.trim().ifBlank { null },
                     body = body.text.trim().ifBlank { null },
                     color = color,
+                    background = background,
                     checklistItems = buildChecklist(),
                 )
                 repo.update(current.id, dto, fields = savedContent?.let { changedFields(it, dto) })
@@ -597,7 +605,7 @@ fun EditorScreen(
 
     // Autosave: debounce edits so typing and checkbox toggles reach the outbox within a moment,
     // instead of living only in volatile UI state until the editor closes.
-    val editSignature = editSignatureOf(type, title, body.text, color, listIds, items)
+    val editSignature = editSignatureOf(type, title, body.text, color, background, listIds, items)
     var savedSignature by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(loaded) {
         // Baseline the loaded content so merely opening a note doesn't enqueue a redundant save.
@@ -741,6 +749,10 @@ fun EditorScreen(
                     onToggleRecording = ::toggleRecording,
                     // Each button rewrites the body's current selection.
                     onFormat = { action -> body = applyMarkdown(body, action) },
+                    onHighlight = { color ->
+                        val edit = HighlightMarks.apply(body.text, body.selection.min, body.selection.max, color)
+                        body = TextFieldValue(edit.value, TextRange(edit.selectionStart, edit.selectionEnd))
+                    },
                 )
             }
         },
@@ -750,11 +762,14 @@ fun EditorScreen(
             return@Scaffold
         }
 
+        val bodyScroll = rememberScrollState()
         Column(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                // Before the scroll, so it fills the screen; moved by it, so it scrolls with the text.
+                .noteBackground(background, swatch, scrolledBy = { bodyScroll.value })
+                .verticalScroll(bodyScroll)
                 .padding(horizontal = 16.dp),
         ) {
             note?.let { n ->
@@ -1126,6 +1141,9 @@ fun EditorScreen(
             selected = color,
             onPick = { color = it },
             onDismiss = { showColorSheet = false },
+            backgrounds = backgroundsOffer(standalone, serverVersion),
+            background = background,
+            onPickBackground = { background = it },
         )
     }
 }
@@ -1216,6 +1234,7 @@ private fun editSignatureOf(
     title: String,
     body: String,
     color: String?,
+    background: String?,
     listIds: Set<String>,
     items: List<EditableItem>,
 ): String {
@@ -1224,6 +1243,7 @@ private fun editSignatureOf(
         add(title)
         add(body)
         add(color ?: "")
+        add(background ?: "")
         add(listIds.sorted().joinToString(","))
         items.forEach { add("${it.id ?: "*"}=${it.isChecked}:${it.text}") }
     }
@@ -1271,6 +1291,7 @@ private fun NoteDto.asSaved() = UpdateNoteDto(
     title = title.orEmpty().trim().ifBlank { null },
     body = body.orEmpty().trim().ifBlank { null },
     color = color,
+    background = background,
     checklistItems = checklistItems
         .sortedBy { it.order }
         .filter { it.text.isNotBlank() }

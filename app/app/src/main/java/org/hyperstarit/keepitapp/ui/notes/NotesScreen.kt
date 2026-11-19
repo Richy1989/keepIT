@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -19,20 +20,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Menu
@@ -42,6 +41,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SyncProblem as SyncProblemIcon
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Star as StarOutline
 import androidx.compose.material3.AlertDialog
@@ -51,6 +51,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,16 +72,15 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
-import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -102,6 +102,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.io.File
 import kotlinx.coroutines.launch
 import org.hyperstarit.keepitapp.AppContainer
 import org.hyperstarit.keepitapp.data.ListDto
@@ -115,10 +116,10 @@ import org.hyperstarit.keepitapp.data.offline.SyncProblem
 import org.hyperstarit.keepitapp.data.offline.SyncStatus
 import org.hyperstarit.keepitapp.data.offline.membershipOf
 import org.hyperstarit.keepitapp.ui.auth.UnsyncedSignOutDialog
+import org.hyperstarit.keepitapp.ui.markdown.HighlightMarks
 import org.hyperstarit.keepitapp.ui.settings.ProfilePicture
 import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 import org.hyperstarit.keepitapp.ui.theme.accentButtonColors
-import java.io.File
 
 /**
  * The phone twin of the web HomePage: a drawer with Notes/Archive/Trash + the user's lists (with
@@ -550,6 +551,9 @@ fun NotesScreen(
                     pendingMedia = pendingMedia[note.id].orEmpty(),
                     selected = note.id in selectedIds,
                     selecting = selecting,
+                    lists = lists,
+                    // A list chip shows that list alone, as picking it in the drawer does.
+                    onOpenList = { listId -> applyFilter(NotesFilter(NotesView.ACTIVE, setOf(listId))) },
                     onClick = { if (selecting) toggleSelected(note.id) else onOpenNote(note.id) },
                     onLongClick = { toggleSelected(note.id) },
                 )
@@ -1249,5 +1253,6 @@ private fun notesLabel(count: Int): String = if (count == 1) "Note" else "$count
 /** Client-side search over title, body, and checklist items — same rule as the web grid. */
 private fun NoteDto.matchesSearch(q: String): Boolean =
     (title ?: "").lowercase().contains(q) ||
-        (body ?: "").lowercase().contains(q) ||
+        // The text as read: "mark" should find the word, not every highlight.
+        HighlightMarks.withoutTags(body ?: "").lowercase().contains(q) ||
         checklistItems.any { it.text.lowercase().contains(q) }

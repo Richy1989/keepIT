@@ -20,6 +20,9 @@ object NoteLimits {
     const val TITLE = 1_000
     const val BODY = 100_000
     const val COLOR = 32
+
+    /** A note's background image name; [NoteBackgroundNames] holds it to the server's pattern too. */
+    const val BACKGROUND = 64
     const val CHECKLIST_ITEMS = 500
     const val CHECKLIST_ITEM_TEXT = 2_000
     const val LIST_NAME = 100

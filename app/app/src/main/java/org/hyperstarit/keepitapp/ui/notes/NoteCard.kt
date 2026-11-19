@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -40,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.innerShadow
@@ -64,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import java.io.File
 import kotlinx.coroutines.launch
+import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.NoteStateDto
@@ -81,7 +85,6 @@ import org.hyperstarit.keepitapp.ui.theme.NoteCardStyle
 import org.hyperstarit.keepitapp.ui.theme.noteSwatch
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 private const val MAX_PREVIEW_ITEMS = 6
 
@@ -100,6 +103,9 @@ private const val MAX_PREVIEW_ITEMS = 6
  * the note has no stored image yet — a photo picked offline shows at once, and in standalone mode,
  * where nothing is ever uploaded, it is the only way the card shows images at all.
  *
+ * [lists] are the user's lists: the ones the note is in show as chips above the footer, and a tap
+ * on one shows that list ([onOpenList]), as the web card's chips do.
+ *
  * [audio] is the list's one player. It is passed in rather than remembered here because a card
  * scrolling out of the `LazyColumn` must not take the recording it is playing with it — see
  * [CardAudioPlayer].
@@ -112,6 +118,8 @@ fun NoteCard(
     pendingMedia: List<PendingOp.AttachMedia> = emptyList(),
     selected: Boolean = false,
     selecting: Boolean = false,
+    lists: List<ListDto> = emptyList(),
+    onOpenList: (String) -> Unit = {},
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -160,7 +168,8 @@ fun NoteCard(
             // The fill: the note's colour lit from above (see NoteCardStyle), or on a photo card the
             // photo itself, blurred. The inset shadow is the lit top edge.
             Box(
-                modifier = (if (photo) Modifier else Modifier.background(card.sheen(swatch.bg)))
+                // The background image tiles over the colour; a photo takes the place of both.
+                modifier = (if (photo) Modifier else Modifier.background(card.sheen(swatch.bg)).noteBackground(note.background, swatch))
                     .boxShadow(NoteCardShape, card.shadow, inset = true),
             ) {
                 if (photo) PhotoBackdrop(note, hero, stagedHero, repo)
@@ -290,8 +299,22 @@ fun NoteCard(
                                 Text(text = "Empty note", color = KeepItColors.TextFaint, fontSize = 13.sp)
                             }
 
+                            // The lists it is in, in the drawer's order: each chip shows its list.
+                            val inLists = lists.filter { it.id in note.listIds }
+                            if (inLists.isNotEmpty()) {
+                                Spacer(modifier = Modifier.size(10.dp))
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    inLists.forEach { list -> ListChip(list, onClick = { onOpenList(list.id) }) }
+                                }
+                            }
+
                             Spacer(modifier = Modifier.size(8.dp))
 
+                            // Pin, then the reminder, which gives way with an ellipsis when the row
+                            // is short of room; the faces and the date keep theirs on the right.
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -336,15 +359,15 @@ fun NoteCard(
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.weight(1f))
-
                                 // Reminders are per-user, so viewers get this too — hidden only in the trash.
-                                if (!note.isTrashed) {
-                                    ReminderChip(
-                                        note = note,
-                                        onClick = { showReminder = true },
-                                        modifier = Modifier.padding(end = 6.dp),
-                                    )
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (!note.isTrashed) {
+                                        ReminderChip(
+                                            note = note,
+                                            onClick = { showReminder = true },
+                                            modifier = Modifier.padding(start = 2.dp, end = 6.dp),
+                                        )
+                                    }
                                 }
 
                                 // The people on it; from a server older than that field, the old label.
@@ -361,7 +384,7 @@ fun NoteCard(
                                 }
 
                                 Text(
-                                    text = formatDate(note.createdAtUtc),
+                                    text = cardDate(note.createdAtUtc),
                                     color = KeepItColors.TextFaint,
                                     fontSize = 11.sp,
                                     modifier = Modifier.padding(start = 6.dp),
@@ -562,9 +585,34 @@ private fun ShareBadge(note: NoteDto) {
     Text(text = label, color = KeepItColors.TextFaint, fontSize = 11.sp)
 }
 
-private val DATE_FORMAT = DateTimeFormatter.ofPattern("MMM d")
-
-/** Renders a backend UTC timestamp in the device's local zone (SQLite dev values may lack 'Z'). */
-fun formatDate(iso: String): String = runCatching {
-    DATE_FORMAT.format(Instant.parse(ensureUtc(iso)).atZone(ZoneId.systemDefault()))
+/**
+ * A backend UTC timestamp as the card's date ([cardDateLabel]: "Today", "Yesterday", "Nov 17"), in
+ * the device's local zone (SQLite dev values may lack 'Z').
+ */
+fun cardDate(iso: String): String = runCatching {
+    cardDateLabel(Instant.parse(ensureUtc(iso)).atZone(ZoneId.systemDefault()).toLocalDate())
 }.getOrDefault("")
+
+/** One list the note is in, as a chip: its icon (or "#"), then its name, cut short when long. */
+@Composable
+private fun ListChip(list: ListDto, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .background(KeepItColors.OverlayLift, shape)
+            .clip(shape)
+            .clickable(onClickLabel = "Show the list ${list.name}", onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(text = list.icon ?: "#", color = KeepItColors.TextMuted, fontSize = 11.sp)
+        Text(
+            text = list.name,
+            color = KeepItColors.TextMuted,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}

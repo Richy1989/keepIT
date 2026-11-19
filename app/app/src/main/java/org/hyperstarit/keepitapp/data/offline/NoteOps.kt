@@ -30,12 +30,13 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
     is PendingOp.Update -> notes.map { n ->
         // Only the fields the edit names, as the server will apply it: laid over a fresher fetch,
         // a pending edit to the text mustn't show back a title the server has since moved past.
-        fun sets(field: String) = op.dto.fields?.contains(field) ?: true
+        fun sets(field: String) = (op.dto.fields ?: NoteFields.SET_BY_DEFAULT).contains(field)
         if (n.id != op.noteId) n else n.copy(
             type = if (sets(NoteFields.TYPE)) op.dto.type else n.type,
             title = if (sets(NoteFields.TITLE)) op.dto.title else n.title,
             body = if (sets(NoteFields.BODY)) op.dto.body else n.body,
             color = if (sets(NoteFields.COLOR)) op.dto.color else n.color,
+            background = if (sets(NoteFields.BACKGROUND)) op.dto.background else n.background,
             checklistItems = if (sets(NoteFields.CHECKLIST_ITEMS)) op.dto.checklistItems ?: emptyList() else n.checklistItems,
             updatedAtUtc = op.enqueuedAtUtc,
         )
@@ -169,6 +170,7 @@ private fun tempNote(op: PendingOp.Create): NoteDto = NoteDto(
     title = op.dto.title,
     body = op.dto.body,
     color = op.dto.color,
+    background = op.dto.background,
     checklistItems = op.dto.checklistItems ?: emptyList(),
     listIds = op.dto.listIds ?: emptyList(),
     createdAtUtc = op.enqueuedAtUtc,
@@ -320,12 +322,33 @@ fun changedFields(before: UpdateNoteDto, after: UpdateNoteDto): List<String> = b
     if (after.title != before.title) add(NoteFields.TITLE)
     if (after.body != before.body) add(NoteFields.BODY)
     if (after.color != before.color) add(NoteFields.COLOR)
+    if (after.background != before.background) add(NoteFields.BACKGROUND)
     if (after.checklistItems.orEmpty().rows() != before.checklistItems.orEmpty().rows()) add(NoteFields.CHECKLIST_ITEMS)
+}
+
+/**
+ * This edit as a server that does or doesn't [storesBackgrounds] can take it. A server older than
+ * 1.3 refuses an update naming [NoteFields.BACKGROUND] whole, and the outbox would then drop the
+ * rest of the edit with it, so for one the background is left out: chosen in standalone mode or
+ * before the server was updated, it stays on this device until a newer server is connected. An
+ * edit that named nothing else then names nothing, which the server answers without changing a thing.
+ */
+fun UpdateNoteDto.forServer(storesBackgrounds: Boolean): UpdateNoteDto {
+    val named = fields ?: return this
+    if (storesBackgrounds || NoteFields.BACKGROUND !in named) return this
+    return copy(fields = named - NoteFields.BACKGROUND, background = null)
 }
 
 /** [changedFields] against [note] as it stands — for an edit made from the cached note itself. */
 fun changedFields(note: NoteDto, dto: UpdateNoteDto): List<String> = changedFields(
-    UpdateNoteDto(type = note.type, title = note.title, body = note.body, color = note.color, checklistItems = note.checklistItems),
+    UpdateNoteDto(
+        type = note.type,
+        title = note.title,
+        body = note.body,
+        color = note.color,
+        background = note.background,
+        checklistItems = note.checklistItems,
+    ),
     dto,
 )
 

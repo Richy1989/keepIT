@@ -12,6 +12,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.AppMode
 import org.hyperstarit.keepitapp.data.CreateNoteDto
+import org.hyperstarit.keepitapp.data.NoteBackgroundNames
 import org.hyperstarit.keepitapp.data.ImportResultDto
 import org.hyperstarit.keepitapp.data.MediaKinds
 import org.hyperstarit.keepitapp.data.NoteDto
@@ -205,6 +206,9 @@ class PortabilityRepository(
                         title = source.title,
                         body = source.body,
                         color = source.color,
+                        // Only the name travels; one this build has no image for is kept all the
+                        // same, as the server's import keeps it.
+                        background = NoteBackgroundNames.validOrNull(source.background),
                         checklistItems = source.checklistItems.ifEmpty { null },
                         listIds = source.listIds.mapNotNull(listIdByArchiveId::get).ifEmpty { null },
                     ),

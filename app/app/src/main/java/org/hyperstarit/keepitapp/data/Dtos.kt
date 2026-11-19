@@ -23,6 +23,15 @@ object NoteFields {
     const val BODY = "Body"
     const val COLOR = "Color"
     const val CHECKLIST_ITEMS = "ChecklistItems"
+
+    /**
+     * The background image. Unlike the others, an update without fields never sets it, and a
+     * server older than 1.3 refuses an update naming it — see [UpdateNoteDto.fields].
+     */
+    const val BACKGROUND = "Background"
+
+    /** What an update without fields sets: every field but [BACKGROUND]. */
+    val SET_BY_DEFAULT = listOf(TYPE, TITLE, BODY, COLOR, CHECKLIST_ITEMS)
 }
 
 /** `NoteMediaKind` values as sent on the wire. */
@@ -198,6 +207,13 @@ data class NoteDto(
     val title: String? = null,
     val body: String? = null,
     val color: String? = null,
+    /**
+     * The background image tiled over [color], by name: a file in the repository's `backgrounds/`
+     * folder, which this app ships ([org.hyperstarit.keepitapp.ui.notes.NoteBackgrounds]). Null =
+     * none, as from a server older than the field. A name this build has no image for draws as
+     * none, and stays on the note.
+     */
+    val background: String? = null,
     val isPinned: Boolean = false,
     val isArchived: Boolean = false,
     val isTrashed: Boolean = false,
@@ -281,6 +297,8 @@ data class CreateNoteDto(
     val title: String? = null,
     val body: String? = null,
     val color: String? = null,
+    /** The background image's name ([NoteDto.background]). A server older than 1.3 ignores it. */
+    val background: String? = null,
     val checklistItems: List<ChecklistItemDto>? = null,
     val listIds: List<String>? = null,
 )
@@ -291,11 +309,18 @@ data class UpdateNoteDto(
     val title: String? = null,
     val body: String? = null,
     val color: String? = null,
+    /** The background image's name ([NoteDto.background]); set only when [fields] names it. */
+    val background: String? = null,
     val checklistItems: List<ChecklistItemDto>? = null,
     /**
      * The [NoteFields] this update sets; the server keeps the rest as they are now. Null sets them
-     * all. An edit queued offline replays long after it was made, and the whole note sent then
-     * undid whatever had changed meanwhile in the parts the edit never touched.
+     * all but the background ([NoteFields.SET_BY_DEFAULT]). An edit queued offline replays long
+     * after it was made, and the whole note sent then undid whatever had changed meanwhile in the
+     * parts the edit never touched.
+     *
+     * A server older than 1.3 doesn't know [NoteFields.BACKGROUND] and refuses the whole update
+     * naming it, so [org.hyperstarit.keepitapp.data.offline.SyncEngine] takes it out before
+     * sending to one ([org.hyperstarit.keepitapp.data.offline.forServer]).
      */
     val fields: List<String>? = null,
 )

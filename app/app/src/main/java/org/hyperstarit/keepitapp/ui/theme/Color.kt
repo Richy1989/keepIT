@@ -63,6 +63,11 @@ class KeepItPalette(
     val card: NoteCardStyle,
     /** Per-note backgrounds, keyed like the web palette; [NoteSwatch.key] is what `Note.color` stores. */
     val notes: List<NoteSwatch>,
+    /**
+     * Highlighted text's fills, by colour name (`--hl-<name>`): opaque, under [text]. Dim and Dark
+     * share the deep ones, as on the web, where Dim doesn't override them.
+     */
+    val highlights: Map<String, Color> = DeepHighlights,
 ) {
     private val swatchByKey = notes.associateBy { it.key }
 
@@ -97,7 +102,37 @@ class KeepItPalette(
         overlayWell = overlayWell,
         card = card,
         notes = notes,
+        highlights = highlights,
     )
+
+    /** This palette with links and other accent content in [ink]: what text on a highlight reads. */
+    fun withAccentInk(ink: Color): KeepItPalette = KeepItPalette(
+        name = name,
+        isLight = isLight,
+        canvas = canvas,
+        surface = surface,
+        surfaceHover = surfaceHover,
+        elevated = elevated,
+        borderSubtle = borderSubtle,
+        borderStrong = borderStrong,
+        text = text,
+        textMuted = textMuted,
+        textFaint = textFaint,
+        accent = accent,
+        accentStrong = accentStrong,
+        accentInk = ink,
+        error = error,
+        overlayHover = overlayHover,
+        borderControl = borderControl,
+        overlayLift = overlayLift,
+        overlayWell = overlayWell,
+        card = card,
+        notes = notes,
+        highlights = highlights,
+    )
+
+    /** The fill for highlight [color] (`yellow`, `green`, …); yellow for one this build doesn't know. */
+    fun highlight(color: String): Color = highlights[color] ?: highlights.getValue("yellow")
 
     override fun toString(): String = "KeepItPalette($name)"
 
@@ -215,6 +250,7 @@ class KeepItPalette(
                 lift = 0.5f,
                 sink = 0f,
                 ring = 0.6f,
+                pattern = 1f,
                 shadow = listOf(
                     BoxShadow(inset = true, x = 0f, y = 1f, blur = 0f, spread = 0f, color = Color(0xB3FFFFFF)),
                     BoxShadow(inset = false, x = 0f, y = 1f, blur = 2f, spread = 0f, color = Color(0x0D18181B)),
@@ -237,6 +273,7 @@ class KeepItPalette(
                 NoteSwatch("violet", "Violet", Color(0xFFE3D3FB), Color(0xFFCBAAF8)),
                 NoteSwatch("mauve", "Mauve", Color(0xFFFCD2F0), Color(0xFFF4ABE1)),
             ),
+            highlights = LightHighlights,
         )
 
         /** Every theme, for the tests that hold each one to the same bar. */
@@ -258,11 +295,30 @@ private val DarkError = Color(0xFFF87171)
 private val DarkBorderControl = Color(0x73FFFFFF)
 private val DarkOverlayLift = Color(0x14FFFFFF)
 private val DarkOverlayWell = Color(0x2E000000)
+/** Highlight fills under the dark themes' light text: deep and opaque (`:root`'s `--hl-*`). */
+private val DeepHighlights = mapOf(
+    "yellow" to Color(0xFF805C03),
+    "green" to Color(0xFF047239),
+    "blue" to Color(0xFF0A6899),
+    "pink" to Color(0xFF9F436B),
+    "purple" to Color(0xFF7850A1),
+)
+
+/** Highlight fills under Light's dark text: pastel and opaque (Light's `--hl-*`). */
+private val LightHighlights = mapOf(
+    "yellow" to Color(0xFFFEEA74),
+    "green" to Color(0xFFAAF5B9),
+    "blue" to Color(0xFFAAE6FF),
+    "pink" to Color(0xFFFFC4E1),
+    "purple" to Color(0xFFECCFFF),
+)
+
 private val DarkCard = NoteCardStyle(
     // Dark sinks the bottom and never lifts the top: lifting it 5% took textMuted to 4.1:1 on amber.
     lift = 0f,
     sink = 0.1f,
     ring = 1f,
+    pattern = 1f,
     shadow = listOf(
         BoxShadow(inset = true, x = 0f, y = 1f, blur = 0f, spread = 0f, color = Color(0x0FFFFFFF)),
         BoxShadow(inset = false, x = 0f, y = 1f, blur = 2f, spread = 0f, color = Color(0x4D000000)),
@@ -291,6 +347,8 @@ class NoteCardStyle(
     val lift: Float,
     val sink: Float,
     val ring: Float,
+    /** How much of the note's border colour a background image is painted in (`--note-pattern`). */
+    val pattern: Float,
     /** The card's shadow, front layer first, as `--shadow-note` lists it. The inset one is the lit edge. */
     val shadow: List<BoxShadow>,
     val photoScrim: Color,

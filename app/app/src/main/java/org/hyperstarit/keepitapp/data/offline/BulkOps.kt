@@ -85,5 +85,6 @@ private fun NoteDto.toUpdateDto() = UpdateNoteDto(
     title = title,
     body = body,
     color = color,
+    background = background,
     checklistItems = checklistItems,
 )
