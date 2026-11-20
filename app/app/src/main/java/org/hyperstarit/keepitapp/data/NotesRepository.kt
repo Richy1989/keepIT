@@ -65,6 +65,7 @@ data class NotesFilter(
  * [checklist] holds each item still to do as its own display line (so the widget stacks them), and
  * [ticked] counts the ticked ones, which stay off the widget as they stay off the note's card; for
  * text notes [preview] holds a one-line body excerpt, [checklist] is empty and [ticked] is 0.
+ * [background] is the note's background image by name, as [NoteDto.background] holds it.
  */
 @Serializable
 data class WidgetNote(
@@ -74,6 +75,7 @@ data class WidgetNote(
     val color: String?,
     val checklist: List<String> = emptyList(),
     val ticked: Int = 0,
+    val background: String? = null,
 )
 
 /**
@@ -721,6 +723,7 @@ class NotesRepository(
                         emptyList()
                     },
                     ticked = if (isChecklist) n.checklistItems.count { it.isChecked } else 0,
+                    background = n.background,
                 )
             }
 

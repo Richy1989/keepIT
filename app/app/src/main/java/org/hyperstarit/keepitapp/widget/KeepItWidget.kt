@@ -27,6 +27,7 @@ import androidx.glance.background
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
@@ -235,57 +236,80 @@ private fun NoteRow(context: Context, note: WidgetNote, colors: WidgetColors) {
     // screen too. Only the background: Glance has no border modifier, so the card's 1dp
     // swatch.border is dropped rather than faked with a nested Box. An unset/unknown key falls
     // back to the default swatch — the plain surface this row used to hardcode.
+    val tile = WidgetBackgroundDrawables.of(note.background)
     Column {
-        Column(
+        Box(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .background(colors.of { it.swatch(note.color).bg })
                 .cornerRadius(10.dp)
-                .padding(horizontal = 10.dp, vertical = 8.dp)
                 .clickable(actionStartActivity(noteIntent(context, note.id))),
         ) {
-            if (note.title.isNotBlank()) {
-                Text(
-                    text = note.title,
-                    maxLines = 1,
-                    style = TextStyle(
-                        color = colors.of { it.text },
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
+            // The note's background image over its colour, as the card draws it (noteBackground):
+            // the stencil tiled from the top left, in the colour's border ink at the theme's pattern
+            // strength. The drawable does the tiling (see noteBackgroundDrawables in
+            // app/build.gradle.kts) and is 1 dp intrinsically, so it fills the row without ever
+            // making it taller than its text. A name this build doesn't ship draws nothing.
+            if (tile != null) {
+                Image(
+                    provider = ImageProvider(tile),
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    colorFilter = ColorFilter.tint(
+                        colors.of { p -> p.swatch(note.color).border.let { it.copy(alpha = it.alpha * p.card.pattern) } },
                     ),
+                    modifier = GlanceModifier.fillMaxSize(),
                 )
             }
-            // Checklist items each on their own line (not run together), then how many are ticked,
-            // as the note's card says it.
-            note.checklist.forEach { line ->
-                Text(
-                    text = line,
-                    maxLines = 1,
-                    style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
-                )
-            }
-            if (note.ticked > 0) {
-                Text(
-                    text = if (note.ticked == 1) "+ 1 ticked item" else "+ ${note.ticked} ticked items",
-                    maxLines = 1,
-                    style = TextStyle(color = colors.of { it.textFaint }, fontSize = 12.sp),
-                )
-            }
-            if (note.preview.isNotBlank()) {
-                Text(
-                    text = note.preview,
-                    maxLines = if (note.title.isBlank()) 2 else 1,
-                    style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
-                )
-            }
-            if (note.title.isBlank() && note.preview.isBlank() && note.checklist.isEmpty() && note.ticked == 0) {
-                Text(
-                    text = "Empty note",
-                    style = TextStyle(color = colors.of { it.textFaint }, fontSize = 14.sp),
-                )
-            }
+            NoteRowText(note, colors)
         }
         Spacer(modifier = GlanceModifier.height(6.dp))
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun NoteRowText(note: WidgetNote, colors: WidgetColors) {
+    Column(modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
+        if (note.title.isNotBlank()) {
+            Text(
+                text = note.title,
+                maxLines = 1,
+                style = TextStyle(
+                    color = colors.of { it.text },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+        }
+        // Checklist items each on their own line (not run together), then how many are ticked,
+        // as the note's card says it.
+        note.checklist.forEach { line ->
+            Text(
+                text = line,
+                maxLines = 1,
+                style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
+            )
+        }
+        if (note.ticked > 0) {
+            Text(
+                text = if (note.ticked == 1) "+ 1 ticked item" else "+ ${note.ticked} ticked items",
+                maxLines = 1,
+                style = TextStyle(color = colors.of { it.textFaint }, fontSize = 12.sp),
+            )
+        }
+        if (note.preview.isNotBlank()) {
+            Text(
+                text = note.preview,
+                maxLines = if (note.title.isBlank()) 2 else 1,
+                style = TextStyle(color = colors.of { it.textMuted }, fontSize = 14.sp),
+            )
+        }
+        if (note.title.isBlank() && note.preview.isBlank() && note.checklist.isEmpty() && note.ticked == 0) {
+            Text(
+                text = "Empty note",
+                style = TextStyle(color = colors.of { it.textFaint }, fontSize = 14.sp),
+            )
+        }
     }
 }
 

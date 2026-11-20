@@ -1120,6 +1120,13 @@ shared content, like the colour. Its rules are in `backgrounds/README.md`; the d
   every card height (a stretched image would not be). A file is drawn at half its pixel size (CSS
   `image-set(… 2x)`, and on Android scaled to `px × density / 2`). On a photo card the photo takes
   the place of both colour and image; in the editors the image scrolls with the text.
+- **The widget tiles a resource, not an asset.** The launcher draws the home-screen widget from
+  RemoteViews, which can name an image but not paint a shader, so a second Gradle task
+  (`noteBackgroundDrawables`) also writes each file into `drawable-xhdpi` (2×, so the system
+  scales it as the app does) inside a tiled `<bitmap>`, plus the name → drawable map
+  `WidgetBackgroundDrawables`. The tile sits in a layer that is 1 dp intrinsically but fills its
+  bounds: an ImageView reports its drawable's size while being measured, and a 120 dp tile would
+  otherwise stretch every short row. The widget tints it with the same border token and strength.
 - **Set only when named.** `UpdateNoteDto.Fields == null` has always meant "set everything", and
   an app older than 1.3 sends no background, so its whole-note update would wipe one. Null fields
   therefore set every field *but* `Background` (`NoteFields.SET_BY_DEFAULT` on Android); only an

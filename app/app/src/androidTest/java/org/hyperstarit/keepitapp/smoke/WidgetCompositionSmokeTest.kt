@@ -125,6 +125,21 @@ class WidgetCompositionSmokeTest {
     }
 
     @Test
+    fun a_note_with_a_background_composes_in_every_theme() {
+        // The tile is a generated drawable resource, which the resource shrinker must keep and the
+        // launcher must inflate; an unknown name (from a newer build) must simply draw nothing.
+        seed(
+            WidgetNote("n1", "Ruled", "body", "amber", background = "lined"),
+            WidgetNote("n2", "Future", "", null, background = "from-the-future"),
+        )
+        for (theme in listOf("light", "dark", "system")) {
+            appearance.edit().putString("theme", theme).commit()
+            val views = composeWidget()
+            assertTrue("header missing in $theme: ${texts(views)}", texts(views).any { it == "keepIT" })
+        }
+    }
+
+    @Test
     fun the_empty_state_composes_when_there_is_no_snapshot() {
         prefs.edit().remove("notes_json").apply()
 

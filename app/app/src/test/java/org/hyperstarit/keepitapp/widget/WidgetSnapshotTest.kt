@@ -1,13 +1,16 @@
 package org.hyperstarit.keepitapp.widget
 
 import org.hyperstarit.keepitapp.data.ChecklistItemDto
+import org.hyperstarit.keepitapp.data.NoteBackgroundNames
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteTypes
 import org.hyperstarit.keepitapp.data.NotesRepository
 import org.hyperstarit.keepitapp.data.WidgetNote
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 /**
  * JVM tests for the widget's data contract — the snapshot the app writes to SharedPrefs and the
@@ -21,8 +24,13 @@ import org.junit.Test
  */
 class WidgetSnapshotTest {
 
-    private fun text(id: String, title: String? = null, body: String? = null, color: String? = null) =
-        NoteDto(id = id, type = NoteTypes.TEXT, title = title, body = body, color = color)
+    private fun text(
+        id: String,
+        title: String? = null,
+        body: String? = null,
+        color: String? = null,
+        background: String? = null,
+    ) = NoteDto(id = id, type = NoteTypes.TEXT, title = title, body = body, color = color, background = background)
 
     private fun checklist(id: String, vararg rows: Pair<String, Boolean>) = NoteDto(
         id = id,
@@ -55,6 +63,28 @@ class WidgetSnapshotTest {
     @Test
     fun `an uncoloured note keeps a null key rather than inventing a default`() {
         assertEquals(null, NotesRepository.widgetNotesFrom(listOf(text("n1"))).single().color)
+    }
+
+    @Test
+    fun `the note's background rides along so the widget can tile it over the colour`() {
+        val projected = NotesRepository.widgetNotesFrom(
+            listOf(text("n1", color = "sky", background = "lined"), text("n2")),
+        )
+
+        assertEquals(listOf("lined", null), projected.map { it.background })
+    }
+
+    @Test
+    fun `every background this build ships has a widget drawable`() {
+        // The generated map (noteBackgroundDrawables in app/build.gradle.kts) and the folder the
+        // picker offers must agree, or a background chosen in the app is blank on the home screen.
+        val files = File("../../backgrounds").listFiles().orEmpty().map { it.name }
+        val (shipped) = NoteBackgroundNames.parse(files)
+        assertTrue("backgrounds/ not found from ${File(".").absolutePath}", shipped.isNotEmpty())
+
+        assertEquals(emptyList<String>(), shipped.map { it.name }.filter { WidgetBackgroundDrawables.of(it) == null })
+        assertNull(WidgetBackgroundDrawables.of(null))
+        assertNull("a name from a newer build draws nothing", WidgetBackgroundDrawables.of("from-the-future"))
     }
 
     @Test
@@ -138,13 +168,15 @@ class WidgetSnapshotTest {
 
     @Test
     fun `a snapshot from an older build decodes, with the fields it never wrote defaulted`() {
-        // WidgetNote gained `checklist` after the first release, and `ticked` in 1.1; a blob
+        // WidgetNote gained `checklist` after the first release, `ticked` in 1.1 and `background`
+        // in 1.4.2; a blob
         // written before either must still decode rather than wedge the widget on its loading layout.
         val legacy = """[{"id":"n1","title":"Old","preview":"body","color":null}]"""
 
         val decoded = NotesRepository.decodeWidgetSnapshot(legacy)
 
         assertEquals(listOf(WidgetNote("n1", "Old", "body", null, emptyList())), decoded)
+        assertNull(decoded.single().background)
     }
 
     @Test

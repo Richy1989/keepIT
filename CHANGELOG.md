@@ -3,6 +3,13 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### 🔧 Improvements
+
+- The home-screen widget now shows each note's background image over its colour, tiled as on the
+  note's card. Android.
+
 ## 1.4.1
 
 ### 🐛 Fixes
