@@ -47,51 +47,11 @@ also works entirely on its own, with no server at all.
 
 ## Features
 
-### Notes
-
-- 📝 **Notes your way:** text notes with rich formatting (bold, headings, lists, links, code),
-  or checklists you tick off as you go.
-- 🖼️ **Photos in your notes:** attach images to any note, up to ten each. Location data is
-  stripped from every upload, so sharing a photo doesn't share where you took it.
-- 🎙️ **Voice notes:** record a thought on your phone instead of typing it, and play it back
-  anywhere — on the phone or in the web app, straight from your list of notes without opening one.
-  Recording works offline too.
-- 🎨 **Make it yours:** light, dim or dark themes (or follow your device), on the web and on
-  Android, a background color per note, and an accent color for the whole app.
-
-### Organizing
-
-- 🗂️ **Stay organized:** group notes into lists, pin the important ones, archive what's done,
-  and find anything instantly with search. Deleted notes wait in the trash until you're sure. On
-  Android, long-press to select several notes and pin, color, file or delete them together.
-- ⏰ **Reminders:** once, or on a schedule (daily, weekly, monthly, yearly). On your phone they
-  arrive as real notifications, even with the app closed, the screen locked, or no internet.
-
-### Sharing and sync
-
-- 👥 **Share notes:** invite someone by email to view or edit a note with you. You each keep
-  your own pins, lists and reminders; edits show up for everyone, live.
-- 🔄 **Always in sync:** change a note on one device and watch it update on the others. No
-  refresh, no sync button.
-
-### On your phone
-
-- 📱 **Android app included:** the same notes on your phone, with a home-screen widget for
-  recent notes and one-tap capture. It works fully offline: read and edit anywhere, and your
-  changes sync as soon as you're back online.
-- 📴 **No server? No problem:** the Android app also runs standalone. Notes, lists, photos,
-  reminders and the widget all live on your phone, with nothing to set up. Connect a server
-  later and everything moves into your account.
-
-### Your data
-
-- 💾 **Take your notes with you:** save everything you own — notes, checklists, lists, reminders
-  and photos — as a single zip, and load it back into any keepIT account. On the web and on
-  Android, standalone phones included, so a phone with no server still has a real backup. Your
-  data, readable without keepIT, and no lock-in.
-- 🔒 **Your notes stay yours:** everything lives on **your** server, or only on your phone. No
-  third-party cloud, no account with anyone but yourself. Turn on two-factor authentication and
-  signing in takes a code from an authenticator app too.
+- **Notes and checklists** support rich text and photos. Record voice notes on Android.
+- **Lists, pins and search** keep notes easy to find. Set one-time or recurring reminders.
+- **Live sharing** lets others view or edit a note. Changes sync across web and Android.
+- **Offline Android app** works standalone or syncs when you reconnect. Add notes from the home-screen widget.
+- **Your data** stays on your server or phone. Export and restore it as a ZIP.
 
 ## A closer look
 
