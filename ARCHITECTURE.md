@@ -589,6 +589,22 @@ Recording a pending invite keyed by email and resolving it on signup is a planne
   server older than 1.5.0 its editor keeps the list it opened, since every save replaces it there.
   The web editor still shows the list it opened until it is closed, but its save no longer undoes
   what changed meanwhile.
+- **A create sent twice makes one thing.** A create's answer can be lost after the server has saved
+  it (the connection drops, the app is killed), and the Android outbox then sends it again. So
+  creating a note or a list, and uploading an attachment, may name the id the client picked
+  (`CreateNoteDto.Id`, `CreateListDto.Id`, the upload's `id` form field), and the server keeps it.
+  When the caller's own note or list already has that id (for an attachment, when this note has it),
+  the request is the same one again: it gets back what the first one made, and nothing changes,
+  not even when the note has reached its attachment limit since. An id someone else's row has is
+  ignored and a new one made, as for checklist rows, so picking an id never reaches anything that
+  isn't the caller's. Two copies of the same request at once (a client that timed out and resent)
+  race for the primary key, and the loser answers with the winner's row; an attachment's loser
+  leaves the files alone, since they have the same names as the winner's. The app sends the UUID
+  of the temp id it queued the op under (`local-<uuid>`). Since the server answers a resend with
+  what it holds and ignores the body, a queued create is marked `sent` before its POST goes out, and
+  from then on the outbox folds nothing into it: a later edit, filing, deletion or rename queues as
+  an op of its own behind it, and `remapId` moves it to the real id like any other. The web sends
+  no ids: it never resends a create by itself.
 - **Revocation is immediate:** the next API call 403s/404s and the realtime push tells the
   revoked user's devices to resync (the note vanishes from their grid).
 - **Deleting a shared note:** owner-only; cascades shares, per-user state, list rows, and
