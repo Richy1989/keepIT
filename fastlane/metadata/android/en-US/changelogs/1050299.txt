@@ -1,0 +1,3 @@
+Fixed "The server is limiting requests (HTTP 429)" coming up in normal use: the app makes about half as many requests per edit, and after a 429 it waits as long as the server asks, then syncs by itself.
+
+Update your keepIT server to 1.5.2 as well: it gives each account its own request budget instead of sharing one per address.
