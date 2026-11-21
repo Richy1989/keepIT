@@ -7,6 +7,12 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 🔧 Improvements
 
+- Two people working the same shared checklist at once no longer undo each other: a tick, a new
+  row or a deleted row stays when the other person saves, and a save repeated on a bad connection
+  adds its new rows once. Web and Android; an Android app not yet updated can still undo the
+  others' changes. On Android, an open checklist also shows the other person's changes as they
+  sync, without reopening the note.
+
 - The home-screen widget now shows each note's background image over its colour, tiled as on the
   note's card. Android.
 - A checklist's ticked items now fold away under an "N ticked items" header in the note, as on
@@ -14,6 +20,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 📦 Deployment & Docs
 
+- Update the server along with the Android app: merging a shared checklist's edits needs the new
+  server, and an older one keeps replacing the whole list with each save.
 - The README opens with the light web theme, followed by dark mode and the framed Android app.
 
 ## 1.4.1

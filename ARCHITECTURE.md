@@ -567,8 +567,28 @@ Recording a pending invite keyed by email and resolving it on signup is a planne
   server sets only those, so two people changing different parts of a note both keep their change;
   within one field, the edit that arrives last wins. Before, an update replaced the whole note, and
   an edit queued offline on Android silently reverted whatever had changed meanwhile in the parts it
-  never touched. The checklist is one field: merging rows, or text within a field (CRDT), is out of
-  scope.
+  never touched. Merging text within a field (CRDT) is out of scope.
+- **Shared checklists merge row by row.** Two people ticking the same shopping list, each sending
+  their whole list, undid each other's ticks, deleted the row the other had just added and brought
+  back rows the other had deleted. So an update may also send `checklistBase`, the rows it started
+  from, and the server applies only the difference between that and `checklistItems` to the list as
+  it is now (`Notes/ChecklistMerge.cs`): rows ticked, renamed, indented, added, deleted or moved.
+  Rows are matched by id, so a new row arrives with an id the client made up, which the server keeps
+  when no other row has it: the same save sent twice (an outbox after a lost response) adds the row
+  once. A row one person changed and another deleted stays deleted; a type switch replaces the list
+  whole, and so does a base with a row that has no id (a note the web shows before its first
+  refetch), which can't be matched and would otherwise leave every row twice. Without a base the
+  list is replaced whole, as before, which is what Android apps before 1.5.0 still send — their
+  saves can still undo other people's changes, and nothing the server could guess would stop that.
+  Three copies of the merge exist, one per place an edit is applied: the server's, the web's
+  (`features/notes/checklistMerge.ts`, for the optimistic cache) and the Android app's
+  (`data/ChecklistMerge.kt`). All three run the cases in `web/src/features/notes/checklistMerge.json`,
+  so they can't drift apart. The web sends the base from its editor (the rows it opened with) and
+  from a tick on a card. The Android app also merges in its open editor, which takes in what a sync
+  brings while it is open, so both people see each other's ticks without reopening the note; on a
+  server older than 1.5.0 its editor keeps the list it opened, since every save replaces it there.
+  The web editor still shows the list it opened until it is closed, but its save no longer undoes
+  what changed meanwhile.
 - **Revocation is immediate:** the next API call 403s/404s and the realtime push tells the
   revoked user's devices to resync (the note vanishes from their grid).
 - **Deleting a shared note:** owner-only; cascades shares, per-user state, list rows, and
