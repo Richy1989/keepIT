@@ -4,6 +4,7 @@ import { useRevokeShare } from './shareQueries';
 import { noteColor } from './palette';
 import { ChecklistEditor } from './ChecklistEditor';
 import { checklistSections, indentOf, switchNoteType } from './checklist';
+import { TickedHeader } from './TickedHeader';
 import { Markdown } from './Markdown';
 import { MarkdownToolbar } from './MarkdownToolbar';
 import { onHighlightKey } from './highlightKey';
@@ -502,16 +503,24 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
  * the completed section, both in home order. A partially completed group repeats its unchecked
  * parent in the completed section as a greyed context heading above the checked children; that
  * heading is presentation only — no checkbox control, not focusable, never counted as an item.
+ * The completed section folds away under [TickedHeader], as in the editor.
  */
 function ReadOnlyChecklist({ items }: { items: ChecklistItemDto[] }) {
   const { active, completed } = checklistSections(items);
+  const tickedCount = completed.filter((row) => row.kind !== 'heading').length;
+  const [tickedOpen, setTickedOpen] = useState(false);
 
   return (
     <ul className="space-y-1">
       {active.map(({ item, index }) => (
         <ReadOnlyChecklistRow key={item.id ?? `active-${index}`} item={item} />
       ))}
-      {completed.map((row) =>
+      {tickedCount > 0 && (
+        <li>
+          <TickedHeader count={tickedCount} open={tickedOpen} onToggle={() => setTickedOpen((o) => !o)} />
+        </li>
+      )}
+      {tickedOpen && completed.map((row) =>
         row.kind === 'heading' ? (
           <li
             key={`heading-${row.parentIndex}`}

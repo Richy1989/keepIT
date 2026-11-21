@@ -168,6 +168,14 @@ describe('estimateCardHeight', () => {
     expect(past - at).toBeLessThan(40); // one collapsed row, not forty
   });
 
+  it('leaves ticked rows off the estimate, bar the line that counts them', () => {
+    const open = estimateCardHeight(note({ type: 'Checklist', checklistItems: items(3) }), W);
+    const ticked = items(23).map((item, i) => ({ ...item, isChecked: i >= 3 }));
+    const half = estimateCardHeight(note({ type: 'Checklist', checklistItems: ticked }), W);
+    expect(half - open).toBeGreaterThan(0);
+    expect(half - open).toBeLessThan(40); // one "+N ticked items" line, not twenty rows
+  });
+
   it('scales a hero image by its aspect ratio', () => {
     const wide = estimateCardHeight(note({ media: media(1600, 900) }), W);
     const square = estimateCardHeight(note({ media: media(1000, 1000) }), W);

@@ -73,7 +73,10 @@ export function NoteCard({
   // A card with a picture is a photo card: painted on the photo rather than on its colour.
   const hero = images.at(0);
 
-  const checkedItems = note.checklistItems.filter((i) => i.isChecked).length;
+  // As on Android (and in Google Keep), a card lists only what is left to do; the ticked rows fold
+  // away as they do in the editor, and one line says how many there are.
+  const openRows = checklistRows(note.checklistItems).filter(({ item }) => !item.isChecked);
+  const tickedItems = note.checklistItems.length - openRows.length;
   // The caller's lists this note is in, in the sidebar's order. Shared with the sidebar's query, so
   // this costs no fetch; an id the cache doesn't know yet (a list just made elsewhere) waits for it.
   const { data: allLists } = useLists();
@@ -180,7 +183,7 @@ export function NoteCard({
 
       {note.type === 'Checklist' ? (
         <ul className="space-y-1">
-          {checklistRows(note.checklistItems)
+          {openRows
             .slice(0, MAX_PREVIEW_ITEMS)
             .map(({ item: it, index }) => (
               <li
@@ -212,14 +215,14 @@ export function NoteCard({
                 </span>
               </li>
             ))}
-          {note.checklistItems.length > MAX_PREVIEW_ITEMS && (
+          {openRows.length > MAX_PREVIEW_ITEMS && (
             <li className="pl-6 text-xs text-text-faint">
-              + {note.checklistItems.length - MAX_PREVIEW_ITEMS} more
+              + {openRows.length - MAX_PREVIEW_ITEMS} more
             </li>
           )}
-          {note.checklistItems.length > 0 && (
-            <li className="pt-1 text-xs text-text-faint">
-              {checkedItems}/{note.checklistItems.length} done
+          {tickedItems > 0 && (
+            <li className="pl-6 text-xs text-text-faint">
+              + {tickedItems === 1 ? '1 ticked item' : `${tickedItems} ticked items`}
             </li>
           )}
         </ul>

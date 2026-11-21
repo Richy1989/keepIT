@@ -17,6 +17,7 @@ import {
   splitPastedRow,
   suggestFromChecked,
 } from './checklist';
+import { TickedHeader } from './TickedHeader';
 import type { ChecklistItemDto } from '../../api/types';
 
 /** Horizontal travel, in pixels, that turns a grip drag into an indent/outdent instead of a reorder. */
@@ -99,6 +100,10 @@ export function ChecklistEditor({
   // offers nothing, and nor does a row that has just taken an offer: it has that row's id.
   const [typing, setTyping] = useState<number | null>(null);
 
+  // The ticked rows fold away under a header that counts them ([TickedHeader]), closed each time
+  // the editor opens, as on Android.
+  const [tickedOpen, setTickedOpen] = useState(false);
+
   // After items change, focus a freshly-added row if one is pending (Enter / "Add item" / a paste).
   useEffect(() => {
     if (pendingFocus.current === null) return;
@@ -110,6 +115,7 @@ export function ChecklistEditor({
   }, [items]);
 
   const { active, completed } = checklistSections(items);
+  const tickedCount = completed.filter((row) => row.kind !== 'heading').length;
   const full = items.length >= MAX_CHECKLIST_ITEMS;
   const offer = typing !== null && items[typing] && !items[typing].id ? suggestFromChecked(items, typing) : null;
 
@@ -560,7 +566,10 @@ export function ChecklistEditor({
         </Fragment>
       ))}
       {addButton}
-      {completed.map((row) =>
+      {tickedCount > 0 && (
+        <TickedHeader count={tickedCount} open={tickedOpen} onToggle={() => setTickedOpen((o) => !o)} indent />
+      )}
+      {tickedOpen && completed.map((row) =>
         row.kind === 'heading' ? (
           // Context only: the text of an unchecked parent whose checked children are listed below.
           // No button, no input, no drop target, and it never counts as an item.

@@ -76,10 +76,11 @@ export function estimateCardHeight(note: NoteDto, columnWidth: number): number {
   }
 
   if (note.type === 'Checklist') {
-    const shown = Math.min(note.checklistItems.length, MAX_PREVIEW_ITEMS);
-    height += shown * CHECKLIST_ROW_HEIGHT;
-    if (note.checklistItems.length > MAX_PREVIEW_ITEMS) height += CHECKLIST_ROW_HEIGHT; // "+N more"
-    if (note.checklistItems.length > 0) height += CHECKLIST_ROW_HEIGHT; // "x/y done"
+    // Mirrors NoteCard: only the unticked rows, then one line counting the ticked ones.
+    const open = note.checklistItems.filter((i) => !i.isChecked).length;
+    height += Math.min(open, MAX_PREVIEW_ITEMS) * CHECKLIST_ROW_HEIGHT;
+    if (open > MAX_PREVIEW_ITEMS) height += CHECKLIST_ROW_HEIGHT; // "+N more"
+    if (open < note.checklistItems.length) height += CHECKLIST_ROW_HEIGHT; // "+N ticked items"
   } else if (note.body) {
     const chars = Math.min(note.body.length, MAX_PREVIEW_CHARS);
     const perLine = Math.max((columnWidth / 100) * CHARS_PER_LINE_PER_100PX, 1);

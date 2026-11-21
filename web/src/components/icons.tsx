@@ -216,6 +216,13 @@ export const ChevronLeftIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+/** Points down when open; turned a quarter to the right for closed (the ticked items' fold). */
+export const ChevronDownIcon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Icon>
+);
+
 /** A panel with its left column, and an arrow that folds it away (the sidebar's collapse button). */
 export const PanelLeftCloseIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>

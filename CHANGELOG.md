@@ -9,6 +9,8 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 - The home-screen widget now shows each note's background image over its colour, tiled as on the
   note's card. Android.
+- A checklist's ticked items now fold away under an "N ticked items" header in the note, as on
+  Android, and a card lists only the items still to do, with a line counting the ticked ones. Web.
 
 ### 📦 Deployment & Docs
 
