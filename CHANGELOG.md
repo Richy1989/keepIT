@@ -10,6 +10,10 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 - The home-screen widget now shows each note's background image over its colour, tiled as on the
   note's card. Android.
 
+### 📦 Deployment & Docs
+
+- The README opens with the light web theme, followed by dark mode and the framed Android app.
+
 ## 1.4.1
 
 ### 🐛 Fixes

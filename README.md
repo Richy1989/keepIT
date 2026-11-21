@@ -1,6 +1,12 @@
-<div align="center">
+<p align="center">
+  <a href="images/web-notes-light.png"><img src="images/readme/light.webp" alt="keepIT in light mode, with a travel photo, a grocery checklist, a book club reminder and a shared trip list pinned to the notes board" width="100%"></a>
+</p>
 
-<img src="docs/logo.png" alt="keepIT logo" width="96" height="96">
+<p align="center">
+  <img src="images/readme/dark-and-android.webp" alt="The same pinned notes in dark mode on the web and on a framed Android phone, side by side" width="100%">
+</p>
+
+<div align="center">
 
 # keepIT
 
@@ -12,12 +18,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 ![Status](https://img.shields.io/badge/status-work_in_progress-yellow)
 
-</div>
-
-<div align="center">
-  <img src="images/web-notes-dark.png" alt="keepIT web app in the dark theme: pinned notes with a photo, a shopping list with a background, a reminder and a shared checklist" width="69%">
-  &nbsp;
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" alt="keepIT Android app in the dark theme: the same pinned notes, two to a row" width="24%">
 </div>
 
 Notes, checklists, lists, reminders and sharing in a fast web app and a native Android client,
@@ -99,19 +99,19 @@ The Android app in action, in under half a minute (with music):
 
 https://github.com/user-attachments/assets/8c5d0574-b9ed-4ab7-aac6-e54ae903551c
 
-Light, dim or dark, on the web and on your phone:
+Open a note on the web to play a voice recording or browse its photos.
 
-<div align="center">
-  <img src="images/web-notes-light.png" alt="The web app in the light theme" width="49%">
-  <img src="images/web-editor-dark.png" alt="Editing a note with photos in the web app, dark theme" width="49%">
-</div>
+<p align="center">
+  <a href="images/web-editor-light.png"><img src="images/web-editor-light.png" alt="Garden visitors open in light mode, with a hummingbird photo and a voice recording" width="390"></a>
+  <a href="images/web-editor-dark.png"><img src="images/web-editor-dark.png" alt="Weekend in Puglia open in dark mode, with photos from the trip" width="390"></a>
+</p>
 
-<div align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" alt="Android, light theme: the pinned notes, with backgrounds and a photo" width="23%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" alt="Android, dark theme: three notes selected at once, with the actions for all of them in the top bar" width="23%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" alt="Android, dark theme: a shared checklist open in the editor, on its travel background" width="23%">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" alt="The keepIT home-screen widget with recent notes and a new-note button" width="23%">
-</div>
+On Android, select several notes at once, tick off a shared checklist or open a recent note from the home-screen widget.
+
+<p align="center">
+  <img src="images/readme/android-notes.webp" alt="Two Android screens showing pinned notes in light mode and three notes selected together in dark mode" width="390">
+  <img src="images/readme/android-checklist-widget.webp" alt="Two Android screens showing the shared Lisbon trip checklist and the keepIT home-screen widget" width="390">
+</p>
 
 ## Quick start
 

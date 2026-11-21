@@ -13,6 +13,7 @@ F-Droid reads `fastlane/metadata` from the release tag, so new ones must be on `
 |---|---|
 | `seed-demo.sh` | Builds the demo account over the REST API. |
 | `web-shots.cjs` | Takes the four web screenshots, dark and light (Playwright). |
+| `readme-shots.cjs` | Frames the checked-in web and phone captures for the README. |
 | `adb-ui.py` | Taps, waits and captures on the emulator by the text on screen. |
 | `finish.py` | Checks the new files and writes them where the repo keeps them. |
 
@@ -25,10 +26,10 @@ change to the app.
 
 | File | Shows | Used by |
 |---|---|---|
-| `images/web-notes-dark.png` | Web, dark: the notes | README (top) |
-| `images/web-notes-light.png` | Web, light: the notes | README |
+| `images/web-notes-dark.png` | Web, dark: the notes | README dark mode panel |
+| `images/web-notes-light.png` | Web, light: the notes | README opening image |
 | `images/web-editor-dark.png` | Web, dark: "Weekend in Puglia" open | README |
-| `images/web-editor-light.png` | Web, light: "Garden visitors" open | — |
+| `images/web-editor-light.png` | Web, light: "Garden visitors" open | README |
 | `images/screenshot_1.png` | A copy of `web-notes-dark.png` | Unraid template |
 | `images/screenshot_phone.png` | A copy of phone `1.png` | Unraid template |
 | `fastlane/…/phoneScreenshots/1.png` to `9.png` | The Android app, see below | F-Droid; README shows 1, 2, 3, 5, 7 |
@@ -37,7 +38,7 @@ change to the app.
 Web screenshots are 2880×1800 (a 1440×900 window at twice the density), phone ones are taken at
 1080×2400, all without an alpha channel. `finish.py` refuses any other size, and widens the phone
 ones to 1350×2400 by repeating their outermost columns: Play Console takes phone screenshots at
-9:16 only, and F-Droid and the README show the same files. Play takes at most eight, so `9.png`
+9:16 only, and F-Droid uses these files. The README artwork crops away the store padding before adding a phone frame. Play takes at most eight, so `9.png`
 (About) is the one it goes without.
 
 ## 1. A server with the demo account
@@ -141,6 +142,7 @@ What went wrong the last time:
 
 ```bash
 python scripts/screenshots/finish.py "$SHOTS"       # needs Pillow
+node scripts/screenshots/readme-shots.cjs            # rebuild images/readme/ after either half changes
 python docs/brand/render_feature_graphic.py         # only if note cards or their colours changed
 ```
 

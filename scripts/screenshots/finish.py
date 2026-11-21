@@ -7,14 +7,14 @@
 emulator. Either folder may be missing, to redo only the other half.
 
 Each file is checked first (its size, and that nothing in it is transparent), then written
-without an alpha channel and losslessly optimised: F-Droid and the README show these as they are,
+without an alpha channel and losslessly optimised: the stores show these as they are,
 and a screencap carries an alpha channel that nothing uses. The Unraid template links two of them
 under names of their own, so those are written as byte-for-byte copies.
 
 Phone shots are then widened from the emulator's 1080x2400 to 1350x2400, because Google Play takes
 phone screenshots only at 9:16. The 135 pixels added on each side repeat the screen's outermost
 column, row by row, so each screen keeps its own margin in its own theme (the status bar, a note's
-colour, the wallpaper) and nothing on it is scaled. F-Droid and the README show the same files.
+colour, the wallpaper) and nothing on it is scaled. The README renderer crops this padding back off.
 
 Needs Pillow, the same as docs/brand/render_feature_graphic.py.
 """
