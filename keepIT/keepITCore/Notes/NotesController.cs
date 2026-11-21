@@ -139,8 +139,9 @@ public class NotesController : ControllerBase
         {
             var order = 0;
             var items = new List<ChecklistItem>(dto.ChecklistItems.Count);
+            var freeIds = await FreeItemIdsAsync(dto.ChecklistItems);
             foreach (var item in dto.ChecklistItems)
-                items.Add(NewChecklistItem(note.Id, item, order++));
+                items.Add(NewChecklistItem(note.Id, item, order++, freeIds));
 
             // One nesting level only (see ChecklistHierarchy).
             ChecklistHierarchy.Normalize(items);
@@ -180,19 +181,52 @@ public class NotesController : ControllerBase
         if (access is null) return NotFound();
         if (!access.Value.CanEdit) return Forbid();
 
+        // Only the fields the update names (all of them when it names none; see UpdateNoteDto.Fields).
+        // Naming none at all changes nothing, so nothing is written and nobody is told.
+        if (dto.Fields is { Count: 0 }) return Ok((await LoadDtoAsync(id, callerId.Value))!);
+
+        // Two people saving the same checklist at the same moment can each delete a row the other is
+        // writing, which EF reports as a concurrency failure. The merge is made to be run again on
+        // the note as it then is, so it is, rather than failing the save.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var result = await ApplyUpdateAsync(id, dto);
+                if (result is not null) return result;
+                break;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 3)
+            {
+                _db.ChangeTracker.Clear();
+            }
+        }
+
+        // Content is shared: fan the change out to the owner and every collaborator.
+        await NotifyRecipientsAsync(id, RealtimeResources.Notes);
+        return Ok((await LoadDtoAsync(id, callerId.Value))!);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="dto"/> to the note and saves it.
+    /// </summary>
+    /// <returns>Null once saved, or the response that refuses the update.</returns>
+    private async Task<ActionResult<NoteDto>?> ApplyUpdateAsync(Guid id, UpdateNoteDto dto)
+    {
         var note = await _db.Notes
             .Where(n => n.Id == id)
             .Include(n => n.ChecklistItems)
             .FirstOrDefaultAsync();
         if (note is null) return NotFound();
 
-        // Only the fields the update names (all of them when it names none; see UpdateNoteDto.Fields).
-        // Naming none at all changes nothing, so nothing is written and nobody is told.
-        if (dto.Fields is { Count: 0 }) return Ok((await LoadDtoAsync(id, callerId.Value))!);
         // Background is the exception: an update without fields leaves it alone, since an app that
         // predates it never sends one (see UpdateNoteDto.Fields).
         bool Sets(NoteField field) =>
             dto.Fields is null ? field != NoteField.Background : dto.Fields.Contains(field);
+
+        // A switch between text and checklist hands over the content whole (the apps empty the side
+        // they leave), so there is nothing to merge: the list becomes what was sent.
+        var switchesType = Sets(NoteField.Type) && dto.Type != note.Type;
 
         if (Sets(NoteField.Type)) note.Type = dto.Type;
         if (Sets(NoteField.Title)) note.Title = dto.Title;
@@ -201,44 +235,65 @@ public class NotesController : ControllerBase
         if (Sets(NoteField.Background)) note.Background = dto.Background;
         note.UpdatedAtUtc = DateTime.UtcNow;
 
-        if (Sets(NoteField.ChecklistItems)) ReconcileChecklist(note, dto.ChecklistItems);
+        if (Sets(NoteField.ChecklistItems))
+        {
+            var rows = dto.ChecklistItems ?? new List<ChecklistItemDto>();
+            if (dto.ChecklistBase is not null && !switchesType)
+            {
+                rows = ChecklistMerge.Merge(dto.ChecklistBase, rows, CurrentRows(note));
+                // Each side was held to the limit, but together they can pass it.
+                if (rows.Count > NoteLimits.ChecklistItems)
+                {
+                    ModelState.AddModelError(nameof(UpdateNoteDto.ChecklistItems),
+                        $"A checklist holds at most {NoteLimits.ChecklistItems} items.");
+                    return ValidationProblem(ModelState);
+                }
+            }
+            await ReconcileChecklistAsync(note, rows);
+        }
 
         await _db.SaveChangesAsync();
-        // Content is shared: fan the change out to the owner and every collaborator.
-        await NotifyRecipientsAsync(id, RealtimeResources.Notes);
-        return Ok((await LoadDtoAsync(id, callerId.Value))!);
+        return null;
     }
+
+    /// <summary>The note's rows as DTOs, in order: what <see cref="ChecklistMerge"/> merges into.</summary>
+    private static List<ChecklistItemDto> CurrentRows(Note note) => note.ChecklistItems
+        .OrderBy(c => c.Order)
+        .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, IsChecked = c.IsChecked, Indent = c.Indent, Order = c.Order })
+        .ToList();
 
     /// <summary>
     /// Makes <paramref name="note"/>'s checklist the <paramref name="items"/> given, in place (matched
     /// by id): existing rows updated, genuinely new ones inserted, the rest deleted. Deleting every
     /// row and re-inserting confuses EF's change tracker (it emits a stray UPDATE against an
     /// already-deleted row → DbUpdateConcurrencyException) and would also churn item ids on every save.
+    /// A new row keeps the id it was sent with when no other row has it (see <see cref="FreeItemIdsAsync"/>).
     /// The merged result is then normalised through <see cref="ChecklistHierarchy"/>.
     /// </summary>
-    private void ReconcileChecklist(Note note, List<ChecklistItemDto>? items)
+    private async Task ReconcileChecklistAsync(Note note, List<ChecklistItemDto> items)
     {
-        var incoming = items ?? new List<ChecklistItemDto>();
         var existingById = note.ChecklistItems.ToDictionary(c => c.Id);
         var keptIds = new HashSet<Guid>();
+        var freeIds = await FreeItemIdsAsync(items.Where(i => i.Id is not { } id || !existingById.ContainsKey(id)));
 
         var order = 0;
-        var ordered = new List<ChecklistItem>(incoming.Count);
-        foreach (var item in incoming)
+        var ordered = new List<ChecklistItem>(items.Count);
+        foreach (var item in items)
         {
             if (item.Id is { } itemId && existingById.TryGetValue(itemId, out var existing))
             {
+                // A row sent twice is one row, as it always was: the first place it appears.
+                if (!keptIds.Add(itemId)) continue;
                 existing.Text = item.Text;
                 existing.IsChecked = item.IsChecked;
                 // An app from before sub-items sends no indent: the row keeps the one it has.
                 existing.Indent = item.Indent ?? existing.Indent;
                 existing.Order = order;
-                keptIds.Add(itemId);
                 ordered.Add(existing);
             }
             else
             {
-                var added = NewChecklistItem(note.Id, item, order);
+                var added = NewChecklistItem(note.Id, item, order, freeIds);
                 _db.ChecklistItems.Add(added);
                 ordered.Add(added);
             }
@@ -251,6 +306,21 @@ public class NotesController : ControllerBase
 
         foreach (var stale in existingById.Values.Where(c => !keptIds.Contains(c.Id)))
             _db.ChecklistItems.Remove(stale);
+    }
+
+    /// <summary>
+    /// The ids among <paramref name="newRows"/> that a new row may keep: set, not empty, and held by
+    /// no row of any note. The apps give a new row its id so that sending the same save twice adds it
+    /// once; an id already in use — another note's row, or one sent twice — gets a fresh one instead,
+    /// so nobody can reach a row by naming its id. Taken from the set as each row claims it.
+    /// </summary>
+    private async Task<HashSet<Guid>> FreeItemIdsAsync(IEnumerable<ChecklistItemDto> newRows)
+    {
+        var wanted = newRows.Where(r => r.Id is { } id && id != Guid.Empty).Select(r => r.Id!.Value).ToHashSet();
+        if (wanted.Count == 0) return wanted;
+        var taken = await _db.ChecklistItems.Where(c => wanted.Contains(c.Id)).Select(c => c.Id).ToListAsync();
+        wanted.ExceptWith(taken);
+        return wanted;
     }
 
     /// <summary>
@@ -521,14 +591,18 @@ public class NotesController : ControllerBase
             .ToListAsync();
     }
 
-    /// <summary>Maps a checklist DTO to a fresh entity (a new id is always assigned).</summary>
+    /// <summary>
+    /// Maps a checklist DTO to a fresh entity, under the id it was sent with when that is in
+    /// <paramref name="freeIds"/> (which it is then taken out of), else a new one.
+    /// </summary>
     /// <param name="noteId">The owning note id.</param>
     /// <param name="dto">The checklist row.</param>
     /// <param name="order">The row's sort position, assigned by the caller.</param>
+    /// <param name="freeIds">The ids a new row may keep (see <see cref="FreeItemIdsAsync"/>).</param>
     /// <returns>A new <see cref="ChecklistItem"/>.</returns>
-    private static ChecklistItem NewChecklistItem(Guid noteId, ChecklistItemDto dto, int order) => new()
+    private static ChecklistItem NewChecklistItem(Guid noteId, ChecklistItemDto dto, int order, HashSet<Guid> freeIds) => new()
     {
-        Id = Guid.NewGuid(),
+        Id = dto.Id is { } id && freeIds.Remove(id) ? id : Guid.NewGuid(),
         NoteId = noteId,
         Text = dto.Text,
         Indent = dto.Indent ?? 0,

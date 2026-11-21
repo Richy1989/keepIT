@@ -6,7 +6,11 @@ namespace keepITCore.Notes.Dtos;
 /// <summary>A checklist row, as returned to and accepted from the client.</summary>
 public class ChecklistItemDto
 {
-    /// <summary>Existing item id. Leave null when adding a new item.</summary>
+    /// <summary>
+    /// The item's id. A new item may come with an id the client made up, which it then keeps — unless
+    /// another item already has it, when the server gives it a fresh one — so that sending the same
+    /// save twice adds it once. Null for a new item gets a fresh id too (what clients before this did).
+    /// </summary>
     public Guid? Id { get; set; }
 
     [MaxLength(NoteLimits.ChecklistItemText)]

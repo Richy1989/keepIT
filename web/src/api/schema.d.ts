@@ -2033,6 +2033,7 @@ export interface components {
             color?: null | string;
             background?: null | string;
             checklistItems?: null | components["schemas"]["ChecklistItemDto"][];
+            checklistBase?: null | components["schemas"]["ChecklistItemDto"][];
             fields?: null | components["schemas"]["NoteField"][];
         };
         UpdateProfileRequestDto: {

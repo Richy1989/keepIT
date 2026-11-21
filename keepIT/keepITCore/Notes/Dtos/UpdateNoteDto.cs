@@ -34,6 +34,17 @@ public class UpdateNoteDto
     public List<ChecklistItemDto>? ChecklistItems { get; set; }
 
     /// <summary>
+    /// The checklist rows this edit started from, as the client had them. When given, the update
+    /// doesn't replace the list with <see cref="ChecklistItems"/>: only what changed between the two
+    /// (rows ticked, renamed, indented, added, deleted or moved) is applied to the list as it is now,
+    /// so what other people changed meanwhile stays (see <c>ChecklistMerge</c>). Null replaces the
+    /// list whole, as an update always did. Ignored unless the update sets the checklist, and when
+    /// it switches the note between text and checklist.
+    /// </summary>
+    [MaxLength(NoteLimits.ChecklistItems)]
+    public List<ChecklistItemDto>? ChecklistBase { get; set; }
+
+    /// <summary>
     /// Which of the fields above this update sets; the rest keep what the note has now. Null sets
     /// them all, as an update always did. An edit made offline replays long after it was made, and
     /// sending the whole note then undid whatever had changed meanwhile in the parts it never

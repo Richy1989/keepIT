@@ -1,0 +1,93 @@
+[
+  {
+    "name": "two people ticking different rows both keep their tick",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "current": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "edit": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread", "isChecked": true }, { "id": "eggs", "text": "eggs" }],
+    "merged": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread", "isChecked": true }, { "id": "eggs", "text": "eggs" }]
+  },
+  {
+    "name": "a row someone added survives a tick from an older list",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "edit": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread", "isChecked": true }, { "id": "eggs", "text": "eggs" }],
+    "merged": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }, { "id": "bread", "text": "bread", "isChecked": true }, { "id": "eggs", "text": "eggs" }]
+  },
+  {
+    "name": "a row someone deleted stays deleted when the edit ticked it",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "edit": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs", "isChecked": true }],
+    "merged": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }]
+  },
+  {
+    "name": "a row the edit deleted goes, though someone ticked it meanwhile",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "current": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "edit": [{ "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "merged": [{ "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }]
+  },
+  {
+    "name": "both adding a row keeps both where each put it",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }, { "id": "bread", "text": "bread" }],
+    "edit": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "jam", "text": "jam" }],
+    "merged": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }, { "id": "bread", "text": "bread" }, { "id": "jam", "text": "jam" }]
+  },
+  {
+    "name": "a new row added at the top stays at the top",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "current": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }],
+    "edit": [{ "id": "jam", "text": "jam" }, { "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "merged": [{ "id": "jam", "text": "jam" }, { "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }]
+  },
+  {
+    "name": "a new row without an id goes in after the row it followed",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "edit": [{ "id": "milk", "text": "milk" }, { "id": null, "text": "butter" }, { "id": "bread", "text": "bread" }],
+    "merged": [{ "id": "milk", "text": "milk" }, { "id": null, "text": "butter" }, { "id": "bread", "text": "bread" }]
+  },
+  {
+    "name": "the same save sent twice adds its new row once",
+    "base": [{ "id": "milk", "text": "milk" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }],
+    "edit": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }],
+    "merged": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }]
+  },
+  {
+    "name": "a tick and a rename of the same row both stay",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "current": [{ "id": "milk", "text": "milk", "isChecked": true }, { "id": "bread", "text": "bread" }],
+    "edit": [{ "id": "milk", "text": "oat milk" }, { "id": "bread", "text": "bread" }],
+    "merged": [{ "id": "milk", "text": "oat milk", "isChecked": true }, { "id": "bread", "text": "bread" }]
+  },
+  {
+    "name": "two renames of the same row: the later one wins",
+    "base": [{ "id": "milk", "text": "milk" }],
+    "current": [{ "id": "milk", "text": "whole milk" }],
+    "edit": [{ "id": "milk", "text": "oat milk" }],
+    "merged": [{ "id": "milk", "text": "oat milk" }]
+  },
+  {
+    "name": "an indent someone changed survives a tick",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread", "indent": 1 }, { "id": "eggs", "text": "eggs" }],
+    "edit": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs", "isChecked": true }],
+    "merged": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread", "indent": 1 }, { "id": "eggs", "text": "eggs", "isChecked": true }]
+  },
+  {
+    "name": "a move takes the edit's order, and someone's new row follows its neighbour",
+    "base": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }, { "id": "bread", "text": "bread" }, { "id": "eggs", "text": "eggs" }],
+    "edit": [{ "id": "eggs", "text": "eggs" }, { "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "merged": [{ "id": "eggs", "text": "eggs" }, { "id": "milk", "text": "milk" }, { "id": "butter", "text": "butter" }, { "id": "bread", "text": "bread" }]
+  },
+  {
+    "name": "a base with a row that has no id can't be matched, so the edit replaces the list",
+    "base": [{ "id": null, "text": "milk" }, { "id": null, "text": "bread" }],
+    "current": [{ "id": "milk", "text": "milk" }, { "id": "bread", "text": "bread" }],
+    "edit": [{ "id": null, "text": "milk", "isChecked": true }, { "id": null, "text": "bread" }],
+    "merged": [{ "id": null, "text": "milk", "isChecked": true }, { "id": null, "text": "bread" }]
+  }
+]
