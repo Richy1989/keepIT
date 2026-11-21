@@ -79,7 +79,7 @@ builder.Services.AddJwtBearerAuthentication(jwtOptions);
 
 // ---- Edge protection: trust the proxy's forwarded headers, then throttle abusive callers ----
 builder.Services.AddProxyForwardedHeaders(builder.Configuration);
-builder.Services.AddKeepItRateLimiting();
+builder.Services.AddKeepItRateLimiting(builder.Configuration);
 
 // ---- CORS (frontend is a separate origin; cookies require AllowCredentials + explicit origins) ----
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -233,8 +233,11 @@ app.UseForwardedHeaders();
 // A healthy answer to Docker's health check, every 30 seconds, is left out.
 app.UseSerilogRequestLogging(options => options.GetLevel = HealthEndpoint.RequestLogLevel);
 app.UseCors("frontend");
-app.UseRateLimiter();
+// Authentication before the rate limiter: a signed-in caller is counted per account, not per address
+// (see AddKeepItRateLimiting). A token that fails its signature check costs no database work and
+// leaves the request on the per-address budget.
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks(HealthEndpoint.Path);
