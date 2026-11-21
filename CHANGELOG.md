@@ -3,7 +3,7 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 1.5.0
 
 ### 🔧 Improvements
 
@@ -12,7 +12,6 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   adds its new rows once. Web and Android; an Android app not yet updated can still undo the
   others' changes. On Android, an open checklist also shows the other person's changes as they
   sync, without reopening the note.
-
 - The home-screen widget now shows each note's background image over its colour, tiled as on the
   note's card. Android.
 - A checklist's ticked items now fold away under an "N ticked items" header in the note, as on

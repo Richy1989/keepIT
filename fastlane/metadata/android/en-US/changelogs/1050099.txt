@@ -1,0 +1,3 @@
+Shared checklists stay in sync: when two people tick, add or delete items in the same list at once, nobody's changes are undone any more, and an open checklist shows the other person's ticks as they arrive. The home-screen widget now shows a note's background image.
+
+Update your keepIT server to 1.5.0 for the checklist changes; with an older server the app works as before.
