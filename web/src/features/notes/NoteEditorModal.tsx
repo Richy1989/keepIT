@@ -20,6 +20,8 @@ import { BackgroundPicker, NoteTile } from './BackgroundPicker';
 import { ColorPicker } from '../../components/ColorPicker';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useLists } from '../lists/queries';
+import { ListPicker } from '../lists/ListPicker';
+import { ListGlyph } from '../lists/ListIconPicker';
 import { useAuth } from '../../auth/AuthContext';
 import {
   CheckIcon,
@@ -31,6 +33,7 @@ import {
   MinimizeIcon,
   PaletteIcon,
   PencilIcon,
+  PlusIcon,
   ShareIcon,
   XIcon,
 } from '../../components/icons';
@@ -110,7 +113,10 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
   const [color, setColor] = useState(note.color ?? 'default');
   const [background, setBackground] = useState<string | null>(note.background ?? null);
   const [listIds, setListIds] = useState<string[]>(note.listIds);
+  // The lists it is in, in the sidebar's order; a list made elsewhere waits for the lists query.
+  const noteLists = (allLists ?? []).filter((l) => listIds.includes(l.id));
   const [showColors, setShowColors] = useState(false);
+  const [showLists, setShowLists] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -336,36 +342,38 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
             )
           )}
 
-          {(allLists?.length ?? 0) > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {allLists!.map((l) => {
-                const on = listIds.includes(l.id);
-                return (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() =>
-                      setListIds((cur) =>
-                        on ? cur.filter((id) => id !== l.id) : [...cur, l.id],
-                      )
-                    }
-                    className={cn(
-                      'focus-ring rounded-full border px-3 py-1 text-xs transition',
-                      on
-                        ? 'border-accent-ink/60 bg-accent/15 text-accent-ink'
-                        : 'border-border-strong text-text-muted hover:text-text',
-                    )}
-                  >
-                    {l.icon && (
-                      <span aria-hidden="true" className="mr-1">
-                        {l.icon}
-                      </span>
-                    )}
-                    {l.name}
-                  </button>
-                );
-              })}
-            </div>
+          {/* Only the lists it is in, each with a way out; "List" opens the picker for the rest. */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {noteLists.map((l) => (
+              <span
+                key={l.id}
+                className="flex min-w-0 max-w-full items-center gap-1 rounded-full border border-accent-ink/60 bg-accent/15 py-0.5 pl-2.5 pr-1 text-xs text-accent-ink"
+              >
+                <ListGlyph icon={l.icon} className="shrink-0" />
+                <span className="truncate">{l.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove from ${l.name}`}
+                  title={`Remove from ${l.name}`}
+                  onClick={() => setListIds((cur) => cur.filter((id) => id !== l.id))}
+                  className="focus-ring grid size-5 shrink-0 place-items-center rounded-full transition hover:bg-overlay-hover"
+                >
+                  <XIcon className="text-[0.7rem]" />
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              aria-expanded={showLists}
+              onClick={() => setShowLists((s) => !s)}
+              className="focus-ring flex items-center gap-1 rounded-full border border-dashed border-border-strong px-2.5 py-1 text-xs text-text-muted transition hover:text-text"
+            >
+              <PlusIcon className="text-sm" />
+              {noteLists.length > 0 ? 'List' : 'Add to list'}
+            </button>
+          </div>
+          {showLists && (
+            <ListPicker value={listIds} onChange={setListIds} onClose={() => setShowLists(false)} />
           )}
 
           {showColors && canEdit && (
