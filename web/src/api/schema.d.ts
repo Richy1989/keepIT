@@ -471,6 +471,9 @@ export interface paths {
                 content: {
                     "multipart/form-data": {
                         file?: components["schemas"]["IFormFile"];
+                    } & {
+                        /** Format: uuid */
+                        id?: string;
                     };
                 };
             };
@@ -1817,11 +1820,15 @@ export interface components {
             order: number;
         };
         CreateListDto: {
+            /** Format: uuid */
+            id?: null | string;
             name: string;
             color?: null | string;
             icon?: null | string;
         };
         CreateNoteDto: {
+            /** Format: uuid */
+            id?: null | string;
             type: components["schemas"]["NoteType"];
             title?: null | string;
             body?: null | string;
