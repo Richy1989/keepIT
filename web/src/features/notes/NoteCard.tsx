@@ -92,7 +92,12 @@ export function NoteCard({
       id: note.id,
       body: toUpdate(
         note,
-        { checklistItems: setItemChecked(note.checklistItems, stored, checked) },
+        // With the rows the tick was made on: the card may be behind the server, and the tick must
+        // not undo what someone else changed meanwhile (see checklistMerge.ts).
+        {
+          checklistItems: setItemChecked(note.checklistItems, stored, checked),
+          checklistBase: note.checklistItems,
+        },
         ['ChecklistItems'],
       ),
     });

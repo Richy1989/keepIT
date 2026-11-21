@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { LISTS_KEY } from '../lists/queries';
+import { mergeChecklist } from './checklistMerge';
 import type {
   CreateNoteDto,
   NoteDto,
@@ -206,6 +207,10 @@ export function useUpdateNote() {
         // only an update naming it sets), as the server applies it.
         const sets = (field: NoteField) =>
           body.fields ? body.fields.includes(field) : field !== 'Background';
+        // A checklist sent with the rows it started from is merged into the rows as they are now, as
+        // the server will (a switch between text and checklist hands the content over whole there).
+        const mergesChecklist =
+          body.checklistBase != null && !(sets('Type') && body.type !== current.type);
         reconcileNote(qc, id, {
           ...current,
           type: sets('Type') ? body.type : current.type,
@@ -213,7 +218,15 @@ export function useUpdateNote() {
           body: sets('Body') ? (body.body ?? null) : current.body,
           color: sets('Color') ? (body.color ?? null) : current.color,
           background: sets('Background') ? (body.background ?? null) : current.background,
-          checklistItems: sets('ChecklistItems') ? (body.checklistItems ?? []) : current.checklistItems,
+          checklistItems: !sets('ChecklistItems')
+            ? current.checklistItems
+            : mergesChecklist
+              ? mergeChecklist(
+                  body.checklistBase ?? [],
+                  body.checklistItems ?? [],
+                  [...current.checklistItems].sort((a, b) => a.order - b.order),
+                )
+              : (body.checklistItems ?? []),
           updatedAtUtc: new Date().toISOString(),
         });
       }

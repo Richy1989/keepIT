@@ -163,6 +163,9 @@ export function NoteEditorModal({ note, onClose }: { note: NoteDto; onClose: () 
           color: nextColor,
           background,
           checklistItems: cleanItems,
+          // The rows this editor opened with, so the server applies only what it changed and keeps
+          // what someone else ticked, added or deleted while it was open (see checklistMerge.ts).
+          checklistBase: [...opened.checklistItems].sort((a, b) => a.order - b.order),
           fields: changed,
         },
       });
