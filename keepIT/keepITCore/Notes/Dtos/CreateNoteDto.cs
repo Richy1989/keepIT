@@ -6,6 +6,14 @@ namespace keepITCore.Notes.Dtos;
 /// <summary>Payload to create a note.</summary>
 public class CreateNoteDto
 {
+    /// <summary>
+    /// The id the client picked for the note, so that sending the same create again (its answer was
+    /// lost) returns the note it made instead of making a second one. Kept when no note has it; when
+    /// the caller's own note has it, that note is the answer; when someone else's has it, the note
+    /// gets a new id. Null: the server picks one.
+    /// </summary>
+    public Guid? Id { get; set; }
+
     public NoteType Type { get; set; } = NoteType.Text;
 
     [MaxLength(NoteLimits.Title)]

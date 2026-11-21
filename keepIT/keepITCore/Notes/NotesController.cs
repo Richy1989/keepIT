@@ -112,7 +112,11 @@ public class NotesController : ControllerBase
         return dto is null ? NotFound() : Ok(dto);
     }
 
-    /// <summary>Creates a note for the caller (its owner).</summary>
+    /// <summary>
+    /// Creates a note for the caller (its owner). A create that names an id the caller's own note
+    /// already has is the same create sent again, its answer having been lost: it is answered with
+    /// that note and changes nothing (see <see cref="CreateNoteDto.Id"/>).
+    /// </summary>
     /// <param name="dto">The note's type, content, optional checklist items, and lists.</param>
     /// <returns>201 with the created note.</returns>
     [HttpPost]
@@ -121,10 +125,15 @@ public class NotesController : ControllerBase
         var ownerId = User.GetUserId();
         if (ownerId is null) return Unauthorized();
 
+        var wanted = dto.Id is { } picked && picked != Guid.Empty ? picked : (Guid?)null;
+        if (wanted is { } resent && await LoadOwnDtoAsync(resent, ownerId.Value) is { } made)
+            return CreatedAtAction(nameof(GetNote), new { id = resent }, made);
+
         var now = DateTime.UtcNow;
         var note = new Note
         {
-            Id = Guid.NewGuid(),
+            // An id someone else's note has is not the caller's to reuse: the note gets its own.
+            Id = wanted is { } free && !await _db.Notes.AnyAsync(n => n.Id == free) ? free : Guid.NewGuid(),
             OwnerId = ownerId.Value,
             Type = dto.Type,
             Title = dto.Title,
@@ -157,12 +166,32 @@ public class NotesController : ControllerBase
         note.UserStates.Add(new NoteUserState { NoteId = note.Id, UserId = ownerId.Value });
 
         _db.Notes.Add(note);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (wanted == note.Id)
+        {
+            // The same create, sent again while the first was still being saved (a client that
+            // timed out), lost the race for the id: the first one's note is the answer.
+            _db.ChangeTracker.Clear();
+            if (await LoadOwnDtoAsync(note.Id, ownerId.Value) is not { } first) throw;
+            return CreatedAtAction(nameof(GetNote), new { id = note.Id }, first);
+        }
         await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Notes, RealtimeResources.Lists);
 
         var created = await LoadDtoAsync(note.Id, ownerId.Value);
         return CreatedAtAction(nameof(GetNote), new { id = note.Id }, created);
     }
+
+    /// <summary>The caller's own note <paramref name="id"/>, or null when it isn't theirs or doesn't exist.</summary>
+    /// <param name="id">The note id.</param>
+    /// <param name="ownerId">The caller.</param>
+    /// <returns>The note as the caller sees it, or null.</returns>
+    private async Task<NoteDto?> LoadOwnDtoAsync(Guid id, Guid ownerId) =>
+        await _db.Notes.AnyAsync(n => n.Id == id && n.OwnerId == ownerId)
+            ? await LoadDtoAsync(id, ownerId)
+            : null;
 
     /// <summary>
     /// Replaces a note's editable content (title, body, color, background, type, checklist items) — all of it, or

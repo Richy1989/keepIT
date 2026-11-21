@@ -38,28 +38,43 @@ public class ListsController : ControllerBase
         var ownerId = User.GetUserId();
         if (ownerId is null) return Unauthorized();
 
-        var lists = await _db.Lists.AsNoTracking()
-            .Where(l => l.OwnerId == ownerId)
-            .OrderBy(l => l.Name)
-            .Select(l => new ListDto
-            {
-                Id = l.Id,
-                Name = l.Name,
-                Color = l.Color,
-                Icon = l.Icon,
-                CreatedAtUtc = l.CreatedAtUtc,
-                // Pin/archive/trash are per-user: count only what the caller actually sees when they
-                // click this list — i.e. the active view, which excludes both archived and trashed.
-                NoteCount = l.NoteLists.Count(nl =>
-                    nl.UserId == ownerId
-                    && !nl.Note.UserStates.Any(us => us.UserId == ownerId && (us.IsTrashed || us.IsArchived))),
-            })
+        var lists = await Project(_db.Lists.Where(l => l.OwnerId == ownerId).OrderBy(l => l.Name), ownerId.Value)
             .ToListAsync();
 
         return Ok(lists);
     }
 
-    /// <summary>Creates a list for the caller.</summary>
+    /// <summary>Lists as the caller sees them, each with its active-note count.</summary>
+    /// <param name="lists">The caller's lists to project.</param>
+    /// <param name="ownerId">The caller.</param>
+    /// <returns>The projection, still a query.</returns>
+    private static IQueryable<ListDto> Project(IQueryable<KeepList> lists, Guid ownerId) =>
+        lists.AsNoTracking().Select(l => new ListDto
+        {
+            Id = l.Id,
+            Name = l.Name,
+            Color = l.Color,
+            Icon = l.Icon,
+            CreatedAtUtc = l.CreatedAtUtc,
+            // Pin/archive/trash are per-user: count only what the caller actually sees when they
+            // click this list — i.e. the active view, which excludes both archived and trashed.
+            NoteCount = l.NoteLists.Count(nl =>
+                nl.UserId == ownerId
+                && !nl.Note.UserStates.Any(us => us.UserId == ownerId && (us.IsTrashed || us.IsArchived))),
+        });
+
+    /// <summary>The caller's own list <paramref name="id"/>, or null when it isn't theirs or doesn't exist.</summary>
+    /// <param name="id">The list id.</param>
+    /// <param name="ownerId">The caller.</param>
+    /// <returns>The list, or null.</returns>
+    private Task<ListDto?> LoadOwnAsync(Guid id, Guid ownerId) =>
+        Project(_db.Lists.Where(l => l.Id == id && l.OwnerId == ownerId), ownerId).FirstOrDefaultAsync();
+
+    /// <summary>
+    /// Creates a list for the caller. A create that names an id the caller's own list already has
+    /// is the same create sent again, its answer having been lost: it is answered with that list and
+    /// changes nothing (see <see cref="CreateListDto.Id"/>).
+    /// </summary>
     /// <param name="dto">The list name, and optional color and icon.</param>
     /// <returns>201 with the created list, or 400 when the icon isn't a single symbol.</returns>
     [HttpPost]
@@ -75,9 +90,14 @@ public class ListsController : ControllerBase
             return ValidationProblem(ModelState);
         }
 
+        var wanted = dto.Id is { } picked && picked != Guid.Empty ? picked : (Guid?)null;
+        if (wanted is { } resent && await LoadOwnAsync(resent, ownerId.Value) is { } made)
+            return CreatedAtAction(nameof(GetLists), new { id = resent }, made);
+
         var list = new KeepList
         {
-            Id = Guid.NewGuid(),
+            // An id someone else's list has is not the caller's to reuse: the list gets its own.
+            Id = wanted is { } free && !await _db.Lists.AnyAsync(l => l.Id == free) ? free : Guid.NewGuid(),
             OwnerId = ownerId.Value,
             Name = dto.Name.Trim(),
             Color = dto.Color,
@@ -86,7 +106,18 @@ public class ListsController : ControllerBase
         };
 
         _db.Lists.Add(list);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException) when (wanted == list.Id)
+        {
+            // The same create, sent again while the first was still being saved, lost the race for
+            // the id: the first one's list is the answer.
+            _db.ChangeTracker.Clear();
+            if (await LoadOwnAsync(list.Id, ownerId.Value) is not { } first) throw;
+            return CreatedAtAction(nameof(GetLists), new { id = list.Id }, first);
+        }
         await _notifier.NotifyAsync(ownerId.Value, RealtimeResources.Lists);
 
         return CreatedAtAction(nameof(GetLists), new { id = list.Id }, ToDto(list, 0));

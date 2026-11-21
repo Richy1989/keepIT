@@ -56,8 +56,15 @@ public class NoteMediaController : ControllerBase
     /// Attaches one image to a note. One file per request: a multi-select loops client-side so each
     /// image carries its own progress and its own failure.
     /// </summary>
+    /// <remarks>
+    /// An upload that names an <paramref name="id"/> this note already has an attachment under is
+    /// the same upload sent again, its answer having been lost: it is answered with that attachment
+    /// and changes nothing, even when the note has filled up since. An id that is free is kept; one
+    /// that something on another note has is ignored, and the attachment gets its own.
+    /// </remarks>
     /// <param name="noteId">The note to attach to.</param>
     /// <param name="file">The image (jpg/png/webp/gif).</param>
+    /// <param name="id">The id the client picked for the attachment, or none for the server to pick.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>201 with the created media, 400/409/413 on a refused upload, 403 for a viewer, 404 without access.</returns>
     [HttpPost]
@@ -66,7 +73,8 @@ public class NoteMediaController : ControllerBase
     [MaxMediaUploadSize]
     [RequestSizeLimit(12 * 1024 * 1024)] // 10 MB payload + multipart overhead headroom
     [RequestFormLimits(MultipartBodyLengthLimit = 12 * 1024 * 1024)]
-    public async Task<ActionResult<NoteMediaDto>> Upload(Guid noteId, IFormFile file, CancellationToken ct)
+    public async Task<ActionResult<NoteMediaDto>> Upload(
+        Guid noteId, IFormFile file, [FromForm] Guid? id, CancellationToken ct)
     {
         var callerId = User.GetUserId();
         if (callerId is null) return Unauthorized();
@@ -75,15 +83,69 @@ public class NoteMediaController : ControllerBase
         if (access is null) return NotFound();
         if (!access.Value.CanEdit) return Forbid();
 
+        var mediaId = Guid.NewGuid();
+        if (id is { } wanted && wanted != Guid.Empty)
+        {
+            // Before any limit: a resend must get its answer even if the note has filled up since.
+            var taken = await _db.NoteMedia.AsNoTracking().FirstOrDefaultAsync(m => m.Id == wanted, ct);
+            if (taken?.NoteId == noteId) return Attached(taken);
+            if (taken is null) mediaId = wanted;
+        }
+
         if (file is null || file.Length == 0) return BadRequest("No file provided.");
 
         // One endpoint for both kinds, decided by the bytes rather than by the name or content type
         // the client sent. Keeping it one endpoint is what lets every client keep a single attach
         // path: on Android it means the offline outbox needs no new operation for voice notes.
         var audio = await IdentifyAudioAsync(file, ct);
-        if (audio.IsAudio) return await AttachAudioAsync(noteId, file, audio, ct);
+        if (audio.IsAudio) return await AttachAudioAsync(noteId, mediaId, file, audio, ct);
 
-        return await AttachImageAsync(noteId, file, ct);
+        return await AttachImageAsync(noteId, mediaId, file, ct);
+    }
+
+    /// <summary>The answer to an upload: 201 with the attachment.</summary>
+    /// <param name="media">The attachment.</param>
+    /// <returns>201 with its DTO and where to fetch it.</returns>
+    private CreatedAtActionResult Attached(NoteMedia media) =>
+        CreatedAtAction(nameof(Get), new { noteId = media.NoteId, mediaId = media.Id }, ToDto(media));
+
+    /// <summary>
+    /// Saves a new attachment's row, its bytes being already stored. When the save fails, the bytes
+    /// are removed again, unless the failure is the same upload sent again while the first was
+    /// still being saved: then the first one's row owns those very files, and is the answer.
+    /// </summary>
+    /// <param name="media">The new row.</param>
+    /// <param name="ownerId">The note owner, whose folder holds the bytes.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The answer to the upload.</returns>
+    private async Task<ActionResult<NoteMediaDto>> SaveAttachmentAsync(NoteMedia media, Guid ownerId, CancellationToken ct)
+    {
+        _db.NoteMedia.Add(media);
+
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (Exception saving)
+        {
+            if (saving is DbUpdateException)
+            {
+                _db.ChangeTracker.Clear();
+                var first = await _db.NoteMedia.AsNoTracking()
+                    .FirstOrDefaultAsync(m => m.Id == media.Id && m.NoteId == media.NoteId, CancellationToken.None);
+                if (first is not null) return Attached(first);
+            }
+
+            // Compensate so we never leave bytes the database doesn't know about.
+            _storage.Delete(ownerId, media.NoteId, media.FileName);
+            if (!string.IsNullOrEmpty(media.ThumbFileName))
+                _storage.Delete(ownerId, media.NoteId, media.ThumbFileName);
+            throw;
+        }
+
+        await NotifyRecipientsAsync(media.NoteId);
+
+        return Attached(media);
     }
 
     /// <summary>Reads the upload's signature and, when it looks like audio, identifies it properly.</summary>
@@ -119,12 +181,13 @@ public class NoteMediaController : ControllerBase
     /// size, and a duration only if the container admitted to one.
     /// </summary>
     /// <param name="noteId">The note to attach to.</param>
+    /// <param name="mediaId">The new attachment's id.</param>
     /// <param name="file">The uploaded file.</param>
     /// <param name="audio">What the probe identified.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>201 with the created media, or 409/413 when a limit says no.</returns>
     private async Task<ActionResult<NoteMediaDto>> AttachAudioAsync(
-        Guid noteId, IFormFile file, AudioInfo audio, CancellationToken ct)
+        Guid noteId, Guid mediaId, IFormFile file, AudioInfo audio, CancellationToken ct)
     {
         if (file.Length > _options.MaxAudioBytes)
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
@@ -137,7 +200,6 @@ public class NoteMediaController : ControllerBase
 
         var ownerId = await _db.Notes.Where(n => n.Id == noteId).Select(n => n.OwnerId).FirstAsync(ct);
 
-        var mediaId = Guid.NewGuid();
         var fileName = $"{mediaId:N}{audio.Extension}";
 
         // Bytes first, row second, as for an image: a row pointing at missing bytes breaks every
@@ -165,30 +227,17 @@ public class NoteMediaController : ControllerBase
             CreatedAtUtc = DateTime.UtcNow,
         };
 
-        _db.NoteMedia.Add(media);
-
-        try
-        {
-            await _db.SaveChangesAsync(ct);
-        }
-        catch
-        {
-            _storage.Delete(ownerId, noteId, fileName);
-            throw;
-        }
-
-        await NotifyRecipientsAsync(noteId);
-
-        return CreatedAtAction(nameof(Get), new { noteId, mediaId }, ToDto(media));
+        return await SaveAttachmentAsync(media, ownerId, ct);
     }
 
     /// <summary>Stores a picture: validated, re-encoded and thumbnailed by the processor.</summary>
     /// <param name="noteId">The note to attach to.</param>
+    /// <param name="mediaId">The new attachment's id.</param>
     /// <param name="file">The uploaded file.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>201 with the created media, or 400/409/413 on a refused upload.</returns>
     private async Task<ActionResult<NoteMediaDto>> AttachImageAsync(
-        Guid noteId, IFormFile file, CancellationToken ct)
+        Guid noteId, Guid mediaId, IFormFile file, CancellationToken ct)
     {
         if (file.Length > _options.MaxImageBytes)
             return StatusCode(StatusCodes.Status413PayloadTooLarge,
@@ -218,7 +267,6 @@ public class NoteMediaController : ControllerBase
         var image = result.Image;
         var ownerId = await _db.Notes.Where(n => n.Id == noteId).Select(n => n.OwnerId).FirstAsync(ct);
 
-        var mediaId = Guid.NewGuid();
         var fileName = $"{mediaId:N}{image.Extension}";
         var thumbName = $"{mediaId:N}_thumb{image.ThumbnailExtension}";
 
@@ -244,23 +292,7 @@ public class NoteMediaController : ControllerBase
             CreatedAtUtc = DateTime.UtcNow,
         };
 
-        _db.NoteMedia.Add(media);
-
-        try
-        {
-            await _db.SaveChangesAsync(ct);
-        }
-        catch
-        {
-            // Compensate so we never leave bytes the database doesn't know about.
-            _storage.Delete(ownerId, noteId, fileName);
-            _storage.Delete(ownerId, noteId, thumbName);
-            throw;
-        }
-
-        await NotifyRecipientsAsync(noteId);
-
-        return CreatedAtAction(nameof(Get), new { noteId, mediaId }, ToDto(media));
+        return await SaveAttachmentAsync(media, ownerId, ct);
     }
 
     /// <summary>Streams one image. Any read access to the note is enough.</summary>
