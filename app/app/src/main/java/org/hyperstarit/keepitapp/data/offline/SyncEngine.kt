@@ -5,6 +5,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.EmptyTrashDto
 import org.hyperstarit.keepitapp.data.ListDto
+import org.hyperstarit.keepitapp.data.RefreshFailedException
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteMediaDto
 import org.hyperstarit.keepitapp.data.ServerFeatures
@@ -33,7 +35,14 @@ enum class SyncStatus { IDLE, SYNCING, OFFLINE }
  * Drains the [Outbox] against the REST API and then refetches everything — the counterpart of the
  * web's "mutate then refetch", batched up for reconnection. Triggered ([kick]) on sign-in, on
  * connectivity return, on every enqueue, on SignalR pushes, and by pull-to-refresh; runs are
- * single-flight and a kick during a run schedules exactly one follow-up pass.
+ * single-flight, and a kick during a run gets a follow-up pass only if the run's fetch didn't
+ * already cover it — which is what keeps the server's echo of this device's own writes from
+ * costing a second full refetch ([SyncGate] has the reasoning).
+ *
+ * Every request counts against the server's rate limit, so a pass is kept to what it needs: the
+ * server's version is read once per connection rather than every pass ([ServerFeatures.refreshIfStale]),
+ * and a 429 makes the engine wait as long as the server's `Retry-After` says, then try again by
+ * itself — rather than retrying on the next trigger, straight back into the limit.
  *
  * Failure policy per op: network/5xx stops the run (the queue keeps its head and a later trigger
  * retries); a 401 defers to the session (queue retained — re-login resumes replay); any other 4xx
@@ -78,36 +87,83 @@ class SyncEngine(
     val syncErrors = MutableSharedFlow<String>(extraBufferCapacity = 8)
 
     private val syncMutex = Mutex()
-    private val kickPending = AtomicBoolean(false)
+    private val gate = SyncGate(System::currentTimeMillis)
+
+    /** Whether a [kick] loop is running; one at a time, and it picks up every kick made meanwhile. */
+    private val loopRunning = AtomicBoolean(false)
 
     /** Fire-and-forget sync request; safe to call from anywhere, collapses concurrent calls. */
     fun kick() {
         if (isStandalone()) return
-        if (kickPending.getAndSet(true)) return // an already-scheduled pass will cover this
-        scope.launch { sync() }
+        gate.request()
+        if (loopRunning.compareAndSet(false, true)) scope.launch { runLoop() }
+        // Otherwise the running loop sees the request: its next check finds it uncovered.
     }
 
-    /** Replays the outbox, then refetches notes + lists. Suspends until this pass completes. */
+    /**
+     * Passes until every kick is covered. Waits out a 429 first, and goes round again after one,
+     * which is the retry a rate-limited device needs and nothing else would schedule. Any other
+     * failure ends the loop, as before: the next trigger (connectivity, a push, an edit) restarts it.
+     */
+    private suspend fun runLoop() {
+        var seen = 0L
+        try {
+            while (true) {
+                gate.waitMs().takeIf { it > 0 }?.let { delay(it) }
+                if (isStandalone()) break
+                val ok = pass()
+                val rateLimited = gate.waitMs() > 0
+                if (!(ok || rateLimited) || !gate.hasUncovered) break
+            }
+        } finally {
+            seen = gate.snapshot()
+            loopRunning.set(false)
+        }
+        // A kick between the last check and the flag going down found the flag still up and left
+        // its request to this loop, which had already decided to stop. Start again for it.
+        if (gate.snapshot() != seen) kick()
+    }
+
+    /**
+     * Replays the outbox, then refetches notes + lists. Suspends until this pass completes. While
+     * the server's rate-limit wait lasts it makes no request at all: the [kick] loop syncs as soon as
+     * the wait is over.
+     */
     suspend fun sync() {
         if (isStandalone()) return
-        syncMutex.withLock {
-            kickPending.set(false)
-            status.value = SyncStatus.SYNCING
-            // Before the replay: what the queued ops may say depends on the server's version.
-            serverFeatures.refresh()
-            val drained = replay()
-            status.value = when {
-                !drained -> SyncStatus.OFFLINE
-                fetchAll() -> SyncStatus.IDLE
-                else -> SyncStatus.OFFLINE
-            }
-        }
+        if (gate.waitMs() > 0) return
+        pass()
     }
 
-    /** True when the queue fully drained (permanent 4xx drops count as drained). */
-    private suspend fun replay(): Boolean {
+    /** One replay-and-refetch; true when both went through. */
+    private suspend fun pass(): Boolean = syncMutex.withLock {
+        status.value = SyncStatus.SYNCING
+        // Before the replay: what the queued ops may say depends on the server's version.
+        serverFeatures.refreshIfStale()
+        val replay = replay()
+        if (!replay.drained) {
+            status.value = SyncStatus.OFFLINE
+            return@withLock false
+        }
+        // The server pushes `Changed` for each write before it answers, so the echo of what was just
+        // sent is usually here already. A moment's grace lets the last one land before the snapshot
+        // below, where it counts as covered — the writes are on the server, so the fetch holds them.
+        if (replay.sent > 0) delay(ECHO_GRACE_MS)
+        val snapshot = gate.snapshot()
+        val fetched = fetchAll()
+        if (fetched) gate.covered(snapshot)
+        status.value = if (fetched) SyncStatus.IDLE else SyncStatus.OFFLINE
+        fetched
+    }
+
+    /** How a replay went: whether the queue fully drained, and how many ops reached the server. */
+    private data class Replay(val drained: Boolean, val sent: Int)
+
+    /** Drains the queue (permanent 4xx drops count as drained). */
+    private suspend fun replay(): Replay {
+        var sent = 0
         while (true) {
-            val op = outbox.peek() ?: return true
+            val op = outbox.peek() ?: return Replay(drained = true, sent = sent)
             try {
                 when (op) {
                     is PendingOp.Create -> {
@@ -166,12 +222,13 @@ class SyncEngine(
                     is PendingOp.DeleteList -> client.api.deleteList(op.listId)
                 }
                 outbox.removeFirst(op.opId)
+                sent++
                 connectivity.markOnline()
             } catch (t: Throwable) {
                 when {
                     t is HttpException && t.code() == 401 -> {
                         onUnauthorized?.invoke()
-                        return false
+                        return Replay(drained = false, sent = sent)
                     }
 
                     t is HttpException && t.code() in 400..499 && t.code() != 429 -> {
@@ -204,7 +261,7 @@ class SyncEngine(
 
                     else -> {
                         stopped(t)
-                        return false
+                        return Replay(drained = false, sent = sent)
                     }
                 }
             }
@@ -241,9 +298,25 @@ class SyncEngine(
      */
     private fun stopped(t: Throwable) {
         if (t is CancellationException) return
+        rateLimitWaitMs(t)?.let { wait ->
+            gate.rateLimited(wait)
+            // A pass that wasn't started by a kick (the widget's) has no loop to retry it.
+            kick()
+        }
         val problem = syncProblemOf(t, client.baseUrl?.toHttpUrlOrNull()?.host)
         Log.w(TAG, "Sync stopped: ${problem.message}", t)
         connectivity.markOffline(problem)
+    }
+
+    /**
+     * How long the server asked us to wait, when [t] is its rate limiter's 429 — from the sync's
+     * own request, or from the token refresh it needed first (which says nothing about how long).
+     */
+    private fun rateLimitWaitMs(t: Throwable): Long? = when {
+        t is HttpException && t.code() == 429 ->
+            retryAfterMillis(t.response()?.headers()?.get("Retry-After"), System.currentTimeMillis())
+        t is RefreshFailedException && t.httpCode == 429 -> DEFAULT_RETRY_AFTER_MS
+        else -> null
     }
 
     private fun permanentFailureMessage(op: PendingOp, code: Int, rescued: Boolean): String {
@@ -283,5 +356,8 @@ class SyncEngine(
 
     private companion object {
         const val TAG = "SyncEngine"
+
+        /** Long enough for a push sent just before the write's answer to arrive; short enough not to notice. */
+        const val ECHO_GRACE_MS = 300L
     }
 }

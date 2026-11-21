@@ -1,6 +1,7 @@
 package org.hyperstarit.keepitapp.data
 
 import android.content.Context
+import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -12,10 +13,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * feature that needs a newer server than 1.0 asks here, and stays hidden on an older one saying the
  * server needs updating. Never by catching a 404: a 404 from a bug would then blame the server.
  *
- * [SyncEngine][org.hyperstarit.keepitapp.data.offline.SyncEngine] [refresh]es it at the start of
- * every sync, before it replays the outbox, so a queued op is shaped for the server it is about to
- * reach. The version is remembered per server address, so the app knows it offline and after a
- * restart, and forgets it when another server is connected.
+ * [SyncEngine][org.hyperstarit.keepitapp.data.offline.SyncEngine] calls [refreshIfStale] at the
+ * start of every sync, before it replays the outbox, so a queued op is shaped for the server it is
+ * about to reach. That reads `/api/meta` once per realtime connection (see [invalidate]), at
+ * least hourly, and whenever the address changes, not on every pass: each request counts against
+ * the server's rate limit, and the version only changes when the server is updated, which restarts
+ * it, which drops the connection. The version is remembered per server address, so the app knows
+ * it offline and after a restart, and forgets it when another server is connected.
  */
 class ServerFeatures(context: Context, private val client: ApiClient) {
     private val prefs = context.getSharedPreferences("server_features", Context.MODE_PRIVATE)
@@ -31,6 +35,28 @@ class ServerFeatures(context: Context, private val client: ApiClient) {
      */
     val backgrounds: Boolean? get() = ServerVersions.atLeast(currentVersion(), BACKGROUNDS)
 
+    /** The address last read from, and when ([SystemClock.elapsedRealtime]); null until a read succeeds. */
+    @Volatile
+    private var readFrom: String? = null
+
+    @Volatile
+    private var readAtMs = 0L
+
+    /** [refresh]es unless the current server's version was read within [MAX_AGE_MS] and not [invalidate]d since. */
+    suspend fun refreshIfStale() {
+        val url = client.baseUrl ?: return
+        if (url == readFrom && SystemClock.elapsedRealtime() - readAtMs < MAX_AGE_MS) return
+        refresh()
+    }
+
+    /**
+     * Makes the next [refreshIfStale] read the version again. Called on every realtime (re)connect:
+     * a server that was updated has restarted, so its version is new exactly when the socket is.
+     */
+    fun invalidate() {
+        readFrom = null
+    }
+
     /** Reads the version from the server; keeps the one it had when the server can't be reached. */
     suspend fun refresh() {
         val url = client.baseUrl ?: return
@@ -43,6 +69,8 @@ class ServerFeatures(context: Context, private val client: ApiClient) {
         } ?: return
         prefs.edit().putString(KEY_URL, url).putString(KEY_VERSION, version).apply()
         _version.value = version
+        readAtMs = SystemClock.elapsedRealtime()
+        readFrom = url
     }
 
     /** The stored version, if it is the current server's. */
@@ -54,6 +82,9 @@ class ServerFeatures(context: Context, private val client: ApiClient) {
     companion object {
         private const val KEY_URL = "url"
         private const val KEY_VERSION = "version"
+
+        /** A version read longer ago than this is read again, in case a reconnect went unnoticed. */
+        private const val MAX_AGE_MS = 60 * 60 * 1000L
 
         /** The first release that stores a note's background ([NoteDto.background]). */
         val BACKGROUNDS = Triple(1, 3, 0)

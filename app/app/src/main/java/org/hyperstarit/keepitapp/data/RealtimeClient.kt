@@ -13,7 +13,9 @@ import kotlinx.coroutines.launch
  * `RealtimeSync.tsx`. While signed in it holds one connection to `/api/realtime` (JWT via the
  * access-token provider, refreshed when stale) and forwards each `Changed(resources)` push to
  * [onChanged] so the matching caches refetch. The Java client has no automatic reconnect, so a
- * dropped connection is retried on a delay for as long as [start]ed.
+ * dropped connection is retried for as long as [start]ed — backing off from a second to half a
+ * minute ([reconnectDelayMs], the web's curve), since every attempt counts against the server's
+ * rate limit and a server that is refusing them gains nothing from being asked every few seconds.
  */
 class RealtimeClient(
     private val client: ApiClient,
@@ -25,6 +27,10 @@ class RealtimeClient(
 
     @Volatile
     private var shouldRun = false
+
+    /** Failed attempts since the last successful connect; sets the next retry's delay. */
+    @Volatile
+    private var attempt = 0
 
     /** Fires after every successful (re)connect — wired to a sync so missed pushes are covered. */
     var onConnected: (() -> Unit)? = null
@@ -57,27 +63,36 @@ class RealtimeClient(
             onChanged(resources.toList())
         }, Array<String>::class.java)
 
-        connection.onClosed {
-            if (shouldRun) scope.launch {
-                delay(RETRY_DELAY_MS)
-                if (shouldRun) connect()
-            }
-        }
+        connection.onClosed { if (shouldRun) retryLater() }
 
         hub = connection
         scope.launch(Dispatchers.IO) {
             val started = runCatching { connection.start().blockingAwait() }.isSuccess
             if (started) {
+                attempt = 0
                 // (Re)connected — anything that changed while the socket was down was missed.
                 onConnected?.invoke()
             } else if (shouldRun) {
-                delay(RETRY_DELAY_MS)
-                if (shouldRun) connect()
+                retryLater()
             }
         }
     }
 
-    private companion object {
-        const val RETRY_DELAY_MS = 4_000L
+    private fun retryLater() {
+        val wait = reconnectDelayMs(attempt++, Math.random())
+        scope.launch {
+            delay(wait)
+            if (shouldRun) connect()
+        }
     }
+}
+
+/**
+ * The delay before reconnect attempt [attempt] (0 for the first): 1 s doubling to a 30 s cap, spread
+ * by ±25 % with [jitter] (0 until 1) so a server's restart isn't met by every device at once. The
+ * same curve as the web's `backoffMs` in `RealtimeSync.tsx`.
+ */
+fun reconnectDelayMs(attempt: Int, jitter: Double): Long {
+    val base = minOf(30_000L, 1_000L shl attempt.coerceIn(0, 5))
+    return (base * (0.75 + jitter * 0.5)).toLong()
 }

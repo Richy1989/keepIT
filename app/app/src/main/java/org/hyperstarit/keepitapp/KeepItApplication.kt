@@ -128,6 +128,8 @@ class AppContainer(context: Context) {
         connectivity.onOnline = { syncEngine.kick() }
         connectivity.start()
         realtime.onConnected = {
+            // A new connection may be to a server that was just updated (an update restarts it).
+            serverFeatures.invalidate()
             syncEngine.kick()
             // Anything that landed in the inbox while the socket was down was missed too, and so
             // was a rename or a new profile picture on another device. Connecting follows every
