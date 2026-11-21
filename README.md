@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/logo.png" alt="keepIT logo" width="96" height="96">
+</p>
+
+<p align="center">
   <a href="images/web-notes-light.png"><img src="images/readme/light.webp" alt="keepIT in light mode, with a travel photo, a grocery checklist, a book club reminder and a shared trip list pinned to the notes board" width="100%"></a>
 </p>
 
