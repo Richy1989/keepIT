@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,8 +29,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -50,14 +49,15 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -256,6 +256,9 @@ fun EditorScreen(
     var showAddSheet by remember { mutableStateOf(false) }
     var showReminder by remember { mutableStateOf(false) }
     var showShare by remember { mutableStateOf(false) }
+    var showListsSheet by remember { mutableStateOf(false) }
+    // The name typed into [ListsSheet] when "Create" was tapped; null while no new list is asked for.
+    var newListName by remember { mutableStateOf<String?>(null) }
     // The row whose text field should grab focus next (a just-added checklist item).
     var focusTargetLocalId by remember { mutableStateOf<Long?>(null) }
     // The new row being typed into: the one row a ticked one is offered for. Typing sets it, not
@@ -1374,30 +1377,67 @@ fun EditorScreen(
 
             Spacer(modifier = Modifier.size(16.dp))
 
-            if (lists.isNotEmpty()) {
-                Text(
-                    text = "LISTS",
-                    color = KeepItColors.TextFaint,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                )
-                Spacer(modifier = Modifier.size(6.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(lists, key = { it.id }) { list ->
-                        val selected = list.id in listIds
-                        FilterChip(
-                            selected = selected,
-                            onClick = { listIds = if (selected) listIds - list.id else listIds + list.id },
-                            label = { Text(list.name) },
-                            leadingIcon = list.icon?.let { icon -> { Text(icon) } },
-                        )
-                    }
+            Text(
+                text = "LISTS",
+                color = KeepItColors.TextFaint,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp,
+            )
+            Spacer(modifier = Modifier.size(6.dp))
+            // Only the lists it is in, each with a way out; "Add to list" opens [ListsSheet] for the
+            // rest, which a row of every list didn't leave room for once there were many.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                lists.filter { it.id in listIds }.forEach { list ->
+                    InputChip(
+                        selected = true,
+                        onClick = { listIds = listIds - list.id },
+                        label = { Text(list.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingIcon = { ListGlyph(list.icon, size = 18) },
+                        trailingIcon = {
+                            Icon(
+                                Icons.Filled.Clear,
+                                contentDescription = "Remove from ${list.name}",
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                    )
                 }
+                AssistChip(
+                    onClick = { showListsSheet = true },
+                    label = { Text(if (listIds.isEmpty()) "Add to list" else "List") },
+                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                )
             }
 
             Spacer(modifier = Modifier.size(48.dp))
         }
+    }
+
+    // List membership is per-user and saved with the rest on leaving ([persist]), so the sheet and
+    // the new-list dialog only change [listIds]. A new list is queued at once, under a temp id the
+    // outbox swaps for the server's before the note's lists replay.
+    if (showListsSheet) {
+        ListsSheet(
+            lists = lists,
+            membership = { it in listIds },
+            onToggle = { listId, member -> listIds = if (member) listIds + listId else listIds - listId },
+            onNewList = { name -> newListName = name },
+            onDismiss = { showListsSheet = false },
+        )
+    }
+    newListName?.let { initialName ->
+        NewListDialog(
+            initialName = initialName,
+            onCreate = { name, icon ->
+                newListName = null
+                scope.launch { listIds = listIds + repo.createList(name, icon = icon) }
+            },
+            onDismiss = { newListName = null },
+        )
     }
 
     // Share sheet — server-backed, independent of save-on-close.

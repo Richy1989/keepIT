@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +21,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.triStateToggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -53,7 +50,6 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -64,7 +60,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -80,7 +75,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -100,8 +94,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -209,7 +201,8 @@ fun NotesScreen(
     var selectedIds by rememberSaveable(stateSaver = IdSetSaver) { mutableStateOf(emptySet<String>()) }
     var colorSheetOpen by remember { mutableStateOf(false) }
     var listsSheetOpen by remember { mutableStateOf(false) }
-    var newListForSelection by remember { mutableStateOf(false) }
+    // The name typed into the lists sheet when "Create" was tapped; null while no new list is asked for.
+    var newListForSelection by remember { mutableStateOf<String?>(null) }
     var selectionEdited by remember { mutableStateOf(false) }
     // "Delete forever" on a selection in the trash, while its confirmation is up.
     var purgeTarget by remember { mutableStateOf<List<NoteDto>?>(null) }
@@ -690,12 +683,8 @@ fun NotesScreen(
     // ---- list management dialogs (create / edit / delete-confirm) ----
 
     if (newListOpen) {
-        ListDialog(
-            title = "New list",
-            confirmLabel = "Create",
-            initialName = "",
-            initialIcon = null,
-            onConfirm = { name, icon ->
+        NewListDialog(
+            onCreate = { name, icon ->
                 newListOpen = false
                 scope.launch { repo.createList(name, icon = icon) }
             },
@@ -779,15 +768,15 @@ fun NotesScreen(
     }
 
     if (listsSheetOpen && selecting) {
-        SelectionListsSheet(
+        ListsSheet(
             lists = lists,
-            notes = selectedNotes,
+            membership = { listId -> membershipOf(selectedNotes, listId) },
             onToggle = { listId, member ->
                 selectionEdited = true
                 val ids = selectedIds
                 scope.launch { repo.setListMembership(ids, listId, member) }
             },
-            onNewList = { newListForSelection = true },
+            onNewList = { name -> newListForSelection = name },
             onDismiss = {
                 listsSheetOpen = false
                 endSheet()
@@ -795,20 +784,17 @@ fun NotesScreen(
         )
     }
 
-    if (newListForSelection) {
-        ListDialog(
-            title = "New list",
-            confirmLabel = "Create",
-            initialName = "",
-            initialIcon = null,
-            onConfirm = { name, icon ->
-                newListForSelection = false
+    newListForSelection?.let { initialName ->
+        NewListDialog(
+            initialName = initialName,
+            onCreate = { name, icon ->
+                newListForSelection = null
                 selectionEdited = true
                 val ids = selectedIds
                 // Filed under the list's temp id; the outbox replays its create first.
                 scope.launch { repo.setListMembership(ids, repo.createList(name, icon = icon), member = true) }
             },
-            onDismiss = { newListForSelection = false },
+            onDismiss = { newListForSelection = null },
         )
     }
 
@@ -990,130 +976,6 @@ private fun SelectionTopBar(
                         }
                     }
                 }
-            }
-        },
-    )
-}
-
-/**
- * Files the selection into lists or takes it out of them. Each box shows where the selected notes
- * stand — checked when all are in the list, unchecked when none is, a dash when only some are —
- * and a tap applies at once, as the color sheet does: a checked box takes them all out, anything
- * else puts them all in. "New list" makes one and files the selection straight into it.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SelectionListsSheet(
-    lists: List<ListDto>,
-    notes: List<NoteDto>,
-    onToggle: (listId: String, member: Boolean) -> Unit,
-    onNewList: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = KeepItColors.Surface) {
-        Column(modifier = Modifier.padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            SheetTitle("Lists")
-            lists.forEach { list ->
-                val state = when (membershipOf(notes, list.id)) {
-                    true -> ToggleableState.On
-                    false -> ToggleableState.Off
-                    null -> ToggleableState.Indeterminate
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .triStateToggleable(
-                            state = state,
-                            role = Role.Checkbox,
-                            onClick = { onToggle(list.id, state != ToggleableState.On) },
-                        )
-                        .padding(horizontal = 24.dp),
-                ) {
-                    TriStateCheckbox(
-                        state = state,
-                        onClick = null,
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = KeepItColors.Accent,
-                            checkmarkColor = Color.Black,
-                            // BorderStrong is a divider's colour: 1.7:1 at best on the sheet.
-                            uncheckedColor = KeepItColors.BorderControl,
-                        ),
-                    )
-                    ListGlyph(list.icon, modifier = Modifier.padding(start = 20.dp))
-                    Text(
-                        text = list.name,
-                        color = KeepItColors.Text,
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(start = 12.dp),
-                    )
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .clickable(onClick = onNewList)
-                    .padding(horizontal = 24.dp),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, tint = KeepItColors.TextMuted, modifier = Modifier.size(24.dp))
-                Text(
-                    text = "New list",
-                    color = KeepItColors.TextMuted,
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(start = 20.dp),
-                )
-            }
-        }
-    }
-}
-
-/**
- * Name and icon prompt shared by create and edit. Confirm is disabled while the name is blank; the
- * icon is optional, and the name field leads with the one chosen so far. The emoji grid is the web
- * picker's ([ListIcons]); the dialog scrolls when a short or landscape screen can't fit it.
- */
-@Composable
-private fun ListDialog(
-    title: String,
-    confirmLabel: String,
-    initialName: String,
-    initialIcon: String?,
-    onConfirm: (name: String, icon: String?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var name by remember { mutableStateOf(initialName) }
-    var icon by remember { mutableStateOf(initialIcon) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = KeepItColors.Surface,
-        title = { Text(title) },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    leadingIcon = { ListGlyph(icon) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ListIconGrid(selected = icon, onPick = { icon = it })
-            }
-        },
-        confirmButton = {
-            Button(enabled = name.isNotBlank(), colors = accentButtonColors(), onClick = { onConfirm(name.trim(), icon) }) {
-                Text(confirmLabel)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = KeepItColors.TextMuted)
             }
         },
     )

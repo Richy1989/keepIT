@@ -7,6 +7,9 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
 
 ### 🔧 Improvements
 
+- A note now shows only the lists it is in, not every list you have. "Add to list" opens a picker
+  that filters your lists as you type, files the note into one or several, and creates a new list
+  from what you typed. Web and Android; on Android the same picker files a selection of notes.
 - The server log now shows only what matters by default: start-up, warnings, errors and the odd
   event worth knowing about, instead of a line for every request. A request the server failed on
   is still logged, as an error. Server.
