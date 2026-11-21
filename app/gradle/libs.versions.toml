@@ -16,7 +16,7 @@ navigationCompose = "2.10.2"
 # 1.1.1 predates Android 15: Glance only moved to compileSdk 35 in 1.2.0-alpha01, and we target 36.
 # 1.2.0 is the current stable and the last line that still builds against platform 36 (1.3.x needs 37).
 glance = "1.2.0"
-signalr = "10.0.12"
+signalr = "11.0.0"
 # Glance pulls WorkManager in to run the widget composition inside a worker; we also schedule our
 # own periodic worker on it, so work-runtime-ktx (CoroutineWorker) is a direct dependency now. It
 # is a floor, not a pin - if Glance ever resolves a newer work-runtime, Gradle picks that and both
