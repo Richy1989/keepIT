@@ -24,6 +24,10 @@ import java.util.UUID
  * A note or list created offline is identified by a client-generated temp id ([Create.tempId],
  * [CreateList.tempId], prefixed so it can never collide with a server GUID); ops queued against it
  * are rewritten to the real id when the POST lands (see [Outbox.remapId] and [Outbox.remapListId]).
+ * The POST carries the temp id's UUID ([clientIdOf]), which the server keeps as the real id: a
+ * create sent again because its answer was lost gets back what the first one made, not a copy. The
+ * server answers such a resend with what it already holds, so a create that has gone out ([sent])
+ * takes in nothing more — see [coalesce].
  *
  * In standalone mode the queue never drains: it is the complete record of everything made on this
  * device, kept so that connecting to a server later can replay it into an account.
@@ -63,6 +67,12 @@ sealed class PendingOp {
         val dto: CreateNoteDto,
         override val opId: String = newOpId(),
         override val enqueuedAtUtc: String = "",
+        /**
+         * True once the POST has gone out ([Outbox.markSent]), answered or not: the server may hold
+         * the note already, and would answer a resend with that, ignoring [dto]. So later changes
+         * queue as ops of their own instead of folding into this one.
+         */
+        val sent: Boolean = false,
     ) : PendingOp()
 
     @Serializable
@@ -178,6 +188,8 @@ sealed class PendingOp {
         val dto: CreateListDto,
         override val opId: String = newOpId(),
         override val enqueuedAtUtc: String = "",
+        /** True once the POST has gone out; see [Create.sent]. */
+        val sent: Boolean = false,
     ) : PendingOp()
 
     /** Renames and/or recolors a list; a null field in [dto] is left unchanged, as on the server. */
@@ -208,5 +220,14 @@ sealed class PendingOp {
         fun newOpId(): String = UUID.randomUUID().toString()
 
         fun isTempId(id: String): Boolean = id.startsWith(TEMP_ID_PREFIX)
+
+        /**
+         * The id a create sends for the note, list or attachment queued under [localId]: its UUID,
+         * without the temp prefix. Null when there is none to send (the server then picks one).
+         */
+        fun clientIdOf(localId: String): String? =
+            localId.removePrefix(TEMP_ID_PREFIX).takeIf { id ->
+                runCatching { UUID.fromString(id) }.getOrNull()?.toString() == id.lowercase()
+            }
     }
 }

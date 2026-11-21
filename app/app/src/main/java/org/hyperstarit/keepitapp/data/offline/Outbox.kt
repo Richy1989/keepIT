@@ -58,6 +58,22 @@ class Outbox(private val store: LocalStore) {
 
     suspend fun peek(): PendingOp? = mutex.withLock { ops.firstOrNull() }
 
+    /**
+     * Marks a queued create as gone out, on disk, before its POST does: from then on the server may
+     * hold what it makes, so [coalesce] folds nothing more into it.
+     */
+    suspend fun markSent(opId: String) = mutex.withLock {
+        ops = ops.map { op ->
+            when {
+                op.opId != opId -> op
+                op is PendingOp.Create -> op.copy(sent = true)
+                op is PendingOp.CreateList -> op.copy(sent = true)
+                else -> op
+            }
+        }.toMutableList()
+        persist()
+    }
+
     /** Removes the head only if it is still [opId] — a concurrent coalesce may have replaced it. */
     suspend fun removeFirst(opId: String) = mutex.withLock {
         if (ops.firstOrNull()?.opId == opId) {
@@ -169,8 +185,13 @@ class Outbox(private val store: LocalStore) {
  */
 fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
     val id = incoming.targetId
-    val pendingCreate = ops.filterIsInstance<PendingOp.Create>().firstOrNull { it.tempId == id }
-    val pendingListCreate = ops.filterIsInstance<PendingOp.CreateList>().firstOrNull { it.tempId == id }
+    // Only a create that hasn't gone out takes in later changes: one that has may already have made
+    // its note, and the server answers its resend with that note (see [PendingOp.Create.sent]).
+    // A change to its note queues on its own, behind it, and a deletion keeps it.
+    val sentCreate = ops.filterIsInstance<PendingOp.Create>().firstOrNull { it.tempId == id && it.sent }
+    val pendingCreate = ops.filterIsInstance<PendingOp.Create>().firstOrNull { it.tempId == id && !it.sent }
+    val sentListCreate = ops.filterIsInstance<PendingOp.CreateList>().firstOrNull { it.tempId == id && it.sent }
+    val pendingListCreate = ops.filterIsInstance<PendingOp.CreateList>().firstOrNull { it.tempId == id && !it.sent }
 
     return when (incoming) {
         is PendingOp.Create -> ops + incoming
@@ -265,18 +286,23 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
         }
 
         is PendingOp.Delete -> {
-            val remaining = ops.filterNot { it.targetId == id }
+            val remaining = ops.filterNot { it.targetId == id && it !== sentCreate }
             if (pendingCreate != null) remaining else remaining + incoming
         }
 
         is PendingOp.EmptyTrash -> {
             // Temp ids, not just queued creates: one whose create was already refused is just as
-            // unknown to the server.
+            // unknown to the server. A note whose create has gone out may be on the server, though:
+            // its create stays and a delete follows, which a refused create's temp id can't sink
+            // the way it would the whole emptying.
+            val sent = ops.filterIsInstance<PendingOp.Create>().filter { it.sent }.map { it.tempId }.toSet()
             val (local, onServer) = incoming.noteIds.partition(PendingOp::isTempId)
             val remaining = ops.filterNot { op ->
-                op.targetId in local || (op.targetId in onServer && op !is PendingOp.SetState)
+                (op.targetId in local && !(op is PendingOp.Create && op.sent)) ||
+                    (op.targetId in onServer && op !is PendingOp.SetState)
             }
-            if (onServer.isEmpty()) remaining else remaining + incoming.copy(noteIds = onServer)
+            val deletes = local.filter { it in sent }.map { PendingOp.Delete(it, enqueuedAtUtc = incoming.enqueuedAtUtc) }
+            (if (onServer.isEmpty()) remaining else remaining + incoming.copy(noteIds = onServer)) + deletes
         }
 
         // Media ops never coalesce, from either side: two photos are two independent uploads, and
@@ -296,7 +322,7 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
         }
 
         is PendingOp.DeleteList -> {
-            val remaining = withoutListReferences(ops.filterNot { it.targetId == id }, id)
+            val remaining = withoutListReferences(ops.filterNot { it.targetId == id && it !== sentListCreate }, id)
             if (pendingListCreate != null) remaining else remaining + incoming
         }
     }

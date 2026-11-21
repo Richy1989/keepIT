@@ -1,6 +1,7 @@
 package org.hyperstarit.keepitapp.data
 
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -133,12 +134,17 @@ interface KeepItApi {
 
     // ---- note media ----
 
-    /** Attaches one image to a note. One file per request, so each carries its own failure. */
+    /**
+     * Attaches one image to a note. One file per request, so each carries its own failure. [id] is
+     * the id picked for the attachment, so a resend gets the first upload's back (a server older
+     * than 1.5.1 ignores it); null lets the server pick.
+     */
     @Multipart
     @POST("api/notes/{noteId}/media")
     suspend fun uploadNoteMedia(
         @Path("noteId") noteId: String,
         @Part file: MultipartBody.Part,
+        @Part("id") id: RequestBody? = null,
     ): NoteMediaDto
 
     /**

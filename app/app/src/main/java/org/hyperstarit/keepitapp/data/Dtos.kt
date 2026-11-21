@@ -311,6 +311,12 @@ data class CreateNoteDto(
     val background: String? = null,
     val checklistItems: List<ChecklistItemDto>? = null,
     val listIds: List<String>? = null,
+    /**
+     * The id picked for the note, so a create sent again (its answer lost) gets back the note the
+     * first one made instead of a copy; the server keeps it unless something else has it. Null lets
+     * the server pick, as a server older than 1.5.1 always does.
+     */
+    val id: String? = null,
 )
 
 @Serializable
@@ -408,7 +414,13 @@ data class ListDto(
 )
 
 @Serializable
-data class CreateListDto(val name: String, val color: String? = null, val icon: String? = null)
+data class CreateListDto(
+    val name: String,
+    val color: String? = null,
+    val icon: String? = null,
+    /** The id picked for the list, as for [CreateNoteDto.id]. */
+    val id: String? = null,
+)
 
 /**
  * Renames, recolors and/or re-icons a list; a null field is left unchanged, so an [icon] of `""` is

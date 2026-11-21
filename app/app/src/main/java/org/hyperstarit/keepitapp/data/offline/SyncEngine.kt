@@ -15,6 +15,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.hyperstarit.keepitapp.data.ApiClient
 import org.hyperstarit.keepitapp.data.EmptyTrashDto
 import org.hyperstarit.keepitapp.data.ListDto
@@ -110,7 +111,9 @@ class SyncEngine(
             try {
                 when (op) {
                     is PendingOp.Create -> {
-                        val created = client.api.createNote(op.dto)
+                        // Marked first: if the answer is lost, the server may hold the note already.
+                        outbox.markSent(op.opId)
+                        val created = client.api.createNote(op.dto.copy(id = PendingOp.clientIdOf(op.tempId)))
                         outbox.remapId(op.tempId, created.id)
                         updater.onIdRemapped(op.tempId, created.id)
                     }
@@ -140,6 +143,8 @@ class SyncEngine(
                                 "image.jpg",
                                 file.asRequestBody("image/*".toMediaType()),
                             ),
+                            // So a resend whose first answer was lost gets that attachment back, not a copy.
+                            PendingOp.clientIdOf(op.tempMediaId)?.toRequestBody(),
                         )
                         staging.delete(op.stagedPath)
                         // Into the cache before the op leaves the outbox, so the image hands over
@@ -151,7 +156,8 @@ class SyncEngine(
                     is PendingOp.DeleteMedia -> client.api.deleteNoteMedia(op.noteId, op.mediaId)
 
                     is PendingOp.CreateList -> {
-                        val created = client.api.createList(op.dto)
+                        outbox.markSent(op.opId)
+                        val created = client.api.createList(op.dto.copy(id = PendingOp.clientIdOf(op.tempId)))
                         outbox.remapListId(op.tempId, created.id)
                         updater.onListIdRemapped(op.tempId, created.id)
                     }
