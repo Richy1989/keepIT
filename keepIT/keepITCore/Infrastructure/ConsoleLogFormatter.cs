@@ -13,9 +13,9 @@ namespace keepITCore.Infrastructure;
 /// web terminal (ttyd / xterm.js) and shows ANSI colour like any other.
 /// <code>
 /// 16:17:12 INF  keepIT 0.9.0 starting · SQLite · data in /data
-/// 16:17:12 INF  POST   /api/notes                                201   260 ms
-/// 16:17:13 INF  GET    /api/notes/7bfc61d0/media/05d628a6        200    29 ms
-/// 16:17:13 INF  POST   /api/auth/login                           401    95 ms
+/// 16:17:12 DBG  POST   /api/notes                                201   260 ms
+/// 16:17:13 DBG  GET    /api/notes/7bfc61d0/media/05d628a6        200    29 ms
+/// 16:17:13 DBG  POST   /api/auth/login                           401    95 ms
 /// </code>
 /// A request line is the request-logging middleware's event, laid out in columns: the method
 /// coloured by verb, the path with every GUID cut to its first 8 characters, the status coloured by

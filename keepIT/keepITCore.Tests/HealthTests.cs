@@ -44,10 +44,10 @@ public sealed class HealthTests
     [Theory]
     [InlineData("/api/health", 200, LogEventLevel.Verbose)]
     [InlineData("/api/health", 503, LogEventLevel.Error)]
-    [InlineData("/api/notes", 200, LogEventLevel.Information)]
-    [InlineData("/api/notes", 404, LogEventLevel.Information)]
+    [InlineData("/api/notes", 200, LogEventLevel.Debug)]
+    [InlineData("/api/notes", 404, LogEventLevel.Debug)]
     [InlineData("/api/notes", 500, LogEventLevel.Error)]
-    public void Only_a_healthy_answer_stays_out_of_the_request_log(string path, int status, LogEventLevel expected)
+    public void Request_lines_are_debug_except_failures_and_a_healthy_check_is_below_that(string path, int status, LogEventLevel expected)
     {
         var http = new DefaultHttpContext();
         http.Request.Path = path;

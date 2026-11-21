@@ -112,7 +112,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Start it
-        run: docker run -d --name keepit -p 8080:80 -e Jwt__Key="$(openssl rand -hex 32)" keepit:ci
+        # Debug, so request lines reach the log: the log checks below read them (an operator's
+        # default Information log leaves them out).
+        run: >-
+          docker run -d --name keepit -p 8080:80 -e Jwt__Key="$(openssl rand -hex 32)"
+          -e Serilog__MinimumLevel__Default=Debug keepit:ci
       - name: Smoke test through nginx
         run: bash deploy/smoke-test.sh http://localhost:8080
       - uses: actions/setup-node@v7

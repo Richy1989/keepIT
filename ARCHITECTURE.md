@@ -87,8 +87,17 @@ The C# DTOs are the single source of truth for the API shape.
 - **Background work:** `ReminderDispatcherService`, a hosted service that fires due note
   reminders every 30 s. See **Reminders**.
 - **Logging:** Serilog, written by `Infrastructure/ConsoleLogFormatter.cs`: one short, aligned,
-  coloured line per event (`18:31:06 INF  POST   /api/notes   201  157 ms`), meant to be read as
+  coloured line per event (`18:31:06 DBG  POST   /api/notes   201  157 ms`), meant to be read as
   an overview in `docker logs` and in Unraid's log view (a web terminal, so ANSI colour shows).
+  **Information is for what an operator should know** — start-up, `ready`, warnings (a refused
+  rate limit, a failed email), errors, and rare events such as an account deleted — so request
+  lines are **Debug**, except a 5xx or an exception, which is an Error (`HealthEndpoint.RequestLogLevel`).
+  A line per sync, save and thumbnail used to bury everything else. `Serilog__MinimumLevel__Default`
+  sets the level (`LOG_LEVEL` in Compose, "Log Level" on Unraid); `Debug` brings the request
+  lines back while looking into something, and CI runs its image at Debug, since its log checks
+  read them. A healthy `/api/health` is Verbose, below even that. `Microsoft.*` and `System.*`
+  are held to Warning (`appsettings.json`), so Debug adds keepIT's own lines and not the
+  framework's — which would otherwise write four health-check lines every 30 seconds.
   The formatter writes the colour itself, because Serilog's console themes apply only when the
   output is a terminal, which in a container it never is; `NO_COLOR` turns it off. A request line
   is the path only (GUIDs cut to 8 characters), never the query string. Everything that came

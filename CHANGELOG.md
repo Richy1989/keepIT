@@ -3,6 +3,20 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### 🔧 Improvements
+
+- The server log now shows only what matters by default: start-up, warnings, errors and the odd
+  event worth knowing about, instead of a line for every request. A request the server failed on
+  is still logged, as an error. Server.
+
+### 📦 Deployment & Docs
+
+- New setting for the log level: "Log Level" on Unraid, `LOG_LEVEL` in Compose's `.env`, or
+  `Serilog__MinimumLevel__Default` with plain Docker. `Information` is the default; `Debug` brings
+  back a line per request while you look into something.
+
 ## 1.5.2
 
 ### 🐛 Fixes

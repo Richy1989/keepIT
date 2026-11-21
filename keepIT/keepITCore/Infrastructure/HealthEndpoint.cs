@@ -27,15 +27,18 @@ public static class HealthEndpoint
     }
 
     /// <summary>
-    /// The request log's level for a request: Serilog's own rule (an error for an exception or a
-    /// 5xx, information otherwise), except that a healthy answer to <see cref="Path"/> is Verbose,
-    /// which the log leaves out. Docker asks every 30 seconds, so it would otherwise fill the log
-    /// with a line that says nothing; an unhealthy answer is a 503 and logged like any other.
+    /// The request log's level for a request. An exception or a 5xx is an Error: the server failed,
+    /// and the operator should see it. Every other request is Debug, which the default Information
+    /// log leaves out: a line per sync, save and thumbnail buried what matters (start-up, warnings,
+    /// errors, an account deleted) under hundreds that say nothing. Set
+    /// <c>Serilog__MinimumLevel__Default=Debug</c> to see them while looking into something. A
+    /// healthy answer to <see cref="Path"/> is Verbose, below even that: Docker asks every 30 seconds,
+    /// and an unhealthy answer is a 503, logged like any other.
     /// </summary>
     public static LogEventLevel RequestLogLevel(HttpContext http, double elapsedMs, Exception? exception) =>
         exception is not null || http.Response.StatusCode >= 500 ? LogEventLevel.Error
         : http.Request.Path == Path ? LogEventLevel.Verbose
-        : LogEventLevel.Information;
+        : LogEventLevel.Debug;
 
     /// <summary>
     /// Healthy when the database answers: PostgreSQL accepts a connection, or the SQLite file is

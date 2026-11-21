@@ -62,6 +62,9 @@ services:
       # register your accounts first, then set ALLOW_REGISTRATION=false in .env to close sign-up
       # (existing users keep working; only /api/auth/register is refused).
       App__AllowRegistration: ${ALLOW_REGISTRATION:-true}
+      # How much the API logs. Information (default): start-up, warnings, errors and the few events
+      # worth knowing about. Debug adds a line per request, for looking into something.
+      Serilog__MinimumLevel__Default: ${LOG_LEVEL:-Information}
       # Your time zone (e.g. Europe/Vienna). Each reminder repeats on the clock of the device that
       # set it; this one stands in when a device doesn't name its zone. Set TZ in .env; the
       # default is UTC.

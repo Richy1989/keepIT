@@ -330,15 +330,20 @@ Not yet. keepIT reads its own export format only; a Google Takeout importer is o
 
 ### What does the container log show?
 
-One short, coloured line per request, and a line when keepIT starts, is ready and shuts down:
+By default, only what you should know about: a line when keepIT starts, is ready and shuts down,
+warnings and errors, and the odd event worth noting, such as an account being deleted or a
+caller turned away by the rate limit. Requests the app answered fine are left out. To see a short,
+coloured line for every request while you look into something, set the log level to `Debug`: "Log
+Level" on Unraid, `LOG_LEVEL=Debug` in Compose's `.env`, or `-e Serilog__MinimumLevel__Default=Debug`
+with plain Docker. Set it back to `Information` when you're done.
 
 ```
 18:31:04 INF  keepIT 0.9.0 starting · SQLite · data in /data
-18:31:06 INF  POST   /api/notes                               201  157 ms
+18:31:06 DBG  POST   /api/notes                               201  157 ms
 18:31:07 INF  GET    /assets/index-old.js 404  nginx
 ```
 
-The status is coloured by kind (green for success, amber for something the request got wrong,
+A request the app failed on is always logged, as an error. The status is coloured by kind (green for success, amber for something the request got wrong,
 red for a server error), so a problem stands out. Lines that end in `nginx` are requests that
 never reached the app: a file that doesn't exist, an upload over the size limit, or the app not
 answering yet (a `502` or two while the container starts is normal). Times are in the container's
