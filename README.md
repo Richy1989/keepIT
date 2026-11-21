@@ -47,11 +47,12 @@ also works entirely on its own, with no server at all.
 
 ## Features
 
-- **Notes and checklists** support rich text and photos. Record voice notes on Android.
-- **Lists, pins and search** keep notes easy to find. Set one-time or recurring reminders.
-- **Live sharing** lets others view or edit a note. Changes sync across web and Android.
-- **Offline Android app** works standalone or syncs when you reconnect. Add notes from the home-screen widget.
-- **Your data** stays on your server or phone. Export and restore it as a ZIP.
+- 📝 **Notes and checklists** support rich text and photos.
+- 🎙️ Record **voice notes** on Android, even offline. Listen on your phone or the web.
+- 🗂️ **Lists, pins and search** keep notes easy to find. Set one-time or recurring reminders.
+- 👥 **Live sharing** lets others view or edit a note. Changes sync across web and Android.
+- 📱 **Offline Android app** works standalone or syncs when you reconnect. Add notes from the home-screen widget.
+- 🔒 **Your data** stays on your server or phone. Export and restore it as a ZIP.
 
 ## A closer look
 
