@@ -375,14 +375,28 @@ abuse protection**).
 The app is designed to be self-hosted and possibly internet-exposed, so the edge is hardened
 in the API itself (`Infrastructure/Security/`) and in the nginx config:
 
-- **Rate limiting** (per client IP): a global sliding window of **120 req/min** on everything,
-  and a tighter fixed window of **10 req/min** on the credential endpoints (register, login,
-  change-/forgot-/reset-password — password guessing / signup abuse) via the named `auth`
-  policy. `/refresh`, `/logout`, and `/me` stay on the global limit only: they run on every
+- **Rate limiting:** a global sliding window over a minute on everything, counted **per account**
+  for a signed-in caller (`App__RateLimit__PerUserPerMinute`, default **600**) and **per client
+  IP** for everyone else (`App__RateLimit__PerIpPerMinute`, default **120**). It used to be per IP
+  for everyone, and ordinary use reached it: a household shares one address, so all its phones,
+  tabs and widgets shared one budget, and behind a proxy with too few hops configured every user
+  of the server did. A signed-in caller has proved who they are, so the account is the fair unit.
+  That needs `UseAuthentication` to run **before** `UseRateLimiter` in `Program.cs`. A token that
+  fails its signature check costs no database work and leaves the request on the IP budget, so
+  forging tokens buys nothing; a valid one costs the account-exists lookup it costs anyway. On top
+  of the global limit, tighter fixed windows stay per IP: **10 req/min** on the credential
+  endpoints (register, login, change-/forgot-/reset-password — password guessing / signup abuse)
+  via the named `auth` policy, and five per five minutes on export and on import (see **Export &
+  import**). `/refresh`, `/logout`, and `/me` stay on the global limit only: they run on every
   page load, and a 429 there would knock legitimate sessions out. Rejected callers get 429 +
-  `Retry-After`.
+  `Retry-After` (the sliding window has no exact answer, so it sends its segment, 10 s: the
+  earliest anything frees up). The operator gets one warning per refused caller and limit, at
+  most once a minute, naming the address or the account's short id — and, for a private address,
+  a hint that it may be their own reverse proxy and `App__ForwardedProxyHops` too low. It is the
+  only line that names an address; the request line never does.
 - **Forwarded headers:** the API sits behind nginx (and possibly Traefik), so it trusts
-  `X-Forwarded-For`/`-Proto` to recover the real client IP — which the rate limiter keys on.
+  `X-Forwarded-For`/`-Proto` to recover the real client IP — which the rate limiter keys on for
+  every request without a session, sign-in included.
   **`App__ForwardedProxyHops` must equal the number of proxy hops** (1 for the plain stacks,
   2 behind Traefik → nginx): too low and all clients share the proxy's rate-limit bucket, too
   high and a client can spoof its IP with a forged header.
@@ -481,8 +495,9 @@ REST the single source of data.
   lives in `AuthProvider`, not a query, so it and every re-sync call its `refreshUser()`.
   Android — `data/RealtimeClient.kt` (official SignalR Java client) forwards `Changed` to the
   sync engine / notifications watcher, and `account` to `SessionRepository.refreshUser()`; the
-  Java client has no automatic reconnect, so it retries on a delay and re-syncs (user included)
-  on every reconnect. It acts on `notes`/`lists`/`notification`/`account` only — **`settings` is
+  Java client has no automatic reconnect, so it retries — backing off from 1 s to 30 s with
+  jitter, the web's curve, since each attempt counts against the rate limit — and re-syncs (user
+  included) on every reconnect. It acts on `notes`/`lists`/`notification`/`account` only — **`settings` is
   deliberately dropped**, since the app has no server-synced appearance to apply (see **Android
   client** → theming).
 - **Scale-out caveat:** `Clients.User` is in-process. A single API instance (the intended
@@ -811,9 +826,22 @@ unresolved one is retried, so a bootstrap that ran with no connectivity still co
   three views + lists, in parallel), overlaying any still-queued local edits on the server
   truth. Kicked on sign-in, connectivity return, every enqueue, SignalR pushes, and
   pull-to-refresh; runs are single-flight. Failure policy per op: network/5xx stops the run
-  (retry later, queue intact); 401 defers to the session (re-login resumes replay); any other
+  (retry later, queue intact); 401 defers to the session (re-login resumes replay); 429 waits
+  as long as the server's `Retry-After` says (1 s–10 min, 30 s when it doesn't say) and then
+  retries by itself, with no request in between, not even from the widget; any other
   4xx is permanent — the op is dropped **with a user-facing message** (e.g. the note was
   deleted on another device).
+- **A pass costs only what it needs** (`SyncGate`), because every request counts against the
+  server's rate limit. The server pushes `Changed` to all of a user's devices, the one that
+  made the change included, so every edit used to cost two full passes: its own, then the
+  echo's. Now each kick bumps a counter, a pass snapshots it just before its fetch, and a
+  follow-up pass runs only for kicks after the snapshot. The server sends the push *before* it
+  answers the write, and a pass that replayed something waits 300 ms before the snapshot, so the
+  echo lands first and is covered by a fetch that already holds the write. A push that arrives
+  later always gets a pass: nothing tells a late echo from another device's change. The
+  server's version is read once per realtime connection (`ServerFeatures.refreshIfStale`,
+  invalidated on every reconnect, at least hourly), not on every pass. An autosave is now about
+  five requests (the write and four GETs), where it was about eleven.
 - **Saying why it's offline.** `ConnectivityMonitor.isOnline` follows request outcomes as well as
   the OS network callback, so it also goes false when the phone has a network and the server still
   can't be had. What stopped the run is classified (`SyncProblem`: a name that won't resolve, no
@@ -1169,7 +1197,8 @@ shared content, like the colour. Its rules are in `backgrounds/README.md`; the d
   update naming `Background` sets it.
 - **The first feature that needs a newer server.** A 1.2 server refuses an update naming
   `Background` (an unknown enum value), so Android reads the server's version from `/api/meta`
-  (`data/ServerFeatures.kt`, at the start of every sync, remembered per server address): with a
+  (`data/ServerFeatures.kt`, at the start of a sync once per realtime connection — an update
+  restarts the server, which drops the socket — remembered per server address): with a
   server older than 1.3 the picker says the server needs updating, and the outbox takes
   `Background` out of an edit it replays to one (`forServer`), so an edit made in standalone mode
   or offline still lands, minus the background. The web needs no check: it is served by its server.

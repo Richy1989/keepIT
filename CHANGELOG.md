@@ -3,6 +3,25 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### 🐛 Fixes
+
+- Using keepIT on several devices, or with a reverse proxy in front of the server, could keep
+  running into "The server is limiting requests (HTTP 429)". Each signed-in account now has a
+  request budget of its own instead of sharing one with everyone at the same address. The Android
+  app also makes about half as many requests per edit, and after a 429 it waits as long as the
+  server asks, then syncs by itself. Web and Android.
+
+### 📦 Deployment & Docs
+
+- Two new optional settings tune the request limit: `App__RateLimit__PerUserPerMinute` (default
+  600, per signed-in account) and `App__RateLimit__PerIpPerMinute` (default 120, for requests
+  without a session). Sign-in, export and import keep their own stricter limits per address, so
+  `App__ForwardedProxyHops` must still equal the number of proxies in front of keepIT. The server
+  log now names who was refused when a limit is reached, with a hint when that looks like your
+  own proxy.
+
 ## 1.5.1
 
 ### 🐛 Fixes
