@@ -215,8 +215,15 @@ fun coalesce(ops: List<PendingOp>, incoming: PendingOp): List<PendingOp> {
                     if (incoming.dto.fields?.contains(NoteFields.BACKGROUND) != true &&
                         earlier?.dto?.fields?.contains(NoteFields.BACKGROUND) == true
                     ) earlier.dto.background else incoming.dto.background
+                // The checklist the merged edit started from is the earlier one's, when that set the
+                // checklist: the server has seen neither, and the later edit's base is the earlier's result.
+                val earlierSetsChecklist =
+                    earlier != null && (earlier.dto.fields ?: NoteFields.SET_BY_DEFAULT).contains(NoteFields.CHECKLIST_ITEMS)
+                val checklistBase = if (earlierSetsChecklist) earlier!!.dto.checklistBase else incoming.dto.checklistBase
                 ops.filterNot { it is PendingOp.Update && it.noteId == id } +
-                    incoming.copy(dto = incoming.dto.copy(fields = fields, background = background))
+                    incoming.copy(
+                        dto = incoming.dto.copy(fields = fields, background = background, checklistBase = checklistBase),
+                    )
             }
 
         is PendingOp.SetLists -> {

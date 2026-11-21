@@ -64,6 +64,7 @@ object NoteLimits {
         body = dto.body.cutTo(BODY),
         color = dto.color.colorOrNull(),
         checklistItems = clampItems(dto.checklistItems),
+        checklistBase = clampItems(dto.checklistBase),
     )
 
     fun clampListName(name: String): String = cut(name, LIST_NAME)

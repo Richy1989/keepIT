@@ -156,6 +156,11 @@ data class MetaDto(val version: String = "")
 
 @Serializable
 data class ChecklistItemDto(
+    /**
+     * The row's id. A row made on this device gets one straight away ([newChecklistRowId]), which a
+     * server from [ServerFeatures.CHECKLIST_MERGE] on keeps: rows are matched by id, so one sent
+     * twice is added once. An older server gives the row an id of its own.
+     */
     val id: String? = null,
     val text: String = "",
     val isChecked: Boolean = false,
@@ -317,6 +322,13 @@ data class UpdateNoteDto(
     /** The background image's name ([NoteDto.background]); set only when [fields] names it. */
     val background: String? = null,
     val checklistItems: List<ChecklistItemDto>? = null,
+    /**
+     * The checklist rows this edit started from. With it, the server applies only what changed
+     * between these and [checklistItems] to the list as it is now, so ticks, rows and deletions other
+     * people made meanwhile survive ([mergeChecklist]); without it, the list is replaced whole. A
+     * server older than [ServerFeatures.CHECKLIST_MERGE] ignores it and replaces the list.
+     */
+    val checklistBase: List<ChecklistItemDto>? = null,
     /**
      * The [NoteFields] this update sets; the server keeps the rest as they are now. Null sets them
      * all but the background ([NoteFields.SET_BY_DEFAULT]). An edit queued offline replays long

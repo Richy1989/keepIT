@@ -63,6 +63,14 @@ class ServerFeatures(context: Context, private val client: ApiClient) {
          * older server reads every row as top-level and drops the nesting on the next save.
          */
         val SUBITEMS = Triple(1, 4, 0)
+
+        /**
+         * The first release that merges a checklist edit row by row ([UpdateNoteDto.checklistBase])
+         * and keeps the ids rows were made with. An older server replaces the whole list with each
+         * save, so the open editor doesn't take in other people's changes there: its next save would
+         * undo them all the same, and its rows would lose their ids (see `EditorScreen`).
+         */
+        val CHECKLIST_MERGE = Triple(1, 5, 0)
     }
 }
 

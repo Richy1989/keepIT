@@ -140,6 +140,8 @@ import org.hyperstarit.keepitapp.data.ServerVersions
 import org.hyperstarit.keepitapp.data.ServerFeatures
 import org.hyperstarit.keepitapp.data.UpdateNoteDto
 import org.hyperstarit.keepitapp.data.checklistFromText
+import org.hyperstarit.keepitapp.data.mergeChecklist
+import org.hyperstarit.keepitapp.data.newChecklistRowId
 import org.hyperstarit.keepitapp.data.offline.changedFields
 import org.hyperstarit.keepitapp.data.splitPastedRow
 import org.hyperstarit.keepitapp.data.suggestFromChecked
@@ -225,6 +227,9 @@ fun EditorScreen(
     // Sub-items need a server that stores the indent ([ServerFeatures.SUBITEMS]); an older one
     // would flatten them on the next save. Standalone keeps them on the device, so it always nests.
     val canNest = standalone || ServerVersions.atLeast(serverVersion, ServerFeatures.SUBITEMS) == true
+    // Whether the open editor takes in what other people change meanwhile (see [takeInRemoteRows]).
+    // An older server replaces the whole list with every save, so there it would only be undone.
+    val mergesLive = standalone || ServerVersions.atLeast(serverVersion, ServerFeatures.CHECKLIST_MERGE) == true
 
     // Existing note: prefer the grid cache, fall back to a direct fetch (widget deep link).
     var loaded by remember { mutableStateOf(noteId == null) }
@@ -368,7 +373,7 @@ fun EditorScreen(
     /** Adds a new top-level row at the end, where "Add item" and an empty checklist start. */
     fun addItem() {
         if (items.size >= NoteLimits.CHECKLIST_ITEMS) return
-        val newItem = EditableItem(null, "", false, indent = 0, addedHere = true)
+        val newItem = EditableItem(newChecklistRowId(), "", false, indent = 0, addedHere = true)
         items.add(newItem)
         focusTargetLocalId = newItem.localId
         typingLocalId = null
@@ -379,7 +384,7 @@ fun EditorScreen(
         if (items.size >= NoteLimits.CHECKLIST_ITEMS) return
         val dtos = asDtos()
         val at = dtos.insertionIndexAfter(index).coerceIn(0, items.size)
-        val newItem = EditableItem(null, "", false, indent = dtos.newItemIndentAfter(index), addedHere = true)
+        val newItem = EditableItem(newChecklistRowId(), "", false, indent = dtos.newItemIndentAfter(index), addedHere = true)
         items.add(at, newItem)
         focusTargetLocalId = newItem.localId
         typingLocalId = null
@@ -484,7 +489,7 @@ fun EditorScreen(
         val dtos = asDtos()
         val at = dtos.insertionIndexAfter(index).coerceIn(0, items.size)
         val indent = dtos.newItemIndentAfter(index)
-        val added = split.rows.drop(1).map { EditableItem(null, it, false, indent = indent, addedHere = true) }
+        val added = split.rows.drop(1).map { EditableItem(newChecklistRowId(), it, false, indent = indent, addedHere = true) }
         val last = added.lastOrNull() ?: items[index]
         items[index].value = TextFieldValue(split.rows.first(), TextRange(split.rows.first().length))
         last.value = TextFieldValue(last.text, TextRange(split.caret))
@@ -508,9 +513,9 @@ fun EditorScreen(
             return
         }
         items.clear()
-        converted.forEach { items.add(EditableItem(null, it.text, it.isChecked)) }
+        converted.forEach { items.add(EditableItem(newChecklistRowId(), it.text, it.isChecked)) }
         if (items.isEmpty()) {
-            val first = EditableItem(null, "", false, addedHere = true)
+            val first = EditableItem(newChecklistRowId(), "", false, addedHere = true)
             items.add(first)
             focusTargetLocalId = first.localId
         }
@@ -551,6 +556,16 @@ fun EditorScreen(
     // one into the other and empties the side it leaves ([switchToChecklist], [switchToText]), so a
     // switched note sends both: the content in its new form, and the old form cleared, which leaves
     // nothing hidden behind the switch on the server either.
+    /** The content as a save would send it now: what [persist] sends and the merge compares. */
+    fun currentContent() = UpdateNoteDto(
+        type = type,
+        title = title.trim().ifBlank { null },
+        body = body.text.trim().ifBlank { null },
+        color = color,
+        background = background,
+        checklistItems = buildChecklist(),
+    )
+
     suspend fun persist() = saveMutex.withLock {
         val current = note
         if (current == null) {
@@ -588,15 +603,14 @@ fun EditorScreen(
             // a collaborator had changed in the meantime.
             val content = contentSignature()
             if (current.canEdit && content != persistedContent) {
-                val dto = UpdateNoteDto(
-                    type = type,
-                    title = title.trim().ifBlank { null },
-                    body = body.text.trim().ifBlank { null },
-                    color = color,
-                    background = background,
-                    checklistItems = buildChecklist(),
+                val dto = currentContent()
+                // With the rows it started from, so the server applies only what this editor changed
+                // and keeps what someone else ticked, added or deleted meanwhile ([mergeChecklist]).
+                repo.update(
+                    current.id,
+                    dto.copy(checklistBase = savedContent?.checklistItems),
+                    fields = savedContent?.let { changedFields(it, dto) },
                 )
-                repo.update(current.id, dto, fields = savedContent?.let { changedFields(it, dto) })
                 persistedContent = content
                 savedContent = dto
             }
@@ -612,6 +626,50 @@ fun EditorScreen(
             persist()
             onDone()
         }
+    }
+
+    /**
+     * Brings into the open editor what a sync changed in this note's checklist — a collaborator's
+     * tick, a row they added or deleted — instead of showing the list as it was when the note opened
+     * until it is closed. Two people with the same list open in a shop see each other's ticks.
+     *
+     * A three-way merge, the one the server runs on a save ([mergeChecklist]): what was last saved or
+     * loaded is the base, this editor's rows are the edit, and [remote] is the note as the cache now
+     * has it. Rows keep their [EditableItem] (and so their focus and caret) when they survive, and a
+     * row being typed into keeps its text. [remote] then becomes the base, so the next save sends
+     * only what this editor changed since; when it changed nothing, nothing is sent.
+     */
+    fun takeInRemoteRows(remote: List<ChecklistItemDto>) {
+        val saved = savedContent ?: return
+        val base = saved.checklistItems.orEmpty()
+        val theirs = remote.asSavedRows()
+        if (theirs == base) return
+
+        // Trimmed, as a save sends them, so a trailing space being typed isn't taken for a rename.
+        val mine = asDtos().map { it.copy(text = it.text.trim()) }
+        val merged = mergeChecklist(base, mine, theirs)
+        val byId = items.associateBy { it.id }
+        val next = merged.map { row ->
+            byId[row.id]?.also { item ->
+                if (item.text.trim() != row.text) item.value = TextFieldValue(row.text, TextRange(row.text.length))
+                item.isChecked = row.isChecked
+                item.indent = row.indent
+            } ?: EditableItem(row.id, row.text, row.isChecked, row.indent)
+        }
+        if (next.map { it.localId } != items.map { it.localId }) {
+            items.clear()
+            items.addAll(next)
+        }
+        savedContent = saved.copy(checklistItems = theirs)
+        // Nothing of this editor's own left to send: the content as it stands is what is saved.
+        if (changedFields(savedContent!!, currentContent()).isEmpty()) persistedContent = contentSignature()
+    }
+
+    val liveRows = live?.checklistItems
+    LaunchedEffect(liveRows, loaded, mergesLive) {
+        if (!loaded || !mergesLive || liveRows == null) return@LaunchedEffect
+        // Behind any save in progress, so the base it compares against is the one that save leaves.
+        saveMutex.withLock { takeInRemoteRows(liveRows) }
     }
 
     /**
@@ -1580,19 +1638,21 @@ private fun NoteDto.asSaved() = UpdateNoteDto(
     body = body.orEmpty().trim().ifBlank { null },
     color = color,
     background = background,
-    checklistItems = checklistItems
-        .sortedBy { it.order }
-        .filter { it.text.isNotBlank() }
-        .mapIndexed { index, item ->
-            ChecklistItemDto(
-                id = item.id,
-                text = item.text.trim(),
-                isChecked = item.isChecked,
-                indent = item.indent,
-                order = index,
-            )
-        },
+    checklistItems = checklistItems.asSavedRows(),
 )
+
+/** Checklist rows as the editor would send them: in stored order, blank ones dropped, text trimmed. */
+private fun List<ChecklistItemDto>.asSavedRows() = sortedBy { it.order }
+    .filter { it.text.isNotBlank() }
+    .mapIndexed { index, item ->
+        ChecklistItemDto(
+            id = item.id,
+            text = item.text.trim(),
+            isChecked = item.isChecked,
+            indent = item.indent,
+            order = index,
+        )
+    }
 
 /**
  * The line under the editor's title: "Edited Oct 22", then, on a shared note, the people on it as

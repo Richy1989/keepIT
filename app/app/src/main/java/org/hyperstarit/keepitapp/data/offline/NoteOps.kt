@@ -1,6 +1,7 @@
 package org.hyperstarit.keepitapp.data.offline
 
 import org.hyperstarit.keepitapp.data.ChecklistItemDto
+import org.hyperstarit.keepitapp.data.mergeChecklist
 import org.hyperstarit.keepitapp.data.ListDto
 import org.hyperstarit.keepitapp.data.NoteDto
 import org.hyperstarit.keepitapp.data.NoteFields
@@ -37,7 +38,14 @@ fun applyOp(notes: List<NoteDto>, op: PendingOp): List<NoteDto> = when (op) {
             body = if (sets(NoteFields.BODY)) op.dto.body else n.body,
             color = if (sets(NoteFields.COLOR)) op.dto.color else n.color,
             background = if (sets(NoteFields.BACKGROUND)) op.dto.background else n.background,
-            checklistItems = if (sets(NoteFields.CHECKLIST_ITEMS)) op.dto.checklistItems ?: emptyList() else n.checklistItems,
+            checklistItems = when {
+                !sets(NoteFields.CHECKLIST_ITEMS) -> n.checklistItems
+                // Merged into the rows as they are now, as the server will (switching between text
+                // and checklist hands the content over whole there, so it does here).
+                op.dto.checklistBase != null && !(sets(NoteFields.TYPE) && op.dto.type != n.type) ->
+                    mergeChecklist(op.dto.checklistBase, op.dto.checklistItems.orEmpty(), n.checklistItems.sortedBy { it.order })
+                else -> op.dto.checklistItems ?: emptyList()
+            },
             updatedAtUtc = op.enqueuedAtUtc,
         )
     }
