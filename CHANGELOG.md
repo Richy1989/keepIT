@@ -3,13 +3,17 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 1.5.1
 
 ### 🐛 Fixes
 
 - A note, list, photo or voice note made on a bad connection could appear twice when the server's
-  answer was lost and the app sent it again — it is now made once. Android; the server and the app
-  both need the update for this.
+  answer was lost and the app sent it again — it is now made once. Android.
+
+### 📦 Deployment & Docs
+
+- Update the server along with the Android app: the server is what recognises a create sent twice,
+  and with an older one the app works as before.
 
 ## 1.5.0
 
