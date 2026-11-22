@@ -42,9 +42,9 @@ also works entirely on its own, with no server at all.
 
 - [Features](#features)
 - [A closer look](#a-closer-look)
-- [Quick start](#quick-start): run your own server with one Docker command
-- [The Android app](#the-android-app): get it, use it without a server, or build it
-- [Beta releases](#beta-releases): try what's coming before it's released
+- [Quick start](#quick-start)
+- [The Android app](#the-android-app)
+- [Beta releases](#beta-releases)
 - [What's next](#whats-next)
 - [For developers](#for-developers)
 - [Why I built this](#why-i-built-this) · [Support](#support) · [Privacy](#privacy) · [License](#license)
@@ -122,6 +122,11 @@ account. That's it.
   logs, have it leave out query strings, or at least `token` and `access_token`: the web app's
   live-sync connection carries a sign-in token in its URL, and so does a password-reset link.
   keepIT's own logs blank both.
+- **Public links** are opened at `/p` and read through `/api/public/`, without signing in. If your
+  proxy puts its own sign-in (Authelia, Authentik…) in front of keepIT, let those two paths
+  through, or visitors meet your sign-in page instead of the note. A link's secret sits after the
+  `#`, which browsers never send, so it stays out of every log. Set `App__PublicBaseUrl` so copied
+  links carry your public address rather than whichever one the owner's device used.
 - **Running Unraid?** A Community Apps template is included at
   [`deploy/keepit.unraid.xml`](deploy/keepit.unraid.xml).
 
