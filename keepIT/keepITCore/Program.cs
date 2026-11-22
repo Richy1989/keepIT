@@ -97,6 +97,9 @@ builder.Services.AddAppEmail(builder.Configuration);
 builder.Services.AddScoped<ITokenService, TokenService>();
 // Central "own OR shared" note authorization + realtime recipient resolution (used by note endpoints).
 builder.Services.AddScoped<keepITCore.Notes.NoteAccessService>();
+builder.Services.AddScoped<keepITCore.Notes.NoteContentWriter>();
+builder.Services.AddScoped<keepITCore.Notes.NoteMediaReader>();
+builder.Services.AddScoped<keepITCore.Notes.PublicLinkService>();
 builder.Services.AddScoped<AccountDeletionService>();
 builder.Services.AddScoped<TwoFactorService>();
 builder.Services

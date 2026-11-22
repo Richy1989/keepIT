@@ -46,6 +46,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
     /// <summary>Image attachments on notes (metadata only — bytes live on disk).</summary>
     public DbSet<NoteMedia> NoteMedia => Set<NoteMedia>();
 
+    /// <summary>Notes published to the internet (at most one link per note).</summary>
+    public DbSet<NotePublicLink> NotePublicLinks => Set<NotePublicLink>();
+
     /// <summary>Per-user user settings.</summary>
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
 
@@ -217,6 +220,23 @@ public class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid
                 .WithMany()
                 .HasForeignKey(s => s.GranteeId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<NotePublicLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            // One link per note; an open looks it up by the token's hash.
+            e.HasIndex(l => l.NoteId).IsUnique();
+            e.HasIndex(l => l.TokenHash).IsUnique();
+            e.Property(l => l.TokenHash).HasMaxLength(128).IsRequired();
+            e.Property(l => l.TokenProtected).HasMaxLength(512).IsRequired();
+            e.Property(l => l.PasswordHash).HasMaxLength(256);
+
+            // No navigation on Note (see NotePublicLink), but deleting the note deletes its link.
+            e.HasOne<Note>()
+                .WithMany()
+                .HasForeignKey(l => l.NoteId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<UserSettings>(e =>

@@ -23,4 +23,16 @@ public static class RateLimitPolicies
     /// a shared budget would have them wait out a limit they spent on the other half of the job.
     /// </summary>
     public const string Import = "import";
+
+    /// <summary>
+    /// Per-client-IP throttle on opening a public link, the one anonymous request that checks a
+    /// password: it bounds password guessing on a published note.
+    /// </summary>
+    public const string PublicLink = "public-link";
+
+    /// <summary>
+    /// Per-client-IP throttle on saving edits through an editable public link, so an anonymous
+    /// visitor can type freely but can't hammer a note's owner with writes.
+    /// </summary>
+    public const string PublicLinkEdit = "public-link-edit";
 }

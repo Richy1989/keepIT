@@ -138,6 +138,28 @@ public static class SecurityServiceExtensions
                         Window = TimeSpan.FromMinutes(5),
                     }));
 
+            // Opening a public link checks its password, anonymously: the same kind of budget as
+            // sign-in, a little looser since one visit can take a couple of tries.
+            options.AddPolicy(RateLimitPolicies.PublicLink, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: ClientIp(httpContext),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
+
+            // A visitor editing through a public link saves as they type, about one save a second
+            // at most once the page debounces; this leaves room for that and nothing like a script.
+            options.AddPolicy(RateLimitPolicies.PublicLinkEdit, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: ClientIp(httpContext),
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
+                    }));
+
             // Tell rejected clients when they can retry, and the operator who was refused.
             options.OnRejected = (context, _) =>
             {

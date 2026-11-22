@@ -146,4 +146,23 @@ public sealed class SqliteSchemaReconcilerTests : IDisposable
 
         Assert.Equal("🧺", Assert.Single(lists.EnumerateArray()).GetProperty("icon").GetString());
     }
+
+    [Fact]
+    public async Task The_API_starts_on_a_database_from_before_public_links_and_keeps_its_notes()
+    {
+        // A 1.5 file: every note still there, and no NotePublicLinks table.
+        SeedNote(Guid.NewGuid());
+        _db.Execute("DROP TABLE NotePublicLinks");
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        using var api = new KeepItApiFactory(_db.Folder);
+        var client = await api.CreateSignedInClientAsync();
+        var mine = (await (await client.PostAsJsonAsync("/api/notes", new { type = "Text", title = "after upgrade" }))
+            .Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetString();
+
+        // Listing notes asks which are published, and publishing writes the new table.
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/notes")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/notes/{mine}/public-link", new { })).StatusCode);
+        Assert.Equal(1L, _db.Scalar("SELECT COUNT(*) FROM Notes WHERE Title = 'kept' AND Color = 'red'"));
+    }
 }

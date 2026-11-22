@@ -28,6 +28,7 @@ public class NoteMediaController : ControllerBase
     private readonly NoteAccessService _access;
     private readonly IRealtimeNotifier _notifier;
     private readonly MediaOptions _options;
+    private readonly NoteMediaReader _reader;
 
     /// <summary>Injects the context, storage, processor, access resolver, notifier and limits.</summary>
     /// <param name="db">The EF Core context.</param>
@@ -36,14 +37,17 @@ public class NoteMediaController : ControllerBase
     /// <param name="access">Resolves "own OR shared" access and the realtime recipient set.</param>
     /// <param name="notifier">Pushes change signals to affected users' devices.</param>
     /// <param name="options">Upload limits.</param>
+    /// <param name="reader">Opens the rendition a request asks for (shared with public links).</param>
     public NoteMediaController(
         AppDbContext db,
         IMediaStorage storage,
         NoteMediaProcessor processor,
         NoteAccessService access,
         IRealtimeNotifier notifier,
-        IOptions<MediaOptions> options)
+        IOptions<MediaOptions> options,
+        NoteMediaReader reader)
     {
+        _reader = reader;
         _db = db;
         _storage = storage;
         _processor = processor;
@@ -315,27 +319,8 @@ public class NoteMediaController : ControllerBase
         if (media is null) return NotFound();
 
         var ownerId = await _db.Notes.Where(n => n.Id == noteId).Select(n => n.OwnerId).FirstAsync(ct);
-        var wantThumb = string.Equals(size, "thumb", StringComparison.OrdinalIgnoreCase);
-        var wantPreview = string.Equals(size, "preview", StringComparison.OrdinalIgnoreCase);
-
-        string fileName;
-        Stream? stream;
-        if (wantPreview && HasOwnPreview(media))
-        {
-            fileName = PreviewFileName(media);
-            stream = _storage.OpenRead(ownerId, noteId, fileName)
-                ?? await CreatePreviewAsync(ownerId, noteId, media, fileName, ct);
-        }
-        else
-        {
-            // A preview request for an image that needs none falls through to the original, and so
-            // does every request for audio: a voice note has exactly one rendition, and its
-            // ThumbFileName is empty rather than naming a file that was never written.
-            fileName = wantThumb && media.Kind == NoteMediaKind.Image ? media.ThumbFileName : media.FileName;
-            stream = _storage.OpenRead(ownerId, noteId, fileName);
-        }
-
-        if (stream is null) return NotFound();
+        if (await _reader.OpenAsync(ownerId, media, size, ct) is not { } opened) return NotFound();
+        var (stream, fileName) = opened;
 
         // A media id's bytes never change, so this cache directive is honest.
         Response.Headers.CacheControl = "private, max-age=31536000, immutable";
@@ -372,55 +357,13 @@ public class NoteMediaController : ControllerBase
         _storage.Delete(ownerId, noteId, fileName);
         _storage.Delete(ownerId, noteId, thumbName);
         // Only exists once someone has viewed the image in a card; Delete tolerates a missing file.
-        _storage.Delete(ownerId, noteId, PreviewFileName(media));
+        _storage.Delete(ownerId, noteId, NoteMediaReader.PreviewFileName(media));
 
         await NotifyRecipientsAsync(noteId);
         return NoContent();
     }
 
     // ---- helpers ----
-
-    /// <summary>
-    /// The preview's file name. Derived from the media id instead of stored on the row, so every
-    /// image ever uploaded has one waiting to be generated — no migration, no backfill.
-    /// </summary>
-    private static string PreviewFileName(NoteMedia media) => $"{media.Id:N}_preview.jpg";
-
-    /// <summary>
-    /// Whether the image gets a preview of its own. An original already within the preview size is
-    /// its own preview, and a GIF is served as stored so an animation keeps its frames.
-    /// </summary>
-    private static bool HasOwnPreview(NoteMedia media) =>
-        media.Kind == NoteMediaKind.Image
-        && !media.FileName.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)
-        && Math.Max(media.Width, media.Height) > NoteMediaProcessor.PreviewEdge;
-
-    /// <summary>
-    /// Makes a preview from the stored original on first request and keeps it, so each image pays
-    /// for it once. Generated on demand rather than at upload so images uploaded before previews
-    /// existed get one too.
-    /// </summary>
-    /// <returns>The preview, or null when the original itself is missing.</returns>
-    private async Task<Stream?> CreatePreviewAsync(
-        Guid ownerId, Guid noteId, NoteMedia media, string previewName, CancellationToken ct)
-    {
-        await using var original = _storage.OpenRead(ownerId, noteId, media.FileName);
-        if (original is null) return null;
-
-        var preview = await _processor.CreatePreviewAsync(original, ct);
-        try
-        {
-            await _storage.SaveAsync(ownerId, noteId, previewName, preview, ct);
-        }
-        catch (IOException)
-        {
-            // A concurrent request for the same preview got there first (Windows won't replace a
-            // file another reader holds open). Its bytes are identical, and these are still good.
-        }
-
-        preview.Position = 0;
-        return preview;
-    }
 
     /// <summary>Tells the owner and every collaborator that this note's content changed.</summary>
     /// <param name="noteId">The note whose recipients to reach.</param>

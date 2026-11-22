@@ -22,8 +22,12 @@ public static class NoteProjection
     /// True for the export archive: leaves out <see cref="NoteDto.Collaborators"/>, since an export
     /// file must not carry other people's details (and need not load them).
     /// </param>
+    /// <param name="isPublic">
+    /// True when the note has a live public link (<see cref="PublicLinkService.PublishedNoteIdsAsync"/>);
+    /// shown to the owner only.
+    /// </param>
     /// <returns>The note DTO.</returns>
-    public static NoteDto ToDto(Note n, NoteUserState? state, Guid callerId, bool forArchive = false)
+    public static NoteDto ToDto(Note n, NoteUserState? state, Guid callerId, bool forArchive = false, bool isPublic = false)
     {
         var isOwner = n.OwnerId == callerId;
         var role = isOwner ? (NoteRole?)null : n.NoteShares.FirstOrDefault(s => s.GranteeId == callerId)?.Role;
@@ -51,6 +55,7 @@ public static class NoteProjection
             Role = role,
             CanEdit = isOwner || role == NoteRole.Editor,
             IsShared = isOwner && n.NoteShares.Count > 0,
+            IsPublic = isOwner && isPublic && !forArchive,
             ChecklistItems = n.ChecklistItems
                 .OrderBy(c => c.Order)
                 .Select(c => new ChecklistItemDto { Id = c.Id, Text = c.Text, Indent = c.Indent, IsChecked = c.IsChecked, Order = c.Order })

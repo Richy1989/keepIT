@@ -62,6 +62,13 @@ public class NoteDto
     /// <summary>True when the caller owns the note and it is shared with at least one other user.</summary>
     public bool IsShared { get; set; }
 
+    /// <summary>
+    /// True when the caller owns the note and it is published with a public link that hasn't
+    /// expired (see <c>NotePublicLinksController</c>). Always false for a collaborator, and in an
+    /// export archive, which never carries links.
+    /// </summary>
+    public bool IsPublic { get; set; }
+
     /// <summary>Checklist rows, ordered. Empty for non-checklist notes.</summary>
     public List<ChecklistItemDto> ChecklistItems { get; set; } = new();
 
