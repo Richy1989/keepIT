@@ -19,6 +19,7 @@ import {
   ArchiveIcon,
   CheckIcon,
   ClockIcon,
+  GlobeIcon,
   PaletteIcon,
   PinIcon,
   RestoreIcon,
@@ -306,6 +307,12 @@ export function NoteCard({
             {!note.isTrashed && <ReminderChip note={note} onClick={() => setShowReminder(true)} inTabOrder={false} />}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {note.isPublic && (
+              <span title="Published: anyone with the link can open it" className="text-text-faint">
+                <GlobeIcon className="text-sm" />
+                <span className="sr-only">Published to the web</span>
+              </span>
+            )}
             <CollaboratorFaces note={note} onPhoto={!!hero} />
             {note.createdAtUtc && (
               <time

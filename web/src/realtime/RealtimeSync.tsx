@@ -6,6 +6,7 @@ import { tokenStore } from '../auth/tokenStore';
 import { refreshAccessToken } from '../api/client';
 import { NOTES_KEY } from '../features/notes/queries';
 import { NOTE_SHARES_KEY } from '../features/notes/shareQueries';
+import { PUBLIC_LINK_KEY } from '../features/notes/publicLinkQueries';
 import { LISTS_KEY } from '../features/lists/queries';
 import { NOTIFICATIONS_KEY } from '../features/notifications/queries';
 import { SETTINGS_KEY } from '../features/settings/queries';
@@ -22,7 +23,7 @@ import { TWO_FACTOR_KEY } from '../features/account/queries';
  * without this an open share dialog kept showing an accepted invite as "Pending".
  */
 const RESOURCE_QUERY_KEYS: Record<string, string[]> = {
-  notes: [NOTES_KEY, NOTE_SHARES_KEY],
+  notes: [NOTES_KEY, NOTE_SHARES_KEY, PUBLIC_LINK_KEY],
   lists: [LISTS_KEY],
   notification: [NOTIFICATIONS_KEY],
   settings: [SETTINGS_KEY],
@@ -74,7 +75,7 @@ export function RealtimeSync() {
     };
     /** Any gap in the connection may have dropped pushes — refetch everything to catch up. */
     const resync = () => {
-      invalidate([NOTES_KEY, NOTE_SHARES_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY, TWO_FACTOR_KEY]);
+      invalidate([NOTES_KEY, NOTE_SHARES_KEY, PUBLIC_LINK_KEY, LISTS_KEY, NOTIFICATIONS_KEY, SETTINGS_KEY, TWO_FACTOR_KEY]);
       void refreshUser();
     };
 

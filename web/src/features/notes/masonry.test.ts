@@ -30,6 +30,7 @@ function note(partial: Partial<NoteDto> = {}): NoteDto {
     role: null,
     canEdit: true,
     isShared: false,
+    isPublic: false,
     checklistItems: [],
     media: [],
     listIds: [],

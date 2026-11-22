@@ -6,6 +6,7 @@ import {
   useUpdateShareRole,
 } from './shareQueries';
 import { EyeIcon, PencilIcon, XIcon } from '../../components/icons';
+import { PublicLinkSection } from './PublicLinkSection';
 import { cn } from '../../lib/cn';
 import { useFocusTrap } from '../../lib/useFocusTrap';
 import type { NoteDto, NoteRole } from '../../api/types';
@@ -13,7 +14,8 @@ import type { NoteDto, NoteRole } from '../../api/types';
 /**
  * Owner-only dialog to manage a note's collaborators: invite by email at a role, and see/adjust/
  * remove existing collaborators. Inviting creates a pending invite the recipient must accept; it
- * won't appear in the list here until they do.
+ * won't appear in the list here until they do. Below them, the note's public link
+ * (`PublicLinkSection`), for sharing with people who have no account.
  */
 export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => void }) {
   const { data: shares } = useNoteShares(note.id);
@@ -149,6 +151,8 @@ export function ShareDialog({ note, onClose }: { note: NoteDto; onClose: () => v
             )}
           </ul>
         </div>
+
+        <PublicLinkSection noteId={note.id} />
       </div>
     </div>
   );

@@ -29,6 +29,16 @@ const AUTH_FREE = new Set([
   '/api/auth/reset-password',
 ]);
 
+/**
+ * A public link's endpoints are anonymous: a visitor has no session, and their 401 means "this
+ * link needs a password", which must never be taken for a lost session (no refresh, no sign-out).
+ */
+const PUBLIC_PREFIX = '/api/public/';
+
+function isAuthFree(schemaPath: string): boolean {
+  return AUTH_FREE.has(schemaPath) || schemaPath.startsWith(PUBLIC_PREFIX);
+}
+
 /** Event dispatched when the session is irrecoverably gone; AuthContext listens and signs out. */
 export const UNAUTHORIZED_EVENT = 'keepit:unauthorized';
 
@@ -107,7 +117,7 @@ const replayable = new WeakMap<Request, Request>();
 
 const authMiddleware: Middleware = {
   async onRequest({ request, schemaPath }) {
-    if (AUTH_FREE.has(schemaPath)) return request;
+    if (isAuthFree(schemaPath)) return request;
     if (tokenStore.isExpiringSoon()) await refreshAccessToken();
     if (tokenStore.token) {
       request.headers.set('Authorization', `Bearer ${tokenStore.token}`);
@@ -116,7 +126,7 @@ const authMiddleware: Middleware = {
     return request;
   },
   async onResponse({ request, response, schemaPath }) {
-    if (response.status !== 401 || AUTH_FREE.has(schemaPath)) return response;
+    if (response.status !== 401 || isAuthFree(schemaPath)) return response;
 
     const result = await refreshAccessToken();
     if (result === 'unauthorized') {

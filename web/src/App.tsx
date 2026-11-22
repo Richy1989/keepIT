@@ -1,13 +1,18 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
+import { PublicNotePage } from './pages/PublicNotePage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 /** Top-level routing + auth gating. Shows a brief splash while the session is being restored. */
 export function App() {
   const { status } = useAuth();
+  const { pathname } = useLocation();
+
+  // A public link opens for anyone, signed in or not: it never waits on the session.
+  if (pathname === '/p') return <PublicNotePage />;
 
   if (status === 'loading') {
     return (

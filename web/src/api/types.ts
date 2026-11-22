@@ -26,6 +26,10 @@ export type CreateShareDto = S['CreateShareDto'];
 export type UpdateShareRoleDto = S['UpdateShareRoleDto'];
 export type NoteRole = S['NoteRole'];
 
+export type PublicLinkDto = S['PublicLinkDto'];
+export type UpsertPublicLinkDto = S['UpsertPublicLinkDto'];
+export type PublicNoteDto = S['PublicNoteDto'];
+
 export type UserNotificationDto = S['UserNotificationDto'];
 export type ShareResponseDto = S['ShareResponseDto'];
 

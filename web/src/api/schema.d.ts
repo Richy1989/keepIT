@@ -555,6 +555,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notes/{noteId}/public-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PublicLinkDto"];
+                        "application/json": components["schemas"]["PublicLinkDto"];
+                        "text/json": components["schemas"]["PublicLinkDto"];
+                    };
+                };
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpsertPublicLinkDto"];
+                    "text/json": components["schemas"]["UpsertPublicLinkDto"];
+                    "application/*+json": components["schemas"]["UpsertPublicLinkDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PublicLinkDto"];
+                        "application/json": components["schemas"]["PublicLinkDto"];
+                        "text/json": components["schemas"]["PublicLinkDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noteId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notes": {
         parameters: {
             query?: never;
@@ -1032,6 +1126,173 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/api/public/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OpenPublicNoteDto"];
+                    "text/json": components["schemas"]["OpenPublicNoteDto"];
+                    "application/*+json": components["schemas"]["OpenPublicNoteDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PublicNoteDto"];
+                        "application/json": components["schemas"]["PublicNoteDto"];
+                        "text/json": components["schemas"]["PublicNoteDto"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/media/{mediaId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    size?: string;
+                };
+                header?: never;
+                path: {
+                    mediaId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateNoteDto"];
+                    "text/json": components["schemas"]["UpdateNoteDto"];
+                    "application/*+json": components["schemas"]["UpdateNoteDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["PublicNoteDto"];
+                        "application/json": components["schemas"]["PublicNoteDto"];
+                        "text/json": components["schemas"]["PublicNoteDto"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/meta": {
@@ -1927,6 +2188,7 @@ export interface components {
             role: null | components["schemas"]["NoteRole"];
             canEdit: boolean;
             isShared: boolean;
+            isPublic: boolean;
             checklistItems: components["schemas"]["ChecklistItemDto"][];
             media: components["schemas"]["NoteMediaDto"][];
             listIds: string[];
@@ -1973,6 +2235,44 @@ export interface components {
         NoteType: "Text" | "Checklist" | "Image";
         /** @enum {unknown} */
         NotificationType: "System" | "ShareInvite" | "Reminder";
+        OpenPublicNoteDto: {
+            token: string;
+            password?: null | string;
+        };
+        ProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number;
+            detail?: null | string;
+            instance?: null | string;
+        };
+        PublicLinkDto: {
+            token: string;
+            url?: null | string;
+            hasPassword: boolean;
+            allowEdit: boolean;
+            /** Format: date-time */
+            expiresAtUtc?: null | string;
+            isExpired: boolean;
+            /** Format: date-time */
+            createdAtUtc: string;
+        };
+        PublicNoteDto: {
+            type: components["schemas"]["NoteType"];
+            title?: null | string;
+            body?: null | string;
+            color?: null | string;
+            background?: null | string;
+            /** Format: date-time */
+            updatedAtUtc: string;
+            checklistItems: components["schemas"]["ChecklistItemDto"][];
+            media: components["schemas"]["NoteMediaDto"][];
+            canEdit: boolean;
+            viewTicket: string;
+            /** Format: date-time */
+            ticketExpiresAtUtc: string;
+        };
         RegisterRequestDto: {
             email: string;
             password: string;
@@ -2048,6 +2348,14 @@ export interface components {
         };
         UpdateShareRoleDto: {
             role: components["schemas"]["NoteRole"];
+        };
+        UpsertPublicLinkDto: {
+            password?: null | string;
+            clearPassword: boolean;
+            /** Format: date-time */
+            expiresAtUtc?: null | string;
+            allowEdit: boolean;
+            regenerate: boolean;
         };
         UserDto: {
             /** Format: uuid */
