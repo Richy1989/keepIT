@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,8 +54,9 @@ import org.hyperstarit.keepitapp.ui.theme.KeepItColors
 /**
  * Share management for a note, the phone twin of the web ShareDialog: the owner invites people by
  * email at a role (access is granted when they accept), sees pending invites, changes roles, and
- * revokes; a collaborator sees who's on the note and can leave it. Online-only, like the web —
- * failures surface inline and nothing is queued.
+ * revokes; a collaborator sees who's on the note and can leave it. Below that, for the owner, the
+ * note's public link ([PublicLinkSection]). Online-only, like the web — failures surface inline and
+ * nothing is queued.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +71,7 @@ fun ShareSheet(
     val api = container.apiClient.api
     val sessionState by container.session.state.collectAsState()
     val myId = (sessionState as? SessionState.SignedIn)?.user?.id
+    val serverVersion by container.serverFeatures.version.collectAsState()
 
     var shares by remember { mutableStateOf<List<NoteShareDto>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -103,7 +107,12 @@ fun ShareSheet(
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = KeepItColors.Surface) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+        ) {
             Text(
                 text = "Share note",
                 color = KeepItColors.Text,
@@ -208,6 +217,11 @@ fun ShareSheet(
                         },
                     )
                 }
+            }
+
+            if (note.isOwner) {
+                HorizontalDivider(color = KeepItColors.BorderSubtle, modifier = Modifier.padding(top = 8.dp))
+                PublicLinkSection(container = container, note = note, serverVersion = serverVersion)
             }
         }
     }

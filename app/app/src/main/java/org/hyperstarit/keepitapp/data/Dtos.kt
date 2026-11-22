@@ -246,6 +246,11 @@ data class NoteDto(
     val role: String? = null,
     val canEdit: Boolean = true,
     val isShared: Boolean = false,
+    /**
+     * True when the caller owns the note and it is published with a public link that hasn't expired
+     * ([PublicLinkDto]). False for a collaborator, from a server older than 1.6, and in an archive.
+     */
+    val isPublic: Boolean = false,
     val checklistItems: List<ChecklistItemDto> = emptyList(),
     /** Image attachments, ordered. Empty when the note has none. */
     val media: List<NoteMediaDto> = emptyList(),
@@ -449,6 +454,44 @@ data class CreateShareDto(val email: String, val role: String = NoteRoles.VIEWER
 /** Changes an existing collaborator's role. */
 @Serializable
 data class UpdateShareRoleDto(val role: String)
+
+/**
+ * A note's public link as its owner sees it, mirroring `PublicLinkDto` in the C# API (the source of
+ * truth). The link is `{server}/p#{token}`: the token sits in the fragment, which a browser never
+ * sends to a server, so it never reaches a log. [url] is the whole link when the server knows its
+ * public address, else null and the app builds it ([publicLinkUrl]).
+ */
+@Serializable
+data class PublicLinkDto(
+    val token: String = "",
+    val url: String? = null,
+    val hasPassword: Boolean = false,
+    val allowEdit: Boolean = false,
+    val expiresAtUtc: String? = null,
+    val isExpired: Boolean = false,
+    val createdAtUtc: String = "",
+)
+
+/**
+ * Publishes a note or changes how, mirroring `UpsertPublicLinkDto` in the C# API. Every setting is
+ * sent each time except the password: [password] sets a new one, [clearPassword] removes it, and
+ * neither keeps the one there is.
+ */
+@Serializable
+data class UpsertPublicLinkDto(
+    val password: String? = null,
+    val clearPassword: Boolean = false,
+    val expiresAtUtc: String? = null,
+    val allowEdit: Boolean = false,
+    val regenerate: Boolean = false,
+)
+
+/**
+ * The link to hand out for [link]: the server's own when it has one (built on its configured public
+ * address), else [serverUrl] — the address this app signs in at — with `/p#{token}`.
+ */
+fun publicLinkUrl(serverUrl: String, link: PublicLinkDto): String =
+    link.url ?: "${serverUrl.trimEnd('/')}/p#${link.token}"
 
 /** The recipient's answer to a share invite: accept (gain access) or decline. */
 @Serializable

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -368,6 +369,16 @@ fun NoteCard(
                                             modifier = Modifier.padding(start = 2.dp, end = 6.dp),
                                         )
                                     }
+                                }
+
+                                // Published to the web (owner only): anyone with the link can open it.
+                                if (note.isPublic) {
+                                    Icon(
+                                        Icons.Outlined.Public,
+                                        contentDescription = "Published to the web",
+                                        tint = if (photo) card.photoText else KeepItColors.TextFaint,
+                                        modifier = Modifier.padding(end = 4.dp).size(14.dp),
+                                    )
                                 }
 
                                 // The people on it; from a server older than that field, the old label.

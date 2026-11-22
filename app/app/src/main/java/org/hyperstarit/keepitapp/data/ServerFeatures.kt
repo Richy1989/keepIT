@@ -102,6 +102,12 @@ class ServerFeatures(context: Context, private val client: ApiClient) {
          * undo them all the same, and its rows would lose their ids (see `EditorScreen`).
          */
         val CHECKLIST_MERGE = Triple(1, 5, 0)
+
+        /**
+         * The first release that publishes a note with a public link ([PublicLinkDto]). An older
+         * server has no such endpoint, so the share sheet doesn't offer it and says why.
+         */
+        val PUBLIC_LINKS = Triple(1, 6, 0)
     }
 }
 

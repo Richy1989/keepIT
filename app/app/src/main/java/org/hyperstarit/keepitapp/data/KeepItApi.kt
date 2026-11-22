@@ -3,6 +3,7 @@ package org.hyperstarit.keepitapp.data
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -188,6 +189,20 @@ interface KeepItApi {
     /** Revokes a share or cancels a pending invite; a collaborator revokes themselves to leave. */
     @DELETE("api/notes/{id}/shares/{granteeId}")
     suspend fun revokeShare(@Path("id") noteId: String, @Path("granteeId") granteeId: String)
+
+    // ---- public links (server 1.6+, see ServerFeatures.PUBLIC_LINKS) ----
+
+    /** The note's public link (owner-only); 204 with no body when the note isn't published. */
+    @GET("api/notes/{id}/public-link")
+    suspend fun publicLink(@Path("id") noteId: String): Response<PublicLinkDto>
+
+    /** Publishes the note, or changes how it is published (owner-only). */
+    @PUT("api/notes/{id}/public-link")
+    suspend fun upsertPublicLink(@Path("id") noteId: String, @Body body: UpsertPublicLinkDto): PublicLinkDto
+
+    /** Takes the note off the internet (owner-only). */
+    @DELETE("api/notes/{id}/public-link")
+    suspend fun deletePublicLink(@Path("id") noteId: String)
 
     // ---- lists ----
 
