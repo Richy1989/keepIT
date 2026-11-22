@@ -3,6 +3,23 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## Unreleased
+
+### ✨ New Features
+
+- Public links — publish a single note to the internet, so people without an account can open it.
+  Give the link a password and an expiry date if you like, and choose whether visitors may only
+  read the note or also edit its title, text and checklist. You can copy the link, replace it or
+  stop sharing it at any time, and it stops working while the note is in your trash. Web and
+  Android (from "Share note").
+
+### 📦 Deployment & Docs
+
+- Update the server along with the app: public links need server 1.6. The Android app hides them
+  on an older server and says so. The update adds one database table and changes nothing else.
+- Set `App__PublicBaseUrl` to the address people open keepIT at, so public links point there.
+  Without it, each device builds the link from the address it uses.
+
 ## 1.5.3
 
 ### 🔧 Improvements

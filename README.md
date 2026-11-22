@@ -55,6 +55,7 @@ also works entirely on its own, with no server at all.
 - 🎙️ Record **voice notes** on Android, even offline. Listen on your phone or the web.
 - 🗂️ **Lists, pins and search** keep notes easy to find. Set one-time or recurring reminders.
 - 👥 **Live sharing** lets others view or edit a note. Changes sync across web and Android.
+- 🌐 **Public links** publish a note for people without an account, with an optional password and expiry date.
 - 📱 **Offline Android app** works standalone or syncs when you reconnect. Add notes from the home-screen widget.
 - 🔒 **Your data** stays on your server or phone. Export and restore it as a ZIP.
 
@@ -220,7 +221,7 @@ docker run -d --name keepit -p 8080:80 -v keepit-data:/data \
 | `App__DataRoot` | no | `./App_Data` | Directory for the database, security keys, and media. |
 | `App__ForwardedProxyHops` | no | `1` | Trusted reverse-proxy hops in front of the app: `1` for the plain setups above, `2` if you put another proxy (e.g. Traefik) in front. |
 | `App__Media__MaxImagePixels` | no | `100000000` | Largest image a note can take, in pixels (100 megapixels, above any phone photo that fits in 10 MB). Checked before the image is decoded, since a small file can claim a huge size and decoding costs memory by pixel. Lower it on a server with little memory. |
-| `App__PublicBaseUrl` | with SMTP | *(none)* | The address users open keepIT at (e.g. `https://notes.example.com`). Emailed password-reset links point here, and while it's unset no reset email is sent, since a link built from the incoming request could point anywhere. Optional without SMTP: the link written to the server log then uses the address you opened keepIT at. |
+| `App__PublicBaseUrl` | with SMTP | *(none)* | The address users open keepIT at (e.g. `https://notes.example.com`). Emailed password-reset links point here, and while it's unset no reset email is sent, since a link built from the incoming request could point anywhere. Optional without SMTP: the link written to the server log then uses the address you opened keepIT at. Public note links are built on it too; without it, each device uses the address it opened keepIT at. |
 | `App__WelcomeNote` | no | `true` | Whether a new account starts with a welcome note: a hello, a few things to try, and where to ask for help. Set `false` and new accounts start empty. Accounts that already exist are not affected. |
 | `Email__SmtpHost` | no | *(none)* | SMTP server for outgoing email (password-reset links). Needs `App__PublicBaseUrl` too. Leave empty to run without email; reset links then land in the server log. |
 | `Email__From` | with SMTP | *(none)* | From address, e.g. `keepIT <no-reply@example.com>`. Required once `Email__SmtpHost` is set. |

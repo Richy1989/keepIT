@@ -460,7 +460,9 @@ in the API itself (`Infrastructure/Security/`) and in the nginx config:
   everything it loads, even same-origin. CI sends both kinds of token through the built image and
   fails if either reaches its log. A new credential must never go in a URL; if one has to, it
   must stay out of every log format, and that CI step sends it too. An operator's own proxy in
-  front logs URLs too, which the README points out.
+  front logs URLs too, which the README points out. A public link's token is a credential that
+  has to be shared by URL, so it travels in the **fragment** (`/p#token`), which never leaves the
+  browser: no log, ours or a proxy's, ever sees it (see **Public links**).
 - **The API never runs as root.** In both shapes it runs as uid 1654 and owns `/data`; only a
   start-up step hands `/data` over, without following symlinks, and nginx's master binds `:80`.
   In the single container the API also listens on loopback only. See **Deployment**.
@@ -634,6 +636,61 @@ Recording a pending invite keyed by email and resolving it on signup is a planne
 - **Deleting a shared note:** owner-only; cascades shares, per-user state, list rows, and
   reminders, and notifies the whole recipient set so it vanishes everywhere at once. (The
   recipient set is captured *before* the delete.)
+
+### Public links
+
+**Status: implemented** (server 1.6) on web, API and Android. A note's owner can publish it to the
+internet: anyone holding the link opens it **without an account**, read-only or (when the owner
+allows it) able to change the title, the text and the checklist. A link may need a password and
+may expire. It is the one way a note reaches someone with no account, so the rules are strict.
+
+- **One link per note, owner-only.** `NotePublicLink` (noteId unique) is made, changed and taken
+  down through `NotePublicLinksController` (`GET`/`PUT`/`DELETE api/notes/{id}/public-link`), which
+  requires `NoteAccess.IsOwner`: an Editor can't widen who sees someone else's note (403; anyone
+  without access gets 404). The owner sees `NoteDto.isPublic` on the card (a globe); nobody else
+  does, and an export never carries it or the link.
+- **The token lives in the URL fragment: `{origin}/p#{token}`.** A browser never sends a fragment
+  to a server or puts it in a referer, so the token never reaches nginx's log, the API's, or an
+  operator's own proxy, and the "no credential in a URL that gets logged" rule holds without a new
+  log exception. It also means a chat app's link preview shows nothing of the note. The page
+  (`web/src/pages/PublicNotePage.tsx`, rendered before the session splash, outside the auth gate)
+  reads the fragment and posts the token in a request body.
+- **What is stored.** The token is 32 random bytes; the database holds its SHA-256 (what an open
+  looks up, as for refresh tokens) and a Data Protection encryption of it, so the owner can copy
+  the link again. A database dump alone opens nothing; if the Data Protection keys are lost the
+  link still opens but can't be shown, and the owner makes a new one. A password is hashed with
+  Identity's PBKDF2 hasher. The link is built on `App:PublicBaseUrl` when it is set (the owner gets
+  it as `PublicLinkDto.url`), never on the request; without it each client uses its own address.
+- **Opening.** `POST api/public/open {token, password}` (anonymous, rate-limited per IP by the
+  `public-link` policy, 20/min, which bounds password guessing) answers `PublicNoteDto`: the
+  content only — title, body, checklist, colour, background, attachments — and nothing about
+  anyone (no owner, no collaborators, no reminders, no lists). A missing or wrong password is 401;
+  an unknown token, an expired link, a revoked one and a note in its **owner's** trash are all the
+  same 404 (restoring the note brings the link back). Responses are `Cache-Control: private,
+  no-store` and `X-Robots-Tag: noindex`.
+- **The view ticket.** Opening also returns a ticket (Data Protection, time-limited to an hour and
+  never past the link's own expiry) naming the link and its `Revision`. Attachments
+  (`GET api/public/media/{id}`) and edits (`PUT api/public/note`) carry it in `X-View-Ticket`,
+  so neither the token nor the password travels again and no cookie is involved. Every change to
+  the link bumps `Revision`, so a new password, editing turned off or a new token ends every view
+  already open at once. The page re-opens the link every 30 s and on focus, which keeps its ticket
+  fresh and shows the owner's changes; web clients fetch media as blobs, as the signed-in app does.
+- **Editing through a link** is opt-in per link (`AllowEdit`). The visitor may set only
+  `Title`, `Body` and `ChecklistItems`, and must name them in `UpdateNoteDto.Fields` (an update
+  without fields sets everything): colour, background, type, attachments, trash and the link
+  itself stay the owner's. The edit goes through `NoteContentWriter`, the same write path
+  `NotesController.Update` uses, so it gets the same `NoteLimits`, checklist merge and retry, and
+  it pushes `notes` to the whole recipient set, so the owner and collaborators see it live. It is
+  rate-limited per IP (`public-link-edit`, 60/min). The page saves as the visitor types
+  (optimistic, rolled back on refusal), gives new checklist rows client ids so a save comes back
+  as the same rows, and stops re-opening while it has something unsaved. The owner's dialog warns
+  when editing is on without a password. Uploads stay closed: a public link must never let a
+  stranger fill the owner's disk.
+- **Clients.** Web: `ShareDialog` → `PublicLinkSection` (owner only). Android: `ShareSheet` →
+  `PublicLinkSection`, hidden on a server older than 1.6 (`ServerFeatures.PUBLIC_LINKS`, which
+  says the server needs updating) and absent in standalone mode, where the share sheet isn't
+  offered. Online-only on both: nothing is queued, like the rest of sharing. Visitors use the web
+  page; the Android app hands the link to the OS share sheet.
 
 ## Notifications
 
@@ -1257,6 +1314,9 @@ everything else is scoped to):
 - `UserNotification` (abstract, TPH on `NotificationType`) → `SystemNotification`,
   `ShareInviteNotification` (note id + snapshot title, sharer id + snapshot email, offered
   role), `ReminderNotification` (note id + snapshot title). See **Notifications**.
+- `NotePublicLink` — noteId (unique; cascades with the note), tokenHash (unique), tokenProtected,
+  passwordHash?, expiresAtUtc?, allowEdit, revision, createdBy/at. Deliberately not a navigation
+  on `Note`, so nothing that loads notes changed. See **Sharing / collaboration → Public links**.
 - `UserSettings` — one row per user (lazy-created): theme (`light|dim|dark|system`), accent
   key. Values validated against server-side allow-lists that mirror the frontend sets.
 
