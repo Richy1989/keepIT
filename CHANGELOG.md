@@ -3,7 +3,7 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
-## Unreleased
+## 1.6.1
 
 ### ✨ New Features
 
@@ -13,12 +13,18 @@ app. Earlier versions are on the [releases page](https://github.com/Richy1989/ke
   stop sharing it at any time, and it stops working while the note is in your trash. Web and
   Android (from "Share note").
 
+### 🔧 Improvements
+
+- Look for the new forest-green KEEP IT sign on your Android home screen and in the web app.
+
 ### 📦 Deployment & Docs
 
 - Update the server along with the app: public links need server 1.6. The Android app hides them
   on an older server and says so. The update adds one database table and changes nothing else.
 - Set `App__PublicBaseUrl` to the address people open keepIT at, so public links point there.
   Without it, each device builds the link from the address it uses.
+- If your reverse proxy requires sign-in, allow visitors to reach `/p` and `/api/public/`
+  to open shared links. See the [reverse proxy notes](README.md#quick-start).
 
 ## 1.5.3
 

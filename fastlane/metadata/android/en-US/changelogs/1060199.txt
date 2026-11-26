@@ -1,0 +1,1 @@
+Open “Share note” to publish a link that anyone can open in a browser. Choose whether visitors can read or edit the note, add a password or expiry date, and turn the link off at any time. Public links need keepIT server 1.6 or newer. Look for the new forest-green KEEP IT icon on your home screen.
