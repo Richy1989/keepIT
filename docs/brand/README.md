@@ -4,7 +4,7 @@
 
 Edit [counter-sign.svg](../icon/counter-sign.svg) to change the Forest artwork. The 1024 px PNG in `docs/icon` supplies the store banner and promo artwork.
 
-From the repository root, regenerate the PNGs, Android launcher layers, and lossless WebPs with Python 3, librsvg (`rsvg-convert`), and ImageMagick 7.
+From the repository root, refresh the web SVG and regenerate the PNGs, Android launcher layers, and lossless WebPs with Python 3, librsvg (`rsvg-convert`), and ImageMagick 7.
 
 ```sh
 python3 docs/brand/render_icons.py

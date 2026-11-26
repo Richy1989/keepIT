@@ -1,6 +1,7 @@
 """Regenerate keepIT icon exports with librsvg and ImageMagick 7."""
 from copy import deepcopy
 from pathlib import Path
+from shutil import copyfile
 import subprocess
 import xml.etree.ElementTree as ET
 
@@ -25,7 +26,9 @@ def export(svg, path, size):
 
 
 def main():
-    tile = ET.parse(ICON / "counter-sign.svg").getroot()
+    artwork = ICON / "counter-sign.svg"
+    tile = ET.parse(artwork).getroot()
+    copyfile(artwork, ROOT / "web/public/keepit-icon.svg")
     square = deepcopy(tile)
     background = square.find(f"{{{NS}}}rect")
     background.attrib.pop("rx")
