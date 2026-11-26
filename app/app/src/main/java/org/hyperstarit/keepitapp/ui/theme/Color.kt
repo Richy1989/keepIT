@@ -238,7 +238,7 @@ class KeepItPalette(
             textFaint = Color(0xFF6B6B75),
             accent = Forest,
             accentStrong = ForestStrong,
-            // The app icon's own green: too deep for a fill (black on it is 3.4:1), 6.1:1 on white.
+            // Forest accent ink: too deep for a fill (black on it is 3.4:1), 6.1:1 on white.
             accentInk = Color(0xFF1F6F4A),
             // The web's light `--color-danger`: the dark themes' red is 2.8:1 on white.
             error = Color(0xFF9F1239),

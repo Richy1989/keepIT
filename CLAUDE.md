@@ -221,7 +221,7 @@ keepIT/
 │     └─ MainActivity.kt    # single-activity host; intents → Destination
 ├─ backgrounds/             # note background images, shipped by the web and Android apps (README has the rules)
 ├─ deploy/                  # Unraid template (keepit.unraid.xml)
-├─ docs/brand/              # app icon source: keepit-icon.blend + render_icons.py (writes every icon file)
+├─ docs/icon/               # Forest Counter sign SVG and 1024 px PNG
 ├─ docker-compose.yml
 └─ ARCHITECTURE.md
 ```

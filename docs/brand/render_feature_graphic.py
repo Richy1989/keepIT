@@ -5,7 +5,7 @@ Renders feature-graphic.html to the F-Droid feature graphic, 1024x500.
 
 Needs Python with Playwright (and its Chromium: ``playwright install chromium``) and Pillow, plus
 ``npm ci`` in web/ for the Inter font. Run render_icons.py first if the icon changed: the graphic
-embeds docs/brand/keepit-icon-1024.png.
+embeds docs/icon/counter-sign-1024.png.
 
 The page is loaded with its font and icon inlined as data: URLs rather than from disk, because
 Chromium refuses a file:// page's cross-file font loads. The result is saved without alpha, as the
@@ -25,7 +25,7 @@ REPO = HERE.parents[1]
 OUT = REPO / "fastlane/metadata/android/en-US/images/featureGraphic.png"
 
 FONT = "../../web/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"
-ICON = "keepit-icon-1024.png"
+ICON = "../icon/counter-sign-1024.png"
 
 
 def data_url(path, mime):

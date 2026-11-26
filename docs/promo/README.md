@@ -106,7 +106,7 @@ After a new render, upload the new file, replace the copy in `docs/video/`, and 
 | `src/Callout.tsx` | The close-up of the shared note's faces. |
 | `src/Background.tsx`, `Brand.tsx`, `Badges.tsx` | The backdrop, the logo, and the store badges. |
 | `src/music.ts`, `Music.tsx` | The music: where it starts, and how it fades out. |
-| `public/` | The store badges. The footage (`tour.mp4`) and the music land here too, and stay out of git. The icon comes from `docs/brand`. |
+| `public/` | The store badges. The footage (`tour.mp4`) and the music land here too, and stay out of git. The icon comes from `docs/icon`. |
 
 The badges are the stores' own, unaltered, as the README shows them. The Google Play one says
 "Get it on Google Play": publish the video only once keepIT is public there.

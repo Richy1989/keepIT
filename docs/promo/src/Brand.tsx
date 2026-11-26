@@ -1,6 +1,5 @@
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-// The app icon as docs/brand renders it, so the video never shows an outdated copy.
-import icon from '../../brand/keepit-icon-1024.png';
+import icon from '../../icon/counter-sign-1024.png';
 import { useLayout } from './layout';
 import { beats, OUTRO_START } from './timeline';
 import { fontFamily, theme } from './theme';

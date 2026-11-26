@@ -402,9 +402,8 @@ bash scripts/seed-dev-data.sh        # PowerShell twin: ./scripts/seed-dev-data.
 
 ### The app icon
 
-The app icon is a Blender model: **[`docs/brand/`](docs/brand/README.md)** holds the `.blend` and
-a script that renders every icon file from it, for Android, the web, F-Droid and this README, so
-changing the icon means editing one file and running one command.
+The Forest Counter sign is drawn in SVG. Its [source and export instructions](docs/brand/README.md#app-icon)
+cover the Android launcher, web app, store listings, and README logo.
 
 ### Publishing a beta
 

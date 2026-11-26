@@ -132,14 +132,6 @@ export const LightbulbIcon = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
-/** The keepIT K as a line glyph: the app icon's stem and chevron (docs/brand/keepit-icon.blend). */
-export const KeepItIcon = (p: SVGProps<SVGSVGElement>) => (
-  <Icon {...p}>
-    <path d="M6 4v16" />
-    <path d="M17.3 4 8.3 12.4 18 20" />
-  </Icon>
-);
-
 export const KeyIcon = (p: SVGProps<SVGSVGElement>) => (
   <Icon {...p}>
     <circle cx="7.5" cy="15.5" r="5.5" />

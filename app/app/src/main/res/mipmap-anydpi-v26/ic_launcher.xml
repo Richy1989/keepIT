@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  The two-tone K. Foreground and background are rendered from docs/brand/keepit-icon.blend by
-  docs/brand/render_icons.py; the monochrome layer (Android 13+ themed icons) is the flat drawing
-  of the same K, since a shaded render has no single-colour silhouette.
--->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background"/>
     <foreground android:drawable="@mipmap/ic_launcher_foreground"/>

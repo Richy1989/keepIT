@@ -18,9 +18,9 @@ import {
   LogoutIcon,
   MailIcon,
   ShieldIcon,
-  KeepItIcon,
   UserIcon,
 } from '../components/icons';
+import { BrandMark } from '../components/BrandMark';
 import { cn } from '../lib/cn';
 
 type SectionKey = 'general' | 'security' | 'email' | 'data' | 'about';
@@ -56,9 +56,7 @@ export function SettingsPage() {
             <ChevronLeftIcon className="text-lg" />
           </Link>
           <div className="flex items-center gap-2">
-            <span className="grid size-7 place-items-center rounded-lg bg-accent/15 text-accent-ink">
-              <KeepItIcon className="text-base" />
-            </span>
+            <BrandMark className="size-7" />
             <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           </div>
         </div>

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">keepIT — Counter sign in Forest</title>
+  <rect width="96" height="96" rx="21" fill="#52806A"/>
+  <g transform="translate(13.5 31) skewY(-11)">
+    <g id="sign-depth" fill="#282820">
+      <!-- Lower signboard and the solid depth behind KEEP. -->
+      <path d="M0 27H66L69 30V47H3L0 44Z"/>
+      <path d="M0 0H5.5L8.5 3V5L11.5 0H17.5L20.5 3L13.2 15.9L20.8 30H14.3L8.5 19.5V30H3L0 27Z"/>
+      <path d="M20 0H33L36 3V8.5H28.5V10.5H32L35 13.5V19H28.5V21.5H33L36 24.5V30H23L20 27Z"/>
+      <path d="M36 0H49L52 3V8.5H44.5V10.5H48L51 13.5V19H44.5V21.5H49L52 24.5V30H39L36 27Z"/>
+      <path d="M52 0H63L69 6V16L65 20H60.5V30H55L52 27Z"/>
+    </g>
+    <g fill="#FFF0D7">
+      <path d="M0 0H5.5V10.5L11.5 0H17.5L10.2 12.9L17.8 27H11.3L5.5 16.5V27H0Z"/>
+      <path d="M20 0H33V5.5H25.5V10.5H32V16H25.5V21.5H33V27H20Z"/>
+      <path d="M36 0H49V5.5H41.5V10.5H48V16H41.5V21.5H49V27H36Z"/>
+      <path fill-rule="evenodd" d="M52 0H63L66 3V13L62 17H57.5V27H52ZM57.5 5V12H60.5L61.5 11V6L60.5 5Z"/>
+    </g>
+    <path fill="#EFBB60" d="M22 32.5H31.5V35.5H28.75V41H31.5V44H22V41H24.75V35.5H22ZM34.5 32.5H47V35.5H42.75V44H38.75V35.5H34.5Z"/>
+  </g>
+</svg>
