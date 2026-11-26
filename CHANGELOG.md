@@ -3,6 +3,12 @@
 What changed in each keepIT release, for people running the server and for users of the Android
 app. Earlier versions are on the [releases page](https://github.com/Richy1989/keepIT/releases).
 
+## 1.6.2
+
+### 🔧 Improvements
+
+- The forest-green KEEP IT icon stays sharp at any size in the web app and browser tab.
+
 ## 1.6.1
 
 ### ✨ New Features
