@@ -1,5 +1,5 @@
 [versions]
-agp = "9.5.1"
+agp = "9.5.2"
 # 1.19+ requires compileSdk 37; this machine has platform 36.1 — bump both together later.
 coreKtx = "1.19.1"
 junit = "4.13.2"
@@ -8,7 +8,7 @@ espressoCore = "3.7.0"
 lifecycleRuntimeKtx = "2.10.0"
 activityCompose = "1.13.0"
 kotlin = "2.4.21"
-composeBom = "2026.09.00"
+composeBom = "2026.11.01"
 retrofit = "3.0.0"
 okhttp = "5.5.1"
 kotlinxSerializationJson = "1.13.0"
