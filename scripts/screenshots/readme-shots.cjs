@@ -27,12 +27,17 @@ const css = `
     background: radial-gradient(circle, #567e592b .8px, transparent .9px) 0 0 / 12px 12px,
       linear-gradient(112deg, #f2f0dc, #e2efdf 55%, #c6dfc7);
   }
-  header { position: absolute; display: flex; align-items: center; gap: 10px; left: 28px; right: 28px; top: 16px }
-  header img { width: 39px; height: 39px }
-  header b { font-size: 31px; letter-spacing: -1.7px }
-  header i { margin-left: auto; font: italic 24px Georgia, serif }
-  .web { display: block; width: 100%; border-radius: 10px; box-shadow: 0 0 0 1px #17362633, 0 9px 25px #19351f30 }
-  .hero .web { position: absolute; top: 69px; left: 28px; width: calc(100% - 56px) }
+  .hero { background: linear-gradient(165deg,#f1e6bc 0 19%,#d2d9a4 19% 35%,#8fae83 35% 61%,#527861 61%); }
+  .web { display: block; width: 100% }
+  .browser { position:absolute; left:32px; top:26px; width:805px; border-radius:10px; overflow:hidden;
+    box-shadow:0 12px 32px #12342455; background:#233c31; }
+  .bar { height:24px; display:flex; align-items:center; justify-content:center; gap:5px; color:#f4f0df;
+    font:10px system-ui; background:radial-gradient(circle at 12px 12px,#a6bba8 2px,transparent 3px),
+    radial-gradient(circle at 21px 12px,#a6bba8 2px,transparent 3px),radial-gradient(circle at 30px 12px,#a6bba8 2px,transparent 3px); }
+  .bar img {width:14px;height:14px}
+  .hero .phone {position:absolute;--device:201px;right:29px;top:57px;transform:rotate(2deg)}
+  .compact .browser {left:12px;top:16px;width:490px}
+  .compact .phone {--device:146px;right:12px;top:42px}
   .pair { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; border-radius: 0 }
   .panel { position: relative; overflow: hidden; border-radius: 16px }
   .night { background: radial-gradient(ellipse at 10% 110%, #47634f, transparent 75%), #1b2d25; color: #f3f3de }
@@ -61,9 +66,11 @@ const css = `
 const gallery = (items) => items.map(([number, label]) =>
   `<div>${phone(number)}<strong>${label}</strong></div>`).join('');
 
+const cover = `<div class="browser"><div class="bar"><img src="${url('web/public/keepit-icon.svg')}">keepIT</div>${web('light')}</div>${phone(1)}`;
+
 const scenes = [
-  ['light', 960, 448, 'hero paper',
-    `<header><img src="${url('docs/logo.png')}"><b>keepIT</b><i>Self-hosted notes</i></header>${web('light')}`],
+  ['light', 1000, 558, 'hero', cover],
+  ['cover-compact', 390, 388, 'hero compact', cover],
   ['dark-and-android', 960, 411, 'pair',
     `<section class="panel night"><h2>Dark mode</h2>${web('dark')}</section>
      <section class="panel mobile paper"><h2>On Android</h2>${phone(1)}</section>`],

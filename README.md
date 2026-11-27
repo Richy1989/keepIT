@@ -1,20 +1,20 @@
-<p align="center">
-  <img src="docs/logo.png" alt="keepIT logo" width="96" height="96">
-</p>
-
-<p align="center">
-  <a href="images/web-notes-light.png"><img src="images/readme/light.webp" alt="keepIT in light mode, with a travel photo, a grocery checklist, a book club reminder and a shared trip list pinned to the notes board" width="100%"></a>
-</p>
-
-<p align="center">
-  <img src="images/readme/dark-and-android.webp" alt="The same pinned notes in dark mode on the web and on a framed Android phone, side by side" width="100%">
-</p>
+<p align="center"><img src="web/public/keepit-icon.svg" width="72" height="72" alt=""></p>
 
 <div align="center">
 
 # keepIT
 
-**A modern, real-time notes app you can run yourself.**
+**Self-hosted notes and checklists for the web and Android.**
+
+[Run the server](#quick-start) · [Get the Android app](#get-it) · [Use Android offline](#no-server-use-it-standalone)
+
+<picture>
+  <source media="(max-width: 600px)" srcset="images/readme/cover-compact.webp">
+  <img src="images/readme/light.webp" alt="The same pinned notes on two screens. The browser shows the light notes board, and the Android phone shows the board in dark mode." width="100%">
+</picture>
+
+<sub>Full size · <a href="images/web-notes-light.png">Web board</a> · <a href="images/screenshot_phone.png">Android board</a></sub>
+
 
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/richy1989/keepit)
 [![Android](https://img.shields.io/badge/Android-app-3DDC84?logo=android&logoColor=white)](#the-android-app)
@@ -30,9 +30,6 @@ subscription, and nobody else holding your notes. Just want notes on your phone?
 also works entirely on its own, with no server at all.
 
 <div align="center">
-
-**[Run the server](#quick-start)** · **[Get the Android app](#get-it)** ·
-**[Use the app without a server](#no-server-use-it-standalone)** · **[FAQ](FAQ.md)**
 
 [<img src="docs/bymeacoffee.png" alt="Buy Me A Coffee" height="60">](https://buymeacoffee.com/spaceelephant)
 
